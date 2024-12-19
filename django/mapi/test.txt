@@ -1,0 +1,13 @@
+{'label':'首页	     '  ,'HomeFilled		1		1	/home	home	0	
+{'label':'系统管理	 '  ,'Setting		0		2		Settings	0	
+{'label':'用户列表	 '  ,'User		        1	2	3	/user	user	0	
+{'label':'角色管理	 '  ,'Avatar	        	1	2	4	/role	role	0	
+{'label':'菜单管理	 '  ,'Menu		        1	2	5	/menu	menu	0	
+{'label':'其它	     '  ,'Tools		        0		6	other111	other	0	
+{'label':'门户配置	 '  ,'Platform	        	1	2	0	portal	portal	1	test
+{'label':'日志检索	'   ,'Search	        	1	18	0	loki	loki	0	
+{'label':'日志应用	'   ,'Reading	        	0		0		log	0	
+{'label':'数据源配置'   ,'List		        1	2	0	datasource	datasource	0	
+{'label':'流程日志'	    ,'Connection		1	18	1	logAnalysis	logAnalysis	0	
+{'label':'环节配置'	    ,'Guide	            配置日志环节日志	1	18	3	logModule	logModule	0	
+{'label':'分析记录'	    ,'ScaleToOriginal		1	18	2	logFlowMission	logFlowMission	1	logFlowInfo

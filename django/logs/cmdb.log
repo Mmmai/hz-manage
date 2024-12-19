@@ -1,0 +1,2 @@
+[2024-11-13 17:38:32,886] DEBUG basic 接收到 GET 请求：/api/v1/cmdb/model-groups/
+[2024-11-13 22:27:49,694] INFO django.utils.autoreload Watching for file changes with StatReloader

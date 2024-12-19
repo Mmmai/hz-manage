@@ -1,0 +1,7 @@
+
+.idea
+**/__pycache__
+**/migrations
+**/__init__.py
+mapi-bak
+venv
