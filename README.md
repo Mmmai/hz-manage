@@ -6,9 +6,11 @@ mongodb:8
 
 python-3.7.9
 
-修改django/vuedjango/settings.py中的database访问地址
+根据django/vuedjango/settings.py中的database访问信息创建数据库。
 
-安装后端依赖
+# 后端部署
+
+依赖安装
 
 pip install -r requirements.txt
 
@@ -16,9 +18,18 @@ pip install -r requirements.txt
 
 cd django 
 
-python manager.py makemigrations all
+python manager.py makemigrations mapi mlog cmdb
 
-前端部署
-切换到hz-ui
-cnpm insatll
+python manager.py migrate mapi
+
+python manager.py migrate mlog
+
+python manager.py migrate cmdb
+
+python manager.py runserver
+
+# 前端部署
+
+npm install 
+
 npm run dev
