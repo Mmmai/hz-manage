@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 from django.db.models.signals import post_migrate
-from .config import INIT_MENU
+from .init_data import INIT_MENU
 
 # 初始化数据
 def init_script(sender, **kwargs):
