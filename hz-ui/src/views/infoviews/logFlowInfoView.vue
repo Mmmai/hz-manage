@@ -307,7 +307,7 @@
   </el-backtop>
   <nearLogCom
     v-model:isShow="isShowNearLog"
-    v-model:higlightKey="matchKey"
+    v-model:highlightKey="matchKey"
     v-model:url="dataSourceUrl"
     ref="childRef"
   />
@@ -325,7 +325,7 @@ import {
 const { proxy } = getCurrentInstance();
 import { ElMessageBox, ElMessage, ElLoading } from "element-plus";
 // 引入上下文组件
-import nearLogCom from "@/components/logs/nearLogCom.vue";
+import nearLogCom from "@/components/loki/nearLogCom.vue";
 // 引入pinia
 import useTabsStore from "@/store/tabs";
 const tabsStore = useTabsStore();
