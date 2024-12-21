@@ -13,6 +13,7 @@ from rest_framework.renderers import BaseRenderer, JSONRenderer
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.pagination import PageNumberPagination
+from cacheops import cached_as
 from django.core.cache import cache
 from django.http import HttpResponse
 from django.db import transaction
@@ -363,8 +364,15 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
         context['decrypt_password'] = self.request.query_params.get('decrypt_password', 'false').lower() == 'true'
         return context
     
+    @cached_as(ModelInstance, timeout=600)
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = ModelInstance.objects.all()\
+            .order_by('-create_time')\
+            .prefetch_related(
+                'field_values__model_fields',
+                'field_values__model_fields__validation_rule',
+            )\
+            .select_related('model')
         query_params = self.request.query_params
         logger.info(f"Query parameters: {query_params}")
         
@@ -517,7 +525,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
 
 
     def get_renderers(self):
-        if self.action == 'export_template':
+        if self.action in ['export_template', 'export_data']:
             return [BinaryFileRenderer()]
         return [JSONRenderer()]
 
@@ -567,6 +575,69 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Error exporting template: {str(e)}")
             raise ValidationError({'detail': f'Failed to export template: {str(e)}'})
+        
+        
+    @action(detail=False, methods=['post'])
+    def export_data(self, request):
+        """导出实例数据"""
+        try:
+            # 获取模型ID和查询参数
+            model_id = request.data.get('model')
+            instance_ids = request.data.get('instances', [])
+            restricted_fields = request.data.get('fields', [])
+
+            if not model_id:
+                raise ValidationError({'detail': 'Model ID is required'})
+
+            # 获取缓存的查询结果
+            cached_queryset = self.get_queryset()
+            
+            # 如果有指定实例ID，则从缓存结果中过滤
+            if instance_ids:
+                instances = cached_queryset.filter(id__in=instance_ids)
+            else:
+                instances = cached_queryset
+            logger.info(f'Exporting data for {len(instances)} instances')
+
+            # 获取模型及其字段
+            model = Models.objects.get(id=model_id)
+            fields_query = ModelFields.objects.filter(model=model)
+            
+            # 字段过滤
+            if restricted_fields:
+                fields_query = fields_query.filter(name__in=restricted_fields)
+                
+            fields = fields_query.select_related(
+                'validation_rule',
+                'model_field_group'
+            ).order_by('order')
+
+            # 生成Excel导出
+            excel_handler = ExcelHandler()
+            workbook = excel_handler.generate_data_export(fields, instances)            
+            
+            excel_file = io.BytesIO()
+            workbook.save(excel_file)
+            excel_file.seek(0)
+
+            # 返回文件响应
+            headers = {
+                'Content-Disposition': f'attachment; filename="{model.name}_data.xlsx"'
+            }
+            
+            logger.info(f"Data exported successfully for model: {model.name}")
+            return Response(
+                {
+                    'filename': f"{model.name}_data.xlsx",
+                    'file_content': excel_file.getvalue()
+                },
+                status=status.HTTP_200_OK,
+                headers=headers
+            )
+
+        except Exception as e:
+            logger.error(f"Error exporting data: {str(e)}")
+            raise ValidationError({'detail': f'Failed to export data: {str(e)}'})
         
         
     def perform_destroy(self, instance):

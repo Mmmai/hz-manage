@@ -8,9 +8,10 @@ import json
 logger = logging.getLogger(__name__)
 
 
-class CoreConfig(AppConfig):
+class CMDBConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'cmdb'
+    label = 'cmdb'
     
     def _create_model_and_fields(self, model_name, model_config, model_group=None):
         """创建内置模型和相关字段"""

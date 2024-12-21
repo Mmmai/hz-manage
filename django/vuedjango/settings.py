@@ -52,11 +52,41 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'mlog',
     'mapi',
+    'cacheops',
     'cmdb',
     'rest_framework',
     'django_filters',
-    'import_export'
+    'import_export',
 ]
+
+CACHEOPS_REDIS = {
+    'host': 'localhost',
+    'port': 6379,
+    'db': 1,
+    'socket_timeout': 3,
+    'retry_on_timeout': True,
+}
+
+CACHEOPS = {
+    'cmdb.modelinstance': {'ops': 'all', 'timeout': 60*60},
+    'cmdb.modelfields': {'ops': 'all', 'timeout': 60*60},
+    'cmdb.modelfieldmeta': {'ops': 'all', 'timeout': 60*60},
+    'cmdb.validationrules': {'ops': 'all', 'timeout': 60*60},
+}
+
+CACHEOPS_ENABLED = True
+CACHEOPS_DEGRADE_ON_FAILURE = True
+CACHEOPS_LRU = True
+CACHEOPS_DEFAULTS = {
+    'timeout': 60 * 60,
+    'cache_on_save': True,
+    'cache_on_get': True,
+    'cache_get_many': True,
+    'cache_set_many': True,
+    'cache_delete_many': True,
+    'local_get': True,
+}
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

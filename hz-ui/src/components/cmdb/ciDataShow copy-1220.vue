@@ -93,7 +93,7 @@
                   <template #default="scope">{{ scope.row.date }}</template>
 </el-table-column> -->
       <el-table-column
-        v-for="(data, index) in hasConfigField"
+        v-for="(data, index) in showTableField"
         :property="data.name"
         :label="data.verbose_name"
         show-overflow-tooltip
@@ -221,7 +221,7 @@
     </el-pagination>
   </div>
   <!-- 修改列模板 -->
-  <!-- <el-drawer
+  <el-drawer
     v-model="ciModelColDrawer"
     class="edit-drawer"
     direction="rtl"
@@ -266,10 +266,11 @@
 
     <template #footer>
       <div style="flex: auto">
+        <!-- <el-button @click="colCancel">取消</el-button> -->
         <el-button type="primary" @click="colCommit" v-throttle>确认</el-button>
       </div>
     </template>
-  </el-drawer> -->
+  </el-drawer>
 
   <!-- 实例编辑的弹出框 -->
 
@@ -1080,20 +1081,10 @@
     v-model:isShowUpload="isShowUpload"
     :ciModelId="props.ciModelId"
   />
-  <ciDataTableCol
-    :ciModelId="props.ciModelId"
-    :allModelField="allModelField"
-    :allModelFieldInfo="allModelFieldInfo"
-    v-model:isShowTableCol="ciModelColDrawer"
-    v-model:hasConfigField="hasConfigField"
-    @reloadTable="reloadWind"
-    ref="ciDataTableColRef"
-  />
 </template>
 
 <script lang="ts" setup>
 import ciDataUpload from "./ciDataUpload.vue";
-import ciDataTableCol from "./ciDataTableCol.vue";
 import {
   Check,
   Delete,
@@ -1125,7 +1116,7 @@ import {
 import { da, pa } from "element-plus/es/locale/index.mjs";
 const { proxy } = getCurrentInstance();
 import type { FormInstance, FormItemInstance, FormRules } from "element-plus";
-import ciDataFilter from "./backup/ciDataFilter.vue";
+import ciDataFilter from "./ciDataFilter.vue";
 import { useStore } from "vuex";
 import { useClipboard } from "vue-clipboard3";
 import { debounce } from "lodash";
@@ -1473,15 +1464,12 @@ const allModelFieldByNameObj = computed<any>(() => {
   return tempList;
 });
 // 获取模型已配置的显示列
-// const ciModelCol = ref({});
-// const getHasConfigField = async () => {
-//   let res = await proxy.$api.getCiModelCol({ model: props.ciModelId });
-//   // console.log(typeof res.data.fields_preferred)
-//   ciModelCol.value = res.data;
-//   hasConfigField.value = res.data.fields_preferred;
-// };
+const ciModelCol = ref({});
 const getHasConfigField = async () => {
-  await ciDataTableColRef.value!.getHasConfigField();
+  let res = await proxy.$api.getCiModelCol({ model: props.ciModelId });
+  // console.log(typeof res.data.fields_preferred)
+  ciModelCol.value = res.data;
+  hasConfigField.value = res.data.fields_preferred;
 };
 // const allModelFieldSort = computed(()=>{
 //   let intersection = allModelField.value.filter(item => hasConfigField.value.includes(item.id));
@@ -1490,47 +1478,66 @@ const getHasConfigField = async () => {
 // })
 // 排序函数
 const objSort = (a, b) => {};
-// watch(
-//   () => hasConfigField.value,
-//   (n) => {
-//     // 对列排序
-//     allModelField.value.sort((a, b) => {
-//       let indexA = n.indexOf(a.id);
-//       let indexB = n.indexOf(b.id);
-//       return indexA - indexB;
-//     });
-//     // console.log(allModelField.value)
-//     // ciDataList.value
-//     // let tempArr = ciDataList.value
-//     // ciDataList.value = []
-//     // nextTick(()=>{
-//     //   ciDataList.value = tempArr
+watch(
+  () => hasConfigField.value,
+  (n) => {
+    // 对列排序
+    allModelField.value.sort((a, b) => {
+      let indexA = n.indexOf(a.id);
+      let indexB = n.indexOf(b.id);
+      return indexA - indexB;
+    });
+    // console.log(allModelField.value)
+    // ciDataList.value
+    // let tempArr = ciDataList.value
+    // ciDataList.value = []
+    // nextTick(()=>{
+    //   ciDataList.value = tempArr
 
-//     // })
-//   },
-//   { deep: true }
-// );
-// const hasNoConfigFieldList = computed(() => {
-//   return allModelField.value.filter((item) => {
-//     return hasConfigField.value.indexOf(item) == -1;
-//   });
-// });
-
-// 列显示
-const ciDataTableColRef = ref("");
+    // })
+  },
+  { deep: true }
+);
+const hasNoConfigFieldList = computed(() => {
+  return allModelField.value.filter((item) => {
+    return hasConfigField.value.indexOf(item) == -1;
+  });
+});
+const colCommit = async () => {
+  // 提交更新
+  let res = await proxy.$api.updateCiModelCol({
+    id: ciModelCol.value.id,
+    fields_preferred: hasConfigField.value,
+  });
+  // hasConfigField.value =
+  if (res.status == "200") {
+    ElMessage({ type: "success", message: "更新成功" });
+    // 重置表单
+    nextTick(() => {
+      ciModelColDrawer.value = false;
+    });
+    // 获取数据源列表
+  } else {
+    ElMessage({
+      showClose: true,
+      message: "更新失败:" + JSON.stringify(res.data),
+      type: "error",
+    });
+  }
+};
 // table显示的列名
-// const showTableField = computed(() => {
-//   let tempArr: any[] = [];
-//   hasConfigField.value.forEach((item) => {
-//     if (Object.keys(allModelFieldInfo.value).indexOf(item) === -1) return [];
-//     tempArr.push({
-//       name: allModelFieldInfo.value[item].name,
-//       verbose_name: allModelFieldInfo.value[item].verbose_name,
-//     });
-//   });
-//   // console.log(tempArr)
-//   return tempArr;
-// });
+const showTableField = computed(() => {
+  let tempArr: any[] = [];
+  hasConfigField.value.forEach((item) => {
+    if (Object.keys(allModelFieldInfo.value).indexOf(item) === -1) return [];
+    tempArr.push({
+      name: allModelFieldInfo.value[item].name,
+      verbose_name: allModelFieldInfo.value[item].verbose_name,
+    });
+  });
+  // console.log(tempArr)
+  return tempArr;
+});
 const reloadWind = () => {
   // window.location.reload();
   reloadTable.value = false;
@@ -1836,7 +1843,6 @@ onMounted(async () => {
   //   text: 'Loading',
   //   background: 'rgba(0, 0, 0, 0.7)',
   // })
-  // await ciDataTableColRef.value!.getHasConfigField();
   await getRules();
   setLoading(false);
 
@@ -2175,93 +2181,93 @@ const filterMethod = (query, item) => {
 };
 
 // 往右侧添加时，手动添加头部
-// const transferChange = (_, direction, movedKeys) => {
-//   if (direction === "right") {
-//     const arrList = allModelField.value.filter(
-//       (item) => !movedKeys.includes(item.id)
-//     );
-//     const arrUnshift = allModelField.value.filter((item) =>
-//       movedKeys.includes(item.id)
-//     );
-//     allModelField.value = [...arrUnshift, ...arrList];
-//   }
-// };
+const transferChange = (_, direction, movedKeys) => {
+  if (direction === "right") {
+    const arrList = allModelField.value.filter(
+      (item) => !movedKeys.includes(item.id)
+    );
+    const arrUnshift = allModelField.value.filter((item) =>
+      movedKeys.includes(item.id)
+    );
+    allModelField.value = [...arrUnshift, ...arrList];
+  }
+};
 
-// let dragTarget = null; // 用于存储被拖动的目标项
-// let dragIndex = -1; // 被拖动项在数组中的原始索引
-// let targetOption = null; // 拖动过程中停放目标
+let dragTarget = null; // 用于存储被拖动的目标项
+let dragIndex = -1; // 被拖动项在数组中的原始索引
+let targetOption = null; // 拖动过程中停放目标
 
-// // 开始拖动
-// const handleDragStart = (option) => {
-//   dragTarget = option;
-//   dragIndex = allModelField.value.findIndex((item) => item === option);
-//   console.log(dragIndex);
-// };
+// 开始拖动
+const handleDragStart = (option) => {
+  dragTarget = option;
+  dragIndex = allModelField.value.findIndex((item) => item === option);
+  console.log(dragIndex);
+};
 
-// // 放置时重新排序数组
-// const handleDragenter = (event, option) => {
-//   event.preventDefault();
-//   if (!dragTarget || !option) return;
-//   targetOption = option;
-//   if (event.target.draggable) {
-//     clearMovingDOM();
-//     const targetIndex = allModelField.value.findIndex(
-//       (item) => item.id === targetOption.id
-//     );
-//     if (targetIndex < dragIndex) {
-//       // 往上拖拽
-//       event.target.className = "movingTop";
-//     } else {
-//       // 往下拖拽
-//       event.target.className = "movingBottom";
-//     }
-//   }
-// };
+// 放置时重新排序数组
+const handleDragenter = (event, option) => {
+  event.preventDefault();
+  if (!dragTarget || !option) return;
+  targetOption = option;
+  if (event.target.draggable) {
+    clearMovingDOM();
+    const targetIndex = allModelField.value.findIndex(
+      (item) => item.id === targetOption.id
+    );
+    if (targetIndex < dragIndex) {
+      // 往上拖拽
+      event.target.className = "movingTop";
+    } else {
+      // 往下拖拽
+      event.target.className = "movingBottom";
+    }
+  }
+};
 
-// // 鼠标放开--拖拽结束
-// const handleDrop = () => {
-//   const targetIndex = allModelField.value.findIndex(
-//     (item) => item.id === targetOption.id
-//   );
-//   // console.log(targetIndex)
-//   const newIndex = targetIndex;
+// 鼠标放开--拖拽结束
+const handleDrop = () => {
+  const targetIndex = allModelField.value.findIndex(
+    (item) => item.id === targetOption.id
+  );
+  // console.log(targetIndex)
+  const newIndex = targetIndex;
 
-//   // 更新数组顺序
-//   // let _tmeparr = allModelField.value
-//   // console.log(dragIndex)
-//   const [removed] = allModelField.value.splice(dragIndex, 1);
-//   console.log(removed);
-//   console.log(newIndex);
-//   // 添加移除都的元素到新位置
-//   allModelField.value.splice(newIndex, 0, removed);
-//   // console.log(_tmeparr)
-//   // allModelField.value = _tmeparr
-//   console.log(allModelField.value);
-//   // 触发hasConfigField更新
-//   let _tempArr = [];
-//   allModelField.value.forEach((item) => {
-//     if (hasConfigField.value.indexOf(item.id) !== -1) {
-//       _tempArr.push(item.id);
-//     }
-//   });
-//   hasConfigField.value = _tempArr;
-//   // 重置拖动状态
-//   dragTarget = null;
-//   targetOption = null;
-//   dragIndex = -1;
-//   clearMovingDOM();
-//   // console.log(hasConfigField.value)
-// };
+  // 更新数组顺序
+  // let _tmeparr = allModelField.value
+  // console.log(dragIndex)
+  const [removed] = allModelField.value.splice(dragIndex, 1);
+  console.log(removed);
+  console.log(newIndex);
+  // 添加移除都的元素到新位置
+  allModelField.value.splice(newIndex, 0, removed);
+  // console.log(_tmeparr)
+  // allModelField.value = _tmeparr
+  console.log(allModelField.value);
+  // 触发hasConfigField更新
+  let _tempArr = [];
+  allModelField.value.forEach((item) => {
+    if (hasConfigField.value.indexOf(item.id) !== -1) {
+      _tempArr.push(item.id);
+    }
+  });
+  hasConfigField.value = _tempArr;
+  // 重置拖动状态
+  dragTarget = null;
+  targetOption = null;
+  dragIndex = -1;
+  clearMovingDOM();
+  // console.log(hasConfigField.value)
+};
 
-// // 清除moving Class名
-// const clearMovingDOM = () => {
-//   document.querySelectorAll(".movingBottom").forEach((Element) => {
-//     Element.className = "transferLable";
-//   });
-//   document.querySelectorAll(".movingTop").forEach((Element) => {
-//     Element.className = "transferLable";
-//   });
-// };
+// 清除moving Class名
+const clearMovingDOM = () => {
+  document.querySelectorAll(".movingBottom").forEach((Element) => {
+    Element.className = "transferLable";
+  });
+  document.querySelectorAll(".movingTop").forEach((Element) => {
+    Element.className = "transferLable";
+  });
+};
 
 // 监听批量更新参数
 // watch(

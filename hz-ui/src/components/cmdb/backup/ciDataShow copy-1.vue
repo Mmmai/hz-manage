@@ -1,8 +1,16 @@
 <template>
-  <ciDataFilter :ciModelId="props.ciModelId" :currentNodeId="props.currentNodeId"
-    :allModelFieldByNameObj="allModelFieldByNameObj" :enumOptionObj="enumOptionObj"
-    :validationRulesObj="validationRulesObj" :allModelField="allModelField" v-model:showFilter="showFilter"
-    v-model:filterParams="filterParams" v-if="showFilter" @getCiData="getCiData" />
+  <ciDataFilter
+    :ciModelId="props.ciModelId"
+    :currentNodeId="props.currentNodeId"
+    :allModelFieldByNameObj="allModelFieldByNameObj"
+    :enumOptionObj="enumOptionObj"
+    :validationRulesObj="validationRulesObj"
+    :allModelField="allModelField"
+    v-model:showFilter="showFilter"
+    v-model:filterParams="filterParams"
+    v-if="showFilter"
+    @getCiData="getCiData"
+  />
 
   <!-- <el-button @click="getHasConfigField">1111</el-button> -->
   <div class="card table-main" v-if="reloadTable" style="width: 100%; flex: 1">
@@ -10,52 +18,109 @@
       <div class="header-button-lf">
         <el-button type="primary" @click="addCiData">添加</el-button>
         <!-- <el-button @click="isShowUpload = true">导入</el-button> -->
-        <el-button :disabled="!(multipleSelect.length >>> 0)" @click="ciDataToTree = true">转移</el-button>
+        <el-button
+          :disabled="!(multipleSelect.length >>> 0)"
+          @click="ciDataToTree = true"
+          >转移</el-button
+        >
 
         <el-button :disabled="!(multipleSelect.length >>> 0)">导出</el-button>
-        <el-button :disabled="!(multipleSelect.length >>> 0)" @click="multipleUpdate">批量更新</el-button>
+        <el-button
+          :disabled="!(multipleSelect.length >>> 0)"
+          @click="multipleUpdate"
+          >批量更新</el-button
+        >
       </div>
       <div class="header-button-ri">
-        <el-tooltip class="box-item" effect="dark" content="刷新表格" placement="top">
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="刷新表格"
+          placement="top"
+        >
           <el-button :icon="Refresh" circle @click="reloadWind" />
         </el-tooltip>
 
-        <el-tooltip class="box-item" effect="dark" content="配置表格显示列" placement="top">
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="配置表格显示列"
+          placement="top"
+        >
           <el-button :icon="Operation" circle @click="editCol" />
         </el-tooltip>
 
-        <el-tooltip class="box-item" effect="dark" content="实例导入" placement="top">
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="实例导入"
+          placement="top"
+        >
           <el-button :icon="UploadFilled" circle @click="isShowUpload = true" />
         </el-tooltip>
 
-        <el-tooltip class="box-item" effect="dark" content="打开过滤器" placement="top">
-
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="打开过滤器"
+          placement="top"
+        >
           <el-button :icon="Search" circle @click="showFilter = !showFilter" />
         </el-tooltip>
       </div>
     </div>
 
-    <el-table ref="ciDataTableRef" :data="ciDataList" @selection-change="handleSelectionChange" table-layout="fixed"
-      highlight-current-row v-loading="tableLoading" style="flex: 1" :row-key="get_row_key">
-      <el-table-column type="selection" :selectable="selectable" width="55" :reserve-selection="true" />
+    <el-table
+      ref="ciDataTableRef"
+      :data="ciDataList"
+      @selection-change="handleSelectionChange"
+      table-layout="fixed"
+      highlight-current-row
+      v-loading="tableLoading"
+      style="flex: 1"
+      :row-key="get_row_key"
+    >
+      <el-table-column
+        type="selection"
+        :selectable="selectable"
+        width="55"
+        :reserve-selection="true"
+      />
       <!-- <el-table-column label="Date" width="120" @row-click="editCiData">
                   <template #default="scope">{{ scope.row.date }}</template>
 </el-table-column> -->
-      <el-table-column v-for="(data, index) in showTableField" :property="data.name" :label="data.verbose_name"
-        show-overflow-tooltip sortable min-width="120">
+      <el-table-column
+        v-for="(data, index) in showTableField"
+        :property="data.name"
+        :label="data.verbose_name"
+        show-overflow-tooltip
+        sortable
+        min-width="120"
+      >
         <!-- 列表显示布尔值按钮，以及模型关联、枚举类的label值 -->
-        <template #default="scope" v-if="modelFieldType.boolean.indexOf(data.name) != -1">
-          <el-switch v-model="scope.row[data.name]" class="ml-2" style="
+        <template
+          #default="scope"
+          v-if="modelFieldType.boolean.indexOf(data.name) != -1"
+        >
+          <el-switch
+            v-model="scope.row[data.name]"
+            class="ml-2"
+            style="
               --el-switch-on-color: #13ce66;
               --el-switch-off-color: #ff4949;
-            " @change="
+            "
+            @change="
               updateCiData({
                 id: scope.row.id,
                 fields: { [data.name]: scope.row[data.name] },
               })
-              " />
+            "
+          />
         </template>
-        <template #default="scope" v-if="modelFieldType.enum.indexOf(data.name) != -1">
+        <template
+          #default="scope"
+          v-if="modelFieldType.enum.indexOf(data.name) != -1"
+        >
           <span>{{ enumOptionNameObj[data.name][scope.row[data.name]] }}</span>
         </template>
       </el-table-column>
@@ -64,13 +129,38 @@
         <el-button @click="editCol" :icon="Setting" circle />
       </template> -->
         <template #default="scope">
-          <el-tooltip class="box-item" effect="dark" content="查看详情" placement="top">
-            <el-button link type="primary" :icon="View" @click="editCiData(scope.row)"></el-button>
+          <el-tooltip
+            class="box-item"
+            effect="dark"
+            content="查看详情"
+            placement="top"
+          >
+            <el-button
+              link
+              type="primary"
+              :icon="View"
+              @click="editCiData(scope.row)"
+            ></el-button>
           </el-tooltip>
-          <el-tooltip class="box-item" effect="dark" content="克隆" placement="top">
-            <el-button link type="primary" :icon="CopyDocument" @click="cpCiData(scope.row)"></el-button>
+          <el-tooltip
+            class="box-item"
+            effect="dark"
+            content="克隆"
+            placement="top"
+          >
+            <el-button
+              link
+              type="primary"
+              :icon="CopyDocument"
+              @click="cpCiData(scope.row)"
+            ></el-button>
           </el-tooltip>
-          <el-popover placement="bottom" title="实例二维码" :width="250" trigger="click">
+          <el-popover
+            placement="bottom"
+            title="实例二维码"
+            :width="250"
+            trigger="click"
+          >
             <template #reference>
               <el-button link type="primary" :icon="Grid"></el-button>
             </template>
@@ -83,27 +173,53 @@
       </el-table-column>
     </el-table>
     <!-- 分页 -->
-    <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100, 200]"
-      :size="size" :disabled="disabled" layout="slot,total, sizes, prev, pager, next, jumper" :total="totalCount"
-      @size-change="handleSizeChange" @current-change="handleCurrentChange"
-      style="margin-top: 5px; justify-content: flex-end">
+    <el-pagination
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
+      :page-sizes="[10, 20, 50, 100, 200]"
+      :size="size"
+      :disabled="disabled"
+      layout="slot,total, sizes, prev, pager, next, jumper"
+      :total="totalCount"
+      @size-change="handleSizeChange"
+      @current-change="handleCurrentChange"
+      style="margin-top: 5px; justify-content: flex-end"
+    >
       <el-text>已选择 {{ multipleSelect.length }} 条</el-text>
     </el-pagination>
   </div>
   <!-- 修改列模板 -->
-  <el-drawer v-model="ciModelColDrawer" class="edit-drawer" direction="rtl" size="35%" @close="reloadWind">
+  <el-drawer
+    v-model="ciModelColDrawer"
+    class="edit-drawer"
+    direction="rtl"
+    size="35%"
+    @close="reloadWind"
+  >
     <template #header>
       <h4 style="margin-bottom: 0">列表显示属性配置</h4>
     </template>
     <template #default>
       <el-scrollbar>
-        <el-transfer ref="sortableRef" v-model="hasConfigField" filterable :filter-method="filterMethod"
-          filter-placeholder="请输入" :data="allModelField" @change="transferChange"
-          :props="{ key: 'id', label: 'verbose_name' }" :titles="['模型字段', '已选字段']">
+        <el-transfer
+          ref="sortableRef"
+          v-model="hasConfigField"
+          filterable
+          :filter-method="filterMethod"
+          filter-placeholder="请输入"
+          :data="allModelField"
+          @change="transferChange"
+          :props="{ key: 'id', label: 'verbose_name' }"
+          :titles="['模型字段', '已选字段']"
+        >
           <template #default="{ option }">
-            <div class="transferLable" :draggable="hasConfigField.includes(option.id)"
-              @dragstart="handleDragStart(option)" @dragenter="handleDragenter($event, option)"
-              @dragend="handleDrop($event)">
+            <div
+              class="transferLable"
+              :draggable="hasConfigField.includes(option.id)"
+              @dragstart="handleDragStart(option)"
+              @dragenter="handleDragenter($event, option)"
+              @dragend="handleDrop($event)"
+            >
               <span class="trnsferValue">{{ option.verbose_name }}</span>
               <span id="draggable" class="sort">
                 <el-icon>
@@ -126,14 +242,27 @@
 
   <!-- 实例编辑的弹出框 -->
 
-  <el-drawer v-model="ciDrawer" class="edit-drawer" direction="rtl" size="40%" :before-close="ciDataHandleClose">
+  <el-drawer
+    v-model="ciDrawer"
+    class="edit-drawer"
+    direction="rtl"
+    size="40%"
+    :before-close="ciDataHandleClose"
+  >
     <template #header>
       <el-text tag="b">实例信息</el-text>
     </template>
     <template #default>
       <el-scrollbar>
-        <el-form ref="ciDataFormRef" style="max-width: 100%" :model="ciDataForm" label-width="auto" status-icon
-          label-position="top" :disabled="false">
+        <el-form
+          ref="ciDataFormRef"
+          style="max-width: 100%"
+          :model="ciDataForm"
+          label-width="auto"
+          status-icon
+          label-position="top"
+          :disabled="false"
+        >
           <div v-for="(item, index) in modelInfo.field_groups">
             <h4>{{ item.verbose_name }}</h4>
             <!-- <el-row justify="space-evenly"> -->
@@ -141,13 +270,22 @@
               <el-col v-for="(fitem, findex) in item.fields" :span="12">
                 <!-- <span>{{ fitem.name  }}</span> -->
 
-                <el-form-item :label="fitem.verbose_name" :prop="fitem.name" v-if="fitem.type === 'string'"
-                  :required="fitem.required" :rules="setFormItemRule(fitem.validation_rule)">
+                <el-form-item
+                  :label="fitem.verbose_name"
+                  :prop="fitem.name"
+                  v-if="fitem.type === 'string'"
+                  :required="fitem.required"
+                  :rules="setFormItemRule(fitem.validation_rule)"
+                >
                   <template #label>
                     <el-space :size="2">
                       <span>{{ fitem.verbose_name }}</span>
-                      <el-tooltip :content="fitem.description" placement="right" effect="light"
-                        v-if="fitem.description.length != 0 ? true : false">
+                      <el-tooltip
+                        :content="fitem.description"
+                        placement="right"
+                        effect="light"
+                        v-if="fitem.description.length != 0 ? true : false"
+                      >
                         <el-icon>
                           <Warning />
                         </el-icon>
@@ -161,16 +299,29 @@
                     <span v-else>--</span>
                   </div>
                   <!-- <el-input v-model="ciDataForm[fitem.name]" style="width: 240px" v-else-if=""></el-input> -->
-                  <el-input v-model="ciDataForm[fitem.name]" style="width: 240px" v-else></el-input>
+                  <el-input
+                    v-model="ciDataForm[fitem.name]"
+                    style="width: 240px"
+                    v-else
+                  ></el-input>
                 </el-form-item>
-                <el-form-item :label="fitem.verbose_name" :prop="fitem.name" v-if="
-                  ['text', 'json'].indexOf(fitem.type) >>> -1 ? false : true
-                " :required="fitem.required">
+                <el-form-item
+                  :label="fitem.verbose_name"
+                  :prop="fitem.name"
+                  v-if="
+                    ['text', 'json'].indexOf(fitem.type) >>> -1 ? false : true
+                  "
+                  :required="fitem.required"
+                >
                   <template #label>
                     <el-space :size="2">
                       <span>{{ fitem.verbose_name }}</span>
-                      <el-tooltip :content="fitem.description" placement="right" effect="light"
-                        v-if="fitem.description.length != 0 ? true : false">
+                      <el-tooltip
+                        :content="fitem.description"
+                        placement="right"
+                        effect="light"
+                        v-if="fitem.description.length != 0 ? true : false"
+                      >
                         <el-icon>
                           <Warning />
                         </el-icon>
@@ -183,24 +334,45 @@
                     }}</span>
                     <span v-else>--</span>
                   </div>
-                  <el-input v-model="ciDataForm[fitem.name]" style="width: 240px" autosize type="textarea"
-                    v-else></el-input>
+                  <el-input
+                    v-model="ciDataForm[fitem.name]"
+                    style="width: 240px"
+                    autosize
+                    type="textarea"
+                    v-else
+                  ></el-input>
                 </el-form-item>
-                <el-form-item :label="fitem.verbose_name" :prop="fitem.name" v-if="fitem.type === 'boolean'"
-                  :required="fitem.required">
+                <el-form-item
+                  :label="fitem.verbose_name"
+                  :prop="fitem.name"
+                  v-if="fitem.type === 'boolean'"
+                  :required="fitem.required"
+                >
                   <!-- <span>{{ fitem.verbose_name }}</span> -->
-                  <el-switch v-model="ciDataForm[fitem.name]" style="
+                  <el-switch
+                    v-model="ciDataForm[fitem.name]"
+                    style="
                       --el-switch-on-color: #13ce66;
                       --el-switch-off-color: #ff4949;
-                    " :disabled="!isEdit" />
+                    "
+                    :disabled="!isEdit"
+                  />
                 </el-form-item>
-                <el-form-item :label="fitem.verbose_name" :prop="fitem.name"
-                  v-if="['float'].indexOf(fitem.type) >>> -1 ? false : true" :required="fitem.required">
+                <el-form-item
+                  :label="fitem.verbose_name"
+                  :prop="fitem.name"
+                  v-if="['float'].indexOf(fitem.type) >>> -1 ? false : true"
+                  :required="fitem.required"
+                >
                   <template #label>
                     <el-space :size="2">
                       <span>{{ fitem.verbose_name }}</span>
-                      <el-tooltip :content="fitem.description" placement="right" effect="light"
-                        v-if="fitem.description.length != 0 ? true : false">
+                      <el-tooltip
+                        :content="fitem.description"
+                        placement="right"
+                        effect="light"
+                        v-if="fitem.description.length != 0 ? true : false"
+                      >
                         <el-icon>
                           <Warning />
                         </el-icon>
@@ -213,15 +385,28 @@
                     }}</span>
                     <span v-else>--</span>
                   </div>
-                  <el-input-number v-model="ciDataForm[fitem.name]" :precision="2" :step="0.1" v-else />
+                  <el-input-number
+                    v-model="ciDataForm[fitem.name]"
+                    :precision="2"
+                    :step="0.1"
+                    v-else
+                  />
                 </el-form-item>
-                <el-form-item :label="fitem.verbose_name" :prop="fitem.name"
-                  v-if="['integer'].indexOf(fitem.type) >>> -1 ? false : true" :required="fitem.required">
+                <el-form-item
+                  :label="fitem.verbose_name"
+                  :prop="fitem.name"
+                  v-if="['integer'].indexOf(fitem.type) >>> -1 ? false : true"
+                  :required="fitem.required"
+                >
                   <template #label>
                     <el-space :size="2">
                       <span>{{ fitem.verbose_name }}</span>
-                      <el-tooltip :content="fitem.description" placement="right" effect="light"
-                        v-if="fitem.description.length != 0 ? true : false">
+                      <el-tooltip
+                        :content="fitem.description"
+                        placement="right"
+                        effect="light"
+                        v-if="fitem.description.length != 0 ? true : false"
+                      >
                         <el-icon>
                           <Warning />
                         </el-icon>
@@ -234,15 +419,27 @@
                     }}</span>
                     <span v-else>--</span>
                   </div>
-                  <el-input-number v-model="ciDataForm[fitem.name]" :step="1" v-else />
+                  <el-input-number
+                    v-model="ciDataForm[fitem.name]"
+                    :step="1"
+                    v-else
+                  />
                 </el-form-item>
-                <el-form-item :label="fitem.verbose_name" :prop="fitem.name"
-                  v-if="['date'].indexOf(fitem.type) >>> -1 ? false : true" :required="fitem.required">
+                <el-form-item
+                  :label="fitem.verbose_name"
+                  :prop="fitem.name"
+                  v-if="['date'].indexOf(fitem.type) >>> -1 ? false : true"
+                  :required="fitem.required"
+                >
                   <template #label>
                     <el-space :size="2">
                       <span>{{ fitem.verbose_name }}</span>
-                      <el-tooltip :content="fitem.description" placement="right" effect="light"
-                        v-if="fitem.description.length != 0 ? true : false">
+                      <el-tooltip
+                        :content="fitem.description"
+                        placement="right"
+                        effect="light"
+                        v-if="fitem.description.length != 0 ? true : false"
+                      >
                         <el-icon>
                           <Warning />
                         </el-icon>
@@ -255,16 +452,30 @@
                     }}</span>
                     <span v-else>--</span>
                   </div>
-                  <el-date-picker v-else v-model="ciDataForm[fitem.name]" type="date" placeholder="Pick a Date"
-                    format="YYYY-MM-DD" value-format="YYYY-MM-DD" />
+                  <el-date-picker
+                    v-else
+                    v-model="ciDataForm[fitem.name]"
+                    type="date"
+                    placeholder="Pick a Date"
+                    format="YYYY-MM-DD"
+                    value-format="YYYY-MM-DD"
+                  />
                 </el-form-item>
-                <el-form-item :label="fitem.verbose_name" :prop="fitem.name"
-                  v-if="['datetime'].indexOf(fitem.type) >>> -1 ? false : true" :required="fitem.required">
+                <el-form-item
+                  :label="fitem.verbose_name"
+                  :prop="fitem.name"
+                  v-if="['datetime'].indexOf(fitem.type) >>> -1 ? false : true"
+                  :required="fitem.required"
+                >
                   <template #label>
                     <el-space :size="2">
                       <span>{{ fitem.verbose_name }}</span>
-                      <el-tooltip :content="fitem.description" placement="right" effect="light"
-                        v-if="fitem.description.length != 0 ? true : false">
+                      <el-tooltip
+                        :content="fitem.description"
+                        placement="right"
+                        effect="light"
+                        v-if="fitem.description.length != 0 ? true : false"
+                      >
                         <el-icon>
                           <Warning />
                         </el-icon>
@@ -277,16 +488,30 @@
                     }}</span>
                     <span v-else>--</span>
                   </div>
-                  <el-date-picker v-else v-model="ciDataForm[fitem.name]" type="datetime" placeholder="Pick a Date"
-                    format="YYYY/MM/DD hh:mm:ss" value-format="YYYY-MM-DD hh:mm:ss" />
+                  <el-date-picker
+                    v-else
+                    v-model="ciDataForm[fitem.name]"
+                    type="datetime"
+                    placeholder="Pick a Date"
+                    format="YYYY/MM/DD hh:mm:ss"
+                    value-format="YYYY-MM-DD hh:mm:ss"
+                  />
                 </el-form-item>
-                <el-form-item :label="fitem.verbose_name" :prop="fitem.name"
-                  v-if="['enum'].indexOf(fitem.type) >>> -1 ? false : true" :required="fitem.required">
+                <el-form-item
+                  :label="fitem.verbose_name"
+                  :prop="fitem.name"
+                  v-if="['enum'].indexOf(fitem.type) >>> -1 ? false : true"
+                  :required="fitem.required"
+                >
                   <template #label>
                     <el-space :size="2">
                       <span>{{ fitem.verbose_name }}</span>
-                      <el-tooltip :content="fitem.description" placement="right" effect="light"
-                        v-if="fitem.description.length != 0 ? true : false">
+                      <el-tooltip
+                        :content="fitem.description"
+                        placement="right"
+                        effect="light"
+                        v-if="fitem.description.length != 0 ? true : false"
+                      >
                         <el-icon>
                           <Warning />
                         </el-icon>
@@ -300,9 +525,18 @@
                     <span v-else>--</span>
                   </div>
 
-                  <el-select v-else v-model="ciDataForm[fitem.name]" placeholder="请选择" style="width: 240px">
-                    <el-option v-for="item in enumOptionObj[fitem.validation_rule]" :key="item.value"
-                      :label="item.label" :value="item.value" />
+                  <el-select
+                    v-else
+                    v-model="ciDataForm[fitem.name]"
+                    placeholder="请选择"
+                    style="width: 240px"
+                  >
+                    <el-option
+                      v-for="item in enumOptionObj[fitem.validation_rule]"
+                      :key="item.value"
+                      :label="item.label"
+                      :value="item.value"
+                    />
                   </el-select>
                 </el-form-item>
               </el-col>
@@ -318,16 +552,34 @@
       <div style="flex: auto" class="footerButtonClass">
         <el-button @click="ciDataCancel(ciDataFormRef)">取消</el-button>
         <div v-if="commitActionAdd">
-          <el-button type="primary" @click="ciDataCommit(ciDataFormRef)">添加</el-button>
+          <el-button type="primary" @click="ciDataCommit(ciDataFormRef)"
+            >添加</el-button
+          >
         </div>
         <div v-else>
           <div v-if="isEdit">
-            <el-button type="danger" @click="ciDataDelete"
-              v-if="currentRow.instance_group.indexOf(treeIdleId) !== -1">删除</el-button>
-            <el-tooltip content="无法删除非空闲池的主机" placement="top" effect="light" v-else>
-              <el-button type="danger" @click="ciDataDelete" disabled>删除</el-button>
+            <el-button
+              type="danger"
+              @click="ciDataDelete"
+              v-if="currentRow.instance_group.indexOf(treeIdleId) !== -1"
+              >删除</el-button
+            >
+            <el-tooltip
+              content="无法删除非空闲池的主机"
+              placement="top"
+              effect="light"
+              v-else
+            >
+              <el-button type="danger" @click="ciDataDelete" disabled
+                >删除</el-button
+              >
             </el-tooltip>
-            <el-button type="primary" @click="ciDataCommit(ciDataFormRef)" v-throttle>保存</el-button>
+            <el-button
+              type="primary"
+              @click="ciDataCommit(ciDataFormRef)"
+              v-throttle
+              >保存</el-button
+            >
           </div>
           <div v-else>
             <el-button type="primary" @click="isEdit = true">编辑</el-button>
@@ -344,94 +596,182 @@
   </el-drawer>
 
   <!-- 批量更新 -->
-  <el-dialog v-model="multipleDia" title="批量更新" width="500" :before-close="handleClose">
-    <el-form ref="multipleFormRef" style="max-width: 1000px" :model="multipleForm" label-width="auto">
-      <el-form-item v-for="(item, index) in paramNames" :key="`param-${item}`" :label="'字段' + (index + 1)"
-        :prop="`updateParams.${item}`" :rules="setUpdateFormItemRule(allModelFieldByNameObj[item]?.validation_rule)
-          " :required="true">
+  <el-dialog
+    v-model="multipleDia"
+    title="批量更新"
+    width="500"
+    :before-close="handleClose"
+  >
+    <el-form
+      ref="multipleFormRef"
+      style="max-width: 1000px"
+      :model="multipleForm"
+      label-width="auto"
+    >
+      <el-form-item
+        v-for="(item, index) in paramNames"
+        :key="`param-${item}`"
+        :label="'字段' + (index + 1)"
+        :prop="`updateParams.${item}`"
+        :rules="
+          setUpdateFormItemRule(allModelFieldByNameObj[item]?.validation_rule)
+        "
+        :required="true"
+      >
         <!--       :rules="modelFieldFormItemRule"
         :rules="setUpdateFormItemRule(allModelFieldByNameObj[item.name]?.validation_rule)"
    :rules="setFormItemRule(item.name)"  -->
         <el-space>
-          <el-select :model-value="item.startsWith('__temp') ? undefined : item" placeholder="选择字段" style="width: 120px"
-            filterable @change="selectName(index, $event)">
-            <el-option v-for="oitem in allModelFieldOptions" :key="oitem.value" :label="oitem.label"
-              :value="oitem.value" :disabled="oitem.disable" />
+          <el-select
+            :model-value="item.startsWith('__temp') ? undefined : item"
+            placeholder="选择字段"
+            style="width: 120px"
+            filterable
+            @change="selectName(index, $event)"
+          >
+            <el-option
+              v-for="oitem in allModelFieldOptions"
+              :key="oitem.value"
+              :label="oitem.label"
+              :value="oitem.value"
+              :disabled="oitem.disable"
+            />
           </el-select>
           <div v-if="item && !item.startsWith('__temp')">
-            <div v-if="
-              ['text', 'json'].indexOf(allModelFieldByNameObj[item].type) >>>
+            <div
+              v-if="
+                ['text', 'json'].indexOf(allModelFieldByNameObj[item].type) >>>
                 -1
-                ? false
-                : true
-            ">
-              <el-input v-model="multipleForm.updateParams[item]" type="textarea" autosize style="width: 180px" />
+                  ? false
+                  : true
+              "
+            >
+              <el-input
+                v-model="multipleForm.updateParams[item]"
+                type="textarea"
+                autosize
+                style="width: 180px"
+              />
             </div>
-            <div v-else-if="
-              ['string'].indexOf(allModelFieldByNameObj[item].type) >>> -1
-                ? false
-                : true
-            ">
-              <el-input v-model="multipleForm.updateParams[item]" style="width: 180px" />
+            <div
+              v-else-if="
+                ['string'].indexOf(allModelFieldByNameObj[item].type) >>> -1
+                  ? false
+                  : true
+              "
+            >
+              <el-input
+                v-model="multipleForm.updateParams[item]"
+                style="width: 180px"
+              />
             </div>
-            <div v-else-if="
-              ['enum'].indexOf(allModelFieldByNameObj[item].type) >>> -1
-                ? false
-                : true
-            ">
-              <el-select v-model="multipleForm.updateParams[item]" placeholder="请选择" style="width: 180px">
-                <el-option v-for="ritem in enumOptionObj[
-                  allModelFieldByNameObj[item].validation_rule
-                ]" :key="ritem.value" :label="ritem.label" :value="ritem.value" />
+            <div
+              v-else-if="
+                ['enum'].indexOf(allModelFieldByNameObj[item].type) >>> -1
+                  ? false
+                  : true
+              "
+            >
+              <el-select
+                v-model="multipleForm.updateParams[item]"
+                placeholder="请选择"
+                style="width: 180px"
+              >
+                <el-option
+                  v-for="ritem in enumOptionObj[
+                    allModelFieldByNameObj[item].validation_rule
+                  ]"
+                  :key="ritem.value"
+                  :label="ritem.label"
+                  :value="ritem.value"
+                />
               </el-select>
             </div>
-            <div v-else-if="
-              ['boolean'].indexOf(allModelFieldByNameObj[item].type) >>> -1
-                ? false
-                : true
-            ">
-              <el-switch v-model="multipleForm.updateParams[item]" style="
+            <div
+              v-else-if="
+                ['boolean'].indexOf(allModelFieldByNameObj[item].type) >>> -1
+                  ? false
+                  : true
+              "
+            >
+              <el-switch
+                v-model="multipleForm.updateParams[item]"
+                style="
                   --el-switch-on-color: #13ce66;
                   --el-switch-off-color: #ff4949;
-                " />
+                "
+              />
             </div>
-            <div v-else-if="
-              ['integer'].indexOf(allModelFieldByNameObj[item].type) >>> -1
-                ? false
-                : true
-            ">
-              <el-input-number v-model="multipleForm.updateParams[item]" :step="1" style="width: 180px" />
+            <div
+              v-else-if="
+                ['integer'].indexOf(allModelFieldByNameObj[item].type) >>> -1
+                  ? false
+                  : true
+              "
+            >
+              <el-input-number
+                v-model="multipleForm.updateParams[item]"
+                :step="1"
+                style="width: 180px"
+              />
             </div>
-            <div v-else-if="
-              ['float'].indexOf(allModelFieldByNameObj[item].type) >>> -1
-                ? false
-                : true
-            ">
-              <el-input-number v-model="multipleForm.updateParams[item]" :precision="2" :step="0.1"
-                style="width: 180px" />
+            <div
+              v-else-if="
+                ['float'].indexOf(allModelFieldByNameObj[item].type) >>> -1
+                  ? false
+                  : true
+              "
+            >
+              <el-input-number
+                v-model="multipleForm.updateParams[item]"
+                :precision="2"
+                :step="0.1"
+                style="width: 180px"
+              />
             </div>
-            <div v-else-if="
-              ['date'].indexOf(allModelFieldByNameObj[item].type) >>> -1
-                ? false
-                : true
-            ">
-              <el-date-picker v-model="multipleForm.updateParams[item]" type="date" placeholder="Pick a Date"
-                format="YYYY-MM-DD" value-format="YYYY-MM-DD" style="width: 180px" />
+            <div
+              v-else-if="
+                ['date'].indexOf(allModelFieldByNameObj[item].type) >>> -1
+                  ? false
+                  : true
+              "
+            >
+              <el-date-picker
+                v-model="multipleForm.updateParams[item]"
+                type="date"
+                placeholder="Pick a Date"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+                style="width: 180px"
+              />
             </div>
-            <div v-else-if="
-              ['datetime'].indexOf(allModelFieldByNameObj[item].type) >>> -1
-                ? false
-                : true
-            ">
-              <el-date-picker v-model="multipleForm.updateParams[item]" type="datetime" placeholder="Pick a Date"
-                format="YYYY/MM/DD hh:mm:ss" value-format="YYYY-MM-DD hh:mm:ss" style="width: 180px" />
+            <div
+              v-else-if="
+                ['datetime'].indexOf(allModelFieldByNameObj[item].type) >>> -1
+                  ? false
+                  : true
+              "
+            >
+              <el-date-picker
+                v-model="multipleForm.updateParams[item]"
+                type="datetime"
+                placeholder="Pick a Date"
+                format="YYYY/MM/DD hh:mm:ss"
+                value-format="YYYY-MM-DD hh:mm:ss"
+                style="width: 180px"
+              />
             </div>
 
             <div v-else>
               <el-input v-model="multipleForm.updateParams[item]" />
             </div>
           </div>
-          <el-button class="mt-2" :icon="Delete" circle @click.prevent="removeUpdateParams(index, item)">
+          <el-button
+            class="mt-2"
+            :icon="Delete"
+            circle
+            @click.prevent="removeUpdateParams(index, item)"
+          >
           </el-button>
         </el-space>
       </el-form-item>
@@ -441,16 +781,26 @@
       <div class="dialog-footer">
         <el-button @click="multipleDia = false">取消</el-button>
         <el-button @click.prevent="addUpdateParams()">新增字段</el-button>
-        <el-button v-throttle type="primary" @click="saveCommit"
-          :disabled="paramNames.length > 0 ? false : true">保存</el-button>
+        <el-button
+          v-throttle
+          type="primary"
+          @click="saveCommit"
+          :disabled="paramNames.length > 0 ? false : true"
+          >保存</el-button
+        >
       </div>
     </template>
   </el-dialog>
 
   <!-- 实例组更新 -->
   <el-dialog v-model="ciDataToTree" title="实例组编辑" width="500">
-    <el-cascader :options="props.treeData" :props="cascaderProps" clearable v-model="selectTreeNode"
-      style="width: 400px" />
+    <el-cascader
+      :options="props.treeData"
+      :props="cascaderProps"
+      clearable
+      v-model="selectTreeNode"
+      style="width: 400px"
+    />
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="ciDataToTree = false">取消</el-button>
@@ -464,7 +814,7 @@
 </template>
 
 <script lang="ts" setup>
-import ciDataUpload from "./ciDataUpload.vue";
+import ciDataUpload from "../ciDataUpload.vue";
 import {
   Check,
   Delete,
@@ -495,10 +845,10 @@ import {
 import { da, pa } from "element-plus/es/locale/index.mjs";
 const { proxy } = getCurrentInstance();
 import type { FormInstance, FormRules } from "element-plus";
-import ciDataFilter from "./ciDataFilter.vue";
+import ciDataFilter from "../ciDataFilter.vue";
 import { useStore } from "vuex";
 const store = useStore();
-const emit = defineEmits(["getTree"])
+const emit = defineEmits(["getTree"]);
 const props = defineProps(["ciModelId", "treeData", "currentNodeId"]);
 // const treeData = defineModel("treeData");
 // const currentNodeId = defineModel("currentNodeId");
@@ -531,8 +881,8 @@ const cascaderProps = { multiple: true, value: "id" };
 const ciDataToTree = ref(false);
 const selectTreeNode = ref([]);
 const treeIdleId = computed(() => {
-  return props.treeData[0].children[0].id
-})
+  return props.treeData[0].children[0].id;
+});
 
 const treeDataCommit = async () => {
   let _tmepArr = [];
@@ -554,8 +904,7 @@ const treeDataCommit = async () => {
       model_instance_group: props.currentNodeId,
     });
     clearMultipleSelect();
-    emit('getTree')
-
+    emit("getTree");
   } else {
     ElMessage({
       showClose: true,
@@ -565,8 +914,7 @@ const treeDataCommit = async () => {
   }
   selectTreeNode.value = [];
   ciDataToTree.value = false;
-  // 触发tree更新,addCode 
-
+  // 触发tree更新,addCode
 };
 // 批量更新
 const multipleFormRef = ref("");
@@ -732,7 +1080,10 @@ const updateCiData = async (params) => {
     // 重置表单
     ciDrawer.value = false;
     resetForm(ciDataFormRef.value);
-    await getCiData({ model: props.ciModelId, model_instance_group: props.currentNodeId, });
+    await getCiData({
+      model: props.ciModelId,
+      model_instance_group: props.currentNodeId,
+    });
   } else {
     ElMessage({
       showClose: true,
@@ -804,7 +1155,7 @@ const getHasConfigField = async () => {
 
 // })
 // 排序函数
-const objSort = (a, b) => { };
+const objSort = (a, b) => {};
 watch(
   () => hasConfigField.value,
   (n) => {
@@ -881,7 +1232,11 @@ const reloadWind = () => {
 const validationRulesObj = ref({});
 const validationRulesByNameObj = ref({});
 const getRules = async (params = null) => {
-  let res = await proxy.$api.getValidationRules({ ...params, page: 1, page_size: 10000 });
+  let res = await proxy.$api.getValidationRules({
+    ...params,
+    page: 1,
+    page_size: 10000,
+  });
   // validationRules.value = res.data
   res.data.results.forEach((item) => {
     validationRulesObj.value[item.id] = item;
@@ -1034,7 +1389,10 @@ watch(
   (n) => {
     if (!showFilter.value) {
       filterParams.value = {};
-      getCiData({ model: props.ciModelId, model_instance_group: props.currentNodeId, });
+      getCiData({
+        model: props.ciModelId,
+        model_instance_group: props.currentNodeId,
+      });
     }
   }
 );
@@ -1051,7 +1409,11 @@ const getCiData = async (params) => {
   });
   totalCount.value = res.data.count;
   res.data.results.forEach((item) => {
-    tmpList.push({ id: item.id, instance_group: item.instance_group, ...item.fields });
+    tmpList.push({
+      id: item.id,
+      instance_group: item.instance_group,
+      ...item.fields,
+    });
   });
   ciDataList.value = tmpList;
   setLoading(false);
@@ -1150,13 +1512,12 @@ const cpCiData = (params) => {
     // ciDataForm = params
   });
   ElNotification({
-    title: 'Warning',
-    message: '复制实例，请修改后再提交',
-    type: 'warning',
-    duration: 2000
-  })
+    title: "Warning",
+    message: "复制实例，请修改后再提交",
+    type: "warning",
+    duration: 2000,
+  });
 };
-
 
 const ciDataFormRef = ref<FormInstance>();
 const ciDataForm = reactive({});
@@ -1174,14 +1535,14 @@ const ciDataCommit = async (
     if (valid) {
       if (commitActionAdd.value) {
         // 添加
-        console.log(3333)
-        console.log(JSON.stringify(currentRow.value))
+        console.log(3333);
+        console.log(JSON.stringify(currentRow.value));
         let res = await proxy.$api.addCiModelInstance({
           model: props.ciModelId,
           create_user: store.state.username,
           update_user: store.state.username,
           fields: ciDataForm,
-          instance_group: currentRow.value.instance_group
+          instance_group: currentRow.value.instance_group,
         });
         // console.log(res)
         // console.log(123)
@@ -1192,9 +1553,11 @@ const ciDataCommit = async (
           resetForm(formEl);
           // getModelField();
           // 刷新页面
-          await getCiData({ model: props.ciModelId, model_instance_group: props.currentNodeId, });
-          emit('getTree')
-
+          await getCiData({
+            model: props.ciModelId,
+            model_instance_group: props.currentNodeId,
+          });
+          emit("getTree");
         } else {
           ElMessage({
             showClose: true,
@@ -1204,8 +1567,8 @@ const ciDataCommit = async (
         }
       } else {
         // console.log(111)
-        console.log(JSON.stringify(beforeEditCiDataForm.value))
-        console.log(JSON.stringify(ciDataForm))
+        console.log(JSON.stringify(beforeEditCiDataForm.value));
+        console.log(JSON.stringify(ciDataForm));
 
         if (
           JSON.stringify(beforeEditCiDataForm.value) ===
@@ -1234,7 +1597,7 @@ const ciDataCommit = async (
           result.splice(0, arr1.length);
           //将键值对数组转为正常对象
           const obj = Object.fromEntries(result);
-          console.log(obj)
+          console.log(obj);
           let tmpObj = {};
           Object.keys(obj).forEach((item) => {
             if (String(obj[item]) != "") {
@@ -1242,7 +1605,7 @@ const ciDataCommit = async (
             }
           });
           updateParams.value = tmpObj;
-          console.log(updateParams.value)
+          console.log(updateParams.value);
           if (Object.keys(updateParams.value).length === 0) {
             isEdit.value = false;
             ciDrawer.value = false;
@@ -1269,7 +1632,10 @@ const ciDataCommit = async (
           ciDrawer.value = false;
           isEdit.value = false;
           resetForm(formEl);
-          await getCiData({ model: props.ciModelId, model_instance_group: props.currentNodeId, });
+          await getCiData({
+            model: props.ciModelId,
+            model_instance_group: props.currentNodeId,
+          });
         } else {
           ElMessage({
             showClose: true,
@@ -1322,10 +1688,13 @@ const ciDataDelete = (params = null) => {
           message: "删除成功",
         });
         // 重新加载页面数据
-        await getCiData({ model: props.ciModelId, model_instance_group: props.currentNodeId, });
+        await getCiData({
+          model: props.ciModelId,
+          model_instance_group: props.currentNodeId,
+        });
         resetForm(ciDataFormRef.value);
         ciDrawer.value = false;
-        isEdit.value = false
+        isEdit.value = false;
       } else {
         ElMessage({
           type: "error",
@@ -1344,7 +1713,7 @@ const ciDataDelete = (params = null) => {
 const resetForm = (formEl: FormInstance | undefined) => {
   if (!formEl) return;
   formEl.resetFields();
-  currentRow.value = {}
+  currentRow.value = {};
 };
 
 const filterMethod = (query, item) => {
@@ -1502,4 +1871,5 @@ const clearMovingDOM = () => {
 //   display: flex;
 //   gap: 10px;
 //   justify-content: space-between;
-// }</style>
+// }
+</style>

@@ -2,7 +2,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.utils import timezone
-from core.models import Models
+from cmdb.models import Models
 
 class ModelsViewSetTestCase(APITestCase):
 

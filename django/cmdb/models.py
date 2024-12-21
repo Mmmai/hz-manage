@@ -2,8 +2,11 @@ from djongo import models
 from django.db import transaction
 from rest_framework.exceptions import PermissionDenied
 from django.core.cache import cache
+from cacheops import cached_as
+import json
 import uuid
 import logging
+from .constants import ValidationType
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +127,23 @@ class ValidationRules(models.Model):
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
 
-
+    @classmethod
+    def get_enum_dict(cls, rule_id):
+        
+        @cached_as(ValidationRules, timeout=60*60)
+        def _get_enum_dict(rule_id):
+            """获取枚举规则字典"""
+            try:
+                rule = cls.objects.get(id=rule_id)
+                if rule.type == ValidationType.ENUM:
+                    return json.loads(rule.rule)
+            except (cls.DoesNotExist, json.JSONDecodeError):
+                pass
+            return {}
+        
+        return _get_enum_dict(rule_id)
+    
+    
 class ModelFields(models.Model):
     class Meta:
         db_table = 'model_fields'

@@ -8,7 +8,7 @@ def init_script(sender, **kwargs):
     menuInitList = INIT_MENU
     # 创建目录
     initMenu = Menu.objects.all()
-    if len(initMenu) == 0:
+    if len(initMenu) != 0:
         for i in menuInitList:
             if i['parentid_id'] == '':
                 Menu.objects.create(**i)

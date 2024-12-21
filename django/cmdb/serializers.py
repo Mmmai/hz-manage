@@ -33,7 +33,7 @@ from .models import (
     ModelInstanceGroupRelation,
     ModelFieldMeta,
     RelationDefinition,
-    Relations
+    Relations,
 )
 import logging
 logger = logging.getLogger(__name__)
@@ -248,9 +248,8 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
     def to_internal_value(self, data):
         """在验证之前预处理数据"""
         data_copy = data.copy() if hasattr(data, 'copy') else dict(data)
-        if 'type' in data_copy and data_copy['type'] == FieldType.PASSWORD:
+        if 'type' in data_copy and data_copy['type'] in (FieldType.PASSWORD, FieldType.MODEL_REF):
             data_copy['default'] = None
-            logger.warning("Password field default value is not allowed")
         if 'default' in data_copy and data_copy['default'] is not None:
             # 如果是布尔值，预先转换为字符串
             if isinstance(data_copy['default'], bool):
@@ -403,6 +402,10 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         request = self.context.get('request')
+        if 'type' in validated_data and validated_data['type'] != instance.type:
+            raise PermissionDenied({
+                'detail': 'Field type cannot be modified'
+            })
         if request and request.method == 'PUT':
             if 'model_field_group' not in validated_data:
                 validated_data['model_field_group'] = ModelFieldGroups.get_default_field_group(
@@ -664,7 +667,24 @@ class ModelFieldMetaNestedSerializer(ModelFieldMetaSerializer):
                     'id': data['data'],
                     'name': None
                 }
-        if instance.model_fields.type == FieldType.PASSWORD:
+        elif instance.model_fields == FieldType.ENUM:
+            if instance.model_fields.validation_rule \
+                and instance.model_fields.validation_rule.type == ValidationType.ENUM:
+                # 从缓存获取枚举字典
+                rule_id = instance.model_fields.validation_rule.id
+                enum_dict = ValidationRules.get_enum_dict(rule_id)
+                
+                value = data['data']
+                data['data'] = {
+                    'value': value,
+                    'label': enum_dict.get(value, '')
+                }
+            else:
+                data['data'] = {
+                    'value': data['data'],
+                    'label': None
+                }
+        elif instance.model_fields.type == FieldType.PASSWORD:
             logger.info(f'self.context: {self.context}')
             if self.context.get('decrypt_password', False):
                 data['data'] = password_handler.decrypt(data['data'])
@@ -1046,8 +1066,6 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 return json.dumps(value, ensure_ascii=False)
             except json.JSONDecodeError:
                 raise ValueError("Invalid JSON format")
-        elif field_config.type == FieldType.PASSWORD:
-            return hash_password(value)
         return str(value) if value is not None else None
 
     def check_duplicate_fields(self, field_values, model, instance=None):

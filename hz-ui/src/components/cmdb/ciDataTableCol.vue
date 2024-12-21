@@ -1,7 +1,7 @@
 <template>
-  <el-drawer v-model="isShowFilter" direction="rtl" size="50%">
+  <el-drawer v-model="isShowTableCol" direction="rtl" size="50%">
     <template #header>
-      <h4>set title by slot</h4>
+      <el-text tag="b">表格列显示配置</el-text>
     </template>
     <template #default>
       <div
@@ -20,13 +20,15 @@
           <el-text tag="b">模型字段</el-text>
           <el-divider />
           <el-input
-            v-model="searchString"
-            style="width: 100%"
+            v-model="filterText"
+            style="width: 100%; margin-bottom: 10px"
             placeholder="筛选字段名称"
+            clearable
+            ref="filterInputRef"
           />
 
           <div style="width: 100%; overflow: auto">
-            <div v-for="(item, index) in notConfigFieldList" :key="index">
+            <div v-for="(item, index) in filterModelFields" :key="index">
               <div class="listItem">
                 <span>{{ item.verbose_name }}</span>
                 <el-icon><ArrowRight @click="toRight(item)" /></el-icon>
@@ -86,12 +88,14 @@ import {
 } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
 const props = defineProps(["ciModelId", "allModelFieldInfo", "allModelField"]);
-const isShowFilter = defineModel("isShowFilter");
+const isShowTableCol = defineModel("isShowTableCol");
 // const hasConfigField = defineModel("hasConfigField");
 const hasConfigFieldList = defineModel("hasConfigField");
 
 const { proxy } = getCurrentInstance();
-
+// 字段筛选
+const filterText = ref("");
+const filterInputRef = ref("");
 // const handleClose = (done: () => void) => {
 //   ElMessageBox.confirm("Are you sure you want to close this?")
 //     .then(() => {
@@ -101,13 +105,25 @@ const { proxy } = getCurrentInstance();
 //       // catch error
 //     });
 // };
+const filterModelFields = computed(() => {
+  if (filterText.value === "") return notConfigFieldList.value;
+  return notConfigFieldList.value.filter((item) =>
+    item.verbose_name.includes(filterText.value)
+  );
+});
+//   // filter(val);
+//   if (val === "") return (filterModelFields.value = notConfigFieldList.value);
+//   filterModelFields.value = notConfigFieldList.value.filter((item) =>
+//     item.verbose_name.includes(val)
+//   );
+// });
 function cancelClick() {
-  isShowFilter.value = false;
+  isShowTableCol.value = false;
 }
 function confirmClick() {
   ElMessageBox.confirm(`Are you confirm to chose ${radio1.value} ?`)
     .then(() => {
-      isShowFilter.value = false;
+      isShowTableCol.value = false;
     })
     .catch(() => {
       // catch error
@@ -141,8 +157,6 @@ const onUpdate = () => {
 // 获取模型已配置的显示列
 const ciModelCol = ref({});
 const getHasConfigField = async () => {
-  console.log(1333);
-
   let res = await proxy.$api.getCiModelCol({
     model: props.ciModelId,
   });
@@ -171,7 +185,7 @@ watch(
   }
 );
 // watch(
-//   () => isShowFilter.value,
+//   () => isShowTableCol.value,
 //   (n) => {
 //     if (n) {
 //       getHasConfigField();
@@ -189,7 +203,8 @@ const colCommit = async () => {
     ElMessage({ type: "success", message: "更新成功" });
     // 重置表单
     nextTick(() => {
-      isShowFilter.value = false;
+      filterInputRef.value!.clear();
+      isShowTableCol.value = false;
     });
     // 获取数据源列表
   } else {
@@ -215,5 +230,8 @@ defineExpose({
 <style scoped lang="scss">
 .el-divider--horizontal {
   margin: 20px 0;
+}
+.el-drawer__header {
+  margin-bottom: 0px !important;
 }
 </style>

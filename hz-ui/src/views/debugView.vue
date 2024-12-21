@@ -14,30 +14,30 @@
       </template>
       <template #default>
         <div
-          class="card"
           style="
             display: flex;
             /* flex-direction: column; */
-            justify-content: space-between;
+            justify-content: space-around;
             gap: 10px;
             height: 100%;
           "
         >
-          <el-card class="card" style="width: 100px">
+          <el-card class="card" style="flex: 0.4">
             <template #header>
               <div class="card-header">
                 <span>模型字段</span>
               </div>
             </template>
 
-            <div v-for="(item, index) in listl" :key="index">
-              <div style="display: flex; justify-content: space-between">
+            <div style="width: 100%; overflow: auto">
+              <p v-for="(item, index) in listl" :key="index">{{ item }}</p>
+              <!-- <div style="display: flex; justify-content: space-between">
                 <span>{{ item }}</span>
                 <el-icon><ArrowRight @click="toRight(item)" /></el-icon>
-              </div>
+              </div> -->
             </div>
           </el-card>
-          <el-card class="card" style="width: 100px">
+          <el-card class="card" style="flex: 0.4">
             <template #header>
               <div class="card-header">
                 <span>已显示字段</span>
@@ -106,7 +106,10 @@ function confirmClick() {
     });
 }
 
-const list1 = ref([1, 2, 3, 4, 5, 6]);
+const list1 = ref([
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+  23, 24, 25, 26,
+]);
 const listr = ref([1, 2, 3]);
 const listl = computed(() => {
   return list1.value.filter((item) => !listr.value.includes(item));
@@ -131,4 +134,38 @@ const onEnd = (e: DraggableEvent) => {
 const onUpdate = () => {
   console.log("update");
 };
+const hasConfigField = ref([]);
+
+const modelInfo = ref({});
+const allModelFieldInfo = computed<any>(() => {
+  let tempList = {};
+  modelInfo.value?.field_groups?.forEach((item) => {
+    item.fields.forEach((field) => {
+      tempList[field.id] = field;
+    });
+  });
+  return tempList;
+});
+const allModelFieldByNameObj = computed<any>(() => {
+  let tempList = {};
+  modelInfo.value?.field_groups?.forEach((item) => {
+    item.fields.forEach((field) => {
+      tempList[field.name] = field;
+    });
+  });
+  return tempList;
+});
+// 获取模型已配置的显示列
+const ciModelCol = ref({});
+const getHasConfigField = async () => {
+  let res = await proxy.$api.getCiModelCol({
+    model: "a8406612-738f-4b8f-93cc-e3f8fbe217ee",
+  });
+  // console.log(typeof res.data.fields_preferred)
+  ciModelCol.value = res.data;
+  hasConfigField.value = res.data.fields_preferred;
+};
+onMounted(async () => {
+  await getHasConfigField();
+});
 </script>

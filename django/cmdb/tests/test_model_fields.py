@@ -2,7 +2,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.utils import timezone
-from core.models import Models, ModelFields  # 修改导入的类名
+from cmdb.models import Models, ModelFields  # 修改导入的类名
 
 class ModelFieldsViewSetTestCase(APITestCase):  # 修改测试类名
     def setUp(self):

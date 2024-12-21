@@ -5,17 +5,17 @@
     <div
       class="card"
       style="
-        flex: 0.2;
+        flex: 0.5;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
         position: relative;
       "
     >
-      <el-icon style="position: absolute; top: 10px; right: 20px" size="large">
+      <!-- <el-icon style="position: absolute; top: 10px; right: 20px" size="large">
         <CircleClose />
-      </el-icon>
-      <div style="width: 100%; flex-grow: 1; overflow: auto">
+      </el-icon> -->
+      <div style="width: 100%; overflow: auto">
         <p
           :key="index"
           v-for="(, index) in [
@@ -25,9 +25,9 @@
           111
         </p>
       </div>
-      <div style="width: 100%; background-color: blue; align-self: flex-end">
+      <!-- <div style="width: 100%; background-color: blue; align-self: flex-end">
         555
-      </div>
+      </div> -->
     </div>
 
     <div class="card">333</div>

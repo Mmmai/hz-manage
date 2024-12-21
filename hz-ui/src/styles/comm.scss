@@ -81,3 +81,18 @@ html {
 .requiredClass {
   margin-left: 0px;
 }
+
+
+// for 数组的列表显示样式
+.listItem{
+  border-left: 5px solid var(--el-border-color);
+  padding-left: 10px;
+  display: flex;
+  justify-content: space-between;
+  margin: 5px;
+  padding: 5px;
+}
+.listItem:hover {
+  background-color: var(--el-color-primary-light-9);
+}
+

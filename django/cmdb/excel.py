@@ -4,7 +4,9 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter
 import json
 from .constants import FieldMapping, FieldType, ValidationType
-from .models import ModelInstance
+from .models import ModelInstance, ValidationRules
+from .utils import password_handler
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -61,7 +63,7 @@ class ExcelHandler:
         else:
             dv = DataValidation(
                 type='custom',
-                formula1='FALSE',  # 永远返回False的公式
+                formula1='FALSE',
                 allow_blank=not field.required,
                 showErrorMessage=True,
                 errorTitle='输入错误',
@@ -85,6 +87,40 @@ class ExcelHandler:
         required_fill = PatternFill(start_color="FFFF0000", end_color="FFFF0000", fill_type="solid")
         center_alignment = Alignment(horizontal='center', vertical='center')
         
+        # 添加name列作为第一列
+        name_col_letter = 'A'
+        
+        # 设置name列标题
+        cell = template_sheet[f'{name_col_letter}1']
+        cell.value = "name\r\n实例唯一标识"
+        cell.font = header_font
+        cell.fill = required_fill  # 必填标记
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        
+        # 设置name列类型说明
+        cell = template_sheet[f'{name_col_letter}2']
+        cell.value = "string\r\n字符串"
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        
+        # 设置name列约束说明
+        cell = template_sheet[f'{name_col_letter}3']
+        cell.value = "必填"
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        
+        # 设置name列数据验证
+        dv = DataValidation(
+            type='custom',
+            formula1='AND(LEN(A4)>0,COUNTIF(A4:A1048576,A4)=1)',
+            showErrorMessage=True,
+            errorTitle='输入错误',
+            error='实例名称不能为空且不能重复'
+        )
+        template_sheet.add_data_validation(dv)
+        dv.add(f'{name_col_letter}4:{name_col_letter}1048576')
+        
+        # 设置列宽
+        template_sheet.column_dimensions[name_col_letter].width = 15
+        
         # 创建枚举值工作表
         enum_sheet = wb.create_sheet("枚举类型可选值")
         
@@ -92,7 +128,7 @@ class ExcelHandler:
         current_enum_col = 1
         
         # 写入表头
-        for col, field in enumerate(fields, 1):
+        for col, field in enumerate(fields, 2):
             logger.info(f'Handling column {col} for field {field.name}')
             col_letter = get_column_letter(col)
             
@@ -163,3 +199,80 @@ class ExcelHandler:
         enum_sheet.protection.set_password('123456')
         
         return wb
+    
+    @staticmethod
+    def generate_data_export(fields, instances):
+        """生成实例数据导出"""
+        wb = Workbook()
+        data_sheet = wb.active
+        data_sheet.title = "实例数据"
+        
+        # 复用模板格式设置
+        header_font = Font(bold=True)
+        center_alignment = Alignment(horizontal='center', vertical='center')
+        
+        # 写入标题行
+        col = 1
+        name_col = get_column_letter(col)
+        data_sheet[f'{name_col}1'] = "name"
+        data_sheet[f'{name_col}1'].font = header_font
+        data_sheet[f'{name_col}1'].alignment = center_alignment
+        
+        # 写入字段标题
+        for field in fields:
+            col += 1
+            col_letter = get_column_letter(col)
+            data_sheet[f'{col_letter}1'] = f'{field.name}\r\n{field.verbose_name}'
+            data_sheet[f'{col_letter}1'].font = header_font
+            data_sheet[f'{col_letter}1'].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)            
+            data_sheet.column_dimensions[col_letter].width = 20
+
+        
+        field_to_col = {
+            field.name: get_column_letter(idx + 2)
+            for idx, field in enumerate(fields)
+        }
+        
+        # 写入实例数据
+        for row, instance in enumerate(instances, 2):
+            # 写入name
+            data_sheet[f'A{row}'] = instance.name
+            
+            field_values = {}
+            for field_meta in instance.field_values.all():
+                value = field_meta.data
+                
+                # 处理枚举类型
+                if (field_meta.model_fields.type == FieldType.ENUM and 
+                    field_meta.model_fields.validation_rule and 
+                    field_meta.model_fields.validation_rule.type == ValidationType.ENUM):
+                    
+                    # 从缓存获取枚举字典
+                    rule_id = field_meta.model_fields.validation_rule.id
+                    enum_dict = ValidationRules.get_enum_dict(rule_id)
+                    value = enum_dict.get(value, None)
+                # 处理关联模型
+                elif field_meta.model_fields.type == FieldType.MODEL_REF:
+                    ref_model = field_meta.model_fields.ref_model
+                    ref_instance = ModelInstance.objects.filter(
+                        model=ref_model, 
+                        id=value
+                    ).first()
+                    value = ref_instance.name if ref_instance else None
+                elif field_meta.model_fields.type == FieldType.PASSWORD:
+                    value = password_handler.decrypt(value)    
+                field_values[field_meta.model_fields.name] = value
+                
+            
+            # 写入字段值
+            for field_name, field_value in field_values.items():
+                if field_name in field_to_col:
+                    col_letter = field_to_col[field_name]
+                    data_sheet[f'{col_letter}{row}'] = field_value
+                
+        
+        data_sheet.row_dimensions[1].height = 30
+        data_sheet.freeze_panes = 'A2'
+        
+        return wb
+    

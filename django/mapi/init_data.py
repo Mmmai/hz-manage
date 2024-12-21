@@ -103,7 +103,7 @@ INIT_MENU =  [
 			"is_iframe": 0,
 			"iframe_url": '',
 			"description": "",
-			"parentid": "cimodelManage"
+			"parentid_id": "cimodelManage"
 		},
     {
       "label": "资产审计",
@@ -331,6 +331,6 @@ INIT_MENU =  [
 			"is_iframe": 0,
 			"iframe_url": '',
 			"description": "",
-			"parentid": ''
+			"parentid_id": ''
 		}
   ]

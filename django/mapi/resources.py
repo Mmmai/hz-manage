@@ -19,7 +19,7 @@ class PortalResource(resources.ModelResource):
                 names[i.name] = Field(attribute=i.name, column_name=i._verbose_name)
 
             fieldsList.append(i.name)
-    print(fieldsList)
+    # print(fieldsList)
     class Meta:
         model = Portal
         #导入导出的字段

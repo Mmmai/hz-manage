@@ -243,8 +243,9 @@ const changeModel = async () => {
 
   await ciDataShowRef.value!.setLoading(true);
 
-  await ciDataShowRef.value!.getHasConfigField();
   await ciDataShowRef.value!.getModelField();
+  await ciDataShowRef.value!.getHasConfigField();
+
   // await ciDataShowRef.value!.getCiData()
   await ciDataShowRef.value!.setLoading(false);
   await ciDataShowRef.value!.initCiDataForm();
@@ -265,8 +266,9 @@ onMounted(async () => {
   await getCiModelList();
   await getCiModelTree();
   ciDataShowRef.value!.setLoading(true);
-  await ciDataShowRef.value!.getHasConfigField();
   await ciDataShowRef.value!.getModelField();
+  await ciDataShowRef.value!.getHasConfigField();
+
   // await ciDataShowRef.value!.getCiData()
   await ciDataShowRef.value!.setLoading(false);
 
