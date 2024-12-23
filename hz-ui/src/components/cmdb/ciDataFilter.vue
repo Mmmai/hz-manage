@@ -1,7 +1,12 @@
 <template>
-  <el-drawer v-model="isShowFilter" direction="rtl" size="50%">
+  <el-drawer
+    v-model="isShowFilter"
+    direction="rtl"
+    size="50%"
+    :before-close="handleClose"
+  >
     <template #header>
-      <h4>set title by slot</h4>
+      <el-text tag="b">筛选</el-text>
     </template>
     <template #default>
       <div
@@ -20,13 +25,15 @@
           <el-text tag="b">模型字段</el-text>
           <el-divider />
           <el-input
-            v-model="searchString"
-            style="width: 100%"
+            v-model="filterText"
+            style="width: 100%; margin-bottom: 10px"
             placeholder="筛选字段名称"
+            clearable
+            ref="filterInputRef"
           />
 
           <div style="width: 100%; overflow: auto">
-            <div v-for="(item, index) in notConfigFieldList" :key="index">
+            <div v-for="(item, index) in filterModelFields" :key="index">
               <div class="listItem">
                 <span>{{ item.verbose_name }}</span>
                 <el-icon><ArrowRight @click="toRight(item)" /></el-icon>
@@ -38,182 +45,334 @@
           class="card"
           style="flex: 1; display: flex; flex-direction: column"
         >
-          <el-text tag="b">已显示字段</el-text>
+          <el-text tag="b">过滤器</el-text>
           <el-divider />
 
-          <VueDraggable
-            ref="el"
-            v-model="hasConfigFieldList"
-            @start="onStart"
-            @update="onUpdate"
-            @end="onEnd"
-            style="width: 100%; overflow: auto"
+          <el-form
+            ref="filterFormRef"
+            :model="filterForm"
+            label-width="auto"
+            style="width: 100%"
+            label-position="top"
           >
-            <div v-for="(item, index) in hasConfigFieldList" :key="index">
-              <div class="listItem">
-                <span>{{ item.verbose_name }}</span>
-                <el-icon><Close @click="toLeft(item)" /></el-icon>
-              </div>
-            </div>
-          </VueDraggable>
+            <el-space wrap>
+              <el-form-item label="唯一标识" prop="name">
+                <el-input
+                  v-model="filterForm.name"
+                  type="textarea"
+                  style="width: 280px"
+                />
+              </el-form-item>
+              <el-form-item
+                v-for="(item, index) in filterForm.filterParams"
+                :key="item.index"
+                :prop="'filterParams.' + index + '.value'"
+              >
+                <template #label>
+                  <span style="margin-right: 5px">{{ item.label }}</span>
+                  <el-button
+                    :icon="CircleClose"
+                    size="small"
+                    circle
+                    @click.prevent="toLeft(item)"
+                  >
+                  </el-button>
+                </template>
+                <el-space>
+                  <el-select
+                    v-model="item.match"
+                    placeholder="匹配方式"
+                    style="max-width: 100px; width: 90px"
+                  >
+                    <el-option
+                      v-for="oitem in matchOptions"
+                      :key="oitem.value"
+                      :label="oitem.label"
+                      :value="oitem.value"
+                    />
+                    <el-option
+                      v-for="oitem in matchOptions"
+                      :key="oitem.value"
+                      :label="oitem.label"
+                      :value="oitem.value"
+                    >
+                      <span style="float: left">{{ oitem.label }}</span>
+                      <span
+                        style="
+                          float: right;
+                          color: var(--el-text-color-secondary);
+                          font-size: 13px;
+                        "
+                      >
+                        {{ oitem.description }}
+                      </span>
+                    </el-option>
+                  </el-select>
+                  <div
+                    v-if="
+                      ['enum'].indexOf(
+                        props.allModelFieldByNameObj[item.name].type
+                      ) >>> -1
+                        ? false
+                        : true
+                    "
+                  >
+                    <el-select
+                      v-model="item.value"
+                      placeholder="请选择"
+                      style="width: 180px"
+                    >
+                      <el-option
+                        v-for="ritem in props.enumOptionObj[
+                          props.allModelFieldByNameObj[item.name]
+                            .validation_rule
+                        ]"
+                        :key="ritem.value"
+                        :label="ritem.label"
+                        :value="ritem.value"
+                      />
+                    </el-select>
+                  </div>
+                  <div
+                    v-else-if="
+                      ['model_ref'].indexOf(
+                        props.allModelFieldByNameObj[item.name].type
+                      ) >>> -1
+                        ? false
+                        : true
+                    "
+                  >
+                    <el-select
+                      v-model="item.value"
+                      placeholder="请选择"
+                      style="width: 180px"
+                    >
+                      <el-option
+                        v-for="ritem in props.modelRefOptions[item.name]"
+                        :key="ritem.value"
+                        :label="ritem.label"
+                        :value="ritem.value"
+                      />
+                    </el-select>
+                  </div>
+                  <div
+                    v-else-if="
+                      ['boolean'].indexOf(
+                        props.allModelFieldByNameObj[item.name].type
+                      ) >>> -1
+                        ? false
+                        : true
+                    "
+                  >
+                    <el-switch
+                      v-model="item.value"
+                      style="
+                        --el-switch-on-color: #13ce66;
+                        --el-switch-off-color: #ff4949;
+                      "
+                    />
+                  </div>
+
+                  <div v-else>
+                    <el-input v-model="item.value" style="width: 180px" />
+                  </div>
+                </el-space>
+              </el-form-item>
+            </el-space>
+          </el-form>
         </div>
       </div>
     </template>
     <template #footer>
       <div style="flex: auto">
-        <el-button @click="cancelClick">取消</el-button>
-        <el-button type="primary" @click="colCommit">保存</el-button>
+        <el-button @click="resetForm(filterFormRef)">重置</el-button>
+        <el-button @click="searchCommit()" type="primary">搜索</el-button>
       </div>
     </template>
   </el-drawer>
 </template>
 <script setup lang="ts">
-import {
-  ArrowRight,
-  CircleClose,
-  CirclePlus,
-  Close,
-  Delete,
-} from "@element-plus/icons-vue";
+import { ArrowRight, CircleClose } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import {
   computed,
   ref,
-  onMounted,
   watch,
   getCurrentInstance,
   nextTick,
+  reactive,
 } from "vue";
-import { VueDraggable } from "vue-draggable-plus";
-const props = defineProps(["ciModelId", "allModelFieldInfo", "allModelField"]);
-const isShowFilter = defineModel("isShowFilter");
+const props = defineProps([
+  "ciModelId",
+  "currentNodeId",
+  "allModelField",
+  "allModelFieldByNameObj",
+  "enumOptionObj",
+  "validationRulesObj",
+  "modelRefOptions",
+]);
+const isShowFilter = defineModel("showFilter");
 // const hasConfigField = defineModel("hasConfigField");
-const hasConfigFieldList = defineModel("hasConfigField");
+const filterText = ref("");
+const filterInputRef = ref("");
+const filterModelFields = computed(() => {
+  if (filterText.value === "") return notConfigFieldList.value;
+  return notConfigFieldList.value.filter((item) =>
+    item.verbose_name.includes(filterText.value)
+  );
+});
 
 const { proxy } = getCurrentInstance();
 
-// const handleClose = (done: () => void) => {
-//   ElMessageBox.confirm("Are you sure you want to close this?")
-//     .then(() => {
-//       done();
-//     })
-//     .catch(() => {
-//       // catch error
-//     });
-// };
-function cancelClick() {
+function handleClose() {
   isShowFilter.value = false;
-}
-function confirmClick() {
-  ElMessageBox.confirm(`Are you confirm to chose ${radio1.value} ?`)
-    .then(() => {
-      isShowFilter.value = false;
-    })
-    .catch(() => {
-      // catch error
-    });
 }
 
 // const list1 = ref([1, 2, 3, 4, 5, 6]);
 // const hasConfigFieldList = ref([1, 2, 3]);
 
 const toRight = (params) => {
-  hasConfigFieldList.value.push(params);
+  filterLists.value.push(params);
 };
 const toLeft = (params) => {
-  let index = hasConfigFieldList.value.indexOf(params);
-  hasConfigFieldList.value.splice(index, 1);
+  let index = filterForm.filterParams.indexOf(params);
+  filterLists.value.splice(index, 1);
 };
 
-const onStart = (e: DraggableEvent) => {
-  console.log("start", e);
-};
-
-const onEnd = (e: DraggableEvent) => {
-  console.log("onEnd", e);
-  console.log(hasConfigFieldList.value);
-};
-
-const onUpdate = () => {
-  console.log("update");
-};
-
-// 获取模型已配置的显示列
-const ciModelCol = ref({});
-const getHasConfigField = async () => {
-  console.log(1333);
-
-  let res = await proxy.$api.getCiModelCol({
-    model: props.ciModelId,
-  });
-  // console.log(typeof res.data.fields_preferred)
-  ciModelCol.value = res.data;
-  // hasConfigField.value = res.data.fields_preferred;
-  let tmpArr = [];
-  res.data.fields_preferred.forEach((item) => {
-    tmpArr.push(props.allModelFieldInfo[item]);
-  });
-  hasConfigFieldList.value = tmpArr;
-  // console.log(hasConfigFieldList.value);
-
-  // console.log(1111);
-};
-// 用于更新
-const hasConfigFieldIdList = computed(() => {
-  return hasConfigFieldList.value.map((item) => item.id);
-});
-const emits = defineEmits(["reloadTable"]);
-watch(
-  () => hasConfigFieldList.value,
-  (n) => {
-    emits("reloadTable");
-    // console.log(hasConfigFieldList.value);
-  }
-);
-// watch(
-//   () => isShowFilter.value,
-//   (n) => {
-//     if (n) {
-//       getHasConfigField();
-//     }
-//   }
-// );
-const colCommit = async () => {
-  // 提交更新
-  let res = await proxy.$api.updateCiModelCol({
-    id: ciModelCol.value.id,
-    fields_preferred: hasConfigFieldIdList.value,
-  });
-  // hasConfigField.value =
-  if (res.status == "200") {
-    ElMessage({ type: "success", message: "更新成功" });
-    // 重置表单
-    nextTick(() => {
-      isShowFilter.value = false;
-    });
-    // 获取数据源列表
+const removeFilterParam = (name, index) => {
+  if (name === "name") {
+    filterForm.name = "";
+    filterParam;
   } else {
-    ElMessage({
-      showClose: true,
-      message: "更新失败:" + JSON.stringify(res.data),
-      type: "error",
-    });
+    filterLists.value.splice(index, 1);
   }
+  nextTick(() => {
+    emit("updateFilterParam", filterParamComputed.value);
+  });
 };
 const notConfigFieldList = computed(() => {
   return props.allModelField.filter(
-    (item) => !hasConfigFieldList.value.includes(item)
+    (item) => !filterLists.value.includes(item)
   );
 });
-defineExpose({
-  getHasConfigField,
+// const filterParam = defineModel("filterParam");
+const filterParam = ref({});
+const emit = defineEmits(["getCiData", "updateFilterParam"]);
+
+const filterFormRef = ref("");
+const filterForm = reactive({
+  filterParams: [],
+  name: "",
 });
-// onMounted(async () => {
-//   await getHasConfigField();
-// });
+const matchOptions = ref([
+  { value: "=", label: "=", description: "等于" },
+  { value: "not:", label: "!=", description: "不等于" },
+  { value: "like:", label: "*=", description: "模糊匹配" },
+  { value: "not:like:", label: "!=", description: "反向模糊匹配" },
+  { value: "in:", label: "in", description: "包含以,分隔" },
+  { value: "not:in:", label: "!in", description: "不包含以,分隔" },
+  { value: "regex:", label: "regex", description: "正则表达式" },
+]);
+const filterLists = ref([]);
+const filterParamComputed = computed(() => {
+  let tmpObj = new Object();
+
+  // console.log(filterParams.value);
+  filterForm.filterParams.forEach((item) => {
+    if (item.value !== "") {
+      let _tmpValue = null;
+      if (item.value !== null) {
+        _tmpValue = item.value;
+      } else {
+        _tmpValue = "null";
+      }
+      if (item.match === "=") {
+        tmpObj[item.name] = _tmpValue;
+      } else {
+        tmpObj[item.name] = item.match + _tmpValue;
+      }
+    }
+  });
+
+  // name字段判断有没有过滤值
+  if (filterForm.name !== "") {
+    tmpObj.name = filterForm.name;
+  }
+  return tmpObj;
+});
+// watch(
+//   () => filterParamComputed.value,
+//   (n) => {
+//     console.log(n);
+//   },
+//   { deep: true }
+// );
+// const filterLists = computed(() => ciStore.filterLists);
+const searchCommit = () => {
+  emit("updateFilterParam", filterParamComputed.value);
+
+  // 发起查询流程
+  nextTick(() => {
+    emit("getCiData", {
+      model: props.ciModelId,
+      model_instance_group: props.currentNodeId,
+    });
+  });
+
+  isShowFilter.value = false;
+};
+
+const filterParamsName = computed(() =>
+  filterForm.filterParams?.map((item) => item.name)
+);
+
+// 监听右侧的字段过滤，生成过滤表单
+watch(
+  () => filterLists.value,
+  (n) => {
+    let _tmpArr = new Array();
+    // if (filterLists.value)
+    filterLists.value?.forEach((item, index) => {
+      if (filterParamsName.value?.indexOf(item.name) >>> -1) {
+        _tmpArr.push({
+          name: item.name,
+          value: "",
+          match: "=",
+          label: item.verbose_name,
+        });
+      } else {
+        let index = filterForm.filterParams.findIndex(
+          (item2) => item2.name === item.name
+        );
+        _tmpArr.push(filterForm.filterParams[index]);
+      }
+    });
+    filterForm.filterParams = _tmpArr;
+  },
+  { deep: true }
+);
+
+const resetForm = (formEl) => {
+  if (!formEl) return;
+  formEl.resetFields();
+  emit("updateFilterParam", filterParamComputed.value);
+  nextTick(() => {
+    emit("getCiData", {
+      model: props.ciModelId,
+      model_instance_group: props.currentNodeId,
+    });
+  });
+};
+
+defineExpose({
+  removeFilterParam,
+});
 </script>
 <style scoped lang="scss">
 .el-divider--horizontal {
   margin: 20px 0;
+}
+.el-drawer__header {
+  margin-bottom: 0px !important;
 }
 </style>

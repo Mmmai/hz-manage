@@ -8,9 +8,9 @@
     :allModelField="allModelField"
     :modelRefOptions="modelRefOptions"
     v-model:showFilter="showFilter"
-    v-model:filterParams="filterParams"
-    v-if="showFilter"
+    @updateFilterParam="updateFilterParam"
     @getCiData="getCiData"
+    ref="ciDataFilterRef"
   />
 
   <!-- <el-button @click="getHasConfigField">1111</el-button> -->
@@ -66,11 +66,22 @@
           content="打开过滤器"
           placement="top"
         >
-          <el-button :icon="Search" circle @click="showFilter = !showFilter" />
+          <el-button :icon="Search" circle @click="openFilter" />
         </el-tooltip>
       </div>
     </div>
-
+    <div class="flexJstart gap-1" style="overflow: auto">
+      <el-text v-show="filterTags.length >>> 0" tag="b">过滤器</el-text>
+      <el-tag
+        v-for="(tag, index) in filterTags"
+        :key="tag.name"
+        closable
+        type="primary"
+        @close="tagClose(tag.field, index)"
+      >
+        {{ tag.name }}
+      </el-tag>
+    </div>
     <el-table
       ref="ciDataTableRef"
       :data="ciDataList"
@@ -124,7 +135,7 @@
           #default="scope"
           v-if="modelFieldType.enum.indexOf(data.name) != -1"
         >
-          <span>{{ enumOptionNameObj[data.name][scope.row[data.name]] }}</span>
+          <span>{{ scope.row[data.name].label }}</span>
         </template>
         <template
           #default="scope"
@@ -220,56 +231,6 @@
       <el-text>已选择 {{ multipleSelect.length }} 条</el-text>
     </el-pagination>
   </div>
-  <!-- 修改列模板 -->
-  <!-- <el-drawer
-    v-model="ciModelColDrawer"
-    class="edit-drawer"
-    direction="rtl"
-    size="35%"
-    @close="reloadWind"
-  >
-    <template #header>
-      <h4 style="margin-bottom: 0">列表显示属性配置</h4>
-    </template>
-    <template #default>
-      <el-scrollbar>
-        <el-transfer
-          ref="sortableRef"
-          v-model="hasConfigField"
-          filterable
-          :filter-method="filterMethod"
-          filter-placeholder="请输入"
-          :data="allModelField"
-          @change="transferChange"
-          :props="{ key: 'id', label: 'verbose_name' }"
-          :titles="['模型字段', '已选字段']"
-        >
-          <template #default="{ option }">
-            <div
-              class="transferLable"
-              :draggable="hasConfigField.includes(option.id)"
-              @dragstart="handleDragStart(option)"
-              @dragenter="handleDragenter($event, option)"
-              @dragend="handleDrop($event)"
-            >
-              <span class="trnsferValue">{{ option.verbose_name }}</span>
-              <span id="draggable" class="sort">
-                <el-icon>
-                  <Rank />
-                </el-icon>
-              </span>
-            </div>
-          </template>
-        </el-transfer>
-      </el-scrollbar>
-    </template>
-
-    <template #footer>
-      <div style="flex: auto">
-        <el-button type="primary" @click="colCommit" v-throttle>确认</el-button>
-      </div>
-    </template>
-  </el-drawer> -->
 
   <!-- 实例编辑的弹出框 -->
 
@@ -709,9 +670,7 @@
                     <span
                       v-if="ciDataForm[fitem.name] != null"
                       :class="{ requiredClass: fitem.required }"
-                      >{{
-                        enumOptionNameObj[fitem.name][ciDataForm[fitem.name]]
-                      }}</span
+                      >{{ currentRow[fitem.name].label }}</span
                     >
                     <span v-else>--</span>
                   </div>
@@ -766,12 +725,6 @@
                     placeholder="请选择"
                     style="width: 240px"
                     filterable
-                    @visible-change="
-                      getModelRefCiData($event, {
-                        id: allModelFieldByNameObj[fitem.name].ref_model,
-                        name: fitem.name,
-                      })
-                    "
                   >
                     <el-option
                       v-for="(citem, cIndex) in modelRefOptions[fitem.name]"
@@ -938,13 +891,13 @@
                 placeholder="请选择"
                 style="width: 240px"
                 filterable
-                @visible-change="
+              >
+                <!--                 @visible-change="
                   getModelRefCiData($event, {
                     id: allModelFieldByNameObj[item].ref_model,
                     name: item,
                   })
-                "
-              >
+                " -->
                 <el-option
                   v-for="(citem, cIndex) in modelRefOptions[item]"
                   :key="cIndex"
@@ -1125,7 +1078,7 @@ import {
 import { da, pa } from "element-plus/es/locale/index.mjs";
 const { proxy } = getCurrentInstance();
 import type { FormInstance, FormItemInstance, FormRules } from "element-plus";
-import ciDataFilter from "./backup/ciDataFilter.vue";
+import ciDataFilter from "./ciDataFilter.vue";
 import { useStore } from "vuex";
 import { useClipboard } from "vue-clipboard3";
 import { debounce } from "lodash";
@@ -1136,6 +1089,10 @@ const props = defineProps(["ciModelId", "treeData", "currentNodeId"]);
 // const currentNodeId = defineModel("currentNodeId");
 const activeArr = ref([0]);
 const showFilter = ref(false);
+const openFilter = () => {
+  showFilter.value = true;
+};
+const ciDataFilterRef = ref("");
 const closeFilter = () => {
   showFilter.value = false;
 };
@@ -1366,7 +1323,7 @@ const saveCommit = () => {
   });
 };
 const allModelFieldOptions = computed<any>(() => {
-  let tempList = [];
+  let tempList = new Array();
   modelInfo.value?.field_groups?.forEach((item) => {
     item.fields.forEach((field) => {
       let isDisabled = false;
@@ -1472,65 +1429,14 @@ const allModelFieldByNameObj = computed<any>(() => {
   });
   return tempList;
 });
-// 获取模型已配置的显示列
-// const ciModelCol = ref({});
-// const getHasConfigField = async () => {
-//   let res = await proxy.$api.getCiModelCol({ model: props.ciModelId });
-//   // console.log(typeof res.data.fields_preferred)
-//   ciModelCol.value = res.data;
-//   hasConfigField.value = res.data.fields_preferred;
-// };
-const getHasConfigField = async () => {
-  await ciDataTableColRef.value!.getHasConfigField();
+// 表格显示列
+const ciDataTableColRef = ref("");
+const getHasConfigField = () => {
+  ciDataTableColRef.value!.getHasConfigField();
 };
-// const allModelFieldSort = computed(()=>{
-//   let intersection = allModelField.value.filter(item => hasConfigField.value.includes(item.id));
-//   let _tmpArr = []
-
-// })
-// 排序函数
-const objSort = (a, b) => {};
-// watch(
-//   () => hasConfigField.value,
-//   (n) => {
-//     // 对列排序
-//     allModelField.value.sort((a, b) => {
-//       let indexA = n.indexOf(a.id);
-//       let indexB = n.indexOf(b.id);
-//       return indexA - indexB;
-//     });
-//     // console.log(allModelField.value)
-//     // ciDataList.value
-//     // let tempArr = ciDataList.value
-//     // ciDataList.value = []
-//     // nextTick(()=>{
-//     //   ciDataList.value = tempArr
-
-//     // })
-//   },
-//   { deep: true }
-// );
-// const hasNoConfigFieldList = computed(() => {
-//   return allModelField.value.filter((item) => {
-//     return hasConfigField.value.indexOf(item) == -1;
-//   });
-// });
 
 // 列显示
-const ciDataTableColRef = ref("");
-// table显示的列名
-// const showTableField = computed(() => {
-//   let tempArr: any[] = [];
-//   hasConfigField.value.forEach((item) => {
-//     if (Object.keys(allModelFieldInfo.value).indexOf(item) === -1) return [];
-//     tempArr.push({
-//       name: allModelFieldInfo.value[item].name,
-//       verbose_name: allModelFieldInfo.value[item].verbose_name,
-//     });
-//   });
-//   // console.log(tempArr)
-//   return tempArr;
-// });
+
 const reloadWind = () => {
   // window.location.reload();
   reloadTable.value = false;
@@ -1619,40 +1525,21 @@ const getModelRefCiData = async (visible, params) => {
     ...tmpArr,
   ];
 };
+const modelRefDataById = computed(() => {
+  let tmpObj = new Object();
+  for (let [mKey, mValue] of Object.entries(modelRefOptions.value)) {
+    let tmpArr = new Object();
+    mValue?.forEach((item) => {
+      // if (item.label !== "无") {
+      //   tmpArr[item.value] = item;
+      // }
+      tmpArr[item.value] = item;
+    });
+    tmpObj[mKey] = tmpArr;
+  }
+  return tmpObj;
+});
 
-// const ciDataIdNameObj = computed(() => {
-//   let tempList = {};
-//   modelInfo.value?.field_groups?.forEach((item) => {
-//     item.fields.forEach(async (field) => {
-//       if (field.type === "model_ref") {
-//         // let ruleObj = JSON.parse(validationRulesObj.value[params].rule)
-//         // JSON.parse(validationRulesObj.value[params].rule)
-//         let res = await proxy.$api.getModelRefCi({
-//           model: field.ref_model,
-//           page: 1,
-//           page_size: 10000,
-//         });
-//         // let newArry = res.map(item => {item.id:} );
-//         nextTick(() => {
-//           let tmpObj = {};
-//           // if (res.length === 0) return;
-//           res.data.results.forEach((item) => {
-//             tmpObj[item.id] = item.name;
-//           });
-//           tempList[field.ref_model] = tmpObj;
-//         });
-//       }
-//     });
-//   });
-//   return tempList;
-// });
-
-// watch(
-//   () => ciDataIdNameObj.value,
-//   (n) => {
-//     console.log(ciDataIdNameObj.value);
-//   }
-// );
 // 获取模型关联相关模型的数据
 const getModelRefData = async (model) => {
   let res = await proxy.$api.getModelRefCi({
@@ -1689,12 +1576,7 @@ const initCiDataForm = () => {
 };
 
 // 获取模型实例字段和模型信息
-const ciModel = ref({});
-// const modelFieldType = ref({
-//   enum: [],
-//   boolean: [],
-//   model_ref: [],
-// });
+
 const allModelField = ref([]);
 const getModelField = async () => {
   // let res = await proxy.$api.getCiModel({ name: 'hosts' })
@@ -1708,6 +1590,8 @@ const getModelField = async () => {
     });
   });
   allModelField.value = tempArr;
+  // 赋值初始化过滤条件
+  // ciDataFilterRef.value!.initFilterLists([allModelField.value[0]]);
   // console.log()
 };
 
@@ -1742,75 +1626,69 @@ watch(
   { deep: true }
 );
 
-// const allModelField = computed(() => {
-//   let tempArr = []
-//   modelInfo.value.field_groups?.forEach(item => {
-//     item.fields.forEach(field => {
-//       // 把字段类型是枚举类和boolean值的暂存，用于table显示枚举的原值
-//       if (field.type === 'enum') {
-//         modelFieldType.value.enum.push(field.name)
-
-//       } else if (field.type === 'boolean') {
-//         modelFieldType.value.boolean.push(field.name)
-//       }
-//       tempArr.push(field)
-//     });
-//   })
-//   // console.log()
-//   console.log(modelFieldType.value)
-//   return tempArr
-// })
-
 // 获取ci数据
 const ciDataList = ref([]);
-// const getCiData = async () => {
-//   setLoading(true);
-//   let tmpList = new Array();
-//   let res = await proxy.$api.getCiModelInstance({ model: props.ciModelId });
-//   res.data.results.forEach((item) => {
-//     tmpList.push({ id: item.id, instance_group: item.instance_group, ...item.fields });
-//   });
-//   ciDataList.value = tmpList;
-//   console.log(ciDataList.value)
-//   setLoading(false);
-// };
-// const getCiDataAsTree1 = async (params) => {
-//   // console.log("子组件调用的")
-//   // return
-//   setLoading(true);
-//   let tmpList = [];
-//   let res = await proxy.$api.getCiDataFromModelTree(params);
-//   res.data.results.forEach((item) => {
-//     tmpList.push({ id: item.id, ...item.fields });
-//   });
-//   ciDataList.value = tmpList;
-//   setLoading(false);
-// };
 const totalCount = ref(0);
-const filterParams = ref({});
-watch(
-  () => showFilter.value,
-  (n) => {
-    if (!showFilter.value) {
-      filterParams.value = {};
-      getCiData({
-        model: props.ciModelId,
-        model_instance_group: props.currentNodeId,
-      });
+const filterParam = ref({});
+const updateFilterParam = (params) => {
+  filterParam.value = params;
+};
+const filterTags = computed(() => {
+  let tmpArr = new Array();
+  for (let [fName, fValue] of Object.entries(filterParam.value)) {
+    // console.log(key + ": " + value);
+    if (fName === "name") {
+      tmpArr.push({ name: "唯一标识:" + fValue, field: fName });
+    } else {
+      if (modelFieldType.value.model_ref.indexOf(fName) !== -1) {
+        // 判断是否为空
+        tmpArr.push({
+          name:
+            allModelFieldByNameObj.value[fName].verbose_name +
+            ":" +
+            modelRefDataById.value[fName][fValue].label,
+          field: fName,
+        });
+      } else if (modelFieldType.value.enum.indexOf(fName) !== -1) {
+        console.log(enumOptionNameObj.value);
+        tmpArr.push({
+          name:
+            allModelFieldByNameObj.value[fName].verbose_name +
+            ":" +
+            enumOptionNameObj.value[fName][fValue],
+          field: fName,
+        });
+      } else {
+        tmpArr.push({
+          name: allModelFieldByNameObj.value[fName].verbose_name + ":" + fValue,
+          field: fName,
+        });
+      }
     }
   }
-);
+  return tmpArr;
+});
+const tagClose = async (name, index) => {
+  await ciDataFilterRef.value!.removeFilterParam(name, index);
+  nextTick(() => {
+    getCiData({
+      model: props.ciModelId,
+      model_instance_group: props.currentNodeId,
+    });
+  });
+};
+
 const getCiData = async (params) => {
   // console.log("子组件调用的")
   // return
-  console.log(filterParams.value);
+  // filterParam.value = tmpObj;
   setLoading(true);
-  let tmpList = [];
+  let tmpList = new Array();
   let res = await proxy.$api.getCiModelInstance({
     ...params,
     page: currentPage.value,
     page_size: pageSize.value,
-    ...filterParams.value,
+    ...filterParam.value,
     // decrypt_password: true,
   });
   totalCount.value = res.data.count;
@@ -1854,25 +1732,6 @@ onMounted(async () => {
   //   loadingInstance.close()
   // })
 });
-// 监听子组件的modelid变化，再加载父组件数据
-// watch(() => ciModel.value, async (n,) => {
-//   console.log(modelInfo.value)
-//   // await getModelField();
-//   await getHasConfigField();
-//   await getCiData({model: props.ciModelId,model_instance_group: props.currentNodeId,});
-//   // getModelField()
-//   await initCiDataForm();
-// }, { deep: true })
-
-defineExpose({
-  getHasConfigField,
-  getCiData,
-  initCiDataForm,
-  getModelField,
-  setLoading,
-  closeFilter,
-  clearMultipleSelect,
-});
 
 // 实例编辑弹出框
 const ciDrawer = ref(false);
@@ -1912,6 +1771,7 @@ const editCiData = (params, edit = false) => {
         }
       } // isDisabled.value = params.built_in
     );
+    console.log(ciDataForm);
     // ciDataForm = params
     beforeEditCiDataForm.value = JSON.parse(JSON.stringify(ciDataForm));
   });
@@ -2174,103 +2034,15 @@ const filterMethod = (query, item) => {
   return item.verbose_name.includes(query);
 };
 
-// 往右侧添加时，手动添加头部
-// const transferChange = (_, direction, movedKeys) => {
-//   if (direction === "right") {
-//     const arrList = allModelField.value.filter(
-//       (item) => !movedKeys.includes(item.id)
-//     );
-//     const arrUnshift = allModelField.value.filter((item) =>
-//       movedKeys.includes(item.id)
-//     );
-//     allModelField.value = [...arrUnshift, ...arrList];
-//   }
-// };
-
-// let dragTarget = null; // 用于存储被拖动的目标项
-// let dragIndex = -1; // 被拖动项在数组中的原始索引
-// let targetOption = null; // 拖动过程中停放目标
-
-// // 开始拖动
-// const handleDragStart = (option) => {
-//   dragTarget = option;
-//   dragIndex = allModelField.value.findIndex((item) => item === option);
-//   console.log(dragIndex);
-// };
-
-// // 放置时重新排序数组
-// const handleDragenter = (event, option) => {
-//   event.preventDefault();
-//   if (!dragTarget || !option) return;
-//   targetOption = option;
-//   if (event.target.draggable) {
-//     clearMovingDOM();
-//     const targetIndex = allModelField.value.findIndex(
-//       (item) => item.id === targetOption.id
-//     );
-//     if (targetIndex < dragIndex) {
-//       // 往上拖拽
-//       event.target.className = "movingTop";
-//     } else {
-//       // 往下拖拽
-//       event.target.className = "movingBottom";
-//     }
-//   }
-// };
-
-// // 鼠标放开--拖拽结束
-// const handleDrop = () => {
-//   const targetIndex = allModelField.value.findIndex(
-//     (item) => item.id === targetOption.id
-//   );
-//   // console.log(targetIndex)
-//   const newIndex = targetIndex;
-
-//   // 更新数组顺序
-//   // let _tmeparr = allModelField.value
-//   // console.log(dragIndex)
-//   const [removed] = allModelField.value.splice(dragIndex, 1);
-//   console.log(removed);
-//   console.log(newIndex);
-//   // 添加移除都的元素到新位置
-//   allModelField.value.splice(newIndex, 0, removed);
-//   // console.log(_tmeparr)
-//   // allModelField.value = _tmeparr
-//   console.log(allModelField.value);
-//   // 触发hasConfigField更新
-//   let _tempArr = [];
-//   allModelField.value.forEach((item) => {
-//     if (hasConfigField.value.indexOf(item.id) !== -1) {
-//       _tempArr.push(item.id);
-//     }
-//   });
-//   hasConfigField.value = _tempArr;
-//   // 重置拖动状态
-//   dragTarget = null;
-//   targetOption = null;
-//   dragIndex = -1;
-//   clearMovingDOM();
-//   // console.log(hasConfigField.value)
-// };
-
-// // 清除moving Class名
-// const clearMovingDOM = () => {
-//   document.querySelectorAll(".movingBottom").forEach((Element) => {
-//     Element.className = "transferLable";
-//   });
-//   document.querySelectorAll(".movingTop").forEach((Element) => {
-//     Element.className = "transferLable";
-//   });
-// };
-
-// 监听批量更新参数
-// watch(
-//   () => multipleForm.updateParams,
-//   (n) => {
-//     console.log(multipleForm.updateParams);
-//   },
-//   { deep: true }
-// );
+defineExpose({
+  getHasConfigField,
+  getCiData,
+  initCiDataForm,
+  getModelField,
+  setLoading,
+  closeFilter,
+  clearMultipleSelect,
+});
 </script>
 <style scoped lang="scss">
 :deep(.el-transfer-panel__item).el-checkbox {

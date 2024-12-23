@@ -96,15 +96,6 @@ const { proxy } = getCurrentInstance();
 // 字段筛选
 const filterText = ref("");
 const filterInputRef = ref("");
-// const handleClose = (done: () => void) => {
-//   ElMessageBox.confirm("Are you sure you want to close this?")
-//     .then(() => {
-//       done();
-//     })
-//     .catch(() => {
-//       // catch error
-//     });
-// };
 const filterModelFields = computed(() => {
   if (filterText.value === "") return notConfigFieldList.value;
   return notConfigFieldList.value.filter((item) =>

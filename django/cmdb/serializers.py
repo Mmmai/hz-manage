@@ -176,7 +176,7 @@ class ValidationRulesSerializer(serializers.ModelSerializer):
                         "Can only modify rule content for editable enum type built_in rules"
                     )
                 # 检查所有字段变更
-                allowed_fields = {'rule', 'description', 'verbose_name'}
+                allowed_fields = {'rule', 'description', 'verbose_name','update_user'}
                 for field, new_value in data.items():
                     old_value = getattr(instance, field)
                     if new_value != old_value and field not in allowed_fields:
@@ -667,7 +667,7 @@ class ModelFieldMetaNestedSerializer(ModelFieldMetaSerializer):
                     'id': data['data'],
                     'name': None
                 }
-        elif instance.model_fields == FieldType.ENUM:
+        elif instance.model_fields.type == FieldType.ENUM:
             if instance.model_fields.validation_rule \
                 and instance.model_fields.validation_rule.type == ValidationType.ENUM:
                 # 从缓存获取枚举字典
