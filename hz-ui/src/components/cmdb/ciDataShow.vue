@@ -335,9 +335,51 @@
                 <el-form-item
                   :label="fitem.verbose_name"
                   :prop="fitem.name"
-                  v-if="
-                    ['text', 'json'].indexOf(fitem.type) >>> -1 ? false : true
-                  "
+                  v-if="fitem.type === 'json'"
+                  :required="fitem.required"
+                >
+                  <template #label>
+                    <el-space :size="2">
+                      <span>{{ fitem.verbose_name }}</span>
+                      <el-tooltip placement="right" effect="dark">
+                        <template #content>
+                          json类型字段<br />请输入json格式数据!
+                        </template>
+
+                        <el-icon><InfoFilled /></el-icon>
+                      </el-tooltip>
+                      <el-tooltip
+                        :content="fitem.description"
+                        placement="right"
+                        effect="dark"
+                        v-if="fitem.description.length != 0 ? true : false"
+                      >
+                        <el-icon>
+                          <Warning />
+                        </el-icon>
+                      </el-tooltip>
+                    </el-space>
+                  </template>
+                  <div v-if="!isEdit">
+                    <span
+                      v-if="ciDataForm[fitem.name] != null"
+                      :class="{ requiredClass: fitem.required }"
+                      >{{ ciDataForm[fitem.name] }}</span
+                    >
+                    <span v-else>--</span>
+                  </div>
+                  <el-input
+                    v-model="ciDataForm[fitem.name]"
+                    style="width: 240px"
+                    autosize
+                    type="textarea"
+                    v-else
+                  ></el-input>
+                </el-form-item>
+                <el-form-item
+                  :label="fitem.verbose_name"
+                  :prop="fitem.name"
+                  v-if="['text'].indexOf(fitem.type) >>> -1 ? false : true"
                   :required="fitem.required"
                 >
                   <template #label>

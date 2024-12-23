@@ -409,11 +409,14 @@ const dialogVisible = ref(false);
 const handleClose = () => {
   dialogVisible.value = false;
   resetForm(formRef.value);
+  nowRow.value = {};
 };
 const isAdd = ref(true);
 const addData = () => {
-  dialogVisible.value = true;
   isAdd.value = true;
+  nextTick(() => {
+    dialogVisible.value = true;
+  });
 };
 const nowRow = ref({});
 const beforeEditFormData = ref({});
