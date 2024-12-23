@@ -1,8 +1,14 @@
 # 环境准备
 
 mysql:8
-
+docker run -p 3306:3306 --name mysql -e MYSQL_ROOT_PASSWORD=thinker  -d mysql:8.0
+create database testdb;
 mongodb:8
+docker run -it --name mongodb -e MONGO_INITDB_ROOT_USERNAME=cmdb -e  MONGO_INITDB_ROOT_PASSWORD=thinker -p 27017:27017 -d mongo:latest
+/bin/bash
+mongosh -u cmdb
+use cmdb;
+db.createUser({user:"admin", pwd:"thinker", roles:[{role: "dbOwner", db: "cmdb"}]})
 
 python-3.7.9
 
@@ -22,15 +28,15 @@ pip install -r requirements.txt
 
 cd django
 
-python manager.py makemigrations mapi mlog cmdb
+python .\manage.py makemigrations mapi mlog cmdb
 
-python manager.py migrate mapi
+python .\manage.py migrate mapi
 
-python manager.py migrate mlog
+python .\manage.py migrate mlog
 
-python manager.py migrate cmdb
+python .\manage.py migrate cmdb
 
-python manager.py runserver
+python .\manage.py runserver
 
 # 前端部署
 
