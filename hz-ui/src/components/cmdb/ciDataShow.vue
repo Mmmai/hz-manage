@@ -1835,6 +1835,8 @@ const cpCiData = (params) => {
           } else {
             ciDataForm[item] = params[item];
           }
+        } else if (modelFieldType.value.enum.indexOf(item) !== -1) {
+          ciDataForm[item] = params[item].value;
         } else {
           ciDataForm[item] = params[item];
         }
@@ -1885,7 +1887,7 @@ const ciDataCommit = async (
           update_user: store.state.username,
           fields: rmNameObj.value,
           name: ciDataForm.name,
-          instance_group: currentRow.value.instance_group,
+          instance_group: props.currentNodeId,
         });
         // console.log(res)
         // console.log(123)
