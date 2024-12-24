@@ -25,12 +25,54 @@
           >转移</el-button
         >
 
-        <el-button :disabled="!(multipleSelect.length >>> 0)">导出</el-button>
         <el-button
           :disabled="!(multipleSelect.length >>> 0)"
           @click="multipleUpdate"
           >批量更新</el-button
         >
+        <!-- <el-button :disabled="!(multipleSelect.length >>> 0)">导出</el-button> -->
+        <!-- <a-dropdown-button :trigger="['click']" ref="aDropdownRef">
+          更多操作
+          <template #overlay>
+            <a-menu>
+              <a-menu-item
+                key="0"
+                :disabled="!(multipleSelect.length >>> 0)"
+                @click="exportSelect(false)"
+              >
+                导出勾选(显示字段)
+              </a-menu-item>
+              <a-menu-item
+                key="1"
+                :disabled="!(multipleSelect.length >>> 0)"
+                @click="exportSelect(true)"
+              >
+                导出勾选(所有字段)
+              </a-menu-item>
+              <a-menu-item key="2" @click="exportAll()"> 导出所有 </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown-button> -->
+        <el-dropdown style="margin-left: 12px">
+          <el-button type="primary">
+            更多操作<el-icon class="el-icon--right"><arrow-down /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                :disabled="!(multipleSelect.length >>> 0)"
+                @click="exportSelect(false)"
+                >导出勾选(显示字段)</el-dropdown-item
+              >
+              <el-dropdown-item
+                :disabled="!(multipleSelect.length >>> 0)"
+                @click="exportSelect(true)"
+                >导出勾选(所有字段)</el-dropdown-item
+              >
+              <el-dropdown-item @click="exportAll()">导出所有</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
       <div class="header-button-ri">
         <el-tooltip
@@ -1119,6 +1161,8 @@ import {
 } from "vue";
 import { da, pa } from "element-plus/es/locale/index.mjs";
 const { proxy } = getCurrentInstance();
+import { EditOutlined, DownOutlined, StarTwoTone } from "@ant-design/icons-vue";
+
 import type { FormInstance, FormItemInstance, FormRules } from "element-plus";
 import ciDataFilter from "./ciDataFilter.vue";
 import { useStore } from "vuex";
@@ -1196,7 +1240,35 @@ const handleCurrentChange = () => {
   });
 };
 // 导入导出
+const modelFieldNameArr = computed(() => {
+  return hasConfigField.value.map((item) => item.name);
+});
+const allModelFieldNameArr = computed(() => {
+  return allModelField.value.map((item) => item.name);
+});
 const isShowUpload = ref(false);
+const exportSelect = async (params) => {
+  if (params) {
+    let res = await proxy.$api.exportCiData({
+      model: props.ciModelId,
+      fields: allModelFieldNameArr.value,
+      instances: multipleSelectId.value,
+    });
+  } else {
+    let res = await proxy.$api.exportCiData({
+      model: props.ciModelId,
+      fields: modelFieldNameArr.value,
+      instances: multipleSelectId.value,
+    });
+  }
+};
+const exportAll = async () => {
+  let res = await proxy.$api.exportCiData({
+    model: props.ciModelId,
+  });
+  console.log(res);
+};
+
 // 实例组关联更新
 const cascaderProps = { multiple: true, value: "id" };
 const ciDataToTree = ref(false);
@@ -1837,6 +1909,7 @@ const cpCiData = (params) => {
           }
         } else if (modelFieldType.value.enum.indexOf(item) !== -1) {
           ciDataForm[item] = params[item].value;
+        } else if (modelFieldType.value.model_ref.indexOf(item) !== -1) {
         } else {
           ciDataForm[item] = params[item];
         }

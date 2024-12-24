@@ -164,6 +164,12 @@ export default {
         commonFunc.downloadFile(path.cmdbCiModelInstance+'export_template/',params)
         // return axios.request({url:path.cmdbCiModelInstance+'export_template/',method: 'get',params: params})
 
-      }
+      },
+      exportCiData(params){
+        commonFunc.downloadFile(path.cmdbCiModelInstance+'export_data/',params)
+        // return axios.request({url:path.cmdbCiModelInstance+'export_template/',method: 'get',params: params})
+
+      },
+
 
     }

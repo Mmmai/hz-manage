@@ -157,8 +157,8 @@ const downloadFile = async(fileUrl,params)=>{
     try {
       const response = await axios({
         url: fileUrl, // 替换为你的文件 URL
-        method: 'GET',
-        params:params,
+        method: 'POST',
+        data:params,
         responseType: 'blob' // 确保响应是 Blob 类型
       });
       console.log(response)
