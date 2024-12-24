@@ -14,6 +14,14 @@ const api = {
       data: params
     })
   },
+  getSecret(params){
+    return axios.request({
+      url:path.getSecret,
+      method: 'get',
+      params: params
+
+    })
+  },  
   getMenuList(params){
     return axios.request({
       url:path.menuList,
@@ -161,6 +169,13 @@ const api = {
         data: params
       })
     },
+    getSysConfig(params){
+      return axios.request({
+        url:path.sysConfig,
+        method: 'get',
+        params:params
+      })
+    }
 
 }
 export default api;

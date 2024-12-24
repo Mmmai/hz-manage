@@ -12,6 +12,8 @@ export default createStore({
 
     // currentMenu: localStorage.getItem('currentMenu') ? JSON.parse(localStorage.getItem('currentMenu'))  : '',
     token: localStorage.getItem('token') ? localStorage.getItem('token') : '',
+    secret: localStorage.getItem('secret') ? localStorage.getItem('secret') : '',
+
     role: localStorage.getItem('role') ? JSON.parse(localStorage.getItem('role')) : '',
     username: localStorage.getItem('username') ? localStorage.getItem('username') : '',
     userinfo: localStorage.getItem('userinfo') ? JSON.parse(localStorage.getItem('userinfo')) : '',
@@ -23,6 +25,7 @@ export default createStore({
     menuInfo: [],
     // tagList: []
     tagList: localStorage.getItem('tagList') ? JSON.parse(localStorage.getItem('tagList')) : [],
+
   },
   getters: {},
   // 更新数据
@@ -130,9 +133,11 @@ export default createStore({
         
       // });
       // state.tagList = config.slice(0, 1)
-    }
+    },
     // 当前路由地址
-
+    setSecret(state,config){
+      state.secret = config
+    }
 
   },
   actions: {
@@ -143,6 +148,14 @@ export default createStore({
       let res = await api.getRouteInfo(config)
       console.log(res)
       commit("setRouteInfo", res.data.routeInfo)
+    },
+    async getSecret({
+      commit,
+      state
+    }, config) {
+      let res = await api.getSecret(config)
+      console.log(res)
+      commit("setSecret", res.data.secret)
     },
     async getRoleMenu({
       commit,

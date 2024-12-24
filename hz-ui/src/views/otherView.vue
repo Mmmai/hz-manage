@@ -1,5 +1,13 @@
 <template>
-  <div class="main-box card" style="flex: 0.1">111</div>
+  <div class="main-box card" style="flex: 1; flex-direction: column">
+    111
+    <el-button @click="showPass">解密</el-button>
+    <el-button @click="jiami">加密</el-button>
+
+    <el-input v-model="testString"></el-input>
+    <el-text>加密：{{ xmString }}</el-text>
+    <el-text>解密：{{ jmString }}</el-text>
+  </div>
 
   <div class="table-box">
     <div
@@ -36,8 +44,13 @@
 
 <script lang="ts" setup>
 import { CircleClose } from "@element-plus/icons-vue";
-import { watch, ref } from "vue";
+import { watch, ref, onMounted, computed } from "vue";
 const props = { multiple: true, checkStrictly: true };
+import { encrypt_sm4, decrypt_sm4 } from "../utils/gmCrypto.ts";
+import useConfigStore from "@/store/config";
+
+const configStore = useConfigStore();
+const gmConfig = computed(() => configStore.gmCry);
 const test = ref([]);
 watch(
   () => test.value,
@@ -128,4 +141,20 @@ const options = [
     ],
   },
 ];
+const testString = ref("");
+const aaa = ref(
+  "gAAAAABnaSWh0pvwkUrVD5YZbmvGlLktPcY7q51m9scHJUDIsGBT_sV5SJXTEjuZMW6l3Kpa7ZXzb07Fknw43oGzV2imBpO3BA=="
+);
+const xmString = ref("");
+const jmString = ref("");
+
+onMounted(() => {
+  // 定义密钥和待加密数据
+  // let key = "0123456789ABCDEF0123456789ABCDEF";
+  // let mode = "ecb";
+  let text = "加密前的字符串1111";
+  let jiamihou = encrypt_sm4(gmConfig.value.key, gmConfig.value.mode, text);
+  console.log(jiamihou);
+  console.log(decrypt_sm4(gmConfig.value.key, gmConfig.value.mode, jiamihou));
+});
 </script>

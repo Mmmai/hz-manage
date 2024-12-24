@@ -1168,6 +1168,7 @@ import ciDataFilter from "./ciDataFilter.vue";
 import { useStore } from "vuex";
 import { useClipboard } from "vue-clipboard3";
 import { debounce } from "lodash";
+
 const store = useStore();
 const emit = defineEmits(["getTree"]);
 const props = defineProps(["ciModelId", "treeData", "currentNodeId"]);
@@ -1201,7 +1202,7 @@ const getPassword = async (formEl: FormItemInstance | undefined, fieldName) => {
   formEl![0].validate(async (valid) => {
     if (valid) {
       console.log(passwordForm);
-      if (passwordForm.secret === "thinker") {
+      if (passwordForm.secret === store.state.secret) {
         let res = await proxy.$api.getCiModelInstance({
           decrypt_password: true,
           name: currentRow.value.name,
@@ -1714,6 +1715,7 @@ const modelFieldType = computed(() => {
     enum: [],
     boolean: [],
     model_ref: [],
+    password: [],
   };
   allModelField.value.forEach((item) => {
     if (item.type === "enum") {
@@ -1722,6 +1724,8 @@ const modelFieldType = computed(() => {
       tempObj.boolean.push(item.name);
     } else if (item.type === "model_ref") {
       tempObj.model_ref.push(item.name);
+    } else if (item.type === "password") {
+      tempObj.password.push(item.name);
     }
   });
   return tempObj;
@@ -1806,7 +1810,7 @@ const getCiData = async (params) => {
     // decrypt_password: true,
   });
   totalCount.value = res.data.count;
-  res.data.results.forEach((item) => {
+  res.data.results?.forEach((item) => {
     tmpList.push({
       id: item.id,
       instance_group: item.instance_group,
@@ -1909,7 +1913,7 @@ const cpCiData = (params) => {
           }
         } else if (modelFieldType.value.enum.indexOf(item) !== -1) {
           ciDataForm[item] = params[item].value;
-        } else if (modelFieldType.value.model_ref.indexOf(item) !== -1) {
+        } else if (modelFieldType.value.password.indexOf(item) !== -1) {
         } else {
           ciDataForm[item] = params[item];
         }
@@ -1960,7 +1964,7 @@ const ciDataCommit = async (
           update_user: store.state.username,
           fields: rmNameObj.value,
           name: ciDataForm.name,
-          instance_group: props.currentNodeId,
+          instance_group: [props.currentNodeId],
         });
         // console.log(res)
         // console.log(123)
@@ -2074,6 +2078,11 @@ const ciDataCommit = async (
       // console.log('submit!')
     } else {
       console.log("error submit!", fields);
+      ElNotification({
+        title: "表单校验",
+        message: "表单填写异常",
+        type: "error",
+      });
     }
   });
 };

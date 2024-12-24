@@ -7,7 +7,6 @@ import json
 
 logger = logging.getLogger(__name__)
 
-
 class CMDBConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'cmdb'
@@ -99,7 +98,7 @@ class CMDBConfig(AppConfig):
                 
                 preference_data = {
                     'model': model.id,
-                    'fields_preferred': preferred_fields,
+                    'fields_preferred': [ str(f) for f in preferred_fields ],
                     'create_user': 'system',
                     'update_user': 'system'
                 }
@@ -169,7 +168,7 @@ class CMDBConfig(AppConfig):
         """应用启动时初始化内置模型和验证规则"""
         try:
             import sys
-            if 'migrate' in sys.argv or 'test' in sys.argv:
+            if any(keyword in sys.argv for keyword in ['makemigrations', 'migrate', 'test', 'shell']):
                 return
             
             with transaction.atomic():

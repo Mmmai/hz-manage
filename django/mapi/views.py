@@ -8,13 +8,18 @@ from .sers import *
 from rest_framework.views import APIView
 from rest_framework.response import Response
 # from .models import UserInfo,Role,Menu,Portal,Pgroup,Datasource,LogModule
-from .models import UserInfo,Role,Menu,Portal,Pgroup,Datasource
+from .models import (
+  UserInfo,Role,Menu,Portal,Pgroup,Datasource,
+  sysConfigParams
+  )
+
 from .utils.jwt_create_token import create_token
 from rest_framework.pagination import PageNumberPagination
 from .extensions.jwt_authenticate import JWTQueryParamsAuthentication
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
 import json
+from django.conf import settings
 
 class LoginView(APIView):
     """用户登录"""
@@ -55,7 +60,7 @@ class LoginView(APIView):
 # #     def get(self,request,*args,**kwargs):
 # #         return Response("可以了")
 
-class getmodel(APIView):
+class getSecret(APIView):
     # def post(self,request,*args,**kwargs):
     #     owner = request.data.get('owner')
     #     orderRes = request.data.get('orderRes')
@@ -65,16 +70,22 @@ class getmodel(APIView):
     def get(self,request,*args,**kwargs):
         # owner = request.query_params.get('owner')
         # orderRes =  orderMethod.objects.filter(owner=owner).first()
-        modelGroup = [
-                        { "id": 1, "name": '主机管理' },
-                        { "id": 2, "name": '网络设备' },
-                        { "id": 3, "name": '其他' }
-                    ]
-        return Response(modelGroup)
+        secretKey = settings.SECRET_KEY
+        return Response({"secret":secretKey})
 # Create your views here.
 # def test(request):
 #   data = {'1':2,'3':4}
 #   return JsonResponse(data)
+
+class sysConfig(APIView):
+    def get(self,request,*args,**kwargs):
+        # owner = request.query_params.get('owner')
+        # orderRes =  orderMethod.objects.filter(owner=owner).first()
+        if(request.query_params.get('params') == "gm"):
+            secretKey = "0123456789ABCDEF0123456789ABCDEF"
+            keyMode = "ecb"
+            return Response({"key":secretKey,"mode":keyMode})
+
 
 # def user(request):
 class getMenu(APIView):

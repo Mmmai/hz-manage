@@ -13,11 +13,9 @@ urlpatterns = [
   path('login/',views.LoginView.as_view()),
   # path('testroute/', views.TestRoute.as_view()),
   path('getMenu/', views.getMenu.as_view()),
+  path('getSecret/', views.getSecret.as_view()),
   path('export/', importExport.PortalExport.as_view()),
-  path('cmdb/cimodel/', cmdb.cimodel.as_view()),
-    path('cmdb/cimodel/<int:mid>', cmdb.cimodel.as_view()),
-  path('cmdb/ciModelGroup/<int:gid>', cmdb.ciModelGroup.as_view()),
-    path('cmdb/ciModelGroup/', cmdb.ciModelGroup.as_view()),
+  path('sysconfig/', views.sysConfig.as_view()),
 
 
   # path('order/',views.orderMethod.as_view() )

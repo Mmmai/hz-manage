@@ -351,7 +351,6 @@ class BinaryFileRenderer(BaseRenderer):
         return data.get('file_content') if isinstance(data, dict) else data
 
 class ModelInstanceViewSet(viewsets.ModelViewSet):
-    # renderer_classes = [BinaryFileRenderer]
     queryset = ModelInstance.objects.all().order_by('-create_time').prefetch_related('field_values__model_fields')
     serializer_class = ModelInstanceSerializer
     pagination_class = StandardResultsSetPagination
@@ -380,7 +379,8 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             return queryset
 
         model_id = query_params.get('model')
-        group_id = self.request.query_params.get('model_instance_group', None)
+        # group_id = self.request.query_params.get('model_instance_group', None)
+        group_id = None
         matching_ids_list = []
 
         if model_id:
@@ -402,7 +402,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
 
         
         for field_name, field_value in query_params.items():
-            if field_name in ['page', 'page_size', 'model', 'decrypt_password']:
+            if field_name in ['page', 'page_size', 'model', 'decrypt_password', 'model_instance_group']:
                 continue
 
             try:

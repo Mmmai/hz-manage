@@ -176,7 +176,7 @@ class ValidationRulesSerializer(serializers.ModelSerializer):
                         "Can only modify rule content for editable enum type built_in rules"
                     )
                 # 检查所有字段变更
-                allowed_fields = {'rule', 'description', 'verbose_name','update_user'}
+                allowed_fields = {'rule', 'description', 'verbose_name', 'update_user'}
                 for field, new_value in data.items():
                     old_value = getattr(instance, field)
                     if new_value != old_value and field not in allowed_fields:
@@ -186,6 +186,10 @@ class ValidationRulesSerializer(serializers.ModelSerializer):
         # 基础字段验证
         field_type = data.get('field_type')
         validation_type = data.get('type')
+        if not field_type and self.instance:
+            field_type = self.instance.field_type
+        if not validation_type and self.instance:
+            validation_type = self.instance.type
         
         if not validation_type:
             raise serializers.ValidationError(
@@ -208,6 +212,8 @@ class ValidationRulesSerializer(serializers.ModelSerializer):
                     enum_data = json.loads(enum_data)
                 if not isinstance(enum_data, dict):
                     raise serializers.ValidationError("Enum rule must be a dict")
+                if len(enum_data) != len(set(enum_data.values())): 
+                    raise serializers.ValidationError("Enum labels must be unique")
             except json.JSONDecodeError:
                 raise serializers.ValidationError("Invalid JSON format for enum rule")
             except Exception as e:
@@ -453,7 +459,7 @@ class ModelFieldPreferenceSerializer(serializers.ModelSerializer):
         # 将字符串列表转换为 UUID 列表
         if 'fields_preferred' in data:
             try:
-                data['fields_preferred'] = [UUID(str(field_id)) for field_id in data['fields_preferred']]
+                data['fields_preferred'] = [str(field_id) for field_id in data['fields_preferred']]
             except (ValueError, AttributeError, TypeError):
                 raise serializers.ValidationError({
                     'fields_preferred': 'Invalid UUID format in fields_preferred'

@@ -59,33 +59,6 @@ INSTALLED_APPS = [
     'import_export',
 ]
 
-CACHEOPS_REDIS = {
-    'host': 'localhost',
-    'port': 6379,
-    'db': 1,
-    'socket_timeout': 3,
-    'retry_on_timeout': True,
-}
-
-CACHEOPS = {
-    'cmdb.modelinstance': {'ops': 'all', 'timeout': 60*60},
-    'cmdb.modelfields': {'ops': 'all', 'timeout': 60*60},
-    'cmdb.modelfieldmeta': {'ops': 'all', 'timeout': 60*60},
-    'cmdb.validationrules': {'ops': 'all', 'timeout': 60*60},
-}
-
-CACHEOPS_ENABLED = True
-CACHEOPS_DEGRADE_ON_FAILURE = True
-CACHEOPS_LRU = True
-CACHEOPS_DEFAULTS = {
-    'timeout': 60 * 60,
-    'cache_on_save': True,
-    'cache_on_get': True,
-    'cache_get_many': True,
-    'cache_set_many': True,
-    'cache_delete_many': True,
-    'local_get': True,
-}
 
 
 MIDDLEWARE = [
@@ -131,24 +104,30 @@ WSGI_APPLICATION = 'vuedjango.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'testdb',
+        'NAME': 'hz-manage',
         'USER': 'root',
         'PASSWORD': 'thinker',
         'HOST': '127.0.0.1',
         'PORT': '3306',
     },
     'cmdb':{
-        'ENGINE': 'djongo',
-        'NAME': 'cmdb',
-        'ENFORCE_SCHEMA': False,
-        'CLIENT': {
-            'host': 'localhost',
-            'port': 27017,
-            'username': 'cmdb',
-            'password': 'thinker',
-            'authSource': 'admin',
-            'authMechanism': 'SCRAM-SHA-1',
-        },
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': 'cmdb',
+            'USER': 'root',
+            'PASSWORD': 'thinker',
+            'HOST': '127.0.0.1',
+            'PORT': '3306',
+        # 'ENGINE': 'djongo',
+        # 'NAME': 'cmdb',
+        # 'ENFORCE_SCHEMA': False,
+        # 'CLIENT': {
+        #     'host': 'localhost',
+        #     'port': 27017,
+        #     'username': 'cmdb',
+        #     'password': 'thinker',
+        #     'authSource': 'admin',
+        #     'authMechanism': 'SCRAM-SHA-1',
+        # },
         # 'LOGGING': {
         #     'version': 1,
         #     'loggers': {
@@ -159,6 +138,41 @@ DATABASES = {
         #     },
         # },
     },
+}
+# 多数据库配置
+DATABASE_ROUTERS = ['vuedjango.db_router.database_router']
+DATABASE_APPS_MAPPING = {
+    'mlog':'default',
+    'mapi':'default',
+    'cmdb':'cmdb',
+}
+
+CACHEOPS_REDIS = {
+    'host': 'localhost',
+    'port': 6379,
+    'db': 1,
+    'socket_timeout': 3,
+    'retry_on_timeout': True,
+}
+
+CACHEOPS = {
+    'cmdb.modelinstance': {'ops': 'all', 'timeout': 60*60},
+    'cmdb.modelfields': {'ops': 'all', 'timeout': 60*60},
+    'cmdb.modelfieldmeta': {'ops': 'all', 'timeout': 60*60},
+    'cmdb.validationrules': {'ops': 'all', 'timeout': 60*60},
+}
+
+CACHEOPS_ENABLED = True
+CACHEOPS_DEGRADE_ON_FAILURE = True
+CACHEOPS_LRU = True
+CACHEOPS_DEFAULTS = {
+    'timeout': 60 * 60,
+    'cache_on_save': True,
+    'cache_on_get': True,
+    'cache_get_many': True,
+    'cache_set_many': True,
+    'cache_delete_many': True,
+    'local_get': True,
 }
 
 # Password validation
@@ -185,7 +199,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # LANGUAGE_CODE = 'en-us'
 LANGUAGE_CODE = 'zh-hans'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Shanghai'
 
 USE_I18N = True
 
@@ -221,50 +235,46 @@ REST_FRAMEWORK = {
 
 }
 
-# LOGGING = {
-#     'version': 1,
-#     'disable_existing_loggers': False,
-#     'formatters': {
-#         'verbose': {
-#             'format': '[{asctime}] {levelname} {name} {message}',
-#             'style': '{',
-#         },
-#     },
-#     'handlers': {
-#         'console': {
-#             'class': 'logging.StreamHandler',
-#             'formatter': 'verbose',
-#             'level': 'DEBUG',  # 确保控制台处理器处理 DEBUG 级别的日志
-#         },
-#         'file': {
-#             'class': 'logging.FileHandler',
-#             'filename': os.path.join(BASE_DIR, 'logs', 'cmdb.log'),
-#             'formatter': 'verbose',
-#             'encoding': 'utf-8',
-#             'level': 'DEBUG',  # 确保文件处理器处理 DEBUG 级别的日志
-#         },
-#     },
-#     'root': {
-#         'handlers': ['console', 'file'],
-#         'level': 'WARNING',  # 一般将根记录器级别设为 WARNING，防止过多日志输出
-#     },
-#     'loggers': {
-#         'django': {
-#             'handlers': ['console', 'file'],
-#             'level': 'INFO',
-#             'propagate': False,
-#         },
-#         'basic': {
-#             'handlers': ['console', 'file'],
-#             'level': 'DEBUG',  # 设置为 DEBUG，确保记录所有级别的日志
-#             'propagate': False,  # 确保日志不会传播到根记录器，避免重复
-#         },
-#     },
-# }
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
 
-DATABASE_ROUTERS = ['vuedjango.db_router.database_router']
-DATABASE_APPS_MAPPING = {
-    'mlog':'default',
-    'mapi':'default',
-    'cmdb':'cmdb',
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '[{levelname}] {asctime} [{name}] {message}',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'standard',
+        },
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'cmdb.log'),
+            'formatter': 'standard',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        '': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
 }
+
+

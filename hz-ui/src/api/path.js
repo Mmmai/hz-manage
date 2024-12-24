@@ -12,6 +12,8 @@ const base = {
   pgroup: "/api/v1/pgroup/",
   // datasource
   dataSource:"/api/v1/datasource/",
+  getSecret:"/api/v1/getSecret/",
+  sysConfig:"/api/v1/sysconfig/",
   // export: "/api/v1/export/",
   // loki: "/api/v1/log/loki/",
   // logModule:"/api/v1/log/logModule/",

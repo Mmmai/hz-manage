@@ -1,10 +1,12 @@
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Protection, Alignment
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter
 import json
 from .constants import FieldMapping, FieldType, ValidationType
-from .models import ModelInstance, ValidationRules
+from .models import ModelInstance, ValidationRules, ModelFields, ModelFieldMeta, Models
+from .serializers import ModelInstanceSerializer
+from rest_framework import serializers
 from .utils import password_handler
 
 import logging
@@ -276,3 +278,136 @@ class ExcelHandler:
         
         return wb
     
+
+    def import_data(self, file_path, model_id):
+        """
+        从Excel导入实例数据
+        """
+        # 加载Excel文件
+        wb = load_workbook(file_path)
+        # determine if the file owns the sheet
+        if '数据模板' not in wb.sheetnames:
+            raise serializers.ValidationError('Invalid file format')
+        elif '枚举类型可选值' not in wb.sheetnames:
+            raise serializers.ValidationError('Invalid file format')
+        data_sheet = wb['数据模板']
+        enum_sheet = wb['枚举类型可选值']
+
+        # 获取字段映射
+        field_mapping = {}
+        for col in range(2, data_sheet.max_column + 1):
+            column_letter = get_column_letter(col)
+            field_cell = data_sheet[f'{column_letter}1']
+        
+            if not field_cell.value:
+                continue
+                
+            # 解析字段名格式：name\nverbose_name
+            try:
+                field_name = field_cell.value.split('\n')[0].strip()
+                if field_name:
+                    field_mapping[column_letter] = field_name
+            except (AttributeError, IndexError):
+                logger.warning(f"Invalid field name format in column {column_letter}")
+                continue
+        
+        # 获取模型
+        model = Models.objects.get(id=model_id)
+        
+        # 处理结果统计
+        results = {
+            'created': 0,
+            'updated': 0,
+            'errors': []
+        }
+
+        # 处理每行数据
+        for row in range(2, data_sheet.max_row + 1):
+            try:
+                # 获取实例名称
+                name = data_sheet['A{row}'].value
+                if not name:
+                    continue
+
+                # 构建实例数据
+                instance_data = {
+                    'name': name,
+                    'model': model_id,
+                    'field_values': []
+                }
+
+                # 收集字段值
+                for column, field_name in field_mapping.items():
+                    value = data_sheet[f'{column}{row}'].value
+                    if value is None:
+                        continue
+
+                    field = model.modelfields_set.get(name=field_name)
+                    
+                    # 处理特殊字段类型
+                    if field.type == FieldType.PASSWORD:
+                        value = password_handler.encrypt(str(value))
+                    elif field.type == FieldType.MODEL_REF:
+                        ref_instance = ModelInstance.objects.filter(
+                            model=field.ref_model,
+                            name=value
+                        ).first()
+                        if ref_instance:
+                            value = str(ref_instance.id)
+                        else:
+                            raise serializers.ValidationError(
+                                f'Referenced instance not found: {value}'
+                            )
+                    elif (field.type == FieldType.ENUM and 
+                        field.validation_rule and 
+                        field.validation_rule.type == ValidationType.ENUM):
+                        enum_dict = ValidationRules.get_enum_dict(field.validation_rule.id)
+                        enum_key = None
+                        for k, v in enum_dict.items():
+                            if v == value:
+                                enum_key = k
+                                break
+                        if enum_key is None:
+                            raise serializers.ValidationError(
+                                f'Invalid enum value: {value}'
+                            )
+                        value = enum_key
+
+                    instance_data['field_values'].append({
+                        'model_fields': field.id,
+                        'data': value
+                    })
+
+                # 检查实例是否存在
+                instance = ModelInstance.objects.filter(
+                    model=model,
+                    name=name
+                ).first()
+
+                if instance:
+                    # 更新实例
+                    serializer = ModelInstanceSerializer(
+                        instance,
+                        data=instance_data,
+                        context={'model': model}
+                    )
+                    results['updated'] += 1
+                else:
+                    # 创建实例
+                    serializer = ModelInstanceSerializer(
+                        data=instance_data,
+                        context={'model': model}
+                    )
+                    results['created'] += 1
+
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+
+            except Exception as e:
+                results['errors'].append({
+                    'row': row,
+                    'name': name,
+                    'error': str(e)
+                })
+
+        return results

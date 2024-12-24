@@ -1,4 +1,5 @@
-from djongo import models
+from django.db import models
+from django.db.models import JSONField
 from django.db import transaction
 from rest_framework.exceptions import PermissionDenied
 from django.core.cache import cache
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 class ModelGroups(models.Model):
     class Meta:
         db_table = 'model_groups'
+        managed = True
         app_label = 'cmdb'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -56,6 +58,7 @@ class ModelGroups(models.Model):
 class Models(models.Model):
     class Meta:
         db_table = 'models'
+        managed = True
         app_label = 'cmdb'
         
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -74,6 +77,7 @@ class Models(models.Model):
 class ModelFieldGroups(models.Model):
     class Meta:
         db_table = 'model_field_groups'
+        managed = True
         app_label = 'cmdb'
         
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -111,6 +115,7 @@ class ValidationRules(models.Model):
     """验证规则表"""
     class Meta:
         db_table = 'validation_rules'
+        managed = True
         app_label = 'cmdb'
         
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -147,6 +152,7 @@ class ValidationRules(models.Model):
 class ModelFields(models.Model):
     class Meta:
         db_table = 'model_fields'
+        managed = True
         app_label = 'cmdb'
         
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -173,6 +179,7 @@ class ModelFields(models.Model):
 class ModelFieldOrder(models.Model):
     class Meta:
         db_table = 'model_field_order'
+        managed = True
         app_label = 'cmdb'
         
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -186,6 +193,7 @@ class ModelFieldOrder(models.Model):
 class ModelFieldPreference(models.Model):
     class Meta:
         db_table = 'model_field_preference'
+        managed = True
         app_label = 'cmdb'
         
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -199,6 +207,7 @@ class ModelFieldPreference(models.Model):
 class UniqueConstraint(models.Model):
     class Meta:
         db_table = 'unique_constraint'
+        managed = True
         app_label = 'cmdb'
         
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -215,6 +224,7 @@ class UniqueConstraint(models.Model):
 class ModelInstance(models.Model):
     class Meta:
         db_table = 'model_instance'
+        managed = True
         app_label = 'cmdb'
         constraints = [
             models.UniqueConstraint(
@@ -235,6 +245,7 @@ class ModelInstance(models.Model):
 class ModelFieldMeta(models.Model):
     class Meta:
         db_table = 'model_field_meta'
+        managed = True
         app_label = 'cmdb'
         
     # TODO: 添加实例name字段，用于存储实例名称，作为唯一性校验
@@ -253,6 +264,7 @@ class ModelFieldMeta(models.Model):
 class ModelInstanceGroup(models.Model):
     class Meta:
         db_table = 'model_instance_group'
+        managed = True
         app_label = 'cmdb'
         
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -331,20 +343,21 @@ class ModelInstanceGroupRelation(models.Model):
     """实例与分组的关联关系"""
     class Meta:
         db_table = 'model_instance_group_relation'
-        app_label = 'cmdb'
+        managed = True
         
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     instance = models.ForeignKey('ModelInstance', on_delete=models.CASCADE)
     group = models.ForeignKey('ModelInstanceGroup', on_delete=models.CASCADE)
     create_time = models.DateTimeField(auto_now_add=True)
     update_time = models.DateTimeField(auto_now=True)
-    create_user = models.CharField(max_length=20)
-    update_user = models.CharField(max_length=20)
+    create_user = models.CharField(max_length=20, null=False, blank=False)
+    update_user = models.CharField(max_length=20, null=False, blank=False)
 
 
 class RelationDefinition(models.Model):
     class Meta:
         db_table = 'relation_definition'
+        managed = True
         app_label = 'cmdb'
         
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -358,6 +371,7 @@ class RelationDefinition(models.Model):
 class Relations(models.Model):
     class Meta:
         db_table = 'relations'
+        managed = True
         app_label = 'cmdb'
         
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
