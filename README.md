@@ -2,12 +2,23 @@
 
 mysql:8
 docker run -p 3306:3306 --name mysql -e MYSQL_ROOT_PASSWORD=thinker  -d mysql:8.0
-create database testdb;
+
+create database hz-manage;
+
+create database cmdb;
+
+#已切换mysql，可以忽略
+
 mongodb:8
+
 docker run -it --name mongodb -e MONGO_INITDB_ROOT_USERNAME=cmdb -e  MONGO_INITDB_ROOT_PASSWORD=thinker -p 27017:27017 -d mongo:latest
+
 /bin/bash
+
 mongosh -u cmdb
+
 use cmdb;
+
 db.createUser({user:"admin", pwd:"thinker", roles:[{role: "dbOwner", db: "cmdb"}]})
 
 python-3.7.9
