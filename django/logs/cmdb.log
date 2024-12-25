@@ -275,3 +275,21 @@
 [INFO] 2024-12-24 17:47:24 [django.utils.autoreload] Watching for file changes with StatReloader
 [INFO] 2024-12-24 17:47:41 [django.utils.autoreload] Watching for file changes with StatReloader
 [INFO] 2024-12-24 17:47:41 [django.utils.autoreload] Watching for file changes with StatReloader
+[INFO] 2024-12-25 08:43:37 [django.utils.autoreload] Watching for file changes with StatReloader
+[INFO] 2024-12-25 08:43:37 [django.utils.autoreload] Watching for file changes with StatReloader
+[INFO] 2024-12-25 08:44:16 [django.server] "GET /api/v1/getMenu/?role=1 HTTP/1.1" 200 6843
+[INFO] 2024-12-25 08:44:16 [django.server] "GET /api/v1/getMenu/?role=1 HTTP/1.1" 200 6843
+[INFO] 2024-12-25 08:44:17 [django.server] "GET /api/v1/getSecret/ HTTP/1.1" 200 63
+[INFO] 2024-12-25 08:44:17 [django.server] "GET /api/v1/getSecret/ HTTP/1.1" 200 63
+[INFO] 2024-12-25 08:44:17 [django.server] "GET /api/v1/portal/ HTTP/1.1" 200 52
+[INFO] 2024-12-25 08:44:17 [django.server] "GET /api/v1/pgroup/ HTTP/1.1" 200 52
+[INFO] 2024-12-25 08:44:17 [django.server] "GET /api/v1/portal/ HTTP/1.1" 200 52
+[INFO] 2024-12-25 08:44:17 [django.server] "GET /api/v1/pgroup/ HTTP/1.1" 200 52
+[INFO] 2024-12-25 08:44:24 [django.server] "GET /api/v1/getMenu/?role=1 HTTP/1.1" 200 6843
+[INFO] 2024-12-25 08:44:24 [django.server] "GET /api/v1/getMenu/?role=1 HTTP/1.1" 200 6843
+[INFO] 2024-12-25 08:44:24 [django.server] "GET /api/v1/getSecret/ HTTP/1.1" 200 63
+[INFO] 2024-12-25 08:44:24 [django.server] "GET /api/v1/getSecret/ HTTP/1.1" 200 63
+[INFO] 2024-12-25 08:44:24 [django.server] "GET /api/v1/pgroup/ HTTP/1.1" 200 52
+[INFO] 2024-12-25 08:44:24 [django.server] "GET /api/v1/portal/ HTTP/1.1" 200 52
+[INFO] 2024-12-25 08:44:24 [django.server] "GET /api/v1/pgroup/ HTTP/1.1" 200 52
+[INFO] 2024-12-25 08:44:24 [django.server] "GET /api/v1/portal/ HTTP/1.1" 200 52
