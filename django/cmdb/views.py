@@ -590,7 +590,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
                 raise ValidationError({'detail': 'Model ID is required'})
 
             # 获取缓存的查询结果
-            cached_queryset = self.get_queryset()
+            cached_queryset = self.get_queryset().filter(model_id=model_id)
             
             # 如果有指定实例ID，则从缓存结果中过滤
             if instance_ids:

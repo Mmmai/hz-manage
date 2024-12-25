@@ -101,3 +101,17 @@ html {
   background-color: var(--el-color-primary-light-9);
 }
 
+// 文本...显示
+.text-class {
+  white-space: nowrap;
+  /*强制单行显示*/
+  text-overflow: ellipsis;
+  /*文本超出部分省略号表示*/
+  overflow: hidden;
+  /*文本超出部分隐藏*/
+  max-width: 200px;
+  /*设置文本显示的最大宽度*/
+  display: inline-block /*设为行内块元素*/;
+  vertical-align: top;
+  width: 200px;
+}

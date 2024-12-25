@@ -81,13 +81,32 @@ class sysConfig(APIView):
     def get(self,request,*args,**kwargs):
         # owner = request.query_params.get('owner')
         # orderRes =  orderMethod.objects.filter(owner=owner).first()
-        aaa = generate_random_key(length=32)
-        print(aaa)
-        if(request.query_params.get('params') == "gm"):
-            secretKey = "0123456789ABCDEF0123456789ABCDEF"
-            keyMode = "ecb"
-            return Response({"key":generate_random_key(length=32),"mode":keyMode})
+        import gmssl.func as gmssl_func
+        from gmssl import sm4
+        import binascii
 
+        key = "Xmd4AlROeXgPv8JDkdgYptWvY4ntVBlC"
+        data = "test"
+        sm4_crypt = sm4.CryptSM4() # 创建SM4加密对象
+        # sm4_crypt.set_key(key.encode("utf8"), sm4.SM4_ENCRYPT) # 设置密钥
+        # ciphertext = sm4_crypt.crypt_ecb(gmssl_func.bytes_to_list(data.encode("utf8")))# 加密数据
+        # encrypted_data = gmssl_func.list_to_bytes(ciphertext)
+        # print(type(ciphertext))
+        # print(type(encrypted_data))
+        # print(f"加密后的数据: {encrypted_data}")
+        aaa = "745bcdcc51e0c7a13b63b4dd86b632c4"
+        sm4_crypt = sm4.CryptSM4()
+        sm4_crypt.set_key(key.encode("utf8"), mode=sm4.SM4_DECRYPT)
+        print(binascii.unhexlify(aaa))
+        cipher_bytes = binascii.unhexlify(aaa)
+        padded_text = sm4_crypt.crypt_ecb(cipher_bytes)
+        print(padded_text)
+        padding = padded_text[-1]
+        plain_text = padded_text[:-padding]
+        print(type(plain_text))
+        print(f"解密后的数据: {plain_text.decode('utf-8')}")
+        
+        return JsonResponse({"1":3})
 
 # def user(request):
 class getMenu(APIView):

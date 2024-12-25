@@ -83,7 +83,24 @@
         >
           <el-button :icon="Refresh" circle @click="reloadWind" />
         </el-tooltip>
-
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="显示密码"
+          placement="top"
+          v-if="!showAllPass"
+        >
+          <el-button :icon="View" circle @click="setShowAllPass" />
+        </el-tooltip>
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="隐藏密码"
+          placement="top"
+          v-if="showAllPass"
+        >
+          <el-button :icon="Hide" circle @click="cancelShowAllPass" />
+        </el-tooltip>
         <el-tooltip
           class="box-item"
           effect="dark"
@@ -132,6 +149,7 @@
       highlight-current-row
       v-loading="tableLoading"
       style="flex: 1"
+      border
       :row-key="get_row_key"
     >
       <el-table-column
@@ -177,13 +195,22 @@
           #default="scope"
           v-if="modelFieldType.enum.indexOf(data.name) != -1"
         >
-          <span>{{ scope.row[data.name].label }}</span>
+          <div class="text-class">{{ scope.row[data.name]?.label }}</div>
+        </template>
+        <template
+          #default="scope"
+          v-if="modelFieldType.password.indexOf(data.name) != -1"
+        >
+          <div v-if="showAllPass" class="text-class">
+            {{ decrypt_sm4(gmConfig.key, gmConfig.mode, scope.row[data.name]) }}
+          </div>
+          <div v-else class="text-class">{{ scope.row[data.name] }}</div>
         </template>
         <template
           #default="scope"
           v-if="modelFieldType.model_ref.indexOf(data.name) != -1"
         >
-          <span>{{ scope.row[data.name]?.name }}</span>
+          <div class="text-class">{{ scope.row[data.name]?.name }}</div>
         </template>
       </el-table-column>
       <el-table-column fixed="right" width="150" label="操作">
@@ -301,7 +328,7 @@
         <el-form-item prop="name" required style="margin-left: 30px">
           <template #label>
             <el-space :size="2">
-              <span>唯一标识</span>
+              <el-text tag="b">唯一标识</el-text>
               <el-tooltip
                 content="唯一命名标识"
                 placement="right"
@@ -346,7 +373,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span>{{ fitem.verbose_name }}</span>
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -382,7 +409,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span>{{ fitem.verbose_name }}</span>
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
                       <el-tooltip placement="right" effect="dark">
                         <template #content>
                           json类型字段<br />请输入json格式数据!
@@ -426,7 +453,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span>{{ fitem.verbose_name }}</span>
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -461,6 +488,21 @@
                   v-if="fitem.type === 'boolean'"
                   :required="fitem.required"
                 >
+                  <template #label>
+                    <el-space :size="2">
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
+                      <el-tooltip
+                        :content="fitem.description"
+                        placement="right"
+                        effect="dark"
+                        v-if="fitem.description.length != 0 ? true : false"
+                      >
+                        <el-icon>
+                          <Warning />
+                        </el-icon>
+                      </el-tooltip>
+                    </el-space>
+                  </template>
                   <!-- <span>{{ fitem.verbose_name }}</span> -->
                   <el-switch
                     v-model="ciDataForm[fitem.name]"
@@ -479,10 +521,14 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span v-if="fitem.unit !== null ? true : false">{{
-                        fitem.verbose_name + "(" + fitem.unit + ")"
-                      }}</span>
-                      <span v-else>{{ fitem.verbose_name }}</span>
+                      <el-text
+                        tag="b"
+                        v-if="fitem.unit !== null ? true : false"
+                        >{{
+                          fitem.verbose_name + "(" + fitem.unit + ")"
+                        }}</el-text
+                      >
+                      <el-text tag="b" v-else>{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -519,7 +565,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span>{{ fitem.verbose_name }}</span>
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -533,76 +579,91 @@
                     </el-space>
                   </template>
                   <div v-if="!isEdit">
-                    <span
-                      v-if="ciDataForm[fitem.name] != null"
-                      :class="{ requiredClass: fitem.required }"
-                      @mouseenter="showPassButton = true"
-                      @mouseleave="showPassButton = false"
-                      >********
-                      <el-popover
-                        :width="380"
-                        trigger="click"
-                        @after-leave="clearPass"
+                    <div v-if="ciDataForm[fitem.name] != null">
+                      <span v-if="showAllPass">
+                        {{
+                          decrypt_sm4(
+                            gmConfig.key,
+                            gmConfig.mode,
+                            ciDataForm[fitem.name]
+                          )
+                        }}</span
                       >
-                        <template #reference
-                          ><el-icon><View v-show="showPassButton" /></el-icon>
-                        </template>
-                        <el-form
-                          ref="passFormRef"
-                          :inline="true"
-                          :model="passwordForm"
-                          require-asterisk-position="right"
+                      <span
+                        v-else
+                        :class="{ requiredClass: fitem.required }"
+                        @mouseenter="showPassButton = true"
+                        @mouseleave="showPassButton = false"
+                        >********
+                        <el-popover
+                          :width="380"
+                          trigger="click"
+                          @after-leave="clearPass"
                         >
-                          <el-row align="middle">
-                            <el-col :span="20">
-                              <el-form-item
-                                label="密钥"
-                                prop="secret"
-                                :rules="[
-                                  {
-                                    required: true,
-                                    message: '输入密钥',
-                                    trigger: 'blur',
-                                  },
-                                ]"
-                              >
-                                <el-input
-                                  type="password"
-                                  v-model="passwordForm.secret"
-                                  show-password
-                                  placeholder="输入密钥查看密码"
-                                  clearable
-                                  style="width: 250px"
-                                />
-                              </el-form-item>
-                            </el-col>
-                            <el-col :span="2">
-                              <el-form-item>
-                                <el-button
-                                  type="primary"
-                                  size="small"
-                                  @click="getPassword(passFormRef, fitem.name)"
-                                  >查看</el-button
-                                >
-                              </el-form-item>
-                            </el-col>
-                          </el-row>
-                        </el-form>
-                        <el-text tag="b" v-if="isShowPass"
-                          >密码: {{ fieldPassword }}
-                          <el-tooltip
-                            class="box-item"
-                            effect="dark"
-                            content="点击复制密码"
-                            placement="top"
-                          >
-                            <el-icon
-                              ><CopyDocument v-copy="fieldPassword"
+                          <template #reference
+                            ><el-icon
+                              ><View v-show="showPassButton && !showAllPass"
                             /></el-icon>
-                          </el-tooltip>
-                        </el-text>
-                      </el-popover>
-                    </span>
+                          </template>
+                          <el-form
+                            ref="passFormRef"
+                            :inline="true"
+                            :model="passwordForm"
+                            require-asterisk-position="right"
+                          >
+                            <el-row align="middle">
+                              <el-col :span="20">
+                                <el-form-item
+                                  label="密钥"
+                                  prop="secret"
+                                  :rules="[
+                                    {
+                                      required: true,
+                                      message: '输入密钥',
+                                      trigger: 'blur',
+                                    },
+                                  ]"
+                                >
+                                  <el-input
+                                    type="password"
+                                    v-model="passwordForm.secret"
+                                    show-password
+                                    placeholder="输入密钥查看密码"
+                                    clearable
+                                    style="width: 250px"
+                                  />
+                                </el-form-item>
+                              </el-col>
+                              <el-col :span="2">
+                                <el-form-item>
+                                  <el-button
+                                    type="primary"
+                                    size="small"
+                                    @click="
+                                      getPassword(passFormRef, fitem.name)
+                                    "
+                                    >查看</el-button
+                                  >
+                                </el-form-item>
+                              </el-col>
+                            </el-row>
+                          </el-form>
+                          <el-text tag="b" v-if="isShowPass"
+                            >密码: {{ fieldPassword }}
+                            <el-tooltip
+                              class="box-item"
+                              effect="dark"
+                              content="点击复制密码"
+                              placement="top"
+                            >
+                              <el-icon
+                                ><CopyDocument v-copy="fieldPassword"
+                              /></el-icon>
+                            </el-tooltip>
+                          </el-text>
+                        </el-popover>
+                      </span>
+                    </div>
 
                     <span v-else>--</span>
                   </div>
@@ -623,10 +684,14 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span v-if="fitem.unit !== null ? true : false">{{
-                        fitem.verbose_name + "(" + fitem.unit + ")"
-                      }}</span>
-                      <span v-else>{{ fitem.verbose_name }}</span>
+                      <el-text
+                        tag="b"
+                        v-if="fitem.unit !== null ? true : false"
+                        >{{
+                          fitem.verbose_name + "(" + fitem.unit + ")"
+                        }}</el-text
+                      >
+                      <el-text tag="b" v-else>{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -661,7 +726,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span>{{ fitem.verbose_name }}</span>
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -699,7 +764,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span>{{ fitem.verbose_name }}</span>
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -737,7 +802,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span>{{ fitem.verbose_name }}</span>
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -754,7 +819,7 @@
                     <span
                       v-if="ciDataForm[fitem.name] != null"
                       :class="{ requiredClass: fitem.required }"
-                      >{{ currentRow[fitem.name].label }}</span
+                      >{{ currentRow[fitem.name]?.label }}</span
                     >
                     <span v-else>--</span>
                   </div>
@@ -780,7 +845,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span>{{ fitem.verbose_name }}</span>
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -837,7 +902,7 @@
             <el-button
               type="danger"
               @click="ciDataDelete"
-              v-if="currentRow.instance_group.indexOf(treeIdleId) !== -1"
+              v-if="currentRow.instance_group?.indexOf(treeIdleId) !== -1"
               >删除</el-button
             >
             <el-tooltip
@@ -1126,11 +1191,15 @@
     @reloadTable="reloadWind"
     ref="ciDataTableColRef"
   />
+  <ciDataShowPass v-model:showAllPassDia="showAllPassDia" />
+  <!-- 全局密码显示 -->
 </template>
 
 <script lang="ts" setup>
 import ciDataUpload from "./ciDataUpload.vue";
 import ciDataTableCol from "./ciDataTableCol.vue";
+import ciDataShowPass from "./ciDataShowPass.vue";
+
 import {
   Check,
   Delete,
@@ -1146,6 +1215,7 @@ import {
   CopyDocument,
   UploadFilled,
   Edit,
+  Hide,
 } from "@element-plus/icons-vue";
 import { ElMessageBox, ElMessage, ElNotification } from "element-plus";
 import { Rank } from "@element-plus/icons-vue";
@@ -1162,7 +1232,10 @@ import {
 import { da, pa } from "element-plus/es/locale/index.mjs";
 const { proxy } = getCurrentInstance();
 import { EditOutlined, DownOutlined, StarTwoTone } from "@ant-design/icons-vue";
+import { encrypt_sm4, decrypt_sm4 } from "@/utils/gmCrypto.ts";
+import useConfigStore from "@/store/config";
 
+const configStore = useConfigStore();
 import type { FormInstance, FormItemInstance, FormRules } from "element-plus";
 import ciDataFilter from "./ciDataFilter.vue";
 import { useStore } from "vuex";
@@ -1184,6 +1257,24 @@ const closeFilter = () => {
   showFilter.value = false;
 };
 // 密码相关
+const showAllPassDia = ref(false);
+const gmConfig = computed(() => configStore.gmCry);
+
+const showAllPass = computed(() => configStore.showAllPass);
+const setShowAllPass = async () => {
+  showAllPassDia.value = true;
+};
+const cancelShowAllPass = () => {
+  showAllPassDia.value = false;
+  configStore.updateShowAllPass(false);
+  ElNotification({
+    title: "success",
+    message: "密码已屏蔽",
+    type: "success",
+    duration: 2000,
+  });
+};
+// 当全局密码显示为false的时候，单个密码生效
 const showPassButton = ref(false);
 const clearPass = () => {
   isShowPass.value = false;
@@ -1198,11 +1289,9 @@ const passwordForm = reactive({
 const fieldPassword = ref("");
 const isShowPass = ref(false);
 const getPassword = async (formEl: FormItemInstance | undefined, fieldName) => {
-  console.log(passFormRef.value[0]);
   formEl![0].validate(async (valid) => {
     if (valid) {
-      console.log(passwordForm);
-      if (passwordForm.secret === store.state.secret) {
+      if (passwordForm.secret === gmConfig.value.key) {
         let res = await proxy.$api.getCiModelInstance({
           decrypt_password: true,
           name: currentRow.value.name,
@@ -1889,7 +1978,6 @@ const editCiData = (params, edit = false) => {
         }
       } // isDisabled.value = params.built_in
     );
-    console.log(ciDataForm);
     // ciDataForm = params
     beforeEditCiDataForm.value = JSON.parse(JSON.stringify(ciDataForm));
   });
@@ -1936,11 +2024,23 @@ const ciDataForm = reactive({
 const rmNameObj = computed(() => {
   let tmpObj = Object.assign({}, ciDataForm);
   delete tmpObj.name;
+  for (let [key, value] of Object.entries(ciDataForm)) {
+    if (modelFieldType.value.password.indexOf(key) !== -1) {
+      // 加密
+      tmpObj[key] = encrypt_sm4(gmConfig.value.key, gmConfig.value.mode, value);
+    }
+  }
   return tmpObj;
 });
 const rmNameObjUpdate = computed(() => {
   let tmpObj = Object.assign({}, updateParams.value);
   delete tmpObj.name;
+  for (let [key, value] of Object.entries(updateParams.value)) {
+    if (modelFieldType.value.password.indexOf(key) !== -1) {
+      // 加密
+      tmpObj[key] = encrypt_sm4(gmConfig.value.key, gmConfig.value.mode, value);
+    }
+  }
   return tmpObj;
 });
 
@@ -1958,6 +2058,9 @@ const ciDataCommit = async (
         // 添加
         // let rmNameObj = Object.assign({}, ciDataForm)
         // delete rmNameObj.name
+        // 加密转换
+        // for (let [key, value] of Object.entries(obj))
+        console.log(rmNameObj.value);
         let res = await proxy.$api.addCiModelInstance({
           model: props.ciModelId,
           create_user: store.state.username,
@@ -2019,7 +2122,6 @@ const ciDataCommit = async (
           result.splice(0, arr1.length);
           //将键值对数组转为正常对象
           const obj = Object.fromEntries(result);
-          console.log(obj);
           let tmpObj = {};
           Object.keys(obj).forEach((item) => {
             if (String(obj[item]) != "") {
@@ -2230,4 +2332,36 @@ defineExpose({
 //   gap: 10px;
 //   justify-content: space-between;
 // }
+// :deep(span) {
+//   white-space: nowrap;
+//   /*强制单行显示*/
+//   text-overflow: ellipsis;
+//   /*文本超出部分省略号表示*/
+//   overflow: hidden;
+//   /*文本超出部分隐藏*/
+//   max-width: 200px;
+//   /*设置文本显示的最大宽度*/
+//   display: inline-block /*设为行内块元素*/;
+//   vertical-align: top;
+//   width: 200px;
+// }
+span {
+  white-space: nowrap;
+  /*强制单行显示*/
+  text-overflow: ellipsis;
+  /*文本超出部分省略号表示*/
+  overflow: hidden;
+  /*文本超出部分隐藏*/
+  max-width: 200px;
+  /*设置文本显示的最大宽度*/
+  display: inline-block /*设为行内块元素*/;
+  vertical-align: top;
+  width: auto;
+}
+span:hover {
+  overflow: visible;
+  white-space: pre-wrap;
+  text-overflow: clip;
+  overflow-wrap: break-word;
+}
 </style>

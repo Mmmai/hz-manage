@@ -46,7 +46,7 @@
 import { CircleClose } from "@element-plus/icons-vue";
 import { watch, ref, onMounted, computed } from "vue";
 const props = { multiple: true, checkStrictly: true };
-import { encrypt_sm4, decrypt_sm4 } from "../utils/gmCrypto.ts";
+import { encrypt_sm4, decrypt_sm4 } from "@/utils/gmCrypto.ts";
 import useConfigStore from "@/store/config";
 
 const configStore = useConfigStore();
@@ -152,7 +152,7 @@ onMounted(() => {
   // 定义密钥和待加密数据
   // let key = "0123456789ABCDEF0123456789ABCDEF";
   // let mode = "ecb";
-  let text = "加密前的字符串1111";
+  let text = "ttt11111132";
   let jiamihou = encrypt_sm4(gmConfig.value.key, gmConfig.value.mode, text);
   console.log(jiamihou);
   console.log(decrypt_sm4(gmConfig.value.key, gmConfig.value.mode, jiamihou));

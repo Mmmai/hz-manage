@@ -160,6 +160,8 @@ CACHEOPS = {
     'cmdb.modelfields': {'ops': 'all', 'timeout': 60*60},
     'cmdb.modelfieldmeta': {'ops': 'all', 'timeout': 60*60},
     'cmdb.validationrules': {'ops': 'all', 'timeout': 60*60},
+    # 'cmdb.validationrules': {'get': 'fetch', 'timeout': 60*60},
+
 }
 
 CACHEOPS_ENABLED = True
@@ -172,7 +174,7 @@ CACHEOPS_DEFAULTS = {
     'cache_get_many': True,
     'cache_set_many': True,
     'cache_delete_many': True,
-    'local_get': True,
+    'local_get': False,
 }
 
 # Password validation

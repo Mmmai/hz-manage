@@ -1,0 +1,113 @@
+/<template>
+  <el-dialog v-model="showAllPassDia" title="查看密码" width="400">
+    <el-form
+      ref="allPassFormRef"
+      :inline="true"
+      :model="passwordForm"
+      require-asterisk-position="right"
+      label-position="left"
+    >
+      <el-form-item
+        label="密钥"
+        prop="secret"
+        :rules="[
+          {
+            required: true,
+            message: '输入密钥',
+            trigger: 'blur',
+          },
+        ]"
+      >
+        <el-input
+          type="password"
+          v-model="passwordForm.secret"
+          show-password
+          placeholder="输入密钥查看密码"
+          clearable
+          style="width: 250px"
+        />
+      </el-form-item>
+      <el-form-item label="有效时间" prop="time">
+        <el-input-number v-model="passwordForm.time" :min="0.5" :max="24">
+          <template #suffix>
+            <span>小时</span>
+          </template>
+        </el-input-number>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button @click="handleClose">取消</el-button>
+        <el-button type="primary" @click="getPassword(allPassFormRef)">
+          查看
+        </el-button>
+      </div>
+    </template>
+  </el-dialog>
+</template>
+
+<script lang="ts" setup>
+import { watch, ref, onMounted, reactive, computed } from "vue";
+import { encrypt_sm4, decrypt_sm4 } from "@/utils/gmCrypto.ts";
+import useConfigStore from "@/store/config";
+import { ElNotification } from "element-plus";
+const configStore = useConfigStore();
+const showAllPassDia = defineModel("showAllPassDia");
+const gmConfig = computed(() => configStore.gmCry);
+
+const clearPass = () => {
+  isShowPass.value = false;
+  resetForm(allPassFormRef.value[0]);
+  fieldPassword.value = "";
+};
+const allPassFormRef = ref();
+
+const passwordForm = reactive({
+  secret: null,
+  time: 1,
+});
+const fieldPassword = ref("");
+const isShowPass = ref(false);
+const getPassword = async (formEl: FormItemInstance | undefined) => {
+  formEl!.validate(async (valid) => {
+    if (valid) {
+      console.log(gmConfig.value.key);
+      console.log(passwordForm.secret);
+      if (passwordForm.secret === gmConfig.value.key) {
+        // 解密
+        ElNotification({
+          title: "success",
+          message: "解密成功," + passwordForm.time + "小时后过期！",
+          type: "success",
+          duration: 2000,
+        });
+        configStore.updateShowAllPass(true);
+        resetForm(allPassFormRef.value!);
+
+        showAllPassDia.value = false;
+        // 设置计时器,到时间就清除密码显示
+      } else {
+        ElNotification({
+          title: "Warning",
+          message: "密钥错误",
+          type: "warning",
+          duration: 2000,
+        });
+      }
+    }
+  });
+};
+const resetForm = (formEl: FormInstance | undefined) => {
+  if (!formEl) return;
+  formEl.resetFields();
+};
+const handleClose = () => {
+  showAllPassDia.value = false;
+  resetForm(allPassFormRef.value!);
+};
+</script>
+
+
+
+<style scoped lang="ts">
+</style>

@@ -8,11 +8,16 @@ export const useConfigStore = defineStore(
   () => {
     // 
     const gmCry = ref({});
+    const showAllPass = ref(false)
     const setGmCry = (params) => {
       gmCry.value = params
     }
+    const updateShowAllPass = (params) => {
+      showAllPass.value = params
+    }
+
     return {
-      gmCry, setGmCry
+      gmCry, setGmCry, showAllPass, updateShowAllPass
     }
   },
   // 插件外参
