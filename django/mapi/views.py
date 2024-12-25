@@ -3,7 +3,6 @@ from django.http import HttpResponse,JsonResponse
 from rest_framework import filters,status
 from rest_framework.viewsets import ModelViewSet
 from django_filters.rest_framework import DjangoFilterBackend
-# from .sers import UserInfoModelSerializer,RoleModelSerializer,MenuModelSerializer,PortalModelSerializer,PgroupModelSerializer,DatasourceModelSerializer
 from .sers import *
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -348,3 +347,7 @@ class dataSourceViewSet(ModelViewSet):
 # class LogModuleViewSet(ModelViewSet):
 #   queryset = LogModule.objects.all()
 #   serializer_class = LogModuleModelSerializer
+
+class sysConfigViewSet(ModelViewSet):
+    queryset = sysConfigParams.objects.all()
+    serializer_class = SysConfigSerializer

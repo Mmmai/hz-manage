@@ -1,6 +1,9 @@
 #序列化类
 from rest_framework import serializers
-from mapi.models import UserInfo,Role,Menu,Portal,Pgroup,Datasource
+from mapi.models import (UserInfo,Role,Menu,Portal,Pgroup,Datasource,
+                         sysConfigParams
+                         )
+
 # from mapi.models import UserInfo,Role,Menu,Portal,Pgroup,Datasource,LogModule
 
 
@@ -71,3 +74,10 @@ class DatasourceModelSerializer(serializers.ModelSerializer):
 #     # 表名
 #     model = LogModule
 #     fields = "__all__"
+
+class SysConfigSerializer(serializers.ModelSerializer):
+
+  class Meta:
+    # 表名
+    model = sysConfigParams
+    fields = "__all__"

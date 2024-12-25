@@ -15,7 +15,7 @@ urlpatterns = [
   path('getMenu/', views.getMenu.as_view()),
   path('getSecret/', views.getSecret.as_view()),
   path('export/', importExport.PortalExport.as_view()),
-  path('sysconfig/', views.sysConfig.as_view()),
+  path('test/', views.sysConfig.as_view()),
 
 
   # path('order/',views.orderMethod.as_view() )
@@ -38,6 +38,8 @@ router.register('menu',views.MenuViewSet)
 router.register('portal',views.PortalViewSet)
 router.register('pgroup',views.PgroupViewSet)
 router.register('datasource',views.dataSourceViewSet)
+router.register('sysconfig',views.sysConfigViewSet)
+
 # router.register('logModule',views.LogModuleViewSet)
 
 
