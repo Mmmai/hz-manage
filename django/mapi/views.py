@@ -66,6 +66,7 @@ class getSecret(APIView):
     #     orderObj = orderMethod.objects.filter(owner=owner).first()
     #     orderObj.update(orderList={"orderList":orderRes})
     #     return Response({'code':200,'results':'success'})
+
     def get(self,request,*args,**kwargs):
         # owner = request.query_params.get('owner')
         # orderRes =  orderMethod.objects.filter(owner=owner).first()
@@ -80,10 +81,12 @@ class sysConfig(APIView):
     def get(self,request,*args,**kwargs):
         # owner = request.query_params.get('owner')
         # orderRes =  orderMethod.objects.filter(owner=owner).first()
+        aaa = generate_random_key(length=32)
+        print(aaa)
         if(request.query_params.get('params') == "gm"):
             secretKey = "0123456789ABCDEF0123456789ABCDEF"
             keyMode = "ecb"
-            return Response({"key":secretKey,"mode":keyMode})
+            return Response({"key":generate_random_key(length=32),"mode":keyMode})
 
 
 # def user(request):
@@ -351,3 +354,11 @@ class dataSourceViewSet(ModelViewSet):
 class sysConfigViewSet(ModelViewSet):
     queryset = sysConfigParams.objects.all()
     serializer_class = SysConfigSerializer
+    def list(self, request, *args, **kwargs):
+        if(request.query_params.get('params') == "gm"):
+            secretKey = sysConfigParams.objects.get(param_name="secret_key").param_value
+            keyMode = sysConfigParams.objects.get(param_name="secret_mode").param_value
+            return Response({"key":secretKey,"mode":keyMode})
+        # 在这里可以对queryset进行进一步的筛选或处理
+        serializer = self.get_serializer(self.queryset, many=True)
+        return Response(serializer.data)

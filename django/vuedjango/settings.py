@@ -104,7 +104,7 @@ WSGI_APPLICATION = 'vuedjango.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'hz-manage',
+        'NAME': 'manage',
         'USER': 'root',
         'PASSWORD': 'thinker',
         'HOST': '127.0.0.1',

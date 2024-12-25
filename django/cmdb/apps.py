@@ -1,6 +1,7 @@
 from django.apps import AppConfig
 from django.db import transaction
 from django.db.utils import OperationalError
+from cacheops import invalidate_all
 from .config import BUILT_IN_MODELS, BUILT_IN_VALIDATION_RULES
 import logging
 import json
@@ -170,6 +171,9 @@ class CMDBConfig(AppConfig):
             import sys
             if any(keyword in sys.argv for keyword in ['makemigrations', 'migrate', 'test', 'shell']):
                 return
+            elif 'runserver' in sys.argv:
+                # 清除缓存
+                invalidate_all()
             
             with transaction.atomic():
                 from .models import ModelGroups

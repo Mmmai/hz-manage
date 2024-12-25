@@ -1,10 +1,13 @@
 from django.apps import AppConfig
 from django.db.models.signals import post_migrate
 from .init_data import INIT_MENU
+from .utils.comm import generate_random_key
+from django.db.utils import OperationalError
 
 # 初始化数据
-def init_script(sender, **kwargs):
-    from mapi.models import UserInfo,Role,Menu
+def init_script():
+    from mapi.models import UserInfo,Role,Menu,sysConfigParams
+
     menuInitList = INIT_MENU
     # 创建目录
     initMenu = Menu.objects.all()
@@ -33,15 +36,27 @@ def init_script(sender, **kwargs):
         role_obj.menu.set(Menu.objects.all())
         role_obj.save()
         print("初始化完成,用户名密码为: admin/thinker")
-
     # 授权菜单给系统管理员
     # admin_role_id = role_obj.id
     #获取菜单id
     # 初始化菜单数据
-
+    # 生成密钥
+    initSysConfig = sysConfigParams.objects.all()
+    if len(initSysConfig) == 0:
+        print(123)
+        sysConfigParams.objects.create(param_name="secret_key",param_value=generate_random_key(length=32))
+        sysConfigParams.objects.create(param_name="secret_mode",param_value="ecb")
 
 class MapiConfig(AppConfig):
     name = 'mapi'
     def ready(self):
-        pass
-        post_migrate.connect(init_script, sender=self)    
+        try:
+            import sys
+            if any(keyword in sys.argv for keyword in ['makemigrations', 'migrate', 'test', 'shell']):
+                return        
+            # post_migrate.connect(init_script, sender=self)   
+            init_script() 
+        except OperationalError:
+            pass
+        except Exception as e:
+            raise 
