@@ -51,6 +51,8 @@ python .\manage.py runserver
 
 # 前端部署
 
+cd hz-ui
+
 npm install
 
 npm run dev
