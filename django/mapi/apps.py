@@ -1,7 +1,7 @@
 from django.apps import AppConfig
 from django.db.models.signals import post_migrate
 from .init_data import INIT_MENU
-from .utils.comm import generate_random_key
+from .utils.comm import get_uuid
 from django.db.utils import OperationalError
 
 # 初始化数据
@@ -43,8 +43,7 @@ def init_script():
     # 生成密钥
     initSysConfig = sysConfigParams.objects.all()
     if len(initSysConfig) == 0:
-        print(123)
-        sysConfigParams.objects.create(param_name="secret_key",param_value=generate_random_key(length=32))
+        sysConfigParams.objects.create(param_name="secret_key",param_value=get_uuid())
         sysConfigParams.objects.create(param_name="secret_mode",param_value="ecb")
 
 class MapiConfig(AppConfig):

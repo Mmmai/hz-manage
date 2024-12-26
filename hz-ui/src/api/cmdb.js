@@ -170,6 +170,9 @@ export default {
         // return axios.request({url:path.cmdbCiModelInstance+'export_template/',method: 'get',params: params})
 
       },
-
+      // 数据导入
+      importCiData(params,headers){
+        return axios.request({url:path.cmdbCiModelInstance+'import_data/',method: 'post',data: params,headers:headers})
+      }
 
     }

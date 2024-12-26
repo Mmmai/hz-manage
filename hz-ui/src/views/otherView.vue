@@ -150,11 +150,11 @@ const jmString = ref("");
 
 onMounted(() => {
   // 定义密钥和待加密数据
-  // let key = "0123456789ABCDEF0123456789ABCDEF";
+  let key = "77eabfc6c32511ef";
   // let mode = "ecb";
-  let text = "ttt11111132";
-  let jiamihou = encrypt_sm4(gmConfig.value.key, gmConfig.value.mode, text);
+  let text = "Thinker@1234567890000123>_!$!";
+  let jiamihou = encrypt_sm4(key, gmConfig.value.mode, text);
   console.log(jiamihou);
-  console.log(decrypt_sm4(gmConfig.value.key, gmConfig.value.mode, jiamihou));
+  console.log(decrypt_sm4(key, gmConfig.value.mode, jiamihou));
 });
 </script>

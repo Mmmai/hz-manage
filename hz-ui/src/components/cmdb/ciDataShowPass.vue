@@ -71,8 +71,6 @@ const isShowPass = ref(false);
 const getPassword = async (formEl: FormItemInstance | undefined) => {
   formEl!.validate(async (valid) => {
     if (valid) {
-      console.log(gmConfig.value.key);
-      console.log(passwordForm.secret);
       if (passwordForm.secret === gmConfig.value.key) {
         // 解密
         ElNotification({

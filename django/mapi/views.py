@@ -11,7 +11,9 @@ from .models import (
   UserInfo,Role,Menu,Portal,Pgroup,Datasource,
   sysConfigParams
   )
-
+from .filters import (
+    sysConfigParamsFilter   
+)
 from .utils.jwt_create_token import create_token
 from rest_framework.pagination import PageNumberPagination
 from .extensions.jwt_authenticate import JWTQueryParamsAuthentication
@@ -373,6 +375,8 @@ class dataSourceViewSet(ModelViewSet):
 class sysConfigViewSet(ModelViewSet):
     queryset = sysConfigParams.objects.all()
     serializer_class = SysConfigSerializer
+    filter_class = sysConfigParamsFilter
+    filter_fields = ['param_name', 'param_value']
     def list(self, request, *args, **kwargs):
         if(request.query_params.get('params') == "gm"):
             secretKey = sysConfigParams.objects.get(param_name="secret_key").param_value

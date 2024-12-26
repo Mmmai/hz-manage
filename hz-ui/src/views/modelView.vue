@@ -313,7 +313,8 @@ const modelCommit = async (formEl: FormInstance | undefined) => {
           addModel.value = false;
           resetForm(formEl);
           getCiModelList();
-          // 获取数据源列表
+          // 刷新页面
+          location.reload();
         } else {
           ElMessage({
             showClose: true,

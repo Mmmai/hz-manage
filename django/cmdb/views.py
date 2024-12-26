@@ -3,6 +3,7 @@ import uuid
 import traceback
 import re
 import io
+import tempfile
 from functools import reduce
 from django.conf import settings
 from rest_framework import viewsets
@@ -639,6 +640,102 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             logger.error(f"Error exporting data: {str(e)}")
             raise ValidationError({'detail': f'Failed to export data: {str(e)}'})
         
+    
+    @action(detail=False, methods=['post'])
+    def import_data(self, request):
+        file = request.FILES.get('file')
+        model_id = request.data.get('model')
+        
+        if not file or not model_id:
+            raise ValidationError({'detail': 'Missing file or model ID'})
+        
+        results = {
+            'created': 0,
+            'updated': 0,
+            'failed': 0,
+            'errors': []
+        }
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp:
+            for chunk in file.chunks():
+                temp.write(chunk)
+            temp_path = temp.name
+        logger.info(f"Temp file created: {temp_path}")
+            
+        try:
+            excel_handler = ExcelHandler()
+            excel_data = excel_handler.load_data(temp_path)
+            logger.info(f"Excel data loaded successfully: {excel_data}")
+            
+            with transaction.atomic():
+                for instance_data in excel_data.get('instances', []):
+                    try:
+                        name = instance_data.get('name')
+                        instance = None
+                        
+                        if name:
+                            instance = ModelInstance.objects.filter(
+                                model_id=model_id,
+                                name=name
+                            ).first()
+                            
+                        # 过滤空值字段
+                        fields_data = {
+                            k: v for k, v in instance_data['fields'].items() 
+                            if v not in (None, '')
+                        }
+                        
+                        data = {
+                            'model': model_id,
+                            'fields': fields_data
+                        }
+                        if instance:
+                            serializer = ModelInstanceSerializer(
+                                instance=instance,
+                                data=data,
+                                partial=True,
+                                context={
+                                    'request': request,
+                                    'from_excel': True
+                                }
+                            )
+                            if serializer.is_valid():
+                                serializer.save()
+                                results['updated'] += 1
+                            else:
+                                results['failed'] += 1
+                                results['errors'].append(serializer.errors)
+                        else:
+                            # TODO: get user name from request
+                            data.update({
+                                'name': name,
+                                'create_user': 'system',
+                                'update_user': 'system'
+                            })
+                            serializer = ModelInstanceSerializer(
+                                data=data,
+                                context={
+                                    'request': request,
+                                    'from_excel': True
+                                }
+                            )
+                            if serializer.is_valid():
+                                serializer.save()
+                                results['created'] += 1
+                            else:
+                                results['failed'] += 1
+                                results['errors'].append(serializer.errors)
+                                
+                    except Exception as e:
+                        logger.error(f"Error preparing data for instance: {str(e)}")
+                        results['failed'] += 1
+                        results['errors'].append(f"Error preparing data for instance: {str(e)}")
+                        continue
+                return Response(results, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error loading Excel data: {str(e)}")
+            raise ValidationError({'detail': f'Failed to load Excel data: {str(e)}'})    
+        
+    
         
     def perform_destroy(self, instance):
         groups = ModelInstanceGroupRelation.objects.filter(instance=instance).values_list('group', flat=True)

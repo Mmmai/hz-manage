@@ -1,5 +1,8 @@
 <template>
-  <div class="card ci_data_tree">
+  <div class="card ci_data_tree" v-show="showTree">
+    <!-- <el-icon style="position: absolute; top: 50%; right: 10px" size="small"
+      ><DArrowLeft />
+    </el-icon> -->
     <el-row align="middle" justify="start">
       <el-col :span="8">
         <el-text tag="b">实例树</el-text>
@@ -127,6 +130,7 @@
       :currentNodeId="currentNodeId"
       ref="ciDataShowRef"
       @getTree="getCiModelTree"
+      v-model:showTree="showTree"
     />
     <!-- 右键菜单 -->
   </div>
@@ -152,6 +156,7 @@ const { proxy } = getCurrentInstance();
 import { ElTree } from "element-plus";
 import type Node from "element-plus/es/components/tree/src/model/node";
 import useCiStore from "@/store/cmdb/ci";
+const showTree = ref(true);
 const ciStore = useCiStore();
 const modelInfo = ref("");
 // const currentIconName = defineModel('iconName')
@@ -238,7 +243,7 @@ const changeModel = async () => {
   // modelInfo.value = modelInfoObj.value[ciModelId.value]
   // console.log(modelInfo.value)
   await ciDataShowRef.value!.closeFilter();
-
+  await ciDataShowRef.value!.updateFilterParam({});
   await ciDataShowRef.value!.clearMultipleSelect();
 
   await ciDataShowRef.value!.setLoading(true);
@@ -601,6 +606,7 @@ const allowDrag = (draggingNode: Node) => {
   // width: 19%;
   // height: $mainHeight - $headerHeight;
   flex: 0 0 $leftTreeWidth;
+  position: relative;
 }
 
 .el-divider--horizontal {

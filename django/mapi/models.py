@@ -181,7 +181,7 @@ class sysConfigParams(models.Model):
     param_name = models.CharField(max_length=256, unique=True,verbose_name = "参数名")
     param_value = models.CharField(max_length=256,null=True,blank=True,verbose_name = "参数值")
     # 定义角色和权限的多对多关系
-
+    
     class Meta:
         db_table = "tb_sysconfig"
         verbose_name = "系统参数配置表"

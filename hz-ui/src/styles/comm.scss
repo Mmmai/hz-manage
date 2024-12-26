@@ -115,3 +115,9 @@ html {
   vertical-align: top;
   width: 200px;
 }
+.text-class:hover {
+  overflow: visible;
+  white-space: pre-wrap;
+  text-overflow: clip;
+  overflow-wrap: break-word;
+}

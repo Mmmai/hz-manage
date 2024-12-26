@@ -456,7 +456,6 @@ class ModelFieldPreferenceSerializer(serializers.ModelSerializer):
         return data
 
     def to_internal_value(self, data):
-        # 将字符串列表转换为 UUID 列表
         if 'fields_preferred' in data:
             try:
                 data['fields_preferred'] = [str(field_id) for field_id in data['fields_preferred']]
@@ -691,9 +690,7 @@ class ModelFieldMetaNestedSerializer(ModelFieldMetaSerializer):
                     'label': None
                 }
         elif instance.model_fields.type == FieldType.PASSWORD:
-            logger.info(f'self.context: {self.context}')
-            if self.context.get('decrypt_password', False):
-                data['data'] = password_handler.decrypt(data['data'])
+            data['data'] = password_handler.decrypt(data['data'])
                 
         return data
 
@@ -737,27 +734,28 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
     def validate_fields(self, fields_data):
         """验证字段值"""
         request = self.context.get('request', None)
+        from_excel = self.context.get('from_excel', False)
         if request and request.method in ['PUT', 'POST']:
             model = self.initial_data.get('model')
             if not model:
                 raise serializers.ValidationError("Model is required")
+            if not self.instance:
+                # 获取模型的所有必填字段
+                required_fields = ModelFields.objects.filter(
+                    model=model,
+                    required=True
+                ).values_list('name', flat=True)
                 
-            # 获取模型的所有必填字段
-            required_fields = ModelFields.objects.filter(
-                model=model,
-                required=True
-            ).values_list('name', flat=True)
+                # 检查必填字段是否都提供了
+                missing_fields = [
+                    field for field in required_fields 
+                    if field not in fields_data or fields_data[field] is None
+                ]
             
-            # 检查必填字段是否都提供了
-            missing_fields = [
-                field for field in required_fields 
-                if field not in fields_data or fields_data[field] is None
-            ]
-            
-            if missing_fields:
-                raise serializers.ValidationError({
-                    'fields': f'Required fields are missing: {", ".join(missing_fields)}'
-                })
+                if missing_fields:
+                    raise serializers.ValidationError({
+                        'fields': f'Required fields are missing: {", ".join(missing_fields)}'
+                    })
         elif request and request.method == 'PATCH':
             # 检查是否有提供字段
             if not fields_data:
@@ -786,10 +784,50 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 })
         return fields_data
     
+    
+    def _process_field_value_from_excel(self, field, value):
+        """
+        Excel 数据导入特殊处理
+        - 密码字段: 明文 -> SM4
+        - 枚举字段: value -> key
+        - 引用字段: name -> id
+        """
+        if value is None or value == '':
+            return None
+        value = str(value)
+        try:
+            # 密码字段处理
+            if field.type == FieldType.PASSWORD:
+                sm4_encrypted = password_handler.encrypt_to_sm4(value)
+                return sm4_encrypted
+            # 枚举字段处理
+            elif field.validation_rule and field.validation_rule.type == ValidationType.ENUM:
+                enum_dict = ValidationRules.get_enum_dict(field.validation_rule.id)
+                reverse_dict = {v: k for k, v in enum_dict.items()}
+                if value in reverse_dict:
+                    return reverse_dict[value]
+                raise ValidationError(f"Invalid enum value: {value}")
+            # 引用字段处理
+            elif field.type == FieldType.MODEL_REF:
+                target_model = field.ref_model
+                instance = ModelInstance.objects.filter(
+                    model=target_model,
+                    name=value
+                ).first()
+                if instance:
+                    return str(instance.id)
+                raise ValidationError(f"Invalid model instance name: {value}")
+                
+            return value
+            
+        except Exception as e:
+            raise ValidationError(f"Error processing field {field.name}: {str(e)}")
         
     def create(self, validated_data):
         fields_data = validated_data.pop('fields')
-        instance_group_ids = self.context['request'].data.get('instance_group')
+        instance_group_ids = self.context['request'].data.get('instance_group', [])
+        if instance_group_ids and isinstance(instance_group_ids, str):
+            instance_group_ids = [instance_group_ids]
         logger.info(f'Processing fields data: {fields_data}')
         
         try:
@@ -801,7 +839,9 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 field_serializers = []
                 for field in model_fields:
                     value = fields_data.get(field.name)
-                    logger.info(f'Processing field {field.name} with value {value}')
+                    if self.context.get('from_excel', False):
+                        value = self._process_field_value_from_excel(field, value)
+                    logger.info(f'Processed field {field.name} with value {value}')
                     
                     field_meta_data = {
                         'model_fields': field.id,
@@ -833,6 +873,8 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 )
                 valid_flag = False
                 group_cache_to_clear = []
+                if unassigned_group.id in instance_group_ids and len(instance_group_ids) > 1:
+                    instance_group_ids.remove(unassigned_group.id)
                 if instance_group_ids:
                     for instance_group_id in instance_group_ids:
                         target_group = ModelInstanceGroup.objects.filter(
@@ -972,6 +1014,8 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
             'model_fields': field.id,
             'data': value
         }
+        if self.context.get('from_excel', False):
+            field_meta_data['data'] = self._process_field_value_from_excel(field, value)
         serializer = ModelFieldMetaNestedSerializer(data=field_meta_data)
         serializer.is_valid(raise_exception=True)
         return serializer.validated_data
@@ -1055,7 +1099,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
             try:
                 enum_data = json.loads(field_config.validation_rule.rule)
                 if value in enum_data:
-                    return value
+                    return enum_data.get(value)
                 raise ValueError(f"Invalid enum key: {value}")
             except json.JSONDecodeError:
                 raise ValueError("Invalid enum configuration")
@@ -1063,8 +1107,6 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
             return str(value) if value is not None else None
         elif field_config.type in (FieldType.STRING, FieldType.TEXT):
             return str(value) if value is not None else None
-        # elif field_config.type in (FieldType.DATE, FieldType.DATETIME):
-        #     return value.isoformat() if isinstance(value, (datetime, date)) else str(value) if value is not None else None
         elif field_config.type == FieldType.JSON:
             try:
                 if isinstance(value, str):
