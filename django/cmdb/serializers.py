@@ -16,6 +16,7 @@ from functools import reduce
 from django.db.models import Max, F, Q, Count
 from django.core.cache import cache
 from types import SimpleNamespace
+from cacheops import invalidate_model, invalidate_obj
 from .utils import password_handler
 from .validators import FieldValidator
 from .constants import FieldMapping, ValidationType, FieldType
@@ -312,7 +313,7 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
     def validate(self, data):
         if self.instance:
             if not self.instance.editable:
-                restricted_fields = ['name', 'type','validation', 'validation_rule']
+                restricted_fields = ['name', 'verbose_name', 'type','validation', 'validation_rule']
                 for field in restricted_fields:
                     if field in data and data[field] != getattr(self.instance, field):
                         raise PermissionDenied({
@@ -1680,6 +1681,7 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
                             update_user='system'
                         )
                         created_relations.append(relation)
+                    invalidate_obj(instance)
                 
                 logger.info(f'Saved {len(created_relations)} relations')
                 groups_to_clear.update(

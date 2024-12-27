@@ -168,11 +168,15 @@ export default {
       exportCiData(params){
         commonFunc.downloadFile(path.cmdbCiModelInstance+'export_data/',params)
         // return axios.request({url:path.cmdbCiModelInstance+'export_template/',method: 'get',params: params})
-
       },
       // 数据导入
-      importCiData(params,headers){
-        return axios.request({url:path.cmdbCiModelInstance+'import_data/',method: 'post',data: params,headers:headers})
-      }
+      importCiData(params,headers,timeout){
+        return axios.request({url:path.cmdbCiModelInstance+'import_data/',method: 'post',data: params,headers:headers,timeout:timeout})
+      },
+      downloadErrorRecords(params){
+        commonFunc.downloadFile(path.cmdbCiModelInstance+'download_error_records/',params)
+        // return axios.request({url:path.cmdbCiModelInstance+'export_template/',method: 'get',params: params})
+
+      },
 
     }

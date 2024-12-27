@@ -245,7 +245,7 @@ const changeModel = async () => {
   await ciDataShowRef.value!.closeFilter();
   await ciDataShowRef.value!.updateFilterParam({});
   await ciDataShowRef.value!.clearMultipleSelect();
-
+  ciDataShowRef.value!.reloadCiDataFilter();
   await ciDataShowRef.value!.setLoading(true);
 
   await ciDataShowRef.value!.getModelField();

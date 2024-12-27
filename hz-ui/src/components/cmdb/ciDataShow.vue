@@ -1,19 +1,4 @@
 <template>
-  <ciDataFilter
-    :ciModelId="props.ciModelId"
-    :currentNodeId="props.currentNodeId"
-    :allModelFieldByNameObj="allModelFieldByNameObj"
-    :enumOptionObj="enumOptionObj"
-    :validationRulesObj="validationRulesObj"
-    :allModelField="allModelField"
-    :modelRefOptions="modelRefOptions"
-    v-model:showFilter="showFilter"
-    @updateFilterParam="updateFilterParam"
-    @getCiData="getCiData"
-    ref="ciDataFilterRef"
-  />
-
-  <!-- <el-button @click="getHasConfigField">1111</el-button> -->
   <div class="card table-main" v-if="reloadTable" style="width: 100%; flex: 1">
     <div class="table-header">
       <div class="header-button-lf">
@@ -1023,7 +1008,7 @@
                 "
                 inline-prompt
                 active-text="置空"
-                inactive-text=""
+                inactive-text="非空"
                 @change="
                   setMultipleUpdateParam(multipleUpdateTempObject[item], item)
                 "
@@ -1052,7 +1037,7 @@
                 "
                 inline-prompt
                 active-text="置空"
-                inactive-text=""
+                inactive-text="非空"
                 @change="
                   setMultipleUpdateParam(multipleUpdateTempObject[item], item)
                 "
@@ -1143,7 +1128,7 @@
                 "
                 inline-prompt
                 active-text="置空"
-                inactive-text=""
+                inactive-text="非空"
                 @change="
                   setMultipleUpdateParam(multipleUpdateTempObject[item], item)
                 "
@@ -1171,7 +1156,7 @@
                 "
                 inline-prompt
                 active-text="置空"
-                inactive-text=""
+                inactive-text="非空"
                 @change="
                   setMultipleUpdateParam(multipleUpdateTempObject[item], item)
                 "
@@ -1200,7 +1185,7 @@
                 "
                 inline-prompt
                 active-text="置空"
-                inactive-text=""
+                inactive-text="非空"
                 @change="
                   setMultipleUpdateParam(multipleUpdateTempObject[item], item)
                 "
@@ -1231,7 +1216,7 @@
                 "
                 inline-prompt
                 active-text="置空"
-                inactive-text=""
+                inactive-text="非空"
                 @change="
                   setMultipleUpdateParam(multipleUpdateTempObject[item], item)
                 "
@@ -1299,6 +1284,22 @@
     v-model:isShowUpload="isShowUpload"
     :ciModelId="props.ciModelId"
   />
+  <!-- 过滤 -->
+  <ciDataFilter
+    :ciModelId="props.ciModelId"
+    :currentNodeId="props.currentNodeId"
+    :allModelFieldByNameObj="allModelFieldByNameObj"
+    :enumOptionObj="enumOptionObj"
+    :validationRulesObj="validationRulesObj"
+    :allModelField="allModelField"
+    :modelRefOptions="modelRefOptions"
+    v-model:showFilter="showFilter"
+    @updateFilterParam="updateFilterParam"
+    @getCiData="getCiData"
+    ref="ciDataFilterRef"
+    v-if="ciDataFilterMount"
+  />
+  <!-- 表格列显示 -->
   <ciDataTableCol
     :ciModelId="props.ciModelId"
     :allModelField="allModelField"
@@ -1371,6 +1372,13 @@ const activeArr = ref([0]);
 const showFilter = ref(false);
 const openFilter = () => {
   showFilter.value = true;
+};
+const ciDataFilterMount = ref(true);
+const reloadCiDataFilter = () => {
+  ciDataFilterMount.value = false;
+  nextTick(() => {
+    ciDataFilterMount.value = true;
+  });
 };
 const ciDataFilterRef = ref("");
 const closeFilter = () => {
@@ -1620,9 +1628,18 @@ const multipleCommitParam = computed(() => {
     } else {
       tmpObj[ckey] = cvalue;
     }
+    if (modelFieldType.value.password.indexOf(ckey) !== -1) {
+      // 加密
+      tmpObj[ckey] = encrypt_sm4(
+        gmConfig.value.key,
+        gmConfig.value.mode,
+        cvalue
+      );
+    }
   }
   return tmpObj;
 });
+
 const saveCommit = () => {
   multipleFormRef.value!.validate(async (valid) => {
     if (valid) {
@@ -1646,7 +1663,6 @@ const saveCommit = () => {
         multipleForm.updateParams = {};
         multipleUpdateTempObject.value = {};
         paramNames.value = [];
-        console.log(multipleForm.updateParams);
         multipleDia.value = false;
       } else {
         ElMessage({
@@ -2149,7 +2165,6 @@ const rmNameObj = computed(() => {
   for (let [ckey, cvalue] of Object.entries(tmpObj)) {
     if (modelFieldType.value.password.indexOf(ckey) !== -1) {
       // 加密
-      console.log(gmConfig.value.key);
       tmpObj[ckey] = encrypt_sm4(
         gmConfig.value.key,
         gmConfig.value.mode,
@@ -2162,6 +2177,7 @@ const rmNameObj = computed(() => {
 const rmNameObjUpdate = computed(() => {
   let tmpObj = Object.assign({}, updateParams.value);
   delete tmpObj.name;
+  console.log(modelFieldType.value);
   for (let [key, value] of Object.entries(updateParams.value)) {
     if (modelFieldType.value.password.indexOf(key) !== -1) {
       // 加密
@@ -2274,17 +2290,19 @@ const ciDataCommit = async (
         // let updateObj = new Object();
         let updateObj = {
           id: currentRow.value.id,
-          model: modelInfo.value.id,
+          model: props.ciModelId,
           update_user: store.state.username,
         };
         if (Object.keys(updateParams.value).indexOf("name") === -1) {
-          updateObj["fields"] = updateParams.value;
+          updateObj["fields"] = rmNameObjUpdate.value;
           // fields: updateParams.value,
         } else {
           updateObj["name"] = updateParams.value.name;
           updateObj["fields"] = rmNameObjUpdate.value;
         }
-
+        console.log(modelFieldType.value);
+        console.log(updateObj);
+        console.log();
         let res = await proxy.$api.updateCiModelInstance(updateObj);
         // console.log(123)
         if (res.status == "200") {
@@ -2399,6 +2417,7 @@ defineExpose({
   closeFilter,
   clearMultipleSelect,
   updateFilterParam,
+  reloadCiDataFilter,
 });
 </script>
 <style scoped lang="scss">

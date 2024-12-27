@@ -27,9 +27,21 @@
           </el-col>
         </el-row>
       </template>
-      <!-- <template #file="{ file, index }">
-        <div>{{ file }}</div>
-      </template> -->
+      <template #file="{ file, index }">
+        <div class="flexJstart gap-1">
+          <span>{{ file.name }} </span>
+
+          <el-icon v-if="file.status === 'ready'" class="is-loading"
+            ><Loading
+          /></el-icon>
+          <el-icon
+            v-if="file.status === 'success'"
+            color="var(--el-color-success)"
+            ><CircleCheck
+          /></el-icon>
+          <span>{{ JSON.stringify(uploadRes[file.uid]) }}</span>
+        </div>
+      </template>
     </el-upload>
   </el-dialog>
 </template>
@@ -54,6 +66,7 @@ const uploadDia = defineModel("isShowUpload");
 const fileList = ref([]);
 const refUpload = ref(null);
 const fileType = ["xlsx"];
+const uploadRes = ref({});
 const headers = reactive({
   "Content-Type": "multipart/form-data",
 });
@@ -62,8 +75,11 @@ const uploadFile = async (item) => {
   formDatas.append("file", item.file);
   formDatas.append("model", props.ciModelId);
   //上传文件
-  let res = await proxy.$api.importCiData(formDatas, headers);
+  let res = await proxy.$api.importCiData(formDatas, headers, 60000);
+  // let res = await axios({ method: "post", url: "" });
   console.log(res);
+  uploadRes.value[item.file.uid] = res.data;
+  console.log(uploadRes.value);
 };
 const beforeUpload = (file) => {
   let fileName = file.name;
@@ -101,6 +117,11 @@ const beforeUpload = (file) => {
   }
 };
 
+// 导出导入失败的数据
+const downloadImportErrorRecord = async (params) => {
+  let res = await proxy.$api.downloadErrorRecords({ error_file_key: params });
+  console.log(res);
+};
 // 导出
 const downloadTemplate = async () => {
   let res = await proxy.$api.downloadImportTemplate({ model: props.ciModelId });

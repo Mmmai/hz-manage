@@ -1,5 +1,5 @@
 <template>
-  <el-drawer v-model="isShowTableCol" direction="rtl" size="50%">
+  <el-drawer v-model="isShowTableCol" direction="rtl" size="40%">
     <template #header>
       <el-text tag="b">表格列显示配置</el-text>
     </template>

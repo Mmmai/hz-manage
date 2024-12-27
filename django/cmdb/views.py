@@ -380,26 +380,11 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             return queryset
 
         model_id = query_params.get('model')
-        # group_id = self.request.query_params.get('model_instance_group', None)
-        group_id = None
         matching_ids_list = []
 
         if model_id:
             queryset = queryset.filter(model_id=model_id)
             logger.info(f"Filtered by model ID: {model_id}")
-            
-        if group_id is not None:
-            try:
-                group = ModelInstanceGroup.objects.get(id=group_id)
-                all_groups = [group] + self.get_all_child_groups(group)
-                # all_groups = [str(group) for group in all_groups]
-                instance_ids = ModelInstanceGroupRelation.objects.filter(
-                    group__in=all_groups
-                ).values_list('instance_id', flat=True)
-                # queryset = queryset.filter(id__in=instance_ids)
-                matching_ids_list.append(set(instance_ids))
-            except ModelInstanceGroup.DoesNotExist:
-                raise ValidationError({'detail': 'Group {group_id} not found'})
 
         
         for field_name, field_value in query_params.items():
@@ -530,12 +515,12 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             return [BinaryFileRenderer()]
         return [JSONRenderer()]
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['post'])
     def export_template(self, request):
         """导出实例数据模板"""
         try:
             # 获取模型ID
-            model_id = request.query_params.get('model')
+            model_id = request.data.get('model')
             if not model_id:
                 raise ValidationError({'detail': 'Model ID is required'})
 
@@ -746,7 +731,6 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
         instance.delete()
     
 
-
 class ModelInstanceBasicViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ModelInstanceBasicViewSerializer
     queryset = ModelInstance.objects.all().order_by('-create_time')
@@ -764,7 +748,7 @@ class ModelFieldMetaViewSet(viewsets.ModelViewSet):
     ordering_fields = ['create_time', 'update_time']
     
 class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
-    queryset = ModelInstanceGroup.objects.all()
+    queryset = ModelInstanceGroup.objects.all().order_by('create_time')
     serializer_class = ModelInstanceGroupSerializer
     pagination_class = StandardResultsSetPagination
     filterset_class = ModelInstanceGroupFilter

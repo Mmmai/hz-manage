@@ -172,11 +172,7 @@
           />
         </el-form-item>
         <el-form-item label="显示名称" prop="verbose_name">
-          <el-input
-            v-model="modelFieldForm.verbose_name"
-            autocomplete="off"
-            :disabled="nowModelField.built_in"
-          />
+          <el-input v-model="modelFieldForm.verbose_name" autocomplete="off" />
         </el-form-item>
         <el-form-item label="可编辑" prop="editable">
           <el-switch
