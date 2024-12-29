@@ -87,7 +87,7 @@
           placement="top"
           v-if="!showAllPass"
         >
-          <el-button :icon="View" circle @click="setShowAllPass" />
+          <el-button  :icon="View" circle @click="setShowAllPass" />
         </el-tooltip>
         <el-tooltip
           class="box-item"
@@ -96,8 +96,18 @@
           placement="top"
           v-if="showAllPass"
         >
-          <el-button :icon="Hide" circle @click="cancelShowAllPass" />
+        <template #content> 
+          <span>倒计时结束后自动隐藏密码<br>手动点击可立马隐藏</span>
+        </template>
+
+          <el-button  circle @click="cancelShowAllPass">
+            <!-- <vue-countdown :time="showAllPassTime"  @end="onCountdownEnd"  @progress="getCountDownTime" v-slot="{ totalSeconds }">{{ totalSeconds }} </vue-countdown> -->
+            <vue-countdown :time="showAllPassTime"  @end="onCountdownEnd"   v-slot="{ totalSeconds }">{{ totalSeconds }} </vue-countdown>
+
+          </el-button>
+
         </el-tooltip>
+
         <el-tooltip
           class="box-item"
           effect="dark"
@@ -1389,9 +1399,23 @@ const showAllPassDia = ref(false);
 const gmConfig = computed(() => configStore.gmCry);
 
 const showAllPass = computed(() => configStore.showAllPass);
+const showAllPassTime = computed(() => configStore.showAllPassTime)
+
 const setShowAllPass = async () => {
   showAllPassDia.value = true;
 };
+const onCountdownEnd = ()=>{
+  configStore.updateShowAllPass(false);
+  ElNotification({
+    title: "success",
+    message: "密码到期已自动屏蔽",
+    type: "success",
+    duration: 2000,
+  });
+}
+// const getCountDownTime = (data)=>{
+//   console.log(data)
+// }
 const cancelShowAllPass = () => {
   showAllPassDia.value = false;
   configStore.updateShowAllPass(false);

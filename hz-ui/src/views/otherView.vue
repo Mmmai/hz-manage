@@ -38,7 +38,15 @@
       </div> -->
     </div>
 
-    <div class="card">333</div>
+    <div class="card">
+      
+      <vue-countdown :time="2 * 24 * 60 * 60 * 1000" v-slot="{ days, hours, minutes, seconds }">
+  Time Remaining：{{ days }} days, {{ hours }} hours, {{ minutes }} minutes, {{ seconds }} seconds.
+</vue-countdown>
+<Countdown :time="3666" format="hh:mm:ss" @on-end="onCountdownEnd">
+    <template slot-scope="{ time }">{{ time }}</template>
+  </Countdown>
+    </div>
   </div>
 </template>
 

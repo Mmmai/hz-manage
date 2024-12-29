@@ -28,9 +28,9 @@
         />
       </el-form-item>
       <el-form-item label="有效时间" prop="time">
-        <el-input-number v-model="passwordForm.time" :min="0.5" :max="24">
+        <el-input-number v-model="passwordForm.time" :min="1" :step="1" :max="30">
           <template #suffix>
-            <span>小时</span>
+            <span>分钟</span>
           </template>
         </el-input-number>
       </el-form-item>
@@ -64,7 +64,7 @@ const allPassFormRef = ref();
 
 const passwordForm = reactive({
   secret: null,
-  time: 1,
+  time: 3,
 });
 const fieldPassword = ref("");
 const isShowPass = ref(false);
@@ -75,15 +75,18 @@ const getPassword = async (formEl: FormItemInstance | undefined) => {
         // 解密
         ElNotification({
           title: "success",
-          message: "解密成功," + passwordForm.time + "小时后过期！",
+          message: "解密成功," + passwordForm.time + "分钟后过期！",
           type: "success",
           duration: 2000,
         });
         configStore.updateShowAllPass(true);
-        resetForm(allPassFormRef.value!);
 
         showAllPassDia.value = false;
         // 设置计时器,到时间就清除密码显示
+        configStore.setShowAllPassTime(passwordForm.time * 60 * 1000)        
+        resetForm(allPassFormRef.value!);
+
+
       } else {
         ElNotification({
           title: "Warning",

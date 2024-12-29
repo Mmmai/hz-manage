@@ -25,7 +25,7 @@ class Role(models.Model):
     """
     role = models.CharField(max_length=32, unique=True,verbose_name = "角色")
 
-    menu = models.ManyToManyField("Menu",blank=True,null=True)
+    menu = models.ManyToManyField("Menu")
     # 定义角色和权限的多对多关系
 
     def __str__(self):
@@ -56,6 +56,7 @@ class Menu(models.Model):
     is_iframe = models.BooleanField(verbose_name="是否内嵌",default=False)
     iframe_url = models.CharField(max_length=256, verbose_name='链接地址',null=True,blank=True)
     description = models.CharField(max_length=256,null=True,blank=True)
+    # role = models.ManyToManyField("Role")
 
     # 定义菜单间的自引用关系
     # 权限url 在 菜单下；菜单可以有父级菜单；还要支持用户创建菜单，因此需要定义parent字段（parent_id）
@@ -69,6 +70,13 @@ class Menu(models.Model):
         verbose_name = "菜单"
         verbose_name_plural = verbose_name
         app_label = 'mapi'
+# class RoleAndMenu(models.Model):
+#     menus = models.ForeignKey("Menu",on_delete=models.CASCADE) 
+#     roles = models.ForeignKey("Role",on_delete=models.CASCADE)
+
+#     class Meta:
+#         db_table = "tb_role_menu"
+#         app_label = 'mapi'    
 
 # class Permission(models.Model):
 #     """
@@ -175,13 +183,8 @@ class Datasource(models.Model):
 
 
 class sysConfigParams(models.Model):
-    """
-    角色：绑定权限
-    """
     param_name = models.CharField(max_length=256, unique=True,verbose_name = "参数名")
-    param_value = models.CharField(max_length=256,null=True,blank=True,verbose_name = "参数值")
-    # 定义角色和权限的多对多关系
-    
+    param_value = models.CharField(max_length=256,null=True,blank=True,verbose_name = "参数值")    
     class Meta:
         db_table = "tb_sysconfig"
         verbose_name = "系统参数配置表"

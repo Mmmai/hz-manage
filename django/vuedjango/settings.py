@@ -282,3 +282,6 @@ LOGGING = {
 
 # 国密SM4加密
 SM4_KEY = "287e2ffac32611ef"
+
+
+# FILTERS_DEFAULT_LOOKUP_EXPR = 'contains'

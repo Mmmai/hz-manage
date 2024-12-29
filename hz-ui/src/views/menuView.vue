@@ -361,7 +361,7 @@ onMounted(async () => {
   // 初始化数据切片
   // api请求获取所有数据
   await getMenuData(pageConfig);
-  await getRoleData();
+  // await getRoleData();
   // selectFirst()
 });
 // 默认选中第1行
@@ -393,20 +393,6 @@ const getMenuData = async (config) => {
     isSinglePage.value = true;
   }
 };
-
-// // 获取当前用户
-// const currenUsername = computed(() => {
-//   return store.state.username
-// })
-// const handleSizeChange = (val) => {
-//   pageConfig.size = val
-// }
-// const handleCurrentChange = (val) => {
-//   pageConfig.page = val
-// }
-// 点击表格行
-// const currentSelectRow = ref({})
-
 const handleClick = (val) => {
   // console.log(val)
   currentSelectRow.value = val;
@@ -474,14 +460,14 @@ const handleCommit = () => {
           proxy.$refs.userFrom.resetFields();
           // 为admin用户添加权限
           // proxy.$api.getRole()
-          await getRoleData();
-          let newMenu = roleObj["管理员"].menu;
-          newMenu.push(res.data.id);
-          await proxy.$api.roleupdate({
-            id: roleObj["管理员"].id,
-            role: roleObj["管理员"].role,
-            menu: newMenu,
-          });
+          // await getRoleData();
+          // let newMenu = roleObj["管理员"].menu;
+          // newMenu.push(res.data.id);
+          // await proxy.$api.roleupdate({
+          //   id: roleObj["管理员"].id,
+          //   role: roleObj["管理员"].role,
+          //   menu: newMenu,
+          // });
 
           getMenuData(pageConfig);
           // 更新路由

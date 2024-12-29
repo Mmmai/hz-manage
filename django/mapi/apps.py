@@ -47,6 +47,8 @@ def init_script():
         sysConfigParams.objects.create(param_name="secret_mode",param_value="ecb")
 
 class MapiConfig(AppConfig):
+    default_auto_field = 'django.db.models.AutoField'
+
     name = 'mapi'
     def ready(self):
         try:

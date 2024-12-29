@@ -17,7 +17,7 @@
           </el-table-column>
           <el-table-column fixed="right" label="操作" width="150">
             <template #default="scope">
-              <el-button v-if="scope.row.role == '管理员1'" type="primary" size="small" @click="handleEdit(scope.row)"
+              <el-button v-if="scope.row.role == '管理员'" type="primary" size="small" @click="handleEdit(scope.row)"
                 disabled>编辑</el-button>
               <el-button v-else type="primary" size="small" @click="handleEdit(scope.row)">编辑</el-button>
               <el-button v-if="scope.row.role == '管理员'" type="danger" size="small" disabled
@@ -86,7 +86,7 @@ const roleListCol = ref([
     label: '角色名称',
   },
   {
-    prop: 'userinfo_set',
+    prop: 'user_count',
     label: '用户数量',
   }
 ])

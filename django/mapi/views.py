@@ -12,6 +12,7 @@ from .models import (
   sysConfigParams
   )
 from .filters import (
+    roleFilter,
     sysConfigParamsFilter   
 )
 from .utils.jwt_create_token import create_token
@@ -21,7 +22,7 @@ from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
 import json
 from django.conf import settings
-
+from mapi.extensions.pagination import StandardResultsSetPagination
 class LoginView(APIView):
     """用户登录"""
     authentication_classes = [] # 取消全局认证
@@ -44,22 +45,6 @@ class LoginView(APIView):
 
 
 
-# class orderData(APIView):
-#     def post(self,request,*args,**kwargs):
-#         owner = request.data.get('owner')
-#         orderRes = request.data.get('orderRes')
-#         orderObj = orderMethod.objects.filter(owner=owner).first()
-#         orderObj.update(orderList={"orderList":orderRes})
-#         return Response({'code':200,'results':'success'})
-#     def get(self,request,*args,**kwargs):
-#         owner = request.query_params.get('owner')
-#         orderRes =  orderMethod.objects.filter(owner=owner).first()
-# # {"username":"admin","password":"admin123"}
-# # class IndexView(APIView):
-# # 		# 局部认证
-# #     # authentication_classes = [JWTQueryParamsAuthentication,]
-# #     def get(self,request,*args,**kwargs):
-# #         return Response("可以了")
 
 class getSecret(APIView):
     # def post(self,request,*args,**kwargs):
@@ -211,8 +196,8 @@ class UserInfoViewSet(ModelViewSet):
 class RoleViewSet(ModelViewSet):
     queryset = Role.objects.all()
     serializer_class =  RoleModelSerializer
-    # pagination_class = defaultPageNumberPagination
-    filter_backends = (DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter)  # 指定后端
+    # pagination_class = StandardResultsSetPagination
+    filterset_class = roleFilter
     order_fields = ["id"]
 
 
@@ -375,13 +360,20 @@ class dataSourceViewSet(ModelViewSet):
 class sysConfigViewSet(ModelViewSet):
     queryset = sysConfigParams.objects.all()
     serializer_class = SysConfigSerializer
-    filter_class = sysConfigParamsFilter
-    filter_fields = ['param_name', 'param_value']
+    # filter_backends = (filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend)
+    filterset_class = sysConfigParamsFilter
+    ordering_fields = ['param_name', 'param_value',]
+    search_fields =  ('param_name', 'param_value',)
     def list(self, request, *args, **kwargs):
         if(request.query_params.get('params') == "gm"):
             secretKey = sysConfigParams.objects.get(param_name="secret_key").param_value
             keyMode = sysConfigParams.objects.get(param_name="secret_mode").param_value
             return Response({"key":secretKey,"mode":keyMode})
         # 在这里可以对queryset进行进一步的筛选或处理
-        serializer = self.get_serializer(self.queryset, many=True)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
