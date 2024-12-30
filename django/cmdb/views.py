@@ -4,6 +4,7 @@ import traceback
 import re
 import io
 import tempfile
+# from celery import shared_task
 from functools import reduce
 from django.conf import settings
 from rest_framework import viewsets
@@ -113,7 +114,7 @@ class ModelsViewSet(viewsets.ModelViewSet):
         logger.info(f"New model created: {instance.name} (ID: {unique_id})")
 
         default_group, created = ModelFieldGroups.objects.get_or_create(
-            name='基础配置',
+            name='basic',
             model=instance,
             defaults={
                 'verbose_name': '基础配置',
@@ -511,7 +512,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
 
 
     def get_renderers(self):
-        if self.action in ['export_template', 'export_data']:
+        if self.action in ['export_template', 'export_data', 'download_error_records']:
             return [BinaryFileRenderer()]
         return [JSONRenderer()]
 
@@ -625,43 +626,42 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             logger.error(f"Error exporting data: {str(e)}")
             raise ValidationError({'detail': f'Failed to export data: {str(e)}'})
         
+    def _generate_error_cache_key(self):
+        return f"import_error_{uuid.uuid4()}"
     
-    @action(detail=False, methods=['post'])
-    def import_data(self, request):
-        file = request.FILES.get('file')
-        model_id = request.data.get('model')
-        
-        if not file or not model_id:
-            raise ValidationError({'detail': 'Missing file or model ID'})
-        
-        results = {
-            'created': 0,
-            'updated': 0,
-            'failed': 0,
-            'errors': []
-        }
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp:
-            for chunk in file.chunks():
-                temp.write(chunk)
-            temp_path = temp.name
-        logger.info(f"Temp file created: {temp_path}")
-            
+    # @shared_task
+    def _process_import_data(self, cache_key, file_path, model_id, request):
         try:
+            results = {
+                'status': 'processing',
+                'total': 0,
+                'created': 0,
+                'updated': 0,
+                'skipped': 0,
+                'failed': 0,
+                'errors': [],
+                'error_file_key': None
+            }
             excel_handler = ExcelHandler()
-            excel_data = excel_handler.load_data(temp_path)
+            excel_data = excel_handler.load_data(file_path)
             logger.info(f"Excel data loaded successfully: {excel_data}")
             
+            processed_instance = set()
             with transaction.atomic():
                 for instance_data in excel_data.get('instances', []):
                     try:
                         name = instance_data.get('name')
                         instance = None
                         
+                        if name in processed_instance:
+                            results['skipped'] += 1
+                        
                         if name:
                             instance = ModelInstance.objects.filter(
                                 model_id=model_id,
                                 name=name
                             ).first()
+                            processed_instance.add(name)
                             
                         # 过滤空值字段
                         fields_data = {
@@ -715,13 +715,181 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
                         results['failed'] += 1
                         results['errors'].append(f"Error preparing data for instance: {str(e)}")
                         continue
+                if results['failed'] > 0:
+                    error_wb = excel_handler.generate_error_report(results['errors'])
+                    output = io.BytesIO()
+                    error_wb.save(output)
+                    cache_key = self._generate_error_cache_key()
+                    cache.set(cache_key, output.getvalue(), timeout=600)
+                    results['error_file_key'] = cache_key
+            results['status'] = 'completed'
+            cache.set(cache_key, results, timeout=600)
+            
+        except Exception as e:
+            results['status'] = 'failed'
+            results['errors'].append(f"Error loading Excel data: {str(e)}")
+            cache.set(cache_key, results, timeout=600)
+            
+    
+    @action(detail=False, methods=['post'])
+    def import_data(self, request):
+        file = request.FILES.get('file')
+        model_id = request.data.get('model')
+        
+        if not file or not model_id:
+            raise ValidationError({'detail': 'Missing file or model ID'})
+        
+        results = {
+            'total': 0,
+            'created': 0,
+            'updated': 0,
+            'skipped': 0,
+            'failed': 0,
+            'errors': [],
+            'error_file_key': None
+        }
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp:
+            for chunk in file.chunks():
+                temp.write(chunk)
+            temp_path = temp.name
+        logger.info(f"Temp file created: {temp_path}")
+            
+        try:
+            error_data = []
+            excel_handler = ExcelHandler()
+            excel_data = excel_handler.load_data(temp_path)
+            if excel_data['status'] == 'failed':
+                raise ValidationError({'detail': f'Failed to load Excel data: {excel_data["errors"][-1]}'})
+            else:
+                logger.info(f"Excel data loaded successfully: {excel_data}")
+            
+            headers = excel_data.get('headers', [])
+            model = Models.objects.get(id=model_id)
+            fields_query = ModelFields.objects.filter(model=model).values_list('name', flat=True)
+            if set(fields_query) != set(headers):
+                raise ValidationError({'detail': 'Excel headers do not match model fields'})
+            
+            processed_instance = set()
+            with transaction.atomic():
+                for instance_data in excel_data.get('instances', []):
+                    try:
+                        name = instance_data.get('name')
+                        instance = None
+                        
+                        if name in processed_instance:
+                            results['skipped'] += 1
+                            results['total'] += 1
+                            
+                        if name:
+                            instance = ModelInstance.objects.filter(
+                                model_id=model_id,
+                                name=name
+                            ).first()
+                            processed_instance.add(name)
+                            results['total'] += 1
+                        else:
+                            # TODO: apply default name generation logic and handle empty name
+                            results['skipped'] += 1
+                            results['total'] += 1
+                            
+                            
+                        # 过滤空值字段
+                        fields_data = {
+                            k: v for k, v in instance_data['fields'].items() 
+                            if v not in (None, '')
+                        }
+                        
+                        data = {
+                            'model': model_id,
+                            'fields': fields_data
+                        }
+                        if instance:
+                            serializer = ModelInstanceSerializer(
+                                instance=instance,
+                                data=data,
+                                partial=True,
+                                context={
+                                    'request': request,
+                                    'from_excel': True
+                                }
+                            )
+                            if serializer.is_valid(raise_exception=True):
+                                serializer.save()
+                                results['updated'] += 1
+                            else:
+                                results['failed'] += 1
+                                results['errors'].append(serializer.errors)
+                        else:
+                            # TODO: get user name from request
+                            data.update({
+                                'name': name,
+                                'create_user': 'system',
+                                'update_user': 'system'
+                            })
+                            serializer = ModelInstanceSerializer(
+                                data=data,
+                                context={
+                                    'request': request,
+                                    'from_excel': True
+                                }
+                            )
+                            if serializer.is_valid(raise_exception=True):
+                                serializer.save()
+                                results['created'] += 1
+                                
+                    except Exception as e:
+                        logger.error(f"Error preparing data for instance: {str(e)}")
+                        results['failed'] += 1
+                        results['errors'].append(f"Error preparing data for instance: {str(e)}")
+                        error_data.append({
+                            'name': instance_data.get('name'),
+                            'fields': instance_data.get('fields'),
+                            'error': str(e)
+                        })
+                        continue
+                if results['failed'] > 0:
+                    try:
+                        logger.info(f"Generating error report for {len(error_data)} instances")
+                        error_wb = excel_handler.generate_error_export(excel_data['headers'], excel_data['header_rows'] , error_data)
+                        output = io.BytesIO()
+                        error_wb.save(output)
+                        output.seek(0)
+                        cache_key = self._generate_error_cache_key()
+                        cache.set(cache_key, output.getvalue(), timeout=600)
+                        results['error_file_key'] = cache_key
+                    except Exception as e:
+                        logger.error(f"Error generating error report: {str(e)}")
+                        raise ValidationError({'detail': f'Failed to generate error report: {str(e)}'})
                 return Response(results, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Error loading Excel data: {str(e)}")
             raise ValidationError({'detail': f'Failed to load Excel data: {str(e)}'})    
         
     
+    @action(detail=False, methods=['post'])
+    def download_error_records(self, request):
+        cache_key = request.data.get('error_file_key')
+        if not cache_key:
+            raise ValidationError({'detail': 'Missing error file key'})
+        error_file = cache.get(cache_key)
+        if not error_file:
+            raise ValidationError({'detail': 'Error file not found'})
         
+        headers = {
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': 'attachment; filename="import_errors.xlsx"'
+        }
+        
+        return Response(
+                {
+                    'filename': f"import_errors.xlsx",
+                    'file_content': error_file
+                },
+                status=status.HTTP_200_OK,
+                headers=headers
+        )
+        
+
     def perform_destroy(self, instance):
         groups = ModelInstanceGroupRelation.objects.filter(instance=instance).values_list('group', flat=True)
         groups = ModelInstanceGroup.objects.filter(id__in=groups)

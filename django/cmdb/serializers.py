@@ -1181,6 +1181,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
 
             # 没有空值或唯一性约束要求验证空值
             if not has_null or constraint.validate_null:
+                logger.info(f'Beginning unique constraint validation')
                 duplicate_ids = self.check_duplicate_fields(field_values, model, instance)
                 if duplicate_ids:
                     field_names = ", ".join(field_values.keys())

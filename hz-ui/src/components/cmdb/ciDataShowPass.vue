@@ -28,7 +28,12 @@
         />
       </el-form-item>
       <el-form-item label="有效时间" prop="time">
-        <el-input-number v-model="passwordForm.time" :min="1" :step="1" :max="30">
+        <el-input-number
+          v-model="passwordForm.time"
+          :min="1"
+          :step="1"
+          :max="30"
+        >
           <template #suffix>
             <span>分钟</span>
           </template>
@@ -49,8 +54,8 @@
 <script lang="ts" setup>
 import { watch, ref, onMounted, reactive, computed } from "vue";
 import { encrypt_sm4, decrypt_sm4 } from "@/utils/gmCrypto.ts";
-import useConfigStore from "@/store/config";
 import { ElNotification } from "element-plus";
+import useConfigStore from "@/store/config";
 const configStore = useConfigStore();
 const showAllPassDia = defineModel("showAllPassDia");
 const gmConfig = computed(() => configStore.gmCry);
@@ -74,7 +79,7 @@ const getPassword = async (formEl: FormItemInstance | undefined) => {
       if (passwordForm.secret === gmConfig.value.key) {
         // 解密
         ElNotification({
-          title: "success",
+          title: "操作成功",
           message: "解密成功," + passwordForm.time + "分钟后过期！",
           type: "success",
           duration: 2000,
@@ -83,13 +88,11 @@ const getPassword = async (formEl: FormItemInstance | undefined) => {
 
         showAllPassDia.value = false;
         // 设置计时器,到时间就清除密码显示
-        configStore.setShowAllPassTime(passwordForm.time * 60 * 1000)        
+        configStore.setShowAllPassTime(passwordForm.time * 60 * 1000);
         resetForm(allPassFormRef.value!);
-
-
       } else {
         ElNotification({
-          title: "Warning",
+          title: "操作失败",
           message: "密钥错误",
           type: "warning",
           duration: 2000,

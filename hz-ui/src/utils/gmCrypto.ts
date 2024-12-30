@@ -8,8 +8,10 @@ export function encrypt_sm4(key: string, mode: string, text: string): string {
   // 获取后端的key
   // const key = "0123456789ABCDEF0123456789ABCDEF"
   // const mode = 'ecb'; // 设置SM4加解密模式（ecb、cbc、ctr等）
+  if (text === null) return
   const encoder = new TextEncoder();
   const bytes = encoder.encode(key);
+  console.log(key, text)
   // const cipherText = smCrypto.sm4.encrypt(text, key, { mode });
   const cipherText = smCrypto.sm4.encrypt(text, bytes, { mode });
   return cipherText;

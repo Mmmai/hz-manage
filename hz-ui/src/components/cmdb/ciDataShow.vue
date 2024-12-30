@@ -87,7 +87,7 @@
           placement="top"
           v-if="!showAllPass"
         >
-          <el-button  :icon="View" circle @click="setShowAllPass" />
+          <el-button :icon="View" circle @click="setShowAllPass" />
         </el-tooltip>
         <el-tooltip
           class="box-item"
@@ -96,16 +96,20 @@
           placement="top"
           v-if="showAllPass"
         >
-        <template #content> 
-          <span>倒计时结束后自动隐藏密码<br>手动点击可立马隐藏</span>
-        </template>
+          <template #content>
+            <span>倒计时结束后自动隐藏密码<br />手动点击可立马隐藏</span>
+          </template>
 
-          <el-button  circle @click="cancelShowAllPass">
+          <el-button circle @click="cancelShowAllPass">
             <!-- <vue-countdown :time="showAllPassTime"  @end="onCountdownEnd"  @progress="getCountDownTime" v-slot="{ totalSeconds }">{{ totalSeconds }} </vue-countdown> -->
-            <vue-countdown :time="showAllPassTime"  @end="onCountdownEnd"   v-slot="{ totalSeconds }">{{ totalSeconds }} </vue-countdown>
-
+            <vue-countdown
+              :time="showAllPassTime"
+              @end="onCountdownEnd"
+              @progress="getCountDownTime"
+              v-slot="{ totalSeconds }"
+              >{{ totalSeconds }}
+            </vue-countdown>
           </el-button>
-
         </el-tooltip>
 
         <el-tooltip
@@ -1293,6 +1297,9 @@
   <ciDataUpload
     v-model:isShowUpload="isShowUpload"
     :ciModelId="props.ciModelId"
+    :currentNodeId="props.currentNodeId"
+    @getCiData="getCiData"
+    v-if="resetCom"
   />
   <!-- 过滤 -->
   <ciDataFilter
@@ -1307,7 +1314,7 @@
     @updateFilterParam="updateFilterParam"
     @getCiData="getCiData"
     ref="ciDataFilterRef"
-    v-if="ciDataFilterMount"
+    v-if="resetCom"
   />
   <!-- 表格列显示 -->
   <ciDataTableCol
@@ -1383,11 +1390,11 @@ const showFilter = ref(false);
 const openFilter = () => {
   showFilter.value = true;
 };
-const ciDataFilterMount = ref(true);
+const resetCom = ref(true);
 const reloadCiDataFilter = () => {
-  ciDataFilterMount.value = false;
+  resetCom.value = false;
   nextTick(() => {
-    ciDataFilterMount.value = true;
+    resetCom.value = true;
   });
 };
 const ciDataFilterRef = ref("");
@@ -1399,26 +1406,31 @@ const showAllPassDia = ref(false);
 const gmConfig = computed(() => configStore.gmCry);
 
 const showAllPass = computed(() => configStore.showAllPass);
-const showAllPassTime = computed(() => configStore.showAllPassTime)
+const showAllPassTime = computed(() => configStore.showAllPassTime);
 
 const setShowAllPass = async () => {
   showAllPassDia.value = true;
 };
-const onCountdownEnd = ()=>{
+// const getCountDownTime =
+const onCountdownEnd = () => {
   configStore.updateShowAllPass(false);
   ElNotification({
-    title: "success",
+    title: "操作成功",
     message: "密码到期已自动屏蔽",
     type: "success",
     duration: 2000,
   });
-}
-// const getCountDownTime = (data)=>{
-//   console.log(data)
-// }
+};
+const getCountDownTime = (data) => {
+  console.log(data);
+  // configStore.updateShowAllPassTime(data.totalSeconds);
+  configStore.setShowAllPassTime(data.totalMilliseconds);
+};
 const cancelShowAllPass = () => {
   showAllPassDia.value = false;
   configStore.updateShowAllPass(false);
+  configStore.setShowAllPassTime(0);
+
   ElNotification({
     title: "success",
     message: "密码已屏蔽",
@@ -2187,6 +2199,7 @@ const rmNameObj = computed(() => {
   let tmpObj = Object.assign({}, ciDataForm);
   delete tmpObj.name;
   for (let [ckey, cvalue] of Object.entries(tmpObj)) {
+    if (cvalue === null) return;
     if (modelFieldType.value.password.indexOf(ckey) !== -1) {
       // 加密
       tmpObj[ckey] = encrypt_sm4(
@@ -2202,10 +2215,17 @@ const rmNameObjUpdate = computed(() => {
   let tmpObj = Object.assign({}, updateParams.value);
   delete tmpObj.name;
   console.log(modelFieldType.value);
-  for (let [key, value] of Object.entries(updateParams.value)) {
-    if (modelFieldType.value.password.indexOf(key) !== -1) {
+
+  for (let [ckey, cvalue] of Object.entries(updateParams.value)) {
+    if (cvalue === null) return;
+
+    if (modelFieldType.value.password.indexOf(ckey) !== -1) {
       // 加密
-      tmpObj[key] = encrypt_sm4(gmConfig.value.key, gmConfig.value.mode, value);
+      tmpObj[ckey] = encrypt_sm4(
+        gmConfig.value.key,
+        gmConfig.value.mode,
+        cvalue
+      );
     }
   }
   return tmpObj;

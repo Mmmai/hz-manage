@@ -10,18 +10,21 @@ export const useConfigStore = defineStore(
     // 
     const gmCry = ref({});
     const showAllPass = ref(false)
-    const showAllPassTime = ref(300*1000)
+    const showAllPassTime = ref(0 * 1000)
     const setGmCry = (params) => {
       gmCry.value = params
     }
     const updateShowAllPass = (params) => {
       showAllPass.value = params
     }
-    const setShowAllPassTime = (params)=>{
+    const setShowAllPassTime = (params) => {
+      showAllPassTime.value = params
+    }
+    const updateShowAllPassTime = (params) => {
       showAllPassTime.value = params
     }
     return {
-      gmCry, setGmCry, showAllPass, updateShowAllPass,setShowAllPassTime,showAllPassTime
+      gmCry, setGmCry, showAllPass, updateShowAllPass, setShowAllPassTime, showAllPassTime, updateShowAllPassTime
     }
   },
   // 插件外参

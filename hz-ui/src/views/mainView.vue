@@ -25,13 +25,13 @@
                 <component
                   :is="Component"
                   :key="route.path"
-                  v-if="!route.meta.is_iframe"
+                  v-if="$route.name !== 'model'"
                 />
               </keep-alive>
             </template>
           </router-view>
           <iframe-view v-show="route.meta.is_iframe"></iframe-view>
-          <!-- <router-view v-if="!$route.meta.keepAlive"></router-view> -->
+          <router-view v-if="$route.name === 'model'"></router-view>
           <!-- </el-scrollbar> -->
         </el-main>
         <el-footer class="efooter">
@@ -62,7 +62,7 @@ const store = useStore();
 const route = useRoute();
 const router = useRouter();
 onMounted(async () => {
-  await store.dispatch("getSecret");
+  // await store.dispatch("getSecret");
   // console.log('route', route);
   // console.log('router', router, router.getRoutes());
 });

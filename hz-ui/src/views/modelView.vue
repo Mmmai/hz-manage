@@ -314,7 +314,7 @@ const modelCommit = async (formEl: FormInstance | undefined) => {
           resetForm(formEl);
           getCiModelList();
           // 刷新页面
-          location.reload();
+          // location.reload();
         } else {
           ElMessage({
             showClose: true,

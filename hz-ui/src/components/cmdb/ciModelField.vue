@@ -686,7 +686,8 @@ const modelFieldGroupCommit = async (formEl: FormInstance | undefined) => {
           isModelFieldGroup.value = false;
           resetForm(formEl);
           getModelField();
-          // 获取数据源列表
+          // 刷新页面
+          // location.reload();
         } else {
           ElMessage({
             showClose: true,
@@ -708,6 +709,8 @@ const modelFieldGroupCommit = async (formEl: FormInstance | undefined) => {
           isModelFieldGroup.value = false;
           resetForm(formEl);
           getModelField();
+          // 刷新页面
+          // location.reload();
           // 获取数据源列表
         } else {
           ElMessage({
@@ -779,8 +782,6 @@ const deleteModelFieldGroup = (config) => {
     draggable: true,
   })
     .then(async () => {
-      console.log(config);
-
       // 发起删除请求
       let res = await proxy.$api.deleteCiModelFieldGroup(config);
       //
@@ -791,6 +792,8 @@ const deleteModelFieldGroup = (config) => {
           message: "删除成功",
         });
         // 重新加载页面数据
+        // 刷新页面
+        // location.reload();
         await getModelField();
       } else {
         ElMessage({
@@ -958,7 +961,8 @@ const modelFieldFormCommit = async (formEl: FormInstance | undefined) => {
           modelFieldDrawer.value = false;
           resetForm(formEl);
           getModelField();
-          // 获取数据源列表
+          // 刷新页面
+          // location.reload();
         } else {
           ElMessage({
             showClose: true,
@@ -983,7 +987,9 @@ const modelFieldFormCommit = async (formEl: FormInstance | undefined) => {
           modelFieldDrawer.value = false;
           resetForm(formEl);
           getModelField();
-          console.log(modelFieldForm);
+          // 刷新页面
+          // location.reload();
+          // console.log(modelFieldForm);
 
           // 获取数据源列表
         } else {
@@ -1037,6 +1043,7 @@ const modelFieldDelete = (params) => {
         });
         // 重新加载页面数据
         await getModelField();
+
         resetForm(modelFieldFormRef.value);
         modelFieldDrawer.value = false;
       } else {
