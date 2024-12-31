@@ -54,6 +54,7 @@
         <Icon :icon="iconName"></Icon>
       </el-button>
       <Icon :icon="iconName"></Icon>
+      <Icon icon="mdi:file-cabinet" width="24" height="24" />
     </div>
     <iconSelectCom1 v-model:isShow="isShow" v-model:iconName="iconName" />
   </div>

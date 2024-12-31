@@ -14,7 +14,7 @@ BUILT_IN_MODELS = {
         'verbose_name': '主机',
         'description': '主机资源管理',
         'model_group': 'host',
-        'icon': 'Box',
+        'icon': 'clarity:host-line',
         'fields': [
             {
                 'name': 'ip',
@@ -149,7 +149,7 @@ BUILT_IN_MODELS = {
         'verbose_name': '交换机',
         'description': '交换机设备管理',
         'model_group': 'network',
-        'icon': 'Box',
+        'icon': 'clarity:network-switch-line',
         'fields': [
             {
                 'name': 'ip',
@@ -215,7 +215,7 @@ BUILT_IN_MODELS = {
         'verbose_name': '防火墙',
         'description': '防火墙设备管理',
         'model_group': 'security',
-        'icon': 'Box',
+        'icon': 'clarity:firewall-line',
         'fields': [
             {
                 'name': 'ip',
@@ -282,7 +282,7 @@ BUILT_IN_MODELS = {
         'verbose_name': 'VPN设备',
         'description': 'VPN设备管理',
         'model_group': 'security',
-        'icon': 'Box',
+        'icon': 'ep:box',
         'fields': [
             {
                 'name': 'ip',
@@ -333,7 +333,7 @@ BUILT_IN_MODELS = {
         'verbose_name': '波分设备',
         'description': '波分复用设备管理',
         'model_group': 'network',
-        'icon': 'Box',
+        'icon': 'ep:box',
         'fields': [
             {
                 'name': 'ip',

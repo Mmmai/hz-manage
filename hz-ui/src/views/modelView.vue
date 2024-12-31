@@ -277,7 +277,7 @@ const modelForm = reactive<ModelForm>({
   name: "",
   verbose_name: "",
   model_group: "",
-  icon: "ElemeFilled",
+  icon: "clarity:block-line",
   built_in: false,
   create_user: "admin",
   update_user: "admin",
