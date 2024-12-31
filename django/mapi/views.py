@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 # from .models import UserInfo,Role,Menu,Portal,Pgroup,Datasource,LogModule
 from .models import (
-  UserInfo,Role,Menu,Portal,Pgroup,Datasource,
+  UserInfo,UserGroup,Role,Menu,Portal,Pgroup,Datasource,
   sysConfigParams
   )
 from .filters import (
@@ -186,13 +186,18 @@ class UserInfoViewSet(ModelViewSet):
     def multiple_delete(self, request, *args, **kwargs):
         # pks = request.query_params.get('pks', None)
         pks = request.data.get('pks',None)
-        print(request.data)
         if not pks:
             return Response(status=status.HTTP_404_NOT_FOUND)
         for pk in pks:
             get_object_or_404(UserInfo, id=int(pk)).delete()
 
         return Response(data='delete success',status=status.HTTP_204_NO_CONTENT)
+class UserGroupViewSet(ModelViewSet):
+    queryset = UserGroup.objects.all()
+    serializer_class =  RoleModelSerializer
+    # pagination_class = StandardResultsSetPagination
+    # filterset_class = roleFilter
+    order_fields = ["id"]
 class RoleViewSet(ModelViewSet):
     queryset = Role.objects.all()
     serializer_class =  RoleModelSerializer

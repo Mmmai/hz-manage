@@ -1,7 +1,7 @@
 #序列化类
 from rest_framework import serializers
 from mapi.models import (UserInfo,Role,Menu,Portal,Pgroup,Datasource,
-                         sysConfigParams
+                         sysConfigParams,UserGroup
                          )
 
 # from mapi.models import UserInfo,Role,Menu,Portal,Pgroup,Datasource,LogModule
@@ -16,10 +16,27 @@ from mapi.models import (UserInfo,Role,Menu,Portal,Pgroup,Datasource,
 
 
 class UserInfoModelSerializer(serializers.ModelSerializer):
+
   class Meta:
     # 表名
     model = UserInfo
     fields = "__all__"
+class UserGroupModelSerializer(serializers.ModelSerializer):
+  userinfo_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+  user_count = serializers.SerializerMethodField()
+  class Meta:
+    # 表名
+    model = UserGroup
+    fields = "__all__"
+
+  def get_user_count(self,obj):
+    """获取角色关联的用户总数"""
+    try:
+      return UserInfo.objects.filter(roles=obj).count()
+    except Exception as e:
+      return 0
+    
+
     # depth = 1
 # RoleModelSerializer
 class RoleModelSerializer(serializers.ModelSerializer):
@@ -27,21 +44,30 @@ class RoleModelSerializer(serializers.ModelSerializer):
   # userinfo_set = serializers.StringRelatedField(many=True, read_only=True)
   #显示primkey
   userinfo_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+  userGroup_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+
   # 新增显示字段的场景
   user_count = serializers.SerializerMethodField()
+  userGroup_count = serializers.SerializerMethodField()
 
   class Meta:
     # 表名
     model = Role
     fields = "__all__"
     # depth = 1
+  
   def get_user_count(self,obj):
     """获取角色关联的用户总数"""
     try:
       return UserInfo.objects.filter(roles=obj).count()
     except Exception as e:
       return 0
-        
+  def get_userGroup_count(self,obj):
+    """获取角色关联的用户总数"""
+    try:
+      return UserGroup.objects.filter(roles=obj).count()
+    except Exception as e:
+      return 0        
 class MenuModelSerializer(serializers.ModelSerializer):
   role_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
 

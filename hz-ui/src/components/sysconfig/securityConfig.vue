@@ -3,16 +3,16 @@
     <el-form :model="formInline" class="demo-form-inline">
       <el-form-item label="密码密钥">
         <span> {{ gmConfig.key }}</span>
-        <el-input
+        <!-- <el-input
           v-model="formInline.key"
           placeholder="Approved by"
           clearable
-        />
+        /> -->
       </el-form-item>
 
-      <el-form-item>
+      <!-- <el-form-item>
         <el-button type="primary" @click="onSubmit">更新</el-button>
-      </el-form-item>
+      </el-form-item> -->
     </el-form>
   </div>
 </template>

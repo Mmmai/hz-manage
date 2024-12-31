@@ -10,7 +10,7 @@ class UserInfo(models.Model):
     update_time = models.DateTimeField(auto_now=True)
     create_time = models.DateTimeField(auto_now_add=True)
     roles = models.ManyToManyField(to='Role',verbose_name='角色')
-
+    groups = models.ManyToManyField(to='UserGroup',verbose_name='用户组')
     def __str__(self):
       return self.username
     class Meta:
@@ -18,13 +18,26 @@ class UserInfo(models.Model):
       verbose_name = "用户表"
       verbose_name_plural = verbose_name
       app_label = 'mapi'
+class UserGroup(models.Model):
+    group_name = models.CharField(max_length=32,null=False,unique=True)
+    status = models.BooleanField(verbose_name="状态",default=True)
+    update_time = models.DateTimeField(auto_now=True)
+    create_time = models.DateTimeField(auto_now_add=True)
+    roles = models.ManyToManyField(to='Role',verbose_name='角色')
 
+    def __str__(self):
+      return self.group_name
+    class Meta:
+      db_table = "tb_user_group"
+      verbose_name = "用户组表"
+      verbose_name_plural = verbose_name
+      app_label = 'mapi'
 class Role(models.Model):
     """
     角色：绑定权限
     """
     role = models.CharField(max_length=32, unique=True,verbose_name = "角色")
-
+    
     menu = models.ManyToManyField("Menu")
     # 定义角色和权限的多对多关系
 

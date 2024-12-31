@@ -32,6 +32,8 @@ router = DefaultRouter()
 # router.register('cmdb/ciModelGroup/',cmdb.ciModelGroup)
 
 router.register('userinfo',views.UserInfoViewSet)
+router.register('userGroup',views.UserGroupViewSet)
+
 router.register('role',views.RoleViewSet)
 router.register('menu',views.MenuViewSet)
 router.register('portal',views.PortalViewSet)
