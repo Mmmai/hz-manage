@@ -39,27 +39,48 @@
     </div>
 
     <div class="card">
-      
-      <vue-countdown :time="2 * 24 * 60 * 60 * 1000" v-slot="{ days, hours, minutes, seconds }">
-  Time Remaining：{{ days }} days, {{ hours }} hours, {{ minutes }} minutes, {{ seconds }} seconds.
-</vue-countdown>
-<Countdown :time="3666" format="hh:mm:ss" @on-end="onCountdownEnd">
-    <template slot-scope="{ time }">{{ time }}</template>
-  </Countdown>
+      <vue-countdown
+        :time="2 * 24 * 60 * 60 * 1000"
+        v-slot="{ days, hours, minutes, seconds }"
+      >
+        Time Remaining：{{ days }} days, {{ hours }} hours,
+        {{ minutes }} minutes, {{ seconds }} seconds.
+      </vue-countdown>
+      <Countdown :time="3666" format="hh:mm:ss" @on-end="onCountdownEnd">
+        <template slot-scope="{ time }">{{ time }}</template>
+      </Countdown>
+      <icon-ep-close />
+      <el-button @click="isShowIconSelect">
+        <Icon :icon="iconName"></Icon>
+      </el-button>
+      <Icon :icon="iconName"></Icon>
     </div>
+    <iconSelectCom1 v-model:isShow="isShow" v-model:iconName="iconName" />
   </div>
 </template>
 
 <script lang="ts" setup>
+import iconSelectCom1 from "../components/iconSelectCom.vue";
+
 import { CircleClose } from "@element-plus/icons-vue";
-import { watch, ref, onMounted, computed } from "vue";
+import { Icon, listIcons } from "@iconify/vue";
+import { watch, ref, onMounted, computed, resolveComponent } from "vue";
 const props = { multiple: true, checkStrictly: true };
 import { encrypt_sm4, decrypt_sm4 } from "@/utils/gmCrypto.ts";
 import useConfigStore from "@/store/config";
-
+import ZondiconsNetwork from "~icons/zondicons/network?width=20px&height=20px";
+const aaab = resolveComponent("icon-ep-close");
 const configStore = useConfigStore();
 const gmConfig = computed(() => configStore.gmCry);
 const test = ref([]);
+const isShow = ref(false);
+const iconName = ref("");
+const isShowIconSelect = () => {
+  isShow.value = true;
+};
+// import { listIcons } from "@iconify/vue";
+import ep from "@iconify/json/json/ep.json";
+console.log(ep);
 watch(
   () => test.value,
   (n) => {

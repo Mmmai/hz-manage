@@ -46,8 +46,12 @@
                 />
               </template>
               <template #default="scope" v-if="item.prop === 'icon'">
-                <el-icon>
+                <!-- <el-icon>
                   <component :is="scope.row.icon" />
+
+                </el-icon> -->
+                <el-icon>
+                  <Icon :icon="scope.row.icon"></Icon>
                 </el-icon>
               </template>
             </el-table-column>
@@ -156,10 +160,14 @@
         </el-form-item>
         <el-form-item label="图标" prop="icon" :rules="[{ required: true }]">
           <!-- <el-input v-model="formInline.icon" placeholder="" clearable /> -->
-          <el-button
+          <!-- <el-button
             @click="isShowIconSelect"
             :icon="formInline.icon"
+          ></el-button> -->
+          <el-button @click="isShowIconSelect">
+            <Icon :icon="formInline.icon"></Icon
           ></el-button>
+
           <iconSelectCom
             v-model:isShow="isShow"
             v-model:iconName="formInline.icon"
@@ -282,6 +290,8 @@
 <script lang="ts" setup>
 import { getCurrentInstance, onMounted, ref, reactive } from "vue";
 import iconSelectCom from "../components/iconSelectCom.vue";
+import { Icon } from "@iconify/vue";
+
 import { useStore } from "vuex";
 const store = useStore();
 
@@ -583,6 +593,7 @@ const handleSelectionChange = (val) => {
 const isShow = ref(false);
 
 const isShowIconSelect = () => {
+  console.log(formInline.icon);
   isShow.value = true;
 };
 // 20241111，实现表格点击可以更新

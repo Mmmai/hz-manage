@@ -2,7 +2,7 @@
 INIT_MENU =  [
     {
       "label": "首页",
-      "icon": "HomeFilled",
+      "icon": "ep:home-filled",
       "name": "home",
       "status": 1,
       "path": "/home",
@@ -17,7 +17,7 @@ INIT_MENU =  [
     },
     {
       "label": "可视化大屏",
-      "icon": "TrendCharts",
+      "icon": "ep:trend-charts",
       "name": "iframe",
       "status": 1,
       "path": "/iframe",
@@ -32,7 +32,7 @@ INIT_MENU =  [
     },
     {
       "label": "资产配置",
-      "icon": "Management",
+      "icon": "ep:management",
       "name": "cmdb",
       "status": 1,
       "path": "",
@@ -47,7 +47,7 @@ INIT_MENU =  [
     },
     {
       "label": "资源",
-      "icon": "MessageBox",
+      "icon": "ep:message-box",
       "name": "cidata",
       "status": 1,
       "path": "/cidata",
@@ -62,7 +62,7 @@ INIT_MENU =  [
     },
     {
       "label": "模型管理",
-      "icon": "Box",
+      "icon": "ep:box",
       "name": "cimodelManage",
       "status": 1,
       "path": "",
@@ -77,7 +77,7 @@ INIT_MENU =  [
     },
     {
       "label": "模型配置",
-      "icon": "Box",
+      "icon": "ep:box",
       "name": "model",
       "status": 1,
       "path": "/model",
@@ -92,7 +92,7 @@ INIT_MENU =  [
     },
     {
 			"label": "校验配置",
-			"icon": "Memo",
+			"icon": "ep:memo",
 			"name": "ciConfig",
 			"status": 1,
 			"path": "ciConfig",
@@ -107,7 +107,7 @@ INIT_MENU =  [
 		},
     {
       "label": "资产审计",
-      "icon": "Box",
+      "icon": "ep:box",
       "name": "cidataAudit",
       "status": 1,
       "path": "/cidataAudit",
@@ -122,7 +122,7 @@ INIT_MENU =  [
     },
     {
       "label": "日志应用",
-      "icon": "Reading",
+      "icon": "ep:reading",
       "name": "log",
       "status": 1,
       "path": "",
@@ -137,7 +137,7 @@ INIT_MENU =  [
     },
     {
       "label": "日志检索",
-      "icon": "Search",
+      "icon": "ep:search",
       "name": "loki",
       "status": 1,
       "path": "/loki",
@@ -152,7 +152,7 @@ INIT_MENU =  [
     },
     {
       "label": "流程日志",
-      "icon": "Connection",
+      "icon": "ep:connection",
       "name": "logAnalysis",
       "status": 1,
       "path": "/logAnalysis",
@@ -167,7 +167,7 @@ INIT_MENU =  [
     },
     {
       "label": "环节配置",
-      "icon": "Guide",
+      "icon": "ep:guide",
       "name": "logModule",
       "status": 1,
       "path": "/logModule",
@@ -182,7 +182,7 @@ INIT_MENU =  [
     },
     {
       "label": "分析记录",
-      "icon": "ScaleToOriginal",
+      "icon": "ep:scale-to-original",
       "name": "logFlowMission",
       "status": 1,
       "path": "/logFlowMission",
@@ -198,7 +198,7 @@ INIT_MENU =  [
 
     {
       "label": "系统管理",
-      "icon": "Setting",
+      "icon": "ep:setting",
       "name": "settings",
       "status": 1,
       "path": '',
@@ -213,7 +213,7 @@ INIT_MENU =  [
     },
     {
       "label": "用户列表",
-      "icon": "User",
+      "icon": "ep:user",
       "name": "user",
       "status": 1,
       "path": "/user",
@@ -228,7 +228,7 @@ INIT_MENU =  [
     },
     {
       "label": "角色管理",
-      "icon": "Avatar",
+      "icon": "ep:avatar",
       "name": "role",
       "status": 1,
       "path": "/role",
@@ -243,7 +243,7 @@ INIT_MENU =  [
     },
     {
       "label": "菜单管理",
-      "icon": "Menu",
+      "icon": "ep:menu",
       "name": "menu",
       "status": 1,
       "path": "/menu",
@@ -259,7 +259,7 @@ INIT_MENU =  [
 
     {
       "label": "门户配置",
-      "icon": "Platform",
+      "icon": "ep:platform",
       "name": "portal",
       "status": 1,
       "path": "/portal",
@@ -274,7 +274,7 @@ INIT_MENU =  [
     },
     {
       "label": "数据源配置",
-      "icon": "List",
+      "icon": "ep:list",
       "name": "datasource",
       "status": 1,
       "path": "/datasource",
@@ -290,7 +290,7 @@ INIT_MENU =  [
 
     {
       "label": "其它",
-      "icon": "Tools",
+      "icon": "ep:tools",
       "name": "other",
       "status": 0,
       "path": "/other",
@@ -305,7 +305,7 @@ INIT_MENU =  [
     },
     {
       "label": "工具集",
-      "icon": "ForkSpoon",
+      "icon": "ep:fork-spoon",
       "name": "tools",
       "status": 1,
       "path": "tools",
@@ -320,7 +320,7 @@ INIT_MENU =  [
     },
     {
 			"label": "测试页1",
-			"icon": "Promotion",
+			"icon": "ep:promotion",
 			"name": "debug",
 			"status": 0,
 			"path": "debug",

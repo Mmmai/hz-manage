@@ -71,7 +71,8 @@
           >
             <el-space size="large">
               <el-icon :size="30">
-                <component :is="data.icon" />
+                <!-- <component :is="data.icon" /> -->
+                <Icon :icon="data.icon"></Icon>
               </el-icon>
               <el-space direction="vertical" size="small">
                 <el-text>
@@ -109,7 +110,9 @@
       status-icon
     >
       <el-form-item label="模型图标" prop="icon">
-        <el-button @click="isShowIconSelect" :icon="modelForm.icon"></el-button>
+        <el-button @click="isShowIconSelect">
+          <el-icon><Icon :icon="modelForm.icon"></Icon></el-icon>
+        </el-button>
         <iconSelectCom
           v-model:isShow="isShow"
           v-model:iconName="modelForm.icon"
@@ -176,6 +179,7 @@
 </template>
 
 <script setup lang="ts">
+import { Icon } from "@iconify/vue";
 import {
   ref,
   getCurrentInstance,
