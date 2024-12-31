@@ -194,10 +194,11 @@ class UserInfoViewSet(ModelViewSet):
         return Response(data='delete success',status=status.HTTP_204_NO_CONTENT)
 class UserGroupViewSet(ModelViewSet):
     queryset = UserGroup.objects.all()
-    serializer_class =  RoleModelSerializer
+    serializer_class =  UserGroupModelSerializer
     # pagination_class = StandardResultsSetPagination
     # filterset_class = roleFilter
     order_fields = ["id"]
+
 class RoleViewSet(ModelViewSet):
     queryset = Role.objects.all()
     serializer_class =  RoleModelSerializer

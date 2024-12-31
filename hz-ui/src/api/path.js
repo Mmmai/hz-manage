@@ -3,6 +3,8 @@ const base = {
   login: "/api/v1/login/",
   test: "/api/v1/test",
   user: "/api/v1/userinfo/",
+  userGroup: "/api/v1/userGroup/",
+
   role: "/api/v1/role/",
   menuInfo: "/api/v1/menuinfo/",
   menuList: "/api/v1/getMenu/",

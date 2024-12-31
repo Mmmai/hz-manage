@@ -20,7 +20,7 @@ class UserInfo(models.Model):
       app_label = 'mapi'
 class UserGroup(models.Model):
     group_name = models.CharField(max_length=32,null=False,unique=True)
-    status = models.BooleanField(verbose_name="状态",default=True)
+    # status = models.BooleanField(verbose_name="状态",default=True)
     update_time = models.DateTimeField(auto_now=True)
     create_time = models.DateTimeField(auto_now_add=True)
     roles = models.ManyToManyField(to='Role',verbose_name='角色')

@@ -68,6 +68,22 @@ login(params){
       data: params
     })
   },
+  getUserGroup(config){
+    return axios.request({
+      url:path.userGroup,
+      method: 'get',
+      params:config
+    })
 
+  },
+  addUserGroup(params){
+    return axios.post(path.userGroup,params)
+  },
+  updateUserGroup(params){
+    return axios.put(path.userGroup+params.id+'/',params)
+  },
+  deleteUserGroup(params){
+    return axios.delete(path.userGroup+params+'/')
+  },
 
 }
