@@ -6,7 +6,7 @@ from django.db.utils import OperationalError
 
 # 初始化数据
 def init_script():
-    from mapi.models import UserInfo,Role,Menu,sysConfigParams
+    from mapi.models import UserInfo,UserGroup,Role,Menu,sysConfigParams
 
     menuInitList = INIT_MENU
     # 创建目录
@@ -20,24 +20,31 @@ def init_script():
                 parentid_id = Menu.objects.get(name=parent_name).id
                 i['parentid_id'] = parentid_id
                 Menu.objects.create(**i)
-    # 初始化用户和角色
+    # 初始化用户、用户组和角色
     initList = UserInfo.objects.all()
     if len(initList) == 0:
         #创建对象
-        Role.objects.create(role="管理员")
-        Role.objects.create(role="普通用户")
-        #创建用户
-        role_obj = Role.objects.get(role="管理员")
-        role_id = role_obj.id
+        role_admin_obj = Role.objects.create(role="管理员")
+        role_common_obj = Role.objects.create(role="普通用户")
+        # role_admin_obj = Role.objects.get(role="管理员")
+        #创建用户组
+        group_admin_obj = UserGroup.objects.create(group_name="系统管理组")
+        group_admin_obj.roles.add(role_admin_obj.id)
+        group_admin_obj.save()
+        # 创建默认的普通用户组
+        group_common_obj = UserGroup.objects.create(group_name="普通用户组")
+        group_common_obj.roles.add(role_common_obj.id)
+        group_common_obj.save()
+        # 创建用户
         user_obj = UserInfo.objects.create(username="admin",password="thinker")
-        user_obj.roles.add(role_id)
-        role_obj = Role.objects.get(role="管理员")
+        user_obj.groups.add(group_admin_obj.id)
+        user_obj.roles.add(role_admin_obj.id)
         menuList = [ i.id for i in Menu.objects.all() ]
-        role_obj.menu.set(Menu.objects.all())
-        role_obj.save()
+        role_admin_obj.menu.set(Menu.objects.all())
+        role_admin_obj.save()
         print("初始化完成,用户名密码为: admin/thinker")
     # 授权菜单给系统管理员
-    # admin_role_id = role_obj.id
+    # admin_role_id = role_admin_obj.id
     #获取菜单id
     # 初始化菜单数据
     # 生成密钥

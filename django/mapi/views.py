@@ -36,7 +36,7 @@ class LoginView(APIView):
         roleList = [ i['id'] for i in user_obj.roles.all().values('id') ]
         #print(roleList)
         payload = {
-            'user_id':user_obj.pk,#自定义用户ID
+            'user_id':str(user_obj.pk),#自定义用户ID
             'username':user_obj.username,#自定义用户名
             # 'exp':datetime.datetime.utcnow()+datetime.timedelta(minutes=1),# 设置超时时间，1min
         }
@@ -130,16 +130,14 @@ class getMenu(APIView):
             # print(info)
 
             if role != None:
-                currentRoleList = [int(i) for i in role.split(',')]
-
-                nlist = list(set(currentRoleList).intersection(set(roleList)))
+                # currentRoleList = [ i for i in role.split(',')]
+                nlist = list(set(role).inter_section(set(roleList)))
                 if len(nlist) == 0:
                     if menu.is_menu == True:
                         continue
                 if menu.is_menu == False and len(info['children']) == 0:
                     continue
             tree.append(info)
-            # print(tree)
         return tree
 
 
@@ -170,7 +168,6 @@ class UserInfoViewSet(ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         # request.query_params = request.data
-        print(request.META.get('HTTP_TOKEN'))
         # page = request.data['page']
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)

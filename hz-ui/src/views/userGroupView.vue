@@ -2,7 +2,7 @@
   <div class="card">
     <div class="table-header">
       <div class="header-button-lf">
-        <el-button type="primary" @click="addUserGroup">添加</el-button>
+        <el-button type="primary" @click="addGroup">添加</el-button>
       </div>
     </div>
     <el-table
@@ -17,7 +17,30 @@
         sortable="custom"
       />
       <el-table-column property="user_count" label="关联用户数" />
-      <el-table-column property="userinfo_set" label="用户列表" />
+      <el-table-column property="userinfo_set" label="用户列表" >
+        <template #default="scope">
+        <div class="flexJstart gap-5">
+        <el-tag 
+          v-for="item in scope.row.userinfo_set" 
+          :key="item"
+        >
+          {{ item.username }}
+        </el-tag>
+      </div>  
+      </template>
+      </el-table-column>
+      <el-table-column property="roles" label="角色列表" >
+        <template #default="scope">
+        <el-tag 
+          v-for="item in scope.row.roles" 
+          :key="item"
+        >
+          {{ item.role }}
+        </el-tag>
+      </template>
+      </el-table-column>
+
+
       <el-table-column fixed="right" width="100" label="操作">
         <template #default="scope">
           <el-tooltip
@@ -62,7 +85,7 @@
         :model="formInline"
         class="demo-form-inline"
         label-position="right"
-        ref="userFrom"
+        ref="userGroupFrom"
         status-icon
       >
         <el-form-item
@@ -102,8 +125,8 @@
 
         <el-row style="justify-content: space-around">
           <el-form-item>
-            <el-button @click="cancelAdd">取消</el-button>
-            <el-button type="primary" @click="handleCommit"> 确定</el-button>
+            <el-button @click="handleClose">取消</el-button>
+            <el-button type="primary" @click="submitAction(userGroupFrom)"> 确定</el-button>
           </el-form-item>
         </el-row>
         <!-- </div> -->
@@ -130,13 +153,13 @@ const store = useStore();
 const userGroupData = ref([]);
 const isDisabled = ref(false);
 const dialogVisible = ref(false);
+const userGroupFrom = ref(null)
 const roleInfo = ref([]);
 const action = ref("add");
-const roleOptions = computed(() => {
-  let tmpArr = new Array();
+const roleByIdObject = computed(() => {
+  let tmpArr = new Object();
   roleInfo.value.forEach((item) => {
-    console.log(item);
-    tmpArr.push({ label: item.role, value: item.id });
+    tmpArr[item.id] = item;
   });
   return tmpArr;
 });
@@ -149,32 +172,38 @@ const resetForm = (formEl) => {
   if (!formEl) return;
   formEl.resetFields();
 };
-watch(
-  () => roleOptions.value,
-  (n) => {
-    console.log(roleOptions.value);
-  }
-);
+
 const getRoleData = async () => {
   let res = await proxy.$api.getRole();
   roleInfo.value = res.data.results;
-  console.log(roleInfo.value);
-  // 将role列表转化为dict
-  // console.log(roleInfo.value)
 };
 const getUserGroupData = async () => {
   let res = await proxy.$api.getUserGroup();
   userGroupData.value = res.data.results;
-  // 将role列表转化为dict
-  // console.log(roleInfo.value)
-  console.log(userGroupData.value);
+  console.log(userGroupData.value)
 };
 const multipleTableRef = ref(null);
-const handleClose = () => {};
-const addUserGroup = () => {
+const handleClose = () => {
+  dialogVisible.value = false;
+
+};
+const addGroup = () => {
   dialogVisible.value = true;
 };
-const editRow = (params) => {};
+const nowRow = ref({})
+const isAdd = ref(true)
+const editRow = (row) => {
+  nowRow.value = row;
+  dialogVisible.value = true;
+  isAdd.value = false;
+  nextTick(() => {
+    Object.keys(row).forEach(
+      (item) => {
+        if (item === "id") return;
+        formInline[item] = row[item];
+  })
+})
+};
 const deleteRow = (params) => {
   ElMessageBox.confirm("是否确认删除?", "删除", {
     confirmButtonText: "确认删除",
@@ -208,6 +237,54 @@ const deleteRow = (params) => {
         message: "取消删除",
       });
     });
+};
+
+const submitAction = async (formEl) => {
+  await formEl.validate(async (valid, fields) => {
+    if (valid) {
+      if (isAdd.value) {
+        // 添加请求
+        let res = await proxy.$api.addUserGroup({
+          ...formInline,
+        });
+        if (res.status == "201") {
+          ElMessage({ type: "success", message: "添加成功" });
+          // 重置表单
+          dialogVisible.value = false;
+          resetForm(formEl);
+          // getModelField();
+          // 刷新页面
+          await getUserGroupData();
+        } else {
+          ElMessage({
+            showClose: true,
+            message: "添加失败:" + JSON.stringify(res.data),
+            type: "error",
+          });
+        }
+      } else {
+        let res = await proxy.$api.updateUserGroup({
+          id: nowRow.value.id,
+          ...formInline,
+        });
+
+        // console.log(123)
+        if (res.status == "200") {
+          ElMessage({ type: "success", message: "更新成功" });
+          // 重置表单
+          dialogVisible.value = false;
+          resetForm(formEl);
+          // 获取数据源列表
+        } else {
+          ElMessage({
+            showClose: true,
+            message: "更新失败:" + JSON.stringify(res.data),
+            type: "error",
+          });
+        }
+      }
+    }
+  });
 };
 onMounted(async () => {
   await getRoleData();

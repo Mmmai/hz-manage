@@ -28,7 +28,7 @@ login(params){
     return axios.post(path.user,params)
   },
   userupdate(params){
-    return axios.put(path.user+params.id+'/',params)
+    return axios.patch(path.user+params.id+'/',params)
   },
   userdel(params){
     return axios.delete(path.user+params+'/')

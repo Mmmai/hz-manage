@@ -10,12 +10,16 @@ logger = logging.getLogger(__name__)
 
 class PasswordHandler:
     def __init__(self):
-        
-        key = base64.urlsafe_b64encode(sysConfigParams.objects.get(param_name="secret_key").param_value.encode()[:32].ljust(32, b'\0'))
+        # print(123)
+        # try:
+        key = base64.urlsafe_b64encode(settings.SM4_KEY.encode()[:32].ljust(32, b'\0'))
         self.fernet = Fernet(key)
-
-        self.sm4_key = sysConfigParams.objects.get(param_name="secret_key").param_value.encode('utf-8')
+        self.sm4_key = settings.SM4_KEY.encode('utf-8')
         self._init_sm4()
+        # except Exception as e:
+        #     print(e)
+
+
 
     def _init_sm4(self):
         """初始化 SM4 加解密器"""

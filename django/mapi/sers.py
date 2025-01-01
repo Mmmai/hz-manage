@@ -13,10 +13,21 @@ from mapi.models import (UserInfo,Role,Menu,Portal,Pgroup,Datasource,
 #     model = userlist
 #     fields = "__all__"
 
-
-
+# 为显示详细的外键信息
+class RoleForSer(serializers.ModelSerializer):
+  class Meta:
+    # 表名
+    model = Role
+    fields = "__all__"
+    # depth = 1
+class UserGroupForSer(serializers.ModelSerializer):
+  class Meta:
+    # 表名
+    model = UserGroup
+    fields = "__all__"
 class UserInfoModelSerializer(serializers.ModelSerializer):
-
+  roles = RoleForSer(many=True)
+  groups = UserGroupForSer(many=True)
   class Meta:
     # 表名
     model = UserInfo
@@ -27,19 +38,20 @@ class UserGroupModelSerializer(serializers.ModelSerializer):
   # users_id = serializers.ListField(
   #       child=serializers.IntegerField(), write_only=True, required=False
   #   )
-  users = UserInfoModelSerializer(many=True,read_only=True)
-  userinfo_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+  # users = UserInfoModelSerializer(many=True,read_only=True)
+  userinfo_set = UserInfoModelSerializer(many=True)
+  roles = RoleForSer(many=True,read_only=True)
   user_count = serializers.SerializerMethodField()
   class Meta:
     # 表名
     model = UserGroup
-    fields = "__all__"
-    # fields = ["id","group_name","users","user_count","userinfo_set","roles"]
+    # fields = "__all__"
+    fields = ["id","group_name","user_count","userinfo_set","roles"]
 
   def get_user_count(self,obj):
     """获取角色关联的用户总数"""
     try:
-      return UserInfo.objects.filter(roles=obj).count()
+      return UserInfo.objects.filter(groups=obj).count()
     except Exception as e:
       return 0
   # def create(self, validated_data):
@@ -53,7 +65,7 @@ class UserGroupModelSerializer(serializers.ModelSerializer):
   #    return instance      
 
     # depth = 1
-# RoleModelSerializer
+# RoleModelSerializer  
 class RoleModelSerializer(serializers.ModelSerializer):
   #显示__str__的字段
   # userinfo_set = serializers.StringRelatedField(many=True, read_only=True)
@@ -83,7 +95,7 @@ class RoleModelSerializer(serializers.ModelSerializer):
       return UserGroup.objects.filter(roles=obj).count()
     except Exception as e:
       return 0   
-  
+
 class MenuModelSerializer(serializers.ModelSerializer):
   role_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
 

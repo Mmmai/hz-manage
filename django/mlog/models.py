@@ -1,12 +1,13 @@
 from django.db import models
 from mapi.models import UserInfo,Datasource
 from enum import Enum
-
+import uuid
 # Create your models here.
 class LogModule(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     module_name = models.CharField(max_length=32, unique=True,verbose_name = "模块名称")
     label_name = models.CharField(max_length=32,null=False,default="",verbose_name = "标签")
-    label_value = models.CharField(max_length=256,null=False,default="",verbose_name = "标签值")
+    label_value = models.CharField(max_length=254,null=False,default="",verbose_name = "标签值")
     label_match = models.CharField(max_length=32,null=False,default="",verbose_name = "匹配方式")
     group = models.CharField(max_length=64, verbose_name="分组",null=True,blank=True)
     # token = models.CharField(max_length=128,null=True,blank=True)
@@ -18,6 +19,7 @@ class LogModule(models.Model):
         verbose_name = "数据源"
         app_label = 'mlog'
 class LogFlow(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=32,null=False,unique=True, verbose_name="流程名称")
     group = models.CharField(max_length=64, verbose_name="分组",null=True,blank=True)
     # token = models.CharField(max_length=128,null=True,blank=True)
@@ -35,6 +37,7 @@ class LogFlow(models.Model):
         app_label = 'mlog'
 
 class LogFlowModule(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     step_id = models.ForeignKey(LogModule,on_delete=models.CASCADE)
     flow_id = models.ForeignKey(LogFlow,on_delete=models.CASCADE)
     order = models.IntegerField()
@@ -51,8 +54,8 @@ class LogFlowMission(models.Model):
         (2,'Failed'),
         (3,'Unknown')
     )
-    mission_id = models.CharField(max_length=256,primary_key=True)
-    task_id = models.CharField(max_length=256)
+    mission_id = models.CharField(max_length=254,primary_key=True)
+    task_id = models.CharField(max_length=254)
     user_id = models.ForeignKey(UserInfo,on_delete=models.CASCADE)
     flow_id = models.ForeignKey(LogFlow,on_delete=models.CASCADE)
     dataSource_id = models.ForeignKey(Datasource,on_delete=models.CASCADE)

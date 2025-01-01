@@ -42,6 +42,9 @@ const formInline = reactive({
 const onSubmit = () => {
   console.log("submit!");
 };
+onMounted(()=>{
+  
+})
 </script>
 <style scoped lang="scss">
 </style>

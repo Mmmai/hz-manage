@@ -138,7 +138,7 @@ router.beforeEach(async(to, from, next) => {
         store.commit("updateDynamicCreateRoute",true)
         // 获取动态路由
         // await store.dispatch('getRouteInfoAction', {role:store.state.role})
-        await store.dispatch('getRoleMenu', {role:store.state.role.join(',')})
+        await store.dispatch('getRoleMenu', {role:store.state.role})
         // console.log(store.state.menuInfo)
         // const drouteinfo = store.state.routeInfo
         if (store.state.menuInfo.length === 0){

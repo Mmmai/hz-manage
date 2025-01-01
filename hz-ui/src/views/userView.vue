@@ -36,14 +36,35 @@
         :label="item.label"
         :prop="item.prop"
       >
+      <template #default="scope" v-if="item.prop === 'status'">
+        <el-switch
+                  v-model="scope.row.status"
+                  class="ml-2"
+                  style="
+                    --el-switch-on-color: #13ce66;
+                    --el-switch-off-color: #ff4949;
+                  "
+                  @change="updateStatus(scope.row)"
+                />
+      </template>
+      <template #default="scope" v-if="item.prop === 'groups'">
+        <el-tag 
+
+          v-for="item in scope.row.groups" 
+          :key="item"
+          class="el-tag-role-list"
+        >
+          {{ item.group_name }}
+        </el-tag>
+      </template>
       <template #default="scope" v-if="item.prop === 'roles'">
         <el-tag 
 
-          v-for="xxx in scope.row.roles" 
-          :key="xxx"
+          v-for="item in scope.row.roles" 
+          :key="item"
           class="el-tag-role-list"
         >
-          {{ roleObject[xxx] }}
+          {{ item.role }}
         </el-tag>
       </template>
       </el-table-column>
@@ -106,20 +127,26 @@
     </el-form-item> -->
     <el-row>
       <el-col :span="12">
-        <el-form-item label="状态" prop="status">
-          <!-- <el-radio-group v-model="formInline.status">
-            <el-radio label=true />
-            <el-radio label=false />
-          </el-radio-group> -->
-          <el-switch
-            v-model="formInline.status"
-            class="ml-2"
-            inline-prompt
-            style="--el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949"
-            active-text="Y"
-            inactive-text="N"
+        <el-form-item label="用户组" prop="groups">
+          <el-select
+            v-model="formInline.groups"
+            placeholder=""
+            clearable
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            :max-collapse-tags="3"
             :disabled="isDisabled"
-          />
+            style="width: 220px"
+          >
+            <el-option 
+              v-for="item in userGroupData" 
+              :key="item.id"
+              :label="item.group_name"
+              :value="item.id"
+            />
+            <!-- <el-option label="禁用" value="False" /> -->
+          </el-select>
         </el-form-item>
       </el-col>
       <el-col :span="12">
@@ -133,7 +160,7 @@
             collapse-tags-tooltip
             :max-collapse-tags="3"
             :disabled="isDisabled"
-            style="width: 120px"
+            style="width: 220px"
           >
             <el-option 
               v-for="item in roleInfo" 
@@ -149,6 +176,21 @@
     <el-form-item label="Password" prop="password">
       <el-input v-model="formInline.password" type="password" autocomplete="off" />
     </el-form-item>
+        <el-form-item label="状态" prop="status">
+          <!-- <el-radio-group v-model="formInline.status">
+            <el-radio label=true />
+            <el-radio label=false />
+          </el-radio-group> -->
+          <el-switch
+            v-model="formInline.status"
+            class="ml-2"
+            inline-prompt
+            style="--el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949"
+            active-text="Y"
+            inactive-text="N"
+            :disabled="isDisabled"
+          />
+        </el-form-item>
     <el-row style="justify-content: flex-end;">
       <el-form-item>
       <el-button @click="cancelAdd">取消</el-button>
@@ -170,7 +212,7 @@
 </template>
 
 <script setup>
-  import { getCurrentInstance, onMounted,ref,reactive, watch} from 'vue'
+  import { getCurrentInstance, onMounted,ref,reactive, watch, computed, nextTick} from 'vue'
   const {proxy} = getCurrentInstance();
   // 搜素框变量
   const filterObject = reactive({
@@ -193,6 +235,10 @@
     {
       prop:'status',
       label: '状态',
+    },
+    { 
+      prop:'groups',
+      label: '用户组列表',
     },
     {
       prop:'roles',
@@ -224,7 +270,7 @@
   const isSinglePage=ref(false)
 
   // 角色列表
-  const roleInfo = ref('') 
+  const roleInfo = ref([]) 
   const roleObject = ref({})
   // object反转
   function inverse(obj){
@@ -239,14 +285,17 @@
   onMounted(() =>{
     // 初始化数据切片
     getRoleData(pageConfig);
+    getUserGroupData()
     // api请求获取所有数据
-
+    getUserData(pageConfig)
     
   });
   // 获取角色数据
   const getRoleData = async(config) =>{
     let roleinfo = await proxy.$api.getRole(config)
     roleInfo.value = roleinfo.data.results
+
+    console.log(roleInfo.value)
     // 将role列表转化为dict
     // console.log(roleInfo.value)
     for (let key in roleInfo.value){
@@ -254,8 +303,18 @@
       let roleid = roleInfo.value[key].id
       roleObject.value[roleid] = rolename
     }
-    getUserData(pageConfig);
+    // getUserData(pageConfig);
   }
+  const userGroupData = ref([])
+  // const userGroupObject = computed(()=>{
+  //   let tmpArr = new Array()
+  //   userGroupData.value.forEach(item=>{id:item.id,label})
+  // })
+  const getUserGroupData = async () => {
+  let res = await proxy.$api.getUserGroup();
+  userGroupData.value = res.data.results;
+  console.log(userGroupData.value)
+};
   // 获取用户数据
   const getUserData = async(conf) => {
     loading.value = true
@@ -320,7 +379,8 @@
     real_name: null,
     password:"",
     status:true,
-    roles:[]
+    roles:[],
+    groups:[]
   })
   const action = ref('add')
   // 显示弹出框
@@ -369,6 +429,7 @@
         }
       // 编辑接口
         else{
+          console.log(JSON.stringify(formInline))
           let res = await proxy.$api.userupdate(formInline)
           console.log(res)
           if (res.status == 200){
@@ -395,13 +456,50 @@
       }
       console.log(formInline)
   })}
-  
+  const updateStatus = async (param) => {
+  let res = await proxy.$api.userupdate({
+    status: param.status,
+    id: param.id,
+  });
+  if (res.status == 200) {
+    ElMessage({
+      type: "success",
+      message: "更新成功",
+    });
+    // 重置表单
+    // proxy.$refs.pgroupForm.resetFields();
+    getUserData(pageConfig);
+  } else {
+    ElMessage({
+      showClose: true,
+      message: "更新失败:" + JSON.stringify(res.data),
+      type: "error",
+    });
+  }
+};
   // 编辑
   const handleEdit = (row) =>{
     action.value = 'edit'
     dialogVisible.value = true
     // 清除新增按钮会显示编辑按钮的记录
-    proxy.$nextTick(() => {Object.assign(formInline,row)})
+    // proxy.$nextTick(() => {Object.assign(formInline,row)})
+    nextTick(() => {
+    Object.keys(row).forEach(
+      (item) => {
+        if (["groups","roles"].includes(item)){
+          console.log(444,item)
+
+          console.log(row[item].map(ary => ary.id))
+          formInline[item] = row[item].map(ary => ary.id)
+        }else{
+          console.log(item)
+          formInline[item] = row[item];
+        }
+      } // isDisabled.value = params.built_in
+    );
+  });
+    console.log(formInline)
+
   }
   // 删除
   const handleDelete = (row) =>{  

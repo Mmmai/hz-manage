@@ -11,6 +11,8 @@ def create_token(payload,timeout=5):
         'alg': 'HS256'
     }
     #设置超时
+    print(123)
+    print(payload)
     # payload['exp'] = datetime.datetime.utcnow() + datetime.timedelta(minutes=timeout)
     jwt_token = jwt.encode(headers=headers, payload=payload, key=salt, algorithm='HS256')
     return jwt_token

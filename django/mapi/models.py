@@ -1,7 +1,8 @@
 from django.db import models
 from datetime import timezone
-
+import uuid
 class UserInfo(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = models.CharField(max_length=32,null=False,unique=True)
     password = models.CharField(max_length=32,null=False)
     real_name = models.CharField(max_length=50, verbose_name="真实姓名",null=True,blank=True,default="")
@@ -19,6 +20,7 @@ class UserInfo(models.Model):
       verbose_name_plural = verbose_name
       app_label = 'mapi'
 class UserGroup(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     group_name = models.CharField(max_length=32,null=False,unique=True)
     # status = models.BooleanField(verbose_name="状态",default=True)
     update_time = models.DateTimeField(auto_now=True)
@@ -36,6 +38,7 @@ class Role(models.Model):
     """
     角色：绑定权限
     """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     role = models.CharField(max_length=32, unique=True,verbose_name = "角色")
     
     menu = models.ManyToManyField("Menu")
@@ -55,6 +58,7 @@ class Menu(models.Model):
     """
     菜单
     """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     label = models.CharField(max_length=32, unique=True,verbose_name='菜单')
     icon = models.CharField(max_length=64, verbose_name='菜单图标', null=True, blank=True)
     name = models.CharField(max_length=32, unique=True,verbose_name='菜单编码',null=False)
@@ -109,6 +113,7 @@ class Menu(models.Model):
 #         verbose_name = "权限"
 #         verbose_name_plural = verbose_name
 class Portal(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(verbose_name='名称',max_length=32,null=False,unique=True)
     describe = models.CharField(verbose_name='描述',max_length=256,null=True,blank=True,default="")
     username = models.CharField(verbose_name='用户名',max_length=32,null=True,blank=True,default="")
@@ -136,6 +141,7 @@ class Pgroup(models.Model):
     """
     门户的用户组
     """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     group = models.CharField(max_length=32, unique=True,verbose_name = "角色")
     # owner = models.ForeignKey('Userinfo',on_delete=models.CASCADE)
     # 定义角色和权限的多对多关系
@@ -148,6 +154,7 @@ class Pgroup(models.Model):
         verbose_name_plural = verbose_name
         app_label = 'mapi'
 class Datasource(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     source_name = models.CharField(max_length=32, unique=True,verbose_name = "数据源名称")
     source_type = models.CharField(max_length=32,null=False,default="loki",verbose_name = "类型")
     username = models.CharField(verbose_name='用户名',max_length=32,null=True,blank=True,default="")
@@ -196,8 +203,9 @@ class Datasource(models.Model):
 
 
 class sysConfigParams(models.Model):
-    param_name = models.CharField(max_length=256, unique=True,verbose_name = "参数名")
-    param_value = models.CharField(max_length=256,null=True,blank=True,verbose_name = "参数值")    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    param_name = models.CharField(max_length=254, unique=True,verbose_name = "参数名")
+    param_value = models.CharField(max_length=254,null=True,blank=True,verbose_name = "参数值")    
     class Meta:
         db_table = "tb_sysconfig"
         verbose_name = "系统参数配置表"

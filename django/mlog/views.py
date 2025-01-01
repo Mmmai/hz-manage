@@ -188,5 +188,4 @@ def test(request):
             birth_date=models.DateField(blank=True, null=True)
             )
         model_a = get_model('test_app', app_label='mlog', fields=al)
-        print(mo)
         return HttpResponse(111222)
