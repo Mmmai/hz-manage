@@ -33,7 +33,17 @@ class LoginView(APIView):
         user_obj = UserInfo.objects.filter(username=user,password=pwd).first()
         if not user_obj:
             return Response({'code':401,'error':'用户名或密码错误'})
-        roleList = [ i['id'] for i in user_obj.roles.all().values('id') ]
+        # 获取用户组id
+        userGroupList = [ i['id'] for i in user_obj.groups.all().values('id') ]
+        # 
+        userGroupRoleList = []
+        for group in userGroupList:
+            group_obj = UserGroup.objects.get(id=group)
+            for group_role in group_obj.roles.all():
+                userGroupRoleList.append(group_role.id)
+        # 判断用户的role
+        userRoleList = [ i['id'] for i in user_obj.roles.all().values('id') ]
+        roleList = list(set(userGroupRoleList + userRoleList))
         #print(roleList)
         payload = {
             'user_id':str(user_obj.pk),#自定义用户ID

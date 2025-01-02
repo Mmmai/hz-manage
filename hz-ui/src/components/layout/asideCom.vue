@@ -1,16 +1,22 @@
 <template>
-  <el-aside :width="$store.state.isCollapse ? '200px' : '64px'" style="border: 1px;" broder="1px" class="el-side-n">
+  <el-aside
+    :width="$store.state.isCollapse ? '200px' : '64px'"
+    style="border: 1px"
+    broder="1px"
+    class="el-side-n"
+  >
     <!-- style="background-color:#3576d89d" -->
     <!-- :background-color="currentColor" -->
     <el-scrollbar>
-      <el-menu class="el-menu-vertical-demo" :default-active="currentMenu" :collapse="!$store.state.isCollapse"
-        :collapse-transition="false">
+      <el-menu
+        class="el-menu-vertical-demo"
+        :default-active="currentMenu"
+        :collapse="!$store.state.isCollapse"
+        :collapse-transition="false"
+      >
         <div v-show="$store.state.isCollapse" class="top-icon">
-
           <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg>
-          <span>
-            HZ-MANAGE
-          </span>
+          <span> HZ-MANAGE </span>
         </div>
         <div v-show="!$store.state.isCollapse" class="top-icon">
           <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg>
@@ -46,8 +52,11 @@
 </el-sub-menu>
 </template>
 </template> -->
-        <submenu :menu="menu" v-for="menu in menuInfo" :key="menu.name"></submenu>
-
+        <submenu
+          :menu="menu"
+          v-for="menu in menuInfo"
+          :key="menu.name"
+        ></submenu>
       </el-menu>
     </el-scrollbar>
   </el-aside>
@@ -55,21 +64,24 @@
 
 <!-- <script setup> -->
 <script setup>
-import { computed, onMounted, getCurrentInstance, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { useStore } from 'vuex'
-import submenu from './sub-menu.vue'
-const currentColor = '#fff'
+import { computed, onMounted, getCurrentInstance, ref, watch } from "vue";
+import { useRouter } from "vue-router";
+import { useStore } from "vuex";
+import submenu from "./sub-menu.vue";
+const currentColor = "#fff";
 
-import useTabsStore from '@/store/tabs'
-const tabsStore = useTabsStore()
+import useTabsStore from "@/store/tabs";
+const tabsStore = useTabsStore();
 
-const currentMenu = computed(() => tabsStore.currentMenu)
-watch(() => currentMenu.value, (n) => {
-  // console.log(n)
-})
+const currentMenu = computed(() => tabsStore.currentMenu);
+watch(
+  () => currentMenu.value,
+  (n) => {
+    // console.log(n)
+  }
+);
 const { proxy } = getCurrentInstance();
-let store = useStore()
+let store = useStore();
 // const menuInfo = ref([
 //   {
 //     path: '/',
@@ -106,13 +118,16 @@ let store = useStore()
 //   ])
 const menuInfo = computed(() => {
   // 获取当前定义的所有路由信息
-  return store.state.menuInfo
-})
+  return store.state.menuInfo;
+});
+const roleMenuInfo = computed(() => {
+  return 111;
+});
 const test = computed(() => {
   // console.log(store.state.currentMenu)
-  return store.state.currentMenu
-})
-const currentMenIndex = ref('name')
+  return store.state.currentMenu;
+});
+const currentMenIndex = ref("name");
 // watch(test,(newv,oldv) => {
 //   console.log(newv,oldv)
 // })
@@ -121,7 +136,7 @@ const currentMenIndex = ref('name')
 <style scoped>
 .el-menu {
   /* border-right: 1px; */
-  color: var(--el-text-color-regular)
+  color: var(--el-text-color-regular);
 }
 
 h3 {
@@ -130,8 +145,8 @@ h3 {
   color: #fff;
 }
 
-
-.el-menu-vertical-demo {}
+.el-menu-vertical-demo {
+}
 
 .top-icon {
   display: flex;
@@ -139,7 +154,7 @@ h3 {
   align-items: center;
   height: 56px;
 
-  >span {
+  > span {
     color: var(--el-text-color-regular);
   }
 }

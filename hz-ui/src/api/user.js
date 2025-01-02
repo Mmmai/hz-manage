@@ -80,7 +80,7 @@ login(params){
     return axios.post(path.userGroup,params)
   },
   updateUserGroup(params){
-    return axios.put(path.userGroup+params.id+'/',params)
+    return axios.patch(path.userGroup+params.id+'/',params)
   },
   deleteUserGroup(params){
     return axios.delete(path.userGroup+params+'/')

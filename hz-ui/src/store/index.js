@@ -122,7 +122,7 @@ export default createStore({
     },
     // 更新菜单列表
     setRoleMenu(state, config) {
-      // 禁用的菜单不显示
+      // 禁用的菜单不显示,只禁用了第一级别
       state.menuInfo = config.filter(item => item.status )
       // console.log(config)
       // config.forEach(item => {
@@ -163,6 +163,7 @@ export default createStore({
     }, config) {
       // let role = JSON.parse(localStorage.getItem('role'))
       let res = await api.getMenuList(config)
+      console.log(res.data.results)
       commit("setRoleMenu", res.data.results)
     }
 

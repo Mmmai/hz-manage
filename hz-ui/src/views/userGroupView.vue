@@ -17,29 +17,24 @@
         sortable="custom"
       />
       <el-table-column property="user_count" label="关联用户数" />
-      <el-table-column property="userinfo_set" label="用户列表" >
+      <el-table-column property="users" label="用户列表">
         <template #default="scope">
-        <div class="flexJstart gap-5">
-        <el-tag 
-          v-for="item in scope.row.userinfo_set" 
-          :key="item"
-        >
-          {{ item.username }}
-        </el-tag>
-      </div>  
-      </template>
+          <div class="flexJstart gap-5">
+            <el-tag v-for="item in scope.row.users" :key="item">
+              {{ item.username }}
+            </el-tag>
+          </div>
+        </template>
       </el-table-column>
-      <el-table-column property="roles" label="角色列表" >
+      <el-table-column property="roles" label="角色列表">
         <template #default="scope">
-        <el-tag 
-          v-for="item in scope.row.roles" 
-          :key="item"
-        >
-          {{ item.role }}
-        </el-tag>
-      </template>
+          <div class="flexJstart gap-5">
+            <el-tag v-for="item in scope.row.roles" :key="item">
+              {{ item.role }}
+            </el-tag>
+          </div>
+        </template>
       </el-table-column>
-
 
       <el-table-column fixed="right" width="100" label="操作">
         <template #default="scope">
@@ -50,6 +45,7 @@
             placement="top"
           >
             <el-button
+              :disabled="scope.row.group_name === '系统管理组' ? true : false"
               link
               type="primary"
               :icon="Edit"
@@ -64,9 +60,9 @@
           >
             <el-button
               link
+              :disabled="scope.row.group_name === '系统管理组' ? true : false"
               type="danger"
               :icon="Delete"
-              :disabled="scope.row.built_in"
               @click="deleteRow(scope.row.id)"
             ></el-button>
           </el-tooltip>
@@ -98,12 +94,12 @@
             placeholder=""
             clearable
             :disabled="isDisabled"
+            style="width: 220px"
           />
         </el-form-item>
-
-        <el-form-item label="关联角色" prop="roles">
+        <el-form-item label="关联用户" prop="user_ids">
           <el-select
-            v-model="formInline.roles"
+            v-model="formInline.user_ids"
             placeholder=""
             clearable
             multiple
@@ -111,7 +107,28 @@
             collapse-tags-tooltip
             :max-collapse-tags="3"
             :disabled="isDisabled"
-            style="width: 120px"
+            style="width: 220px"
+          >
+            <el-option
+              v-for="item in userInfo"
+              :key="item.id"
+              :label="item.username"
+              :value="item.id"
+            />
+            <!-- <el-option label="禁用" value="False" /> -->
+          </el-select>
+        </el-form-item>
+        <el-form-item label="关联角色" prop="role_ids">
+          <el-select
+            v-model="formInline.role_ids"
+            placeholder=""
+            clearable
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            :max-collapse-tags="3"
+            :disabled="isDisabled"
+            style="width: 220px"
           >
             <el-option
               v-for="item in roleInfo"
@@ -126,7 +143,9 @@
         <el-row style="justify-content: space-around">
           <el-form-item>
             <el-button @click="handleClose">取消</el-button>
-            <el-button type="primary" @click="submitAction(userGroupFrom)"> 确定</el-button>
+            <el-button type="primary" @click="submitAction(userGroupFrom)">
+              确定</el-button
+            >
           </el-form-item>
         </el-row>
         <!-- </div> -->
@@ -153,7 +172,7 @@ const store = useStore();
 const userGroupData = ref([]);
 const isDisabled = ref(false);
 const dialogVisible = ref(false);
-const userGroupFrom = ref(null)
+const userGroupFrom = ref(null);
 const roleInfo = ref([]);
 const action = ref("add");
 const roleByIdObject = computed(() => {
@@ -165,7 +184,8 @@ const roleByIdObject = computed(() => {
 });
 const formInline = reactive({
   group_name: "",
-  roles: [],
+  role_ids: [],
+  user_ids: [],
 });
 
 const resetForm = (formEl) => {
@@ -177,32 +197,42 @@ const getRoleData = async () => {
   let res = await proxy.$api.getRole();
   roleInfo.value = res.data.results;
 };
+const userInfo = ref([]);
+const getUserData = async () => {
+  let res = await proxy.$api.user();
+  userInfo.value = res.data.results;
+};
 const getUserGroupData = async () => {
   let res = await proxy.$api.getUserGroup();
   userGroupData.value = res.data.results;
-  console.log(userGroupData.value)
+  console.log(userGroupData.value);
 };
 const multipleTableRef = ref(null);
 const handleClose = () => {
   dialogVisible.value = false;
-
 };
 const addGroup = () => {
   dialogVisible.value = true;
 };
-const nowRow = ref({})
-const isAdd = ref(true)
+const nowRow = ref({});
+const isAdd = ref(true);
 const editRow = (row) => {
   nowRow.value = row;
+  console.log(row);
   dialogVisible.value = true;
   isAdd.value = false;
   nextTick(() => {
-    Object.keys(row).forEach(
-      (item) => {
-        if (item === "id") return;
+    Object.keys(formInline).forEach((item) => {
+      if (["user_ids"].includes(item)) {
+        formInline[item] = row["users"].map((ary) => ary.id);
+      } else if (["role_ids"].includes(item)) {
+        formInline[item] = row["roles"].map((ary) => ary.id);
+      } else {
         formInline[item] = row[item];
-  })
-})
+      }
+    });
+  });
+  console.log(formInline);
 };
 const deleteRow = (params) => {
   ElMessageBox.confirm("是否确认删除?", "删除", {
@@ -274,6 +304,8 @@ const submitAction = async (formEl) => {
           // 重置表单
           dialogVisible.value = false;
           resetForm(formEl);
+          await getUserGroupData();
+
           // 获取数据源列表
         } else {
           ElMessage({
@@ -286,8 +318,10 @@ const submitAction = async (formEl) => {
     }
   });
 };
+
 onMounted(async () => {
   await getRoleData();
+  await getUserData();
   await getUserGroupData();
 });
 </script>

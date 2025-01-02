@@ -51,6 +51,7 @@ class LogFlowViewSet(APIView):
             # obj.steps.set = a
             bbb = model_to_dict(obj)
             bbb["steps"] = a
+            bbb["id"] = obj.id
             allRes.append(bbb)
         return JsonResponse({"data":allRes})
         

@@ -62,7 +62,7 @@ INIT_MENU =  [
     },
     {
       "label": "模型管理",
-      "icon": "ep:box",
+      "icon": "mdi:alpha-m-box-outline",
       "name": "cimodelManage",
       "status": 1,
       "path": "",
@@ -77,7 +77,7 @@ INIT_MENU =  [
     },
     {
       "label": "模型配置",
-      "icon": "ep:box",
+      "icon": "mdi:table-cog",
       "name": "model",
       "status": 1,
       "path": "/model",
@@ -109,7 +109,7 @@ INIT_MENU =  [
       "label": "资产审计",
       "icon": "ep:box",
       "name": "cidataAudit",
-      "status": 1,
+      "status": 0,
       "path": "/cidataAudit",
       "is_menu": 1,
       "sort": 2,
