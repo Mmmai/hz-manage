@@ -38,7 +38,6 @@ const { proxy } = getCurrentInstance();
 // let store = useStore()
 const router = useRouter();
 const goRouter = (item) => {
-  console.log(item.name);
   // 路由跳转
   if (item.meta.is_iframe) {
     router.push({

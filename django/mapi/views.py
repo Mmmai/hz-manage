@@ -109,11 +109,12 @@ class sysConfig(APIView):
 class getMenu(APIView):
     def __init__(self):
         self.get_menu_tree = self.get_menu_tree
-    def get(self,request,*args,**kwargs):
+    def post(self,request,*args,**kwargs):
         # print(request.query_params)
         # print(request.GET.getlist('role'))
         # role = request.GET.getlist('role')
-        role = request.query_params.get('role')
+        # print(request.GET.get('role[]'))
+        role = request.data.get('role')
         menuobj = Menu.objects.all().order_by('sort')
         # # print(menuobj)
         # for i in menuobj.all():
@@ -125,10 +126,16 @@ class getMenu(APIView):
     def get_menu_tree(self,menu_list,role,parent=None):
         tree = []
         for menu in menu_list.filter(parentid=parent):
-
+            # if not menu.status:
+            #     continue
+            
             roleList = []
             for r in menu.role_set.all().values():
-                roleList.append(r["id"])
+                roleList.append(str(r["id"]))
+            # print(roleList)
+            # print(role)
+            # if len(list(set(roleList) & set(role))) == 0:
+            #     continue
             info = menu.__dict__.copy()
             info.pop('_state')
             info["meta"] = {"role":roleList,"icon":menu.icon,"title":menu.label}
@@ -141,8 +148,7 @@ class getMenu(APIView):
 
             if role != None:
                 # currentRoleList = [ i for i in role.split(',')]
-                nlist = list(set(role).inter_section(set(roleList)))
-                if len(nlist) == 0:
+                if len(list(set(roleList) & set(role))) == 0:
                     if menu.is_menu == True:
                         continue
                 if menu.is_menu == False and len(info['children']) == 0:

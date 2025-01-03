@@ -95,7 +95,7 @@ class ExcelHandler:
         
         # 设置name列标题
         cell = template_sheet[f'{name_col_letter}1']
-        cell.value = "name\r\n实例唯一标识"
+        cell.value = "instance_name\r\n实例唯一标识"
         cell.font = header_font
         cell.fill = required_fill  # 必填标记
         cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
@@ -218,7 +218,7 @@ class ExcelHandler:
         # 写入标题行
         col = 1
         name_col = get_column_letter(col)
-        data_sheet[f'{name_col}1'] = "name"
+        data_sheet[f'{name_col}1'] = "instance_name"
         data_sheet[f'{name_col}1'].font = header_font
         data_sheet[f'{name_col}1'].alignment = center_alignment
         
@@ -288,7 +288,7 @@ class ExcelHandler:
             if not {'配置数据', '枚举类型可选值'}.issubset(wb.sheetnames):
                 raise serializers.ValidationError('Invalid file format. Missing required sheets.')
             sheet = wb['配置数据']
-            if sheet['A1'].value != 'name\n实例唯一标识' or \
+            if sheet['A1'].value != 'instance_name\n实例唯一标识' or \
                 sheet['A2'].value != 'string\n字符串' or \
                 sheet['A3'].value != '必填':
                 raise serializers.ValidationError('Invalid file format. Missing required rows in template sheet.')
@@ -383,7 +383,7 @@ class ExcelHandler:
             model: 模型实例
             headers: 原始表头列表
             error_data: [{
-                'name': 'instance_name',
+                'instance_name': 'instance_name',
                 'fields': {'field1': 'value1', ...},
                 'error': 'error message'
             }]
@@ -415,7 +415,7 @@ class ExcelHandler:
             # 按headers顺序填充字段值
             fields = error.get('fields', {})
             
-            sheet['A' + str(row)].value = error.get('name')
+            sheet['A' + str(row)].value = error.get('instance_name')
             sheet['A' + str(row)].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             
             for col_idx, header in enumerate(headers, 2):

@@ -4,13 +4,9 @@
       <el-row class="cimodelinfo" justify="space-between">
         <el-col :span="20">
           <el-space :size="30" style="width: 40%">
-            <el-button
-              size="large"
-              :icon="ciModelInfo.icon"
-              circle
-              disabled
-              style="margin: 10px"
-            />
+            <el-button size="large" circle disabled style="margin: 10px">
+              <Icon :icon="ciModelInfo.icon"></Icon>
+            </el-button>
 
             <!-- </div> -->
 
@@ -175,6 +171,8 @@ import { useRouter, useRoute } from "vue-router";
 import type { ComponentSize, FormInstance, FormRules } from "element-plus";
 import ciModelField from "../../components/cmdb/ciModelField.vue";
 import ciModelUnique from "../../components/cmdb/ciModelUnique.vue";
+import { Icon } from "@iconify/vue";
+
 const ciModelUniqueRef = ref("");
 const ciModelFieldRef = ref("");
 const router = useRouter();

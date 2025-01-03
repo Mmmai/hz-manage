@@ -110,8 +110,9 @@ const dealWithRoute = (data,obj) => {
   let mainObject  = obj.filter(item => item.name === 'main')[0]
   // forMenuRoute(data,mainObject,'main')
   forMenuRoute(data, mainObject)
-
+  // console.log("获取路由后",mainObject)
   router.addRoute(mainObject)
+  // console.log("router", router, router.getRoutes());
 }
 
 export default dealWithRoute;

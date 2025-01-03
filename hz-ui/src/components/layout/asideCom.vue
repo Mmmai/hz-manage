@@ -21,40 +21,9 @@
         <div v-show="!$store.state.isCollapse" class="top-icon">
           <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg>
         </div>
-        <!-- <h3 v-show="!$store.state.isCollapse">后台</h3> -->
-        <!-- <template v-for="item in menuInfo" :key="item.name">
-          <template v-if="item.children.length === 0 ? true:false">
-            <el-menu-item 
-              :index="item.name" 
-              @click="goRouter(item)"
-            >
-              <el-icon>
-                <component :is="item.icon" />
-              </el-icon>
-              <span>{{ item.label }}</span>
-            </el-menu-item>
-          </template>
-<template v-if="item.children.length === 0 ? false:true">
-
-              <el-sub-menu index="item.name">
-                <template #title>
-                  <el-icon><User /></el-icon>
-                  <span>{{ item.label }}</span>
-                </template>
-<template v-for="subItem in item.children" :key="subItem.name">
-                  <el-menu-item 
-                    :index="subItem.name"
-                    @click="goRouter(subItem)"
-                  >
-                    {{ subItem.label }}
-                  </el-menu-item>
-                </template>
-</el-sub-menu>
-</template>
-</template> -->
         <submenu
           :menu="menu"
-          v-for="menu in menuInfo"
+          v-for="menu in showMenu"
           :key="menu.name"
         ></submenu>
       </el-menu>
@@ -82,47 +51,43 @@ watch(
 );
 const { proxy } = getCurrentInstance();
 let store = useStore();
-// const menuInfo = ref([
-//   {
-//     path: '/',
-//     name: 'home',
-//     label: '首页',
-//     icon:'HomeFilled'
-//   },
-//   {
-//     name: 'usertop',
-//     label: '用户菜单',
-//     icon: 'User',
-//     children: [
-//       {
-//         path: '/user',
-//         name: 'user',
-//         label: '用户管理',
-//         icon: 'User'
-//       },
-//       {
-//         path: '/role',
-//         name: 'role',
-//         label: '角色管理',
-//         icon: 'Avatar'
-//       }
-//     ]
-//   },
-//   {
-//     path: '/other',
-//     name: 'other',
-//     label: '设置',
-//     icon: 'Tools'
-//   },
-
-//   ])
 const menuInfo = computed(() => {
   // 获取当前定义的所有路由信息
   return store.state.menuInfo;
 });
-const roleMenuInfo = computed(() => {
-  return 111;
+
+const dealMenu = (data) => {
+  let tmpArr = [];
+
+  for (let item of data) {
+    if (!item.status) continue;
+    let tmpObj = {
+      name: item.name,
+      label: item.label,
+      icon: item.icon,
+      is_iframe: item.is_iframe,
+      meta: item.meta,
+      children: [],
+    };
+    if (item.children && item.children.length > 0) {
+      tmpObj.children = dealMenu(item.children);
+    }
+    tmpArr.push(tmpObj);
+  }
+  return tmpArr;
+};
+
+// 禁用status为false的
+const showMenu = computed(() => {
+  return dealMenu(menuInfo.value);
 });
+watch(
+  () => showMenu.value,
+  (n) => {
+    console.log(n);
+  }
+);
+console.log(showMenu.value);
 const test = computed(() => {
   // console.log(store.state.currentMenu)
   return store.state.currentMenu;

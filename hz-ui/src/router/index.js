@@ -134,34 +134,21 @@ router.beforeEach(async(to, from, next) => {
       const dynamicCreateRoute = store.state.dynamicCreateRoute
       // 判断是否要获取新的路由
       if (!dynamicCreateRoute){
-        // console.log('获取动态路由')
+        console.log('获取动态路由')
         store.commit("updateDynamicCreateRoute",true)
         // 获取动态路由
         // await store.dispatch('getRouteInfoAction', {role:store.state.role})
         await store.dispatch('getRoleMenu', {role:store.state.role})
         // console.log(store.state.menuInfo)
         // const drouteinfo = store.state.routeInfo
+        console.log(store.state.menuInfo)
         if (store.state.menuInfo.length === 0){
           next('/login')
           return 
         } 
-      //   // 动态添加路由
-      // const drouteinfo1 = store.state.routeInfo
 
-      // drouteinfo1.forEach((item)=>{
-      //   let modules = import.meta.glob('../views/*.vue')
-      //   const oneRoute =  {
-      //     path: item.path,
-      //     name: item.name,
-      //     // component: () => import(`./views/${item.name}View.vue`),
-      //     component: modules[`../views/${item.name}View.vue`],
-      //     meta: item.meta
-      //   }
-      //   if (!router.hasRoute(item.name)) router.addRoute('main', oneRoute)
-      // })
       dealWithRoute(store.state.menuInfo,publicRoute)
-
-
+      
       // print()
       next({ ...to, replace: true })    
       }else{
@@ -170,6 +157,8 @@ router.beforeEach(async(to, from, next) => {
           let currentRoleList = JSON.parse(localStorage.getItem('role'));
           let allowRoleList = to.meta.role
           let hasRoleList = allowRoleList.filter(item => currentRoleList.includes(item))
+          // console.log(123)
+          // console.log
           if(hasRoleList.length == 0){
             next('/login');
           }else{

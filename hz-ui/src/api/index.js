@@ -25,8 +25,8 @@ const api = {
   getMenuList(params){
     return axios.request({
       url:path.menuList,
-      method: 'get',
-      params: params
+      method: 'post',
+      data: params
 
     })
   },  

@@ -228,14 +228,14 @@ class ModelInstance(models.Model):
         app_label = 'cmdb'
         constraints = [
             models.UniqueConstraint(
-                fields=['model', 'name'],
+                fields=['model', 'instance_name'],
                 name='unique_model_instance_name'
             )
         ]
         
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True)
-    name = models.CharField(max_length=100, db_index=True, null=True, blank=True)
+    instance_name = models.CharField(max_length=100, db_index=True, null=True, blank=True)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
     create_user = models.CharField(max_length=20, null=False, blank=False)

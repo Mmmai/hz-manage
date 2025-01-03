@@ -56,9 +56,9 @@
             label-position="top"
           >
             <el-space wrap>
-              <el-form-item label="唯一标识" prop="name">
+              <el-form-item label="唯一标识" prop="instance_name">
                 <el-input
-                  v-model="filterForm.name"
+                  v-model="filterForm.instance_name"
                   type="textarea"
                   style="width: 280px"
                 />
@@ -243,9 +243,9 @@ const toLeft = (params) => {
 };
 
 const removeFilterParam = (name, index) => {
-  if (name === "name") {
-    filterForm.name = "";
-    filterParam;
+  if (name === "instance_name") {
+    filterForm.instance_name = "";
+    // filterParam;
   } else {
     filterLists.value.splice(index, 1);
   }
@@ -265,7 +265,7 @@ const emit = defineEmits(["getCiData", "updateFilterParam"]);
 const filterFormRef = ref("");
 const filterForm = reactive({
   filterParams: [],
-  name: "",
+  instance_name: "",
 });
 const matchOptions = ref([
   { value: "=", label: "等于", description: "等于" },

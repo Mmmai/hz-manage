@@ -403,9 +403,9 @@ const modelist = ref([]);
 const hasBeenSelectModel = computed(() => {
   let tempArr = [];
   ciModelFieldsList.value.forEach((item) => {
-    console.log(item);
+    // console.log(item);
     item.fields.forEach((item2) => {
-      console.log(item2.type);
+      // console.log(item2.type);
       if (item2.type === "model_ref") {
         tempArr.push(item2.ref_model);
       }
@@ -494,14 +494,15 @@ const changeFieldType = () => {
 // 点击枚举的枚举规则后，更新default选择框的内容
 const enumRuleList = ref([]);
 const getDefaultRuleList = (params) => {
-  if (enumRuleList.value.length == 0) {
-    let ruleObj = JSON.parse(validationRulesObj.value[params].rule);
-    let tmpList = [];
-    Object.keys(ruleObj).forEach((item) => {
-      tmpList.push({ value: item, label: ruleObj[item] });
-    });
-    enumRuleList.value = tmpList;
-  }
+  // if (enumRuleList.value.length == 0) {
+  //   console.log(params);
+  let ruleObj = JSON.parse(validationRulesObj.value[params].rule);
+  let tmpList = [];
+  Object.keys(ruleObj).forEach((item) => {
+    tmpList.push({ value: item, label: ruleObj[item] });
+  });
+  enumRuleList.value = tmpList;
+  // }
 };
 const getRuleList = (params) => {
   // console.log(validationRulesObj.value[params].rule)
@@ -585,12 +586,14 @@ const getModelField = async () => {
   emits("getModelField", tempArr);
 };
 const fieldOptions = ref([]);
+const disableNameList = ref([]);
 const getModelFieldType = async () => {
   let res = await proxy.$api.getCiModelFieldType();
   let fieldTypeObj = res.data.field_types;
   Object.keys(fieldTypeObj).forEach((item) => {
     fieldOptions.value.push({ value: item, label: fieldTypeObj[item] });
   });
+  disableNameList.value = res.data.limit_fields;
   // console.log(123)
   // console.log(res)
 };
@@ -643,6 +646,14 @@ const modelFieldGroupForm = reactive<ModelFieldGroupForm>({
   // // create_user: 'admin',
   // // update_user: 'admin',
 });
+const checkFieldName = (rule: any, value: any, callback: any) => {
+  console.log(value);
+  if (disableNameList.value.includes(value)) {
+    callback(new Error(`${disableNameList.value.join(",")}不能用!`));
+  } else {
+    callback();
+  }
+};
 const modelFieldGroupRules = reactive<FormRules<ModelFieldGroupForm>>({
   name: [
     { required: true, message: "请输入唯一标识", trigger: "blur" },
@@ -651,6 +662,7 @@ const modelFieldGroupRules = reactive<FormRules<ModelFieldGroupForm>>({
       trigger: "blur",
       message: "以英文字符开头,可以使用英文,数字,下划线,长度4-20 ",
     },
+    // { validator: checkFieldName, trigger: "blur" },
   ],
   verbose_name: [{ required: true, message: "请输入组名称", trigger: "blur" }],
 });
@@ -870,6 +882,7 @@ const modelFieldFormRules = reactive<FormRules<ModelFieldForm>>({
       message: "以英文字符开头,可以使用英文,数字,下划线,长度2-20 ",
       required: true,
     },
+    { validator: checkFieldName, trigger: "blur" },
   ],
   verbose_name: [
     { required: true, message: "请输入字段显示名称", trigger: "blur" },
@@ -893,7 +906,6 @@ const editModelField = (params) => {
   modelFieldDrawer.value = true;
   diaName.value = "修改";
   isEdit.value = true;
-  console.log(params);
   nowModelField.value = params;
   modelFieldAction.value = false;
   nextTick(() => {
@@ -912,7 +924,7 @@ const editModelField = (params) => {
     // 替换当前用户名
     // modelFieldForm.update_user = store.state.username
   });
-  console.log(modelFieldForm);
+  // console.log(modelFieldForm);
 };
 
 const modelFieldFormCancel = (formEl) => {
@@ -933,7 +945,7 @@ const addModelField = (params) => {
     // modelFieldForm.model_field_group = params.id
     // modelFieldForm.update_user = store.state.username
     nowGroupId.value = params.id;
-    console.log(nowGroupId.value);
+    // console.log(nowGroupId.value);
   });
 };
 
@@ -945,7 +957,6 @@ const modelFieldFormCommit = async (formEl: FormInstance | undefined) => {
     if (valid) {
       if (modelFieldAction.value) {
         // 添加
-        console.log(nowGroupId.value);
         let res = await proxy.$api.addCiModelField({
           model: modelInfo.value.id,
           model_field_group: nowGroupId.value,
@@ -1020,7 +1031,7 @@ const modelFielHandleClose = (done: () => void) => {
     })
     .catch(() => {
       // catch error
-      console.log(123);
+      // console.log(123);
     });
 };
 // 字段删除
@@ -1063,10 +1074,10 @@ const modelFieldDelete = (params) => {
 // 重置表单
 const resetForm = (formEl: FormInstance | undefined) => {
   if (!formEl) return;
-  console.log(modelFieldForm);
+  // console.log(modelFieldForm);
 
   formEl.resetFields();
-  console.log(modelFieldForm);
+  // console.log(modelFieldForm);
 };
 </script>
 <style lang="less" scoped>

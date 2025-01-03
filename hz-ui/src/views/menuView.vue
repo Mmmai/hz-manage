@@ -45,6 +45,17 @@
                   @change="updateIsMenu(scope.row)"
                 />
               </template>
+              <template #default="scope" v-if="item.prop === 'status'">
+                <el-switch
+                  v-model="scope.row.status"
+                  class="ml-2"
+                  style="
+                    --el-switch-on-color: #13ce66;
+                    --el-switch-off-color: #ff4949;
+                  "
+                  @change="updateStatus(scope.row)"
+                />
+              </template>
               <template #default="scope" v-if="item.prop === 'icon'">
                 <!-- <el-icon>
                   <component :is="scope.row.icon" />
@@ -322,10 +333,10 @@ const menuListCol = ref([
     prop: "is_menu",
     label: "是否菜单",
   },
-  // {
-  //   prop: 'parentid',
-  //   label: "父级id"
-  // },
+  {
+    prop: "status",
+    label: "启用",
+  },
   {
     prop: "sort",
     label: "序号",
@@ -481,8 +492,9 @@ const handleCommit = () => {
 
           getMenuData(pageConfig);
           // 更新路由
+          console.log(store.state.role);
           await store.dispatch("getRoleMenu", {
-            role: store.state.role.join(","),
+            role: store.state.role,
           });
         } else {
           ElMessage({
@@ -512,8 +524,9 @@ const handleCommit = () => {
       }
       getMenuData(pageConfig);
       // 更新路由
+      console.log(store.state.role);
       await store.dispatch("getRoleMenu", {
-        role: store.state.role.join(","),
+        role: store.state.role,
       });
     } else {
       ElMessage({
@@ -558,7 +571,7 @@ const handleDelete = (row) => {
         await getMenuData(pageConfig);
         // 更新路由
         await store.dispatch("getRoleMenu", {
-          role: store.state.role.join(","),
+          role: store.state.role,
         });
         // selectFirst()
       } else {
@@ -596,9 +609,32 @@ const isShowIconSelect = () => {
   console.log(formInline.icon);
   isShow.value = true;
 };
+const updateStatus = async (param) => {
+  let res = await proxy.$api.menuUpdate({
+    status: param.status,
+    id: param.id,
+  });
+  if (res.status == 200) {
+    ElMessage({
+      type: "success",
+      message: "更新成功",
+    });
+    // 重置表单
+    // proxy.$refs.pgroupForm.resetFields();
+    getMenuData(pageConfig);
+    await store.dispatch("getRoleMenu", {
+      role: store.state.role,
+    });
+  } else {
+    ElMessage({
+      showClose: true,
+      message: "更新失败:" + JSON.stringify(res.data),
+      type: "error",
+    });
+  }
+};
 // 20241111，实现表格点击可以更新
 const updateIsMenu = async (param) => {
-  console.log(param);
   let res = await proxy.$api.menuUpdate({
     is_menu: param.is_menu,
     id: param.id,
@@ -611,6 +647,9 @@ const updateIsMenu = async (param) => {
     // 重置表单
     // proxy.$refs.pgroupForm.resetFields();
     getMenuData(pageConfig);
+    await store.dispatch("getRoleMenu", {
+      role: store.state.role,
+    });
   } else {
     ElMessage({
       showClose: true,

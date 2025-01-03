@@ -58,6 +58,11 @@
             <el-dropdown-menu>
               <el-dropdown-item
                 :disabled="!(multipleSelect.length >>> 0)"
+                @click="bulkDelete()"
+                >批量删除</el-dropdown-item
+              >
+              <el-dropdown-item
+                :disabled="!(multipleSelect.length >>> 0)"
                 @click="exportSelect(false)"
                 >导出勾选(显示字段)</el-dropdown-item
               >
@@ -175,7 +180,12 @@
         width="55"
         :reserve-selection="true"
       />
-      <el-table-column prop="name" label="名称" fixed="left" width="180" />
+      <el-table-column
+        prop="instance_name"
+        label="名称"
+        fixed="left"
+        width="180"
+      />
 
       <!-- <el-table-column label="Date" width="120" @row-click="editCiData">
                   <template #default="scope">{{ scope.row.date }}</template>
@@ -342,7 +352,7 @@
         require-asterisk-position="right"
       >
         <!-- <div v-for="(item, index) in modelInfo.field_groups"> -->
-        <el-form-item prop="name" required style="margin-left: 30px">
+        <el-form-item prop="instance_name" required style="margin-left: 30px">
           <template #label>
             <el-space :size="2">
               <el-text tag="b">唯一标识</el-text>
@@ -359,12 +369,14 @@
           </template>
 
           <el-input
-            v-model="ciDataForm.name"
+            v-model="ciDataForm.instance_name"
             style="width: 240px"
             v-if="isEdit"
           >
           </el-input>
-          <span v-else class="requiredClass">{{ ciDataForm.name }}</span>
+          <span v-else class="requiredClass">{{
+            ciDataForm.instance_name
+          }}</span>
         </el-form-item>
         <el-collapse v-model="activeArr">
           <el-collapse-item
@@ -1505,6 +1517,11 @@ const allModelFieldNameArr = computed(() => {
   return allModelField.value.map((item) => item.name);
 });
 const isShowUpload = ref(false);
+const bulkDelete = async () => {
+  let res = await proxy.$api.bulkDeleteCiModelInstance({
+    instances: multipleSelectId.value,
+  });
+};
 const exportSelect = async (params) => {
   if (params) {
     let res = await proxy.$api.exportCiData({
@@ -1869,8 +1886,12 @@ const enumOptionObj = computed(() => {
       if (field.type === "enum") {
         // let ruleObj = JSON.parse(validationRulesObj.value[params].rule)
         // JSON.parse(validationRulesObj.value[params].rule)
+        // console.log(field);
+        if (field.validation_rule === null) {
+          return;
+        }
         let ruleObj = JSON.parse(
-          validationRulesObj.value[field.validation_rule].rule
+          validationRulesObj?.value[field?.validation_rule].rule
         );
         let tmpList = [];
         Object.keys(ruleObj).forEach((ritem) => {
@@ -2038,7 +2059,8 @@ const filterTags = computed(() => {
   let tmpArr = new Array();
   for (let [fName, fValue] of Object.entries(filterParam.value)) {
     // console.log(key + ": " + value);
-    if (fName === "name") {
+    console.log();
+    if (fName === "instance_name") {
       tmpArr.push({ name: "唯一标识:" + fValue, field: fName });
     } else {
       if (modelFieldType.value.model_ref.indexOf(fName) !== -1) {
@@ -2097,7 +2119,7 @@ const getCiData = async (params) => {
     tmpList.push({
       id: item.id,
       instance_group: item.instance_group,
-      name: item.name,
+      instance_name: item.instance_name,
       ...item.fields,
     });
   });
@@ -2110,6 +2132,7 @@ const getCiData = async (params) => {
 //   loadingInstance.close()
 //   }, 2000)
 onMounted(async () => {
+  reloadTable.value = true;
   await getRules();
   setLoading(false);
 });
@@ -2193,13 +2216,13 @@ const cpCiData = (params) => {
 
 const ciDataFormRef = ref<FormInstance>();
 const ciDataForm = reactive({
-  name: null,
+  instance_name: null,
 });
 const rmNameObj = computed(() => {
   let tmpObj = Object.assign({}, ciDataForm);
-  delete tmpObj.name;
+  delete tmpObj.instance_name;
   for (let [ckey, cvalue] of Object.entries(tmpObj)) {
-    if (cvalue === null) return;
+    if (cvalue === null) continue;
     if (modelFieldType.value.password.indexOf(ckey) !== -1) {
       // 加密
       tmpObj[ckey] = encrypt_sm4(
@@ -2213,12 +2236,11 @@ const rmNameObj = computed(() => {
 });
 const rmNameObjUpdate = computed(() => {
   let tmpObj = Object.assign({}, updateParams.value);
-  delete tmpObj.name;
+  delete tmpObj.instance_name;
   console.log(modelFieldType.value);
 
   for (let [ckey, cvalue] of Object.entries(updateParams.value)) {
-    if (cvalue === null) return;
-
+    if (cvalue === null) continue;
     if (modelFieldType.value.password.indexOf(ckey) !== -1) {
       // 加密
       tmpObj[ckey] = encrypt_sm4(
@@ -2253,7 +2275,7 @@ const ciDataCommit = async (
           create_user: store.state.username,
           update_user: store.state.username,
           fields: rmNameObj.value,
-          name: ciDataForm.name,
+          instance_name: ciDataForm.instance_name,
           instance_group: [props.currentNodeId],
         });
         // console.log(res)
@@ -2337,11 +2359,11 @@ const ciDataCommit = async (
           model: props.ciModelId,
           update_user: store.state.username,
         };
-        if (Object.keys(updateParams.value).indexOf("name") === -1) {
+        if (Object.keys(updateParams.value).indexOf("instance_name") === -1) {
           updateObj["fields"] = rmNameObjUpdate.value;
           // fields: updateParams.value,
         } else {
-          updateObj["name"] = updateParams.value.name;
+          updateObj["instance_name"] = updateParams.value.instance_name;
           updateObj["fields"] = rmNameObjUpdate.value;
         }
         console.log(modelFieldType.value);

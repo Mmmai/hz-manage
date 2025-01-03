@@ -456,7 +456,10 @@ const handleCommit = () => {
       // 编辑接口
       else {
         console.log(JSON.stringify(formInline));
-        let res = await proxy.$api.userupdate(formInline);
+        let res = await proxy.$api.userupdate({
+          id: nowRow.value.id,
+          ...formInline,
+        });
         console.log(res);
         if (res.status == 200) {
           dialogVisible.value = false;
@@ -503,10 +506,12 @@ const updateStatus = async (param) => {
     });
   }
 };
+const nowRow = ref({});
 // 编辑
 const handleEdit = (row) => {
   action.value = "edit";
   dialogVisible.value = true;
+  nowRow.value = row;
   // 清除新增按钮会显示编辑按钮的记录
   // proxy.$nextTick(() => {Object.assign(formInline,row)})
   nextTick(() => {
