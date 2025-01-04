@@ -177,6 +177,9 @@ export default {
   importCiData(params, headers, timeout) {
     return axios.request({ url: path.cmdbCiModelInstance + 'import_data/', method: 'post', data: params, headers: headers, timeout: timeout })
   },
+  importCiDataStatus(params, headers, timeout) {
+    return axios.request({ url: path.cmdbCiModelInstance + 'import_status/', method: 'get', params: params })
+  },
   downloadErrorRecords(params) {
     commonFunc.downloadFile(path.cmdbCiModelInstance + 'download_error_records/', params)
     // return axios.request({url:path.cmdbCiModelInstance+'export_template/',method: 'get',params: params})

@@ -1936,7 +1936,7 @@ const getModelRefCiData = async (visible, params) => {
   });
   let tmpArr = [];
   res.data.results.forEach((item) => {
-    tmpArr.push({ value: item.id, label: item.name });
+    tmpArr.push({ value: item.id, label: item.instance_name });
   });
   modelRefOptions.value[params.name] = [
     { value: null, label: "无" },

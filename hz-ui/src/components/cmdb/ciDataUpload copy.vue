@@ -33,37 +33,8 @@
       <template #file="{ file, index }">
         <div class="flexJstart gap-1">
           <span>{{ file.name }} </span>
-          <!-- <span>{{ JSON.stringify(file) }}</span> -->
-          <el-icon v-if="uploadRes[file.uid].status !== 'completed'" class="is-loading"
-            ><Loading
-          /></el-icon>
-          <el-icon v-else-if="uploadRes[file.uid].failed >>> 0" 
-            ><Warning
-                    color="var(--el-color-warning)"
-          /></el-icon>
-          <el-icon v-else="uploadRes[file.uid].failed == 0" 
-            ><CircleCheck
-                    color="var(--el-color-success)"
-          /></el-icon>
-          <span>{{ `进度 ${uploadRes[file.uid].progress}` }}</span>
-          <span>{{
-                  `结果: 总条数: ${uploadRes[file.uid].total},创建: ${
-                    uploadRes[file.uid].created
-                  },更新: ${uploadRes[file.uid].updated},跳过: ${
-                    uploadRes[file.uid].skipped
-                  },失败: ${uploadRes[file.uid].failed}.`
-                }}</span>
-                <el-link
-                  type="danger"
-                  v-if="uploadRes[file.uid].failed >>> 0"
-                  @click="
-                    downloadImportErrorRecord(
-                      uploadRes[file.uid].error_file_key
-                    )
-                  "
-                  >查看导入失败数据</el-link
-                >
-          <!-- <el-icon v-if="file.status === 'ready'" class="is-loading"
+
+          <el-icon v-if="file.status === 'ready'" class="is-loading"
             ><Loading
           /></el-icon>
           <div v-if="file.status === 'success'">
@@ -113,6 +84,16 @@
                     </el-icon>
                   </template>
                 </el-popover>
+                <!-- <el-tooltip
+                  class="box-item"
+                  effect="dark"
+                  :content="JSON.stringify(uploadRes[file.uid])"
+                  placement="right"
+                >
+                  <el-icon color="var(--el-color-error)"
+                    ><CircleClose />
+                  </el-icon>
+                </el-tooltip> -->
                 <span> 模板文件错误！</span>
               </div>
             </div>
@@ -120,7 +101,7 @@
               <el-icon color="var(--el-color-error)"><CircleClose /> </el-icon>
               <span>请求超时！</span>
             </div>
-          </div> -->
+          </div>
 
           <!-- <span>{{ JSON.stringify(uploadRes[file.uid]) }}</span> -->
         </div>
@@ -152,89 +133,49 @@ const fileList = ref([]);
 const refUpload = ref(null);
 const fileType = ["xlsx"];
 const uploadRes = ref({});
-const uploadMission = ref({})
 const headers = reactive({
   "Content-Type": "multipart/form-data",
 });
 
-// 定义定时获取导入结果的函数
-const getUploadRes = async()=>{
-  console.log(3333)
-  if (Object.keys(uploadMission.value).length > 0){
-    Object.entries(uploadMission.value).forEach(async([k, v]) => {
-      // 发起请求
-      let res = await proxy.$api.importCiDataStatus(v)
-      // console.log(res)
-      uploadRes.value[k] = res.data
-      console.log(uploadRes)
-      if (res.data.status === 'completed'){
-        delete uploadMission.value[k]
-      }
-    });
-  }else{
-    console.log("定时器结束")
-    clearInterval(timer)
-    console.log(timer)
-    timer = null
-  }
-}
-let timer = null
 const uploadFile = async (item) => {
   let formDatas = new FormData();
   formDatas.append("file", item.file);
   formDatas.append("model", props.ciModelId);
   //上传文件
-  let res = await proxy.$api.importCiData(formDatas, headers, 2 * 60 * 1000);
-  console.log(res)
-  if (res.status == 200){
-    uploadMission.value[item.file.uid] = res.data
-    if (timer === null){
-      console.log(456)
-
-      timer = setInterval(getUploadRes, 1000);
-      console.log(123)
-  }
-  }else{
-        ElMessage({
-      message: `导入异常: ${JSON.stringify(res.data)}`,
+  let res = await proxy.$api.importCiData(formDatas, headers, 60 * 60 * 1000);
+  // let res = await axios({ method: "post", url: "" });
+  if (res.timeout) {
+    ElMessage({
+      message: `请求超时`,
       type: "error",
       showClose: true,
     });
+    uploadRes.value[item.file.uid] = { timeout: true };
+  } else {
+    if (res.status == 200) {
+      uploadRes.value[item.file.uid] = {
+        timeout: false,
+        status: "success",
+        ...res.data,
+        costTime: res.costTime,
+      };
+      // 导入成功，刷新数据
+      nextTick(() => {
+        emit("getCiData", {
+          model: props.ciModelId,
+          model_instance_group: props.currentNodeId,
+        });
+      });
+    } else {
+      uploadRes.value[item.file.uid] = {
+        timeout: false,
+        status: "failed",
+        ...res.data,
+        costTime: res.costTime,
+      };
+    }
   }
-
-  // let res = await axios({ method: "post", url: "" });
-  // if (res.timeout) {
-  //   ElMessage({
-  //     message: `请求超时`,
-  //     type: "error",
-  //     showClose: true,
-  //   });
-  //   uploadRes.value[item.file.uid] = { timeout: true };
-  // } else {
-  //   if (res.status == 200) {
-  //     uploadRes.value[item.file.uid] = {
-  //       timeout: false,
-  //       status: "success",
-  //       ...res.data,
-  //       costTime: res.costTime,
-  //     };
-  //     // 导入成功，刷新数据
-  //     nextTick(() => {
-  //       emit("getCiData", {
-  //         model: props.ciModelId,
-  //         model_instance_group: props.currentNodeId,
-  //       });
-  //     });
-  //   } else {
-  //     uploadRes.value[item.file.uid] = {
-  //       timeout: false,
-  //       status: "failed",
-  //       ...res.data,
-  //       costTime: res.costTime,
-  //     };
-  //   }
-  // }
-  // fileList.value.push(item.file);
+  fileList.value.push(item.file);
 };
 const beforeUpload = (file) => {
   let fileName = file.name;

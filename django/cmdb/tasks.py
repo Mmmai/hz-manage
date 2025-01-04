@@ -39,7 +39,7 @@ def process_import_data(cache_key, excel_data, model_id, request):
         with transaction.atomic():
             for instance_data in excel_data.get('instances', []):
                 try:
-                    name = instance_data.get('name')
+                    name = instance_data.get('instance_name')
                     instance = None
                     
                     if name in processed_instance:
@@ -85,7 +85,7 @@ def process_import_data(cache_key, excel_data, model_id, request):
                     else:
                         # TODO: get user name from request
                         data.update({
-                            'name': name,
+                            'instance_name': name,
                             'create_user': 'system',
                             'update_user': 'system'
                         })
@@ -105,7 +105,7 @@ def process_import_data(cache_key, excel_data, model_id, request):
                     results['failed'] += 1
                     results['errors'].append(f"Error preparing data for instance: {str(e)}")
                     error_data.append({
-                        'name': instance_data.get('name'),
+                        'instance_name': instance_data.get('instance_name'),
                         'fields': instance_data.get('fields'),
                         'error': str(e)
                     })

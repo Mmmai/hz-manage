@@ -305,8 +305,8 @@ const filterParamComputed = computed(() => {
   });
 
   // name字段判断有没有过滤值
-  if (filterForm.name !== "") {
-    tmpObj.name = filterForm.name;
+  if (filterForm.instance_name !== "") {
+    tmpObj.instance_name = filterForm.instance_name;
   }
   return tmpObj;
 });
@@ -319,6 +319,8 @@ const filterParamComputed = computed(() => {
 // );
 // const filterLists = computed(() => ciStore.filterLists);
 const searchCommit = () => {
+  console.log(filterParamComputed.value);
+
   emit("updateFilterParam", filterParamComputed.value);
   console.log(filterParamComputed.value);
   // 发起查询流程
