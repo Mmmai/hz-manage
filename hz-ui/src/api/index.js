@@ -57,6 +57,33 @@ const api = {
   menuDel(params){
     return axios.delete(path.menu+params+'/')
   },
+  // 按钮
+  getButton(params){
+    return axios.request({
+      url:path.button,
+      method: 'get',
+      params: params
+
+    })
+  },  
+  updateButton(params){
+    return axios.request({
+      url:path.button + params.id+'/',
+      method: 'patch',
+      data: params
+    })
+  },
+  addButton(params){
+    // return axios.put(path.role+params.id+'/',params)
+    return axios.request({
+      url:path.button,
+      method: 'post',
+      data: params
+    })
+  },  
+  deleteButton(params){
+    return axios.delete(path.button+params+'/')
+  },
   // 门户组
   pgroupGet(params){
     return axios.request({

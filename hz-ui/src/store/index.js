@@ -18,6 +18,7 @@ export default createStore({
     username: localStorage.getItem('username') ? localStorage.getItem('username') : '',
     userinfo: localStorage.getItem('userinfo') ? JSON.parse(localStorage.getItem('userinfo')) : '',
 
+    permission: localStorage.getItem('permission') ? JSON.parse(localStorage.getItem('permission')) : '', 
     // 动态菜单
     dynamicCreateRoute: false,
     routeInfo: [],
@@ -108,7 +109,9 @@ export default createStore({
       // 存储username信息
       state.userinfo = config.userinfo;
       localStorage.setItem('userinfo', JSON.stringify(config.userinfo));
-
+      // 存储permission
+      state.permission = config.permission
+      localStorage.setItem('permission', JSON.stringify(config.permission));
     },
     updateUsername(state, config) {
       state.username = config

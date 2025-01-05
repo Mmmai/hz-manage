@@ -14,17 +14,19 @@
           @click="showTree = true"
           size="default"
         ></el-button>
-        <el-button type="primary" @click="addCiData">添加</el-button>
+        <el-button type="primary" @click="addCiData" v-permission="`${route.name?.replace('_info', '')}:add`" >添加</el-button>
         <!-- <el-button @click="isShowUpload = true">导入</el-button> -->
         <el-button
           :disabled="!(multipleSelect.length >>> 0)"
           @click="ciDataToTree = true"
+          v-permission="`${route.name?.replace('_info', '')}:edit`"
           >转移</el-button
         >
 
         <el-button
           :disabled="!(multipleSelect.length >>> 0)"
           @click="multipleUpdate"
+          v-permission="`${route.name?.replace('_info', '')}:edit`"
           >批量更新</el-button
         >
         <!-- <el-button :disabled="!(multipleSelect.length >>> 0)">导出</el-button> -->
@@ -50,7 +52,7 @@
             </a-menu>
           </template>
         </a-dropdown-button> -->
-        <el-dropdown style="margin-left: 12px">
+        <el-dropdown style="margin-left: 12px" >
           <el-button type="primary">
             更多操作<el-icon class="el-icon--right"><arrow-down /></el-icon>
           </el-button>
@@ -1390,7 +1392,8 @@ import ciDataFilter from "./ciDataFilter.vue";
 import { useStore } from "vuex";
 import { useClipboard } from "vue-clipboard3";
 import { debounce } from "lodash";
-
+import { useRoute } from 'vue-router'
+const route = useRoute();
 const store = useStore();
 const emit = defineEmits(["getTree"]);
 const props = defineProps(["ciModelId", "treeData", "currentNodeId"]);

@@ -68,6 +68,16 @@ login(params){
       data: params
     })
   },
+  // 获取角色关联权限的树状
+  getPermissionToRole(params){
+    return axios.request({
+      url:'/api/v1/getPermissionToRole/',
+      method: 'post',
+      data: params
+    })
+    // return axios.post(path.role)}
+  }, 
+
   getUserGroup(config){
     return axios.request({
       url:path.userGroup,

@@ -9,6 +9,7 @@ const base = {
   menuInfo: "/api/v1/menuinfo/",
   menuList: "/api/v1/getMenu/",
   menu: "/api/v1/menu/",
+  button: "/api/v1/button/",
   routeInfo: "/api/v1/testroute/",
   portal: "/api/v1/portal/",
   pgroup: "/api/v1/pgroup/",

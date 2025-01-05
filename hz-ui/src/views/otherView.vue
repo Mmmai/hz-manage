@@ -1,8 +1,8 @@
 <template>
   <div class="main-box card" style="flex: 1; flex-direction: column">
     111
-    <el-button @click="showPass">解密</el-button>
-    <el-button @click="jiami">加密</el-button>
+    <el-button v-permission="'other:edit'" @click="showPass">解密</el-button>
+
 
     <el-input v-model="testString"></el-input>
     <el-text>加密：{{ xmString }}</el-text>

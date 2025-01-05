@@ -40,10 +40,11 @@ class Role(models.Model):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     role = models.CharField(max_length=32, unique=True,verbose_name = "角色")
+    role_name = models.CharField(max_length=32, unique=True,verbose_name = "角色名称")
     update_time = models.DateTimeField(auto_now=True)
     create_time = models.DateTimeField(auto_now_add=True)
     
-    menu = models.ManyToManyField("Menu")
+    # menu = models.ManyToManyField("Menu")
     # 定义角色和权限的多对多关系
 
     def __str__(self):
@@ -57,6 +58,10 @@ class Role(models.Model):
 
 
 class Menu(models.Model):
+    class MenuTypeChoices(models.IntegerChoices):
+        DIRETORY = '0', '目录'
+        MENU = '1', '菜单'
+        # BUTTON = '2', '按钮'
     """
     菜单
     """
@@ -69,6 +74,7 @@ class Menu(models.Model):
     status = models.BooleanField(verbose_name="状态",default=True)
     path = models.CharField(max_length=32,null=True, blank=True)
     is_menu = models.BooleanField(verbose_name="是否菜单",default=True)
+    # menu_type = models.IntegerField(choices=MenuTypeChoices.choices,default=MenuTypeChoices.MENU)
     sort = models.IntegerField(null=True,blank=True,default=0)
     has_info = models.BooleanField(verbose_name="是否有详细页面",default=False)
     info_view_name = models.CharField(max_length=128,verbose_name='详细页面路由',null=True,blank=True)
@@ -80,9 +86,36 @@ class Menu(models.Model):
     # 定义菜单间的自引用关系
     # 权限url 在 菜单下；菜单可以有父级菜单；还要支持用户创建菜单，因此需要定义parent字段（parent_id）
     # blank=True 意味着在后台管理中填写可以为空，根菜单没有父级菜单
+    
+    def __str__(self):
+        return self.name
+    # # 菜单创建时，自动创建
+    # def save(self, *args, **kwargs):
+    #     print(123)
+    #     print(self.pk)
+    #     print(456)
 
-    # def __str__(self):
-    #     return self.menu_name
+    #     if self.pk is None: 
+    #         print('我是新增')
+    #         super().save(*args, **kwargs)
+    #         # 同步新增管理员的权限
+    #         if not self.is_menu:
+    #             return
+    #         role_obj = Role.objects.get(role="管理员")
+    #         # 定义需要添加的按钮
+    #         buttons = [
+    #             Button(name='查看', action='view',menu=self),
+    #             Button(name='添加', action='add',menu=self),
+    #             Button(name='删除', action='delete',menu=self),
+    #             Button(name='修改', action='edit',menu=self)
+    #         ]
+    #         for button in buttons:
+    #             button.save()
+    #             Permission.objects.create(menu=self, button=button,role=role_obj)
+    #             print(f"创建按钮<{button.name}>及授予管理员权限!")
+    #     else:
+    #         super().save(*args, **kwargs)
+
 
     class Meta:
         db_table = "tb_menu"
@@ -96,24 +129,42 @@ class Menu(models.Model):
 #     class Meta:
 #         db_table = "tb_role_menu"
 #         app_label = 'mapi'    
+# 按钮
+class Button(models.Model):
+    """
+    权限
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=32,verbose_name='按钮名称',null=False)
+    action = models.CharField(max_length=32,verbose_name='按钮动作',null=False)
+    menu = models.ForeignKey(Menu, on_delete=models.CASCADE,related_name="buttons")
 
-# class Permission(models.Model):
-#     """
-#     权限
-#     """
-#     title = models.CharField(max_length=32, unique=True, verbose_name="权限")
-#     url = models.CharField(max_length=128, unique=True)
-#     icon = models.CharField(max_length=10, verbose_name='权限图标', null=True, blank=True)
-#     menu = models.ForeignKey("Menu", null=True, blank=True, on_delete=models.CASCADE)
-#
-#     def __str__(self):
-#         # 显示带菜单前缀的权限
-#         return '{menu}---{permission}'.format(menu=self.menu, permission=self.title)
-#
-#     class Meta:
-#         db_table = "tb_permission"
-#         verbose_name = "权限"
-#         verbose_name_plural = verbose_name
+    # def __str__(self):
+    #     # 显示带菜单前缀的权限
+    #     return 
+
+    class Meta:
+        db_table = "tb_button"
+        verbose_name = "菜单按钮"
+        verbose_name_plural = verbose_name
+class Permission(models.Model):
+    """
+    权限
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    role = models.ForeignKey(Role, on_delete=models.CASCADE,related_name="permission")
+    menu = models.ForeignKey(Menu, on_delete=models.CASCADE,related_name="permission")
+    button = models.ForeignKey(Button, on_delete=models.CASCADE,related_name="permission")
+
+    # def __str__(self):
+    #     # 显示带菜单前缀的权限
+    #     return 
+
+    class Meta:
+        db_table = "tb_permission"
+        verbose_name = "权限"
+        verbose_name_plural = verbose_name
+
 class Portal(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(verbose_name='名称',max_length=32,null=False,unique=True)

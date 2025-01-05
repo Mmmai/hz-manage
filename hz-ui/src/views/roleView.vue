@@ -68,11 +68,11 @@
               link
               type="primary"
               :icon="Edit"
-              :disabled="scope.row.role == '管理员' ? true : false"
+              :disabled="scope.row.role == 'sysadmin' ? true : false"
               @click="handleEdit(scope.row)"
             ></el-button>
             <el-button
-              :disabled="scope.row.role == '管理员' ? true : false"
+              :disabled="scope.row.role == 'sysadmin' ? true : false"
               link
               type="danger"
               :icon="Delete"
@@ -83,31 +83,16 @@
       </el-table>
       <!-- 分页 -->
     </div>
-    <div class="demo-pagination-block">
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :page-sizes="[10, 20, 30, 40]"
-        :small="small"
-        :disabled="disabled"
-        :background="background"
-        layout="total, prev, pager, next"
-        :total="totalCount"
-        :hide-on-single-page="isSinglePage"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-      />
-    </div>
+
   </div>
   <!-- 新增的弹出框 -->
   <el-dialog
     v-model="dialogVisible"
     :title="action == 'add' ? '新增角色' : '编辑角色'"
-    width="25%"
+    width="40%"
     :before-close="handleClose"
   >
     <el-form
-      :inline="true"
       :model="formInline"
       class="demo-form-inline"
       label-position="right"
@@ -115,26 +100,42 @@
       ref="userFrom"
       status-icon
     >
-      <el-form-item label="角色名称" prop="role" :rules="[{ required: true }]">
+      <el-form-item label="角色" prop="role" :rules="[{ required: true }]">
         <el-input
           v-model="formInline.role"
-          placeholder=""
+          placeholder="请输入英文"
           clearable
+          style="width: 30%;"
           :disabled="isDisabled"
         />
       </el-form-item>
+      <el-form-item label="角色名称" prop="role_name" :rules="[{ required: true }]">
+        <el-input
+          v-model="formInline.role_name"
+          placeholder="中文名称"
+          style="width: 30%;"
 
-      <el-form-item label="菜单授权" prop="roleMenus">
-        <div style="border: 1px solid var(--el-border-color); width: 200px">
+          clearable
+          :disabled="isDisabled"
+        />
+
+
+      </el-form-item>
+      <el-form-item label="菜单授权" prop="rolePermission">
+        <div style="border: 1px solid var(--el-border-color); width: 90%">
           <el-tree
             ref="menuTreeRef"
-            v-model="formInline.roleMenus"
+            v-model="formInline.rolePermission"
             :data="dataSource"
             show-checkbox
             node-key="id"
             default-expand-all
             :expand-on-click-node="false"
+            :props="{ class: customNodeClass }"
           >
+          <template #default="{ node, data }">
+              <span style="padding-left: 0px;">{{ node.label }}</span>
+      </template> 
           </el-tree>
         </div>
       </el-form-item>
@@ -163,7 +164,9 @@ import {
 const currentSelectRow = ref({});
 const { proxy } = getCurrentInstance();
 import { ElMessageBox, ElMessage } from "element-plus";
-
+const customNodeClass = ({ tree_type }, node) =>{
+  return tree_type === "menu" ? 'is-penultimate' : ''
+}
 // 搜素框变量
 const filterObject = reactive({
   search: "",
@@ -176,6 +179,10 @@ const tableLayout = ref("auto");
 const roleListCol = ref([
   {
     prop: "role",
+    label: "角色名",
+  },
+  {
+    prop: "role_name",
     label: "角色名称",
   },
   {
@@ -184,20 +191,10 @@ const roleListCol = ref([
   },
 ]);
 // 分页变量
-const currentPage = ref(1);
-const pageSize = ref(10);
-const small = ref(false);
-const background = ref(false);
-const disabled = ref(false);
+
 const totalCount = ref(0);
-const pageConfig = reactive({
-  page: currentPage.value,
-  size: pageSize.value,
-  search: "",
-  ordering: "id",
-});
+
 // 少于分页需求则不显示分页
-const isSinglePage = ref(false);
 
 // 角色列表
 const roleObject = ref({});
@@ -206,9 +203,8 @@ onMounted(async () => {
   // 初始化数据切片
   // api请求获取所有数据
 
-  await getRoleData(pageConfig);
+  await getRoleData();
   getMenuListFunc();
-  console.log(formInline);
   // selectFirst()
 });
 // 默认选中第1行
@@ -217,20 +213,15 @@ const selectFirst = () => {
 };
 
 // 获取角色数据
-const getRoleData = async (config) => {
-  let roleinfo = await proxy.$api.getRole(config);
-  console.log(roleinfo);
+const getRoleData = async () => {
+  let roleinfo = await proxy.$api.getRole();
   roleList.value = roleinfo.data.results.map((item) => {
     item.userinfo_set = item.userinfo_set.length;
     return item;
   });
 
   //   #roleList.value.length
-  totalCount.value = roleinfo.data.count;
-  // 隐藏下面的分页
-  if (totalCount.value < pageSize.value) {
-    isSinglePage.value = true;
-  }
+
   // 统计用户个数
 
   // 将role列表转化为dict
@@ -242,12 +233,6 @@ const getRoleData = async (config) => {
   }
 };
 
-const handleSizeChange = (val) => {
-  pageConfig.size = val;
-};
-const handleCurrentChange = (val) => {
-  pageConfig.page = val;
-};
 // 点击表格行
 // const currentSelectRow = ref({})
 
@@ -255,7 +240,11 @@ const handleClick = (val) => {
   // console.log(val)
   currentSelectRow.value = val;
 };
+const test = ()=>{
+  console.log(menuTreeRef.value!.getCheckedKeys())  
+  console.log(menuTreeRef.value!.getCheckedNodes())    
 
+}
 // 弹出框
 
 // 新增按钮
@@ -263,14 +252,14 @@ const dialogVisible = ref(false);
 // from表单数据
 const formInline = reactive({
   role: "",
-  roleMenus: [],
+  role_name:"",
+  rolePermission: [],
 });
 const action = ref("add");
 // 显示新增弹出框
 const handleAdd = () => {
   action.value = "add";
   dialogVisible.value = true;
-  console.log(formInline);
 };
 // 取消新增弹出框
 const cancelAdd = () => {
@@ -295,17 +284,15 @@ const handleClose = (done) => {
 // 点击触发提交
 const handleCommit = () => {
   // let newMenuList = menuTreeRef.value.getCheckedKeys().concat(menuTreeRef.value.getHalfCheckedKeys())
-  let newMenuList = menuTreeRef.value.getCheckedKeys();
   // 更新对应关系
-  formInline.roleMenus = newMenuList;
+  formInline.rolePermission = menuTreeRef.value!.getCheckedKeys();
   // getCheckedKeys()
-  console.log(formInline);
+  console.log(JSON.stringify(formInline));
 
   proxy.$refs.userFrom.validate(async (valid) => {
     if (valid) {
       // 新增接口
       if (action.value == "add") {
-        console.log(formInline);
         let res = await proxy.$api.roleadd(formInline);
         if (res.status == 201) {
           dialogVisible.value = false;
@@ -316,7 +303,8 @@ const handleCommit = () => {
           // 重置表单
           proxy.$refs.userFrom.resetFields();
           setCheckedKeys([]);
-          getRoleData(pageConfig);
+          getRoleData();
+          console.log(menuTreeRef.value!.getCheckedKeys())
         } else {
           ElMessage({
             showClose: true,
@@ -327,11 +315,10 @@ const handleCommit = () => {
       }
       // 编辑接口
       else {
-        console.log(formInline);
+
         let res = await proxy.$api.roleupdate({
-          id: formInline.id,
-          role: formInline.role,
-          menu: formInline.roleMenus,
+          id: nowRow.value.id,
+          ...formInline
         });
         console.log(res);
         if (res.status == 200) {
@@ -339,7 +326,9 @@ const handleCommit = () => {
           // 重置表单
           proxy.$refs.userFrom.resetFields();
           setCheckedKeys([]);
-          getRoleData(pageConfig);
+          console.log(menuTreeRef.value!.getCheckedKeys())
+
+          getRoleData();
           ElMessage({
             type: "success",
             message: "更新成功",
@@ -352,7 +341,6 @@ const handleCommit = () => {
           });
         }
       }
-      getRoleData(pageConfig);
     } else {
       ElMessage({
         showClose: true,
@@ -360,23 +348,30 @@ const handleCommit = () => {
         type: "error",
       });
     }
-    console.log(formInline);
   });
 };
 
 // 编辑
+const nowRow = ref({})
 const handleEdit = (row) => {
+  console.log(row)
   action.value = "edit";
+  nowRow.value = row
   dialogVisible.value = true;
   // 清除新增按钮会显示编辑按钮的记录
-  proxy.$nextTick(() => {
-    Object.assign(formInline, row);
+  // proxy.$nextTick(() => {
+  //   Object.assign(formInline, row);
+  // });
+  nextTick(() => {
+    Object.keys(formInline).forEach((item) => {
+        formInline[item] = row[item];
+    });
   });
   // setCheckedKeys(row.menu)
-  setCheckedKeys(row.menu);
-  console.log(formInline);
+  setCheckedKeys(row.rolePermission);
+  // console.log(JSON.stringify(formInline));
 
-  // formInline.roleMenus = row.menu
+  // formInline.rolePermission = row.menu
 };
 // 删除
 const handleDelete = (row) => {
@@ -406,7 +401,7 @@ const handleDelete = (row) => {
     .catch(() => {
       ElMessage({
         type: "info",
-        message: "Delete canceled",
+        message: "取消删除",
       });
     });
 };
@@ -414,7 +409,7 @@ const handleDelete = (row) => {
 const multipleSelect = ref([]);
 // 按照返回条件禁止某些行变为可勾选的
 const selectFilter = (row, index) => {
-  return row.role != "管理员";
+  return row.role != "sysadmin";
 };
 const handleSelectionChange = (val) => {
   multipleSelect.value = val;
@@ -436,16 +431,19 @@ interface Tree {
   label: string;
   children?: Tree[];
 }
+// 获取权限源
 const dataSource = ref([]);
 const getMenuListFunc = async () => {
-  let res = await proxy.$api.getMenuList();
+  let res = await proxy.$api.getPermissionToRole();
   console.log(res);
   dataSource.value = res.data.results;
 };
 
 const setCheckedKeys = (val) => {
   nextTick().then(() => {
-    menuTreeRef.value?.setCheckedKeys(val, false);
+    menuTreeRef.value!.setCheckedKeys(val, false);
+    console.log(menuTreeRef.value!.getCheckedKeys());
+
   });
 };
 
@@ -453,7 +451,7 @@ const isDisabled = ref(false);
 watch(
   () => formInline.role,
   (n) => {
-    if (n == "管理员") {
+    if (n == "sysadmin") {
       isDisabled.value = true;
     } else {
       isDisabled.value = false;
@@ -461,7 +459,7 @@ watch(
   }
 );
 </script>
-<style scoped>
+<style  scoped>
 .el-pagination {
   justify-content: flex-end;
 }
@@ -485,4 +483,12 @@ watch(
   display: flex;
   align-items: flex-start;
 }
+:deep(.el-tree .el-tree-node.is-penultimate > .el-tree-node__children) {
+  display: flex;
+  flex-direction: row;
+}
+/* .is-penultimate > .el-tree-node__children > div {
+  width: 25%;
+} */
+
 </style>

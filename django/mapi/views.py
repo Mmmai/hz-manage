@@ -3,17 +3,19 @@ from django.http import HttpResponse,JsonResponse
 from rest_framework import filters,status
 from rest_framework.viewsets import ModelViewSet
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.renderers import JSONRenderer
 from .sers import *
 from rest_framework.views import APIView
 from rest_framework.response import Response
 # from .models import UserInfo,Role,Menu,Portal,Pgroup,Datasource,LogModule
 from .models import (
-  UserInfo,UserGroup,Role,Menu,Portal,Pgroup,Datasource,
+  UserInfo,UserGroup,Role,Menu,Button,Permission,Portal,Pgroup,Datasource,
   sysConfigParams
   )
 from .filters import (
     roleFilter,
-    sysConfigParamsFilter   
+    sysConfigParamsFilter,
+    buttonFilter   
 )
 from .utils.jwt_create_token import create_token
 from rest_framework.pagination import PageNumberPagination
@@ -23,6 +25,16 @@ from django.shortcuts import get_object_or_404
 import json
 from django.conf import settings
 from mapi.extensions.pagination import StandardResultsSetPagination
+
+def getRolePermissionList(role_ids):
+    allPermissionList = []
+    for role_id in role_ids:
+        for p_obj in Permission.objects.filter(role=role_id).all():
+            menu_name = p_obj.menu.name
+            # button_name = Button.objects.get(id=p_obj.button).action
+            button_name = p_obj.button.action
+            allPermissionList.append(f"{menu_name}:{button_name}")
+    return allPermissionList
 class LoginView(APIView):
     """用户登录"""
     authentication_classes = [] # 取消全局认证
@@ -44,6 +56,7 @@ class LoginView(APIView):
         # 判断用户的role
         userRoleList = [ i['id'] for i in user_obj.roles.all().values('id') ]
         roleList = list(set(userGroupRoleList + userRoleList))
+        permissionList = getRolePermissionList(role_ids=roleList)
         #print(roleList)
         payload = {
             'user_id':str(user_obj.pk),#自定义用户ID
@@ -51,7 +64,7 @@ class LoginView(APIView):
             # 'exp':datetime.datetime.utcnow()+datetime.timedelta(minutes=1),# 设置超时时间，1min
         }
         jwt_token = create_token(payload=payload)
-        return Response({'code':200,'token':jwt_token,"role":roleList,"userinfo":payload})
+        return Response({'code':200,'token':jwt_token,"role":roleList,"userinfo":payload,"permission":permissionList})
 
 
 
@@ -74,36 +87,7 @@ class getSecret(APIView):
 #   data = {'1':2,'3':4}
 #   return JsonResponse(data)
 
-class sysConfig(APIView):
-    def get(self,request,*args,**kwargs):
-        # owner = request.query_params.get('owner')
-        # orderRes =  orderMethod.objects.filter(owner=owner).first()
-        import gmssl.func as gmssl_func
-        from gmssl import sm4
-        import binascii
 
-        key = "Xmd4AlROeXgPv8JDkdgYptWvY4ntVBlC"
-        data = "test"
-        sm4_crypt = sm4.CryptSM4() # 创建SM4加密对象
-        # sm4_crypt.set_key(key.encode("utf8"), sm4.SM4_ENCRYPT) # 设置密钥
-        # ciphertext = sm4_crypt.crypt_ecb(gmssl_func.bytes_to_list(data.encode("utf8")))# 加密数据
-        # encrypted_data = gmssl_func.list_to_bytes(ciphertext)
-        # print(type(ciphertext))
-        # print(type(encrypted_data))
-        # print(f"加密后的数据: {encrypted_data}")
-        aaa = "745bcdcc51e0c7a13b63b4dd86b632c4"
-        sm4_crypt = sm4.CryptSM4()
-        sm4_crypt.set_key(key.encode("utf8"), mode=sm4.SM4_DECRYPT)
-        print(binascii.unhexlify(aaa))
-        cipher_bytes = binascii.unhexlify(aaa)
-        padded_text = sm4_crypt.crypt_ecb(cipher_bytes)
-        print(padded_text)
-        padding = padded_text[-1]
-        plain_text = padded_text[:-padding]
-        print(type(plain_text))
-        print(f"解密后的数据: {plain_text.decode('utf-8')}")
-        
-        return JsonResponse({"1":3})
 
 # def user(request):
 class getMenu(APIView):
@@ -130,19 +114,30 @@ class getMenu(APIView):
             #     continue
             
             roleList = []
-            for r in menu.role_set.all().values():
-                roleList.append(str(r["id"]))
+            # for r in menu.role_set.all().values():
+            #     roleList.append(str(r["id"]))
+            # 获取角色列表
+
+            roleList = list(set([ str(i.role.id) for i in Permission.objects.filter(menu=menu).all()]))
             # print(roleList)
+            # print(123)
             # print(role)
             # if len(list(set(roleList) & set(role))) == 0:
             #     continue
+            button_queryset = menu.buttons.all().order_by("action")
+            button_serializer = ButtonModelSerializer(button_queryset, many=True)
+            serialized_data = JSONRenderer().render(button_serializer.data)
             info = menu.__dict__.copy()
             info.pop('_state')
             info["meta"] = {"role":roleList,"icon":menu.icon,"title":menu.label}
+            info["buttons"] = json.loads(serialized_data.decode('utf8'))
+            # info["button"] 
             if info["is_iframe"]:
                 info["meta"]["iframePath"] = info["iframe_url"]
                 info["meta"]["is_iframe"] = info["is_iframe"]
-
+            # if info["is_menu"]:
+            #     # print(info["label"])
+            #     info["meta"]["permission"] = []
             info['children'] = self.get_menu_tree(menu_list,role,menu)
             # print(info)
 
@@ -155,9 +150,51 @@ class getMenu(APIView):
                     continue
             tree.append(info)
         return tree
+# 获取角色授权页面的tree
+class getPermissionToRole(APIView):
+    def __init__(self):
+        self.get_menu_tree = self.get_menu_tree
+    def post(self,request,*args,**kwargs):
+        menuobj = Menu.objects.all().order_by('sort')
+        menuList = self.get_menu_tree(menuobj)
+        # print(menuList)
+        return Response({'code':200,"results":menuList})
 
+    def get_menu_tree(self,menu_list,parent=None):
+        tree = []
+        for menu in menu_list.filter(parentid=parent):
+            if menu.is_menu:
+                # 添加按钮到对应菜单下
+                info = {"id":menu.id,"label":menu.label,"tree_type":"menu"}
+            else:
+                info = {"id":menu.id,"label":menu.label,"tree_type":"directory"}
 
-
+            info['children'] = self.get_menu_tree(menu_list,menu)
+            # print(info)
+                # 如果是目录，但是没有子目录，则跳过
+            # if menu.is_menu == False and len(info['children']) == 0:
+            #     continue
+            if menu.is_menu:
+                # 添加按钮到对应菜单下
+                info["children"] = [ {"id":str(i.id),"label":i.name,"button":i.action,"tree_type":"button"} for i in Button.objects.filter(menu=menu).all().order_by('action')]  
+            tree.append(info)
+        return tree
+# 获取当前用户的权限列表
+class getUserButton(APIView):
+    def post(self,request,*args,**kwargs):
+        # owner = request.query_params.get('owner')
+        # orderRes =  orderMethod.objects.filter(owner=owner).first()
+        role_ids = request.data.get('role')
+        # 拿permission表中所有权限,菜单name:按钮action,例如：home:edit
+        allPermissionList = []
+        for role_id in role_ids:
+            for p_obj in Permission.objects.filter(role=role_id).all():
+                menu_name = p_obj.menu.name
+                # button_name = Button.objects.get(id=p_obj.button).action
+                button_name = p_obj.button.action
+                allPermissionList.append(f"{menu_name}:{button_name}")
+        # print(allPermissionList)
+        return Response({'code':200,"results":allPermissionList})
 #   # data = {'1':2,'3':4}
 #   return JsonResponse(data)
 
@@ -218,7 +255,42 @@ class RoleViewSet(ModelViewSet):
     # pagination_class = StandardResultsSetPagination
     filterset_class = roleFilter
     order_fields = ["id"]
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
 
+        if getattr(instance, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been applied to a queryset, we need to
+            # forcibly invalidate the prefetch cache on the instance.
+            instance._prefetched_objects_cache = {}
+        # 更新perrmison字段内容
+        rolePermission = request.data.get('rolePermission',None)
+        if not rolePermission:
+            pass
+        else:
+            # return
+            # print(rolePermission)
+            # instance.permission.all()
+            # print(instance)
+            # 判断原有的，若相同，则不处理
+            currentPermissionList = [ str(i) for i in  Permission.objects.filter(role=instance).values_list("button",flat=True)]
+            if sorted(rolePermission) == sorted(currentPermissionList):
+                pass
+            else:
+                # print(123)
+                # 先清空原有的，再添加新的
+                instance.permission.all().delete()
+                print(f"清空角色<{instance.role}>权限!")
+                # 添加新的
+                for button_id in rolePermission:
+                    button_obj = Button.objects.get(id=button_id)
+                    Permission.objects.create(role=instance,menu=button_obj.menu,button=button_obj)
+                    print(f"为角色<{instance.role}>添加<${button_obj.action}>权限!")
+
+        return Response(serializer.data)
 
 class MenuViewSet(ModelViewSet):
   queryset = Menu.objects.all()
@@ -230,6 +302,10 @@ class MenuViewSet(ModelViewSet):
   #         return serializer_class(many=True, *args, **kwargs)
   #     else:
   #         return serializer_class(*args, **kwargs)
+class ButtonViewSet(ModelViewSet):
+    queryset = Button.objects.all()
+    serializer_class = ButtonModelSerializer
+    filterset_class = buttonFilter
 
 # class PermissionViewSet(ModelViewSet):
 #   queryset = Menu.objects.all()
