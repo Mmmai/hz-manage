@@ -5,16 +5,16 @@ from django.conf import settings
 import base64
 import logging
 from typing import Optional
-from mapi.models import sysConfigParams
+
 logger = logging.getLogger(__name__)
 
 class PasswordHandler:
     def __init__(self):
         
-        key = base64.urlsafe_b64encode(sysConfigParams.objects.get(param_name="secret_key").param_value.encode()[:32].ljust(32, b'\0'))
+        key = base64.urlsafe_b64encode(settings.SECRET_KEY.encode()[:32].ljust(32, b'\0'))
         self.fernet = Fernet(key)
 
-        self.sm4_key = sysConfigParams.objects.get(param_name="secret_key").param_value.encode('utf-8')
+        self.sm4_key = settings.SM4_KEY.encode('utf-8')
         self._init_sm4()
 
     def _init_sm4(self):

@@ -63,8 +63,8 @@ const route = useRoute();
 const router = useRouter();
 onMounted(async () => {
   // await store.dispatch("getSecret");
-  // console.log('route', route);
-  // console.log('router', router, router.getRoutes());
+  // console.log("route", route);
+  // console.log("router", router, router.getRoutes());
 });
 </script>
 <style scoped lang="scss">

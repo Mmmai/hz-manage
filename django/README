@@ -1,2 +1,4 @@
 docker run --restart=always -p 6379:6379 --name redis -d redis:latest
  ##--requirepass
+
+ celery -A vuedjnago worker -l info -P eventlet

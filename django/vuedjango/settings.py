@@ -176,6 +176,34 @@ CACHEOPS_DEFAULTS = {
     'cache_delete_many': True,
     'local_get': False,
 }
+# 使用redis作为缓存引擎
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/2',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'CONNECTION_POOL_CLASS': 'redis.BlockingConnectionPool',
+            'CONNECTION_POOL_CLASS_KWARGS': {
+                'max_connections': 50,
+                'timeout': 20,
+            },
+            'MAX_CONNECTIONS': 1000,
+            'PICKLE_VERSION': -1
+        },
+        'KEY_PREFIX': 'cmdb',
+        'TIMEOUT': 3600
+    }
+}
+
+# Celery配置共享Redis
+CELERY_CACHE_BACKEND = 'django-cache'
+CELERY_BROKER_URL = 'redis://127.0.0.1:6379/2'
+CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/2'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Asia/Shanghai'
 
 # Password validation
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators

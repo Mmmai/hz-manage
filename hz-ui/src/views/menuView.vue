@@ -4,7 +4,11 @@
       <div style="width: 100%">
         <div class="user-header">
           <div>
-            <el-button type="primary" size="small" @click="handleAdd"
+            <el-button
+              v-permission="`${route.name?.replace('_info', '')}:add`"
+              type="primary"
+              size="small"
+              @click="handleAdd"
               >+新增</el-button
             >
           </div>
@@ -19,7 +23,7 @@
             max-height="500px"
             highlight-current-row
             row-key="id"
-            :table-layout="tableLayout"
+            table-layout="fixed"
             @selection-change="handleSelectionChange"
             @row-click="handleClick"
           >
@@ -28,6 +32,13 @@
               width="55"
               :selectable="selectFilter"
             />
+            <!-- <el-table-column type="expand">
+      <template #default="props">
+        <div  v-if="props.row.is_menu" m="4">
+1111
+        </div>
+      </template>
+    </el-table-column> -->
             <el-table-column
               v-for="item in menuListCol"
               :key="item.prop"
@@ -36,6 +47,10 @@
             >
               <template #default="scope" v-if="item.prop === 'is_menu'">
                 <el-switch
+                  v-permission="{
+                    id: `${route.name?.replace('_info', '')}:edit`,
+                    action: 'disabled',
+                  }"
                   v-model="scope.row.is_menu"
                   class="ml-2"
                   style="
@@ -43,6 +58,21 @@
                     --el-switch-off-color: #ff4949;
                   "
                   @change="updateIsMenu(scope.row)"
+                />
+              </template>
+              <template #default="scope" v-if="item.prop === 'status'">
+                <el-switch
+                  v-permission="{
+                    id: `${route.name?.replace('_info', '')}:edit`,
+                    action: 'disabled',
+                  }"
+                  v-model="scope.row.status"
+                  class="ml-2"
+                  style="
+                    --el-switch-on-color: #13ce66;
+                    --el-switch-off-color: #ff4949;
+                  "
+                  @change="updateStatus(scope.row)"
                 />
               </template>
               <template #default="scope" v-if="item.prop === 'icon'">
@@ -54,59 +84,73 @@
                   <Icon :icon="scope.row.icon"></Icon>
                 </el-icon>
               </template>
+              <template #default="scope" v-if="item.prop === 'buttons'">
+                <!-- <el-icon>
+                  <component :is="scope.row.icon" />
+
+                </el-icon> -->
+                <el-space wrap>
+                  <el-tag
+                    type="success"
+                    round
+                    effect="plain"
+                    :key="aItem.id"
+                    v-for="aItem in scope.row.buttons"
+                    >{{ aItem.name }}</el-tag
+                  >
+                </el-space>
+              </template>
             </el-table-column>
-            <el-table-column fixed="right" label="操作" width="150">
+            <el-table-column fixed="right" label="操作" width="200">
               <template #default="scope">
-                <el-button
-                  v-if="scope.row.role == '管理员1'"
-                  type="primary"
-                  size="small"
-                  @click="handleEdit(scope.row)"
-                  disabled
-                  >编辑</el-button
+                <el-tooltip
+                  class="box-item"
+                  effect="dark"
+                  content="编辑按钮"
+                  placement="top"
+                  v-if="scope.row.is_menu"
                 >
-                <el-button
-                  v-else
-                  type="primary"
-                  size="small"
-                  @click="handleEdit(scope.row)"
-                  >编辑</el-button
+                  <el-button
+                    v-permission="`${route.name?.replace('_info', '')}:edit`"
+                    link
+                    type="primary"
+                    :icon="Pointer"
+                    @click="buttonEdit(scope.row)"
+                  ></el-button>
+                </el-tooltip>
+                <el-tooltip
+                  class="box-item"
+                  effect="dark"
+                  content="编辑菜单"
+                  placement="top"
                 >
-                <el-button
-                  v-if="scope.row.role == '管理员'"
-                  type="danger"
-                  size="small"
-                  disabled
-                  @click="handleDelete(scope.row)"
-                  >删除</el-button
+                  <el-button
+                    v-permission="`${route.name?.replace('_info', '')}:edit`"
+                    link
+                    type="primary"
+                    :icon="Edit"
+                    @click="handleEdit(scope.row)"
+                  ></el-button>
+                </el-tooltip>
+                <el-tooltip
+                  class="box-item"
+                  effect="dark"
+                  content="删除"
+                  placement="top"
                 >
-                <el-button
-                  v-else
-                  type="danger"
-                  size="small"
-                  @click="handleDelete(scope.row)"
-                  >删除</el-button
-                >
+                  <el-button
+                    v-permission="`${route.name?.replace('_info', '')}:delete`"
+                    link
+                    type="danger"
+                    :icon="Delete"
+                    @click="handleDelete(scope.row)"
+                  ></el-button>
+                </el-tooltip>
               </template>
             </el-table-column>
           </el-table>
           <!-- 分页 -->
         </div>
-        <!-- <div class="demo-pagination-block">
-          <el-pagination
-            v-model:current-page="currentPage"
-            v-model:page-size="pageSize"
-            :page-sizes="[10, 20, 30, 40]"
-            :small="small"
-            :disabled="disabled"
-            :background="background"
-            layout="total, prev, pager, next"
-            :total="totalCount"
-            :hide-on-single-page="isSinglePage"
-            @size-change="handleSizeChange"
-            @current-change="handleCurrentChange"
-          />
-      </div> -->
       </div>
     </div>
 
@@ -284,12 +328,21 @@
         <!-- </div> -->
       </el-form>
     </el-dialog>
+    <menuButtonCom
+      ref="menuButtonComRef"
+      v-model:showDrawer="showButtonDia"
+      :nowMenu="nowMenu"
+      @getMenuData="getMenuData"
+    />
   </div>
 </template>
 
 <script lang="ts" setup>
 import { getCurrentInstance, onMounted, ref, reactive } from "vue";
 import iconSelectCom from "../components/iconSelectCom.vue";
+import menuButtonCom from "../components/menuButtonCom.vue";
+import { useRoute } from "vue-router";
+const route = useRoute();
 import { Icon } from "@iconify/vue";
 
 import { useStore } from "vuex";
@@ -322,10 +375,10 @@ const menuListCol = ref([
     prop: "is_menu",
     label: "是否菜单",
   },
-  // {
-  //   prop: 'parentid',
-  //   label: "父级id"
-  // },
+  {
+    prop: "status",
+    label: "启用",
+  },
   {
     prop: "sort",
     label: "序号",
@@ -342,6 +395,10 @@ const menuListCol = ref([
     prop: "description",
     label: "描述",
   },
+  {
+    prop: "buttons",
+    label: "权限按钮",
+  },
 ]);
 // 分页变量
 const currentPage = ref(1);
@@ -350,12 +407,12 @@ const small = ref(false);
 const background = ref(false);
 const disabled = ref(false);
 const totalCount = ref(0);
-const pageConfig = reactive({
-  page: currentPage.value,
-  size: pageSize.value,
-  search: "",
-  ordering: "id",
-});
+// const pageConfig = reactive({
+//   page: currentPage.value,
+//   size: pageSize.value,
+//   search: "",
+//   ordering: "id",
+// });
 // 少于分页需求则不显示分页
 const isSinglePage = ref(false);
 const roleObj = ref({});
@@ -370,16 +427,11 @@ const getRoleData = async () => {
 onMounted(async () => {
   // 初始化数据切片
   // api请求获取所有数据
-  await getMenuData(pageConfig);
+  await getMenuData();
   // await getRoleData();
   // selectFirst()
 });
-// 默认选中第1行
-// const getMenuListFunc = (async() => {
-//   let res = await proxy.$api.getMenuList()
-//   console.log(res)
-//   dataSource.value = res.data.result
-// })
+
 //递归多级菜单,新增key值
 const deepGetFunc = (val) => {
   val.forEach((item) => {
@@ -392,8 +444,8 @@ const deepGetFunc = (val) => {
   return val;
 };
 // 获取菜单数据
-const getMenuData = async (config) => {
-  let res = await proxy.$api.getMenuList(config);
+const getMenuData = async () => {
+  let res = await proxy.$api.getMenuList();
   menuList.value = res.data.results;
   menuTree.value = deepGetFunc(res.data.results);
 
@@ -465,24 +517,12 @@ const handleCommit = () => {
         //
         if (res.status == 201) {
           dialogVisible.value = false;
-
           // 重置表单
           proxy.$refs.userFrom.resetFields();
-          // 为admin用户添加权限
-          // proxy.$api.getRole()
-          // await getRoleData();
-          // let newMenu = roleObj["管理员"].menu;
-          // newMenu.push(res.data.id);
-          // await proxy.$api.roleupdate({
-          //   id: roleObj["管理员"].id,
-          //   role: roleObj["管理员"].role,
-          //   menu: newMenu,
-          // });
-
-          getMenuData(pageConfig);
+          getMenuData();
           // 更新路由
           await store.dispatch("getRoleMenu", {
-            role: store.state.role.join(","),
+            role: store.state.role,
           });
         } else {
           ElMessage({
@@ -500,9 +540,11 @@ const handleCommit = () => {
           dialogVisible.value = false;
           // 重置表单
           proxy.$refs.userFrom.resetFields();
-          getMenuData(pageConfig);
+          getMenuData();
+          await store.dispatch("getRoleMenu", {
+            role: store.state.role,
+          });
         } else {
-          console.log();
           ElMessage({
             showClose: true,
             message: "更新失败:" + JSON.stringify(res.data),
@@ -510,11 +552,8 @@ const handleCommit = () => {
           });
         }
       }
-      getMenuData(pageConfig);
+      // getMenuData();
       // 更新路由
-      await store.dispatch("getRoleMenu", {
-        role: store.state.role.join(","),
-      });
     } else {
       ElMessage({
         showClose: true,
@@ -526,6 +565,7 @@ const handleCommit = () => {
 };
 import { ElTree } from "element-plus";
 import { ro } from "element-plus/es/locale/index.mjs";
+import { Delete, Edit, Pointer } from "@element-plus/icons-vue";
 const elTreeSelectRef = ref<InstanceType<typeof ElTree>>();
 
 // 编辑
@@ -558,7 +598,7 @@ const handleDelete = (row) => {
         await getMenuData(pageConfig);
         // 更新路由
         await store.dispatch("getRoleMenu", {
-          role: store.state.role.join(","),
+          role: store.state.role,
         });
         // selectFirst()
       } else {
@@ -579,7 +619,7 @@ const handleDelete = (row) => {
 const multipleSelect = ref([]);
 // 按照返回条件禁止某些行变为可勾选的
 const selectFilter = (row, index) => {
-  return row.role != "管理员";
+  // return row.role != "管理员";
 };
 const handleSelectionChange = (val) => {
   multipleSelect.value = val;
@@ -596,9 +636,32 @@ const isShowIconSelect = () => {
   console.log(formInline.icon);
   isShow.value = true;
 };
+const updateStatus = async (param) => {
+  let res = await proxy.$api.menuUpdate({
+    status: param.status,
+    id: param.id,
+  });
+  if (res.status == 200) {
+    ElMessage({
+      type: "success",
+      message: "更新成功",
+    });
+    // 重置表单
+    // proxy.$refs.pgroupForm.resetFields();
+    getMenuData(pageConfig);
+    await store.dispatch("getRoleMenu", {
+      role: store.state.role,
+    });
+  } else {
+    ElMessage({
+      showClose: true,
+      message: "更新失败:" + JSON.stringify(res.data),
+      type: "error",
+    });
+  }
+};
 // 20241111，实现表格点击可以更新
 const updateIsMenu = async (param) => {
-  console.log(param);
   let res = await proxy.$api.menuUpdate({
     is_menu: param.is_menu,
     id: param.id,
@@ -611,6 +674,9 @@ const updateIsMenu = async (param) => {
     // 重置表单
     // proxy.$refs.pgroupForm.resetFields();
     getMenuData(pageConfig);
+    await store.dispatch("getRoleMenu", {
+      role: store.state.role,
+    });
   } else {
     ElMessage({
       showClose: true,
@@ -620,6 +686,17 @@ const updateIsMenu = async (param) => {
   }
 };
 // const iconName = ref('ElemeFilled')
+
+const showButtonDia = ref(false);
+const nowMenu = ref({});
+// 按钮编辑
+const menuButtonComRef = ref(null);
+const buttonEdit = (row) => {
+  showButtonDia.value = true;
+  // console.log
+  nowMenu.value = row;
+  menuButtonComRef.value!.updateMenuButtonList(row.buttons);
+};
 </script>
 <style scoped lang="less">
 .el-pagination {

@@ -12,9 +12,13 @@ urlpatterns = [
   path('login/',views.LoginView.as_view()),
   # path('testroute/', views.TestRoute.as_view()),
   path('getMenu/', views.getMenu.as_view()),
+  path('getPermissionToRole/', views.getPermissionToRole.as_view()),
+
   path('getSecret/', views.getSecret.as_view()),
+  path('getUserPermission/', views.getUserButton.as_view()),
+
   path('export/', importExport.PortalExport.as_view()),
-  path('test/', views.sysConfig.as_view()),
+  # path('test/', views.sysConfig.as_view()),
 
 
   # path('order/',views.orderMethod.as_view() )
@@ -32,8 +36,12 @@ router = DefaultRouter()
 # router.register('cmdb/ciModelGroup/',cmdb.ciModelGroup)
 
 router.register('userinfo',views.UserInfoViewSet)
+router.register('userGroup',views.UserGroupViewSet)
+
 router.register('role',views.RoleViewSet)
 router.register('menu',views.MenuViewSet)
+router.register('button',views.ButtonViewSet)
+
 router.register('portal',views.PortalViewSet)
 router.register('pgroup',views.PgroupViewSet)
 router.register('datasource',views.dataSourceViewSet)

@@ -18,6 +18,7 @@ export default createStore({
     username: localStorage.getItem('username') ? localStorage.getItem('username') : '',
     userinfo: localStorage.getItem('userinfo') ? JSON.parse(localStorage.getItem('userinfo')) : '',
 
+    permission: localStorage.getItem('permission') ? JSON.parse(localStorage.getItem('permission')) : '', 
     // 动态菜单
     dynamicCreateRoute: false,
     routeInfo: [],
@@ -108,7 +109,9 @@ export default createStore({
       // 存储username信息
       state.userinfo = config.userinfo;
       localStorage.setItem('userinfo', JSON.stringify(config.userinfo));
-
+      // 存储permission
+      state.permission = config.permission
+      localStorage.setItem('permission', JSON.stringify(config.permission));
     },
     updateUsername(state, config) {
       state.username = config
@@ -122,8 +125,9 @@ export default createStore({
     },
     // 更新菜单列表
     setRoleMenu(state, config) {
-      // 禁用的菜单不显示
-      state.menuInfo = config.filter(item => item.status )
+      // 禁用的菜单不显示,只禁用了第一级别
+      state.menuInfo = config
+      // state.menuInfo = config.filter(item => item.status )
       // console.log(config)
       // config.forEach(item => {
       //   if (item.name === 'home'){
@@ -162,7 +166,9 @@ export default createStore({
       state
     }, config) {
       // let role = JSON.parse(localStorage.getItem('role'))
+      console.log(config)
       let res = await api.getMenuList(config)
+      console.log(res.data.results)
       commit("setRoleMenu", res.data.results)
     }
 

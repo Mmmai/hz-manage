@@ -26,7 +26,7 @@
         :formatter="(value) => `${value}`.replace(/[^\d.\-/ :]/g, '')"
         :parser="(value) => value.replace(/[^\d.\-/ :]/g, '')"
       />
-      <el-button type="warning" plain tag="b" @click="parse" >转换</el-button>
+      <el-button type="primary" plain tag="b" @click="parse" >转换</el-button>
 
     </div>
     <div class="output">

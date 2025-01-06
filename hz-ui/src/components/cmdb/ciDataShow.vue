@@ -14,17 +14,24 @@
           @click="showTree = true"
           size="default"
         ></el-button>
-        <el-button type="primary" @click="addCiData">添加</el-button>
+        <el-button
+          type="primary"
+          @click="addCiData"
+          v-permission="`${route.name?.replace('_info', '')}:add`"
+          >添加</el-button
+        >
         <!-- <el-button @click="isShowUpload = true">导入</el-button> -->
         <el-button
           :disabled="!(multipleSelect.length >>> 0)"
           @click="ciDataToTree = true"
+          v-permission="`${route.name?.replace('_info', '')}:edit`"
           >转移</el-button
         >
 
         <el-button
           :disabled="!(multipleSelect.length >>> 0)"
           @click="multipleUpdate"
+          v-permission="`${route.name?.replace('_info', '')}:edit`"
           >批量更新</el-button
         >
         <!-- <el-button :disabled="!(multipleSelect.length >>> 0)">导出</el-button> -->
@@ -56,6 +63,15 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
+              <div  v-permission="`${route.name?.replace('_info', '')}:delete`">
+                <el-dropdown-item
+                :disabled="!(multipleSelect.length >>> 0)"
+                @click="bulkDelete()"
+                >批量删除</el-dropdown-item
+              >
+              </div>
+              <div v-permission="`${route.name?.replace('_info', '')}:export`"
+              >
               <el-dropdown-item
                 :disabled="!(multipleSelect.length >>> 0)"
                 @click="exportSelect(false)"
@@ -66,7 +82,11 @@
                 @click="exportSelect(true)"
                 >导出勾选(所有字段)</el-dropdown-item
               >
-              <el-dropdown-item @click="exportAll()">导出所有</el-dropdown-item>
+              <el-dropdown-item
+                @click="exportAll()"
+                >导出所有</el-dropdown-item
+              >
+              </div>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -87,7 +107,12 @@
           placement="top"
           v-if="!showAllPass"
         >
-          <el-button :icon="View" circle @click="setShowAllPass" />
+          <el-button
+            v-permission="`${route.name?.replace('_info', '')}:showPassword`"
+            :icon="View"
+            circle
+            @click="setShowAllPass"
+          />
         </el-tooltip>
         <el-tooltip
           class="box-item"
@@ -127,7 +152,12 @@
           content="实例导入"
           placement="top"
         >
-          <el-button :icon="UploadFilled" circle @click="isShowUpload = true" />
+          <el-button
+            v-permission="`${route.name?.replace('_info', '')}:import`"
+            :icon="UploadFilled"
+            circle
+            @click="isShowUpload = true"
+          />
         </el-tooltip>
 
         <el-tooltip
@@ -175,7 +205,12 @@
         width="55"
         :reserve-selection="true"
       />
-      <el-table-column prop="name" label="名称" fixed="left" width="180" />
+      <el-table-column
+        prop="instance_name"
+        label="名称"
+        fixed="left"
+        width="180"
+      />
 
       <!-- <el-table-column label="Date" width="120" @row-click="editCiData">
                   <template #default="scope">{{ scope.row.date }}</template>
@@ -194,6 +229,10 @@
           v-if="modelFieldType.boolean.indexOf(data.name) != -1"
         >
           <el-switch
+            v-permission="{
+              id: `${route.name?.replace('_info', '')}:edit`,
+              action: 'disabled',
+            }"
             v-model="scope.row[data.name]"
             class="ml-2"
             style="
@@ -255,6 +294,7 @@
             placement="top"
           >
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
               link
               type="primary"
               :icon="Edit"
@@ -268,6 +308,7 @@
             placement="top"
           >
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
               link
               type="primary"
               :icon="CopyDocument"
@@ -342,7 +383,7 @@
         require-asterisk-position="right"
       >
         <!-- <div v-for="(item, index) in modelInfo.field_groups"> -->
-        <el-form-item prop="name" required style="margin-left: 30px">
+        <el-form-item prop="instance_name" required style="margin-left: 30px">
           <template #label>
             <el-space :size="2">
               <el-text tag="b">唯一标识</el-text>
@@ -359,12 +400,14 @@
           </template>
 
           <el-input
-            v-model="ciDataForm.name"
+            v-model="ciDataForm.instance_name"
             style="width: 240px"
             v-if="isEdit"
           >
           </el-input>
-          <span v-else class="requiredClass">{{ ciDataForm.name }}</span>
+          <span v-else class="requiredClass">{{
+            ciDataForm.instance_name
+          }}</span>
         </el-form-item>
         <el-collapse v-model="activeArr">
           <el-collapse-item
@@ -617,6 +660,9 @@
                         @mouseleave="showPassButton = false"
                         >********
                         <el-popover
+                          v-permission="
+                            `${route.name?.replace('_info', '')}:showPassword`
+                          "
                           :width="380"
                           trigger="click"
                           @after-leave="clearPass"
@@ -926,12 +972,14 @@
         <div v-else>
           <div v-if="isEdit">
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:delete`"
               type="danger"
               @click="ciDataDelete"
               v-if="currentRow.instance_group?.indexOf(treeIdleId) !== -1"
               >删除</el-button
             >
             <el-tooltip
+              v-permission="`${route.name?.replace('_info', '')}:delete`"
               content="无法删除非空闲池的主机"
               placement="top"
               effect="dark"
@@ -949,7 +997,12 @@
             >
           </div>
           <div v-else>
-            <el-button type="primary" @click="isEdit = true">编辑</el-button>
+            <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
+              type="primary"
+              @click="isEdit = true"
+              >编辑</el-button
+            >
           </div>
         </div>
 
@@ -1378,7 +1431,8 @@ import ciDataFilter from "./ciDataFilter.vue";
 import { useStore } from "vuex";
 import { useClipboard } from "vue-clipboard3";
 import { debounce } from "lodash";
-
+import { useRoute } from "vue-router";
+const route = useRoute();
 const store = useStore();
 const emit = defineEmits(["getTree"]);
 const props = defineProps(["ciModelId", "treeData", "currentNodeId"]);
@@ -1505,6 +1559,29 @@ const allModelFieldNameArr = computed(() => {
   return allModelField.value.map((item) => item.name);
 });
 const isShowUpload = ref(false);
+const bulkDelete = async () => {
+  let res = await proxy.$api.bulkDeleteCiModelInstance({
+    instances: multipleSelectId.value,
+  });
+  if (res.status == "200") {
+    ElMessage({
+      type: "success",
+      message: "删除成功",
+    });
+    ciDataTableRef.value!.clearSelection();
+
+    await getCiData({
+      model: props.ciModelId,
+      model_instance_group: props.currentNodeId,
+    });
+    //
+  } else {
+    ElMessage({
+      type: "error",
+      message: "删除失败",
+    });
+  }
+};
 const exportSelect = async (params) => {
   if (params) {
     let res = await proxy.$api.exportCiData({
@@ -1780,7 +1857,7 @@ const updateCiData = async (params) => {
 const selectable = () => true;
 
 // 表格勾选
-const ciDataTableRef = ref("");
+const ciDataTableRef = ref(null);
 const get_row_key = (row) => {
   return row.id;
 };
@@ -1869,8 +1946,12 @@ const enumOptionObj = computed(() => {
       if (field.type === "enum") {
         // let ruleObj = JSON.parse(validationRulesObj.value[params].rule)
         // JSON.parse(validationRulesObj.value[params].rule)
+        // console.log(field);
+        if (field.validation_rule === null) {
+          return;
+        }
         let ruleObj = JSON.parse(
-          validationRulesObj.value[field.validation_rule].rule
+          validationRulesObj?.value[field?.validation_rule].rule
         );
         let tmpList = [];
         Object.keys(ruleObj).forEach((ritem) => {
@@ -1915,7 +1996,7 @@ const getModelRefCiData = async (visible, params) => {
   });
   let tmpArr = [];
   res.data.results.forEach((item) => {
-    tmpArr.push({ value: item.id, label: item.name });
+    tmpArr.push({ value: item.id, label: item.instance_name });
   });
   modelRefOptions.value[params.name] = [
     { value: null, label: "无" },
@@ -2038,7 +2119,8 @@ const filterTags = computed(() => {
   let tmpArr = new Array();
   for (let [fName, fValue] of Object.entries(filterParam.value)) {
     // console.log(key + ": " + value);
-    if (fName === "name") {
+    console.log();
+    if (fName === "instance_name") {
       tmpArr.push({ name: "唯一标识:" + fValue, field: fName });
     } else {
       if (modelFieldType.value.model_ref.indexOf(fName) !== -1) {
@@ -2097,7 +2179,7 @@ const getCiData = async (params) => {
     tmpList.push({
       id: item.id,
       instance_group: item.instance_group,
-      name: item.name,
+      instance_name: item.instance_name,
       ...item.fields,
     });
   });
@@ -2110,6 +2192,7 @@ const getCiData = async (params) => {
 //   loadingInstance.close()
 //   }, 2000)
 onMounted(async () => {
+  reloadTable.value = true;
   await getRules();
   setLoading(false);
 });
@@ -2193,13 +2276,13 @@ const cpCiData = (params) => {
 
 const ciDataFormRef = ref<FormInstance>();
 const ciDataForm = reactive({
-  name: null,
+  instance_name: null,
 });
 const rmNameObj = computed(() => {
   let tmpObj = Object.assign({}, ciDataForm);
-  delete tmpObj.name;
+  delete tmpObj.instance_name;
   for (let [ckey, cvalue] of Object.entries(tmpObj)) {
-    if (cvalue === null) return;
+    if (cvalue === null) continue;
     if (modelFieldType.value.password.indexOf(ckey) !== -1) {
       // 加密
       tmpObj[ckey] = encrypt_sm4(
@@ -2213,12 +2296,11 @@ const rmNameObj = computed(() => {
 });
 const rmNameObjUpdate = computed(() => {
   let tmpObj = Object.assign({}, updateParams.value);
-  delete tmpObj.name;
+  delete tmpObj.instance_name;
   console.log(modelFieldType.value);
 
   for (let [ckey, cvalue] of Object.entries(updateParams.value)) {
-    if (cvalue === null) return;
-
+    if (cvalue === null) continue;
     if (modelFieldType.value.password.indexOf(ckey) !== -1) {
       // 加密
       tmpObj[ckey] = encrypt_sm4(
@@ -2253,7 +2335,7 @@ const ciDataCommit = async (
           create_user: store.state.username,
           update_user: store.state.username,
           fields: rmNameObj.value,
-          name: ciDataForm.name,
+          instance_name: ciDataForm.instance_name,
           instance_group: [props.currentNodeId],
         });
         // console.log(res)
@@ -2337,11 +2419,11 @@ const ciDataCommit = async (
           model: props.ciModelId,
           update_user: store.state.username,
         };
-        if (Object.keys(updateParams.value).indexOf("name") === -1) {
+        if (Object.keys(updateParams.value).indexOf("instance_name") === -1) {
           updateObj["fields"] = rmNameObjUpdate.value;
           // fields: updateParams.value,
         } else {
-          updateObj["name"] = updateParams.value.name;
+          updateObj["instance_name"] = updateParams.value.instance_name;
           updateObj["fields"] = rmNameObjUpdate.value;
         }
         console.log(modelFieldType.value);

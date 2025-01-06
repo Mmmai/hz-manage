@@ -63,9 +63,9 @@ const formLogin = reactive({
 
 const handleCommit = () => {
   proxy.$refs.ruleFormRef.validate(async (valid) => {
-    console.log(valid);
     if (valid) {
       let res = await proxy.$api.login(formLogin);
+      console.log(res);
       if (res.data.code != 200) {
         loginFailMess.value = res.data.error;
       }

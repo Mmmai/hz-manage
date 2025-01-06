@@ -216,7 +216,7 @@ class UniqueConstraintFilter(filters.FilterSet):
 
 class ModelInstanceFilter(filters.FilterSet):
     model = filters.UUIDFilter(field_name='model')
-    name = filters.CharFilter(field_name='name', lookup_expr='icontains')
+    instance_name = filters.CharFilter(field_name='instance_name', lookup_expr='icontains')
     model_instance_group = filters.UUIDFilter(method='filter_model_instance_group')
     create_time_after = filters.DateTimeFilter(field_name='create_time', lookup_expr='gte')
     create_time_before = filters.DateTimeFilter(field_name='create_time', lookup_expr='lte')
@@ -249,7 +249,7 @@ class ModelInstanceFilter(filters.FilterSet):
         model = ModelInstance
         fields = [
             'model',
-            'name',
+            'instance_name',
             'model_instance_group',
             'create_time_after',
             'create_time_before',

@@ -65,6 +65,14 @@ class CMDBConfig(AppConfig):
                 
                 if not field:
                     validation_rule = ValidationRules.objects.filter(name=field_config.get('validation_rule')).first()
+                    ref_model = None
+                    if field_config['type'] == 'model_ref':
+                        ref_model = Models.objects.filter(name=field_config['ref_model']).first()
+                        if not ref_model:
+                            logger.error(f"Model reference {field_config['ref_model']} not found")
+                            raise ValueError(f"Model reference {field_config['ref_model']} not found")
+                            continue
+                        
                     field_data = {
                         'model': model.id,
                         'name': field_name,
@@ -77,6 +85,7 @@ class CMDBConfig(AppConfig):
                         'validation_rule': validation_rule.id if validation_rule else None,
                         'default': field_config.get('default', None),
                         'built_in': True,
+                        'ref_model': ref_model.id if ref_model else None,
                         'create_user': 'system',
                         'update_user': 'system'
                     }
@@ -112,7 +121,9 @@ class CMDBConfig(AppConfig):
                     logger.error(f"Preference validation failed: {preference_serializer.errors}")
                     
             # 为每个内置模型添加一个默认的唯一性校验规则：使用ip字段校验
-            if not UniqueConstraint.objects.filter(model=model, fields=['ip']).exists():
+            # 只给hosts 和 network设备添加
+            if model_name in ['hosts', 'switches', 'firewalls', 'dwdm'] and \
+                not UniqueConstraint.objects.filter(model=model, fields=['ip']).exists():
                 unique_constraint_data = {
                     'model': model.id,
                     'fields': ['ip'],
@@ -153,6 +164,7 @@ class CMDBConfig(AppConfig):
                     'update_user': 'system'
                 }
                 if ValidationRules.objects.filter(name=name).exists():
+                    logger.info(f"Validation rule {name} already exists, skipping")
                     continue
                 rule_serializer = ValidationRulesSerializer(data=rule_data)
                 if rule_serializer.is_valid(raise_exception=True):
@@ -184,6 +196,7 @@ class CMDBConfig(AppConfig):
                     {'name': 'host', 'verbose_name': '主机'},
                     {'name': 'network', 'verbose_name': '网络设备'},
                     {'name': 'security', 'verbose_name': '安全设备'},
+                    {'name': 'resource', 'verbose_name': '资源组'},
                     {'name': 'application', 'verbose_name': '应用服务'},
                     {'name': 'others', 'verbose_name': '其他'}
                 ]

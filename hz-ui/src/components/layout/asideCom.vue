@@ -1,53 +1,33 @@
 <template>
-  <el-aside :width="$store.state.isCollapse ? '200px' : '64px'" style="border: 1px;" broder="1px" class="el-side-n">
+  <el-aside
+    :width="$store.state.isCollapse ? '200px' : '64px'"
+    style="border: 1px"
+    broder="1px"
+    class="el-side-n"
+  >
     <!-- style="background-color:#3576d89d" -->
     <!-- :background-color="currentColor" -->
     <el-scrollbar>
-      <el-menu class="el-menu-vertical-demo" :default-active="currentMenu" :collapse="!$store.state.isCollapse"
-        :collapse-transition="false">
+      <el-menu
+        class="el-menu-vertical-demo"
+        :default-active="currentMenu"
+        :collapse="!$store.state.isCollapse"
+        :collapse-transition="false"
+      >
         <div v-show="$store.state.isCollapse" class="top-icon">
-
-          <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg>
-          <span>
-            HZ-MANAGE
-          </span>
+          <!-- <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg> -->
+          <Icon icon="devicon:godot" width="32" height="32" style="margin-right: 5px;" />
+          <h5> HZ-MANAGE </h5>
         </div>
         <div v-show="!$store.state.isCollapse" class="top-icon">
-          <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg>
+          <!-- <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg> -->
+           <Icon icon="devicon:godot"  />
         </div>
-        <!-- <h3 v-show="!$store.state.isCollapse">后台</h3> -->
-        <!-- <template v-for="item in menuInfo" :key="item.name">
-          <template v-if="item.children.length === 0 ? true:false">
-            <el-menu-item 
-              :index="item.name" 
-              @click="goRouter(item)"
-            >
-              <el-icon>
-                <component :is="item.icon" />
-              </el-icon>
-              <span>{{ item.label }}</span>
-            </el-menu-item>
-          </template>
-<template v-if="item.children.length === 0 ? false:true">
-
-              <el-sub-menu index="item.name">
-                <template #title>
-                  <el-icon><User /></el-icon>
-                  <span>{{ item.label }}</span>
-                </template>
-<template v-for="subItem in item.children" :key="subItem.name">
-                  <el-menu-item 
-                    :index="subItem.name"
-                    @click="goRouter(subItem)"
-                  >
-                    {{ subItem.label }}
-                  </el-menu-item>
-                </template>
-</el-sub-menu>
-</template>
-</template> -->
-        <submenu :menu="menu" v-for="menu in menuInfo" :key="menu.name"></submenu>
-
+        <submenu
+          :menu="menu"
+          v-for="menu in showMenu"
+          :key="menu.name"
+        ></submenu>
       </el-menu>
     </el-scrollbar>
   </el-aside>
@@ -55,64 +35,67 @@
 
 <!-- <script setup> -->
 <script setup>
-import { computed, onMounted, getCurrentInstance, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { useStore } from 'vuex'
-import submenu from './sub-menu.vue'
-const currentColor = '#fff'
+import { Icon } from "@iconify/vue/dist/iconify.js";
+import { computed, onMounted, getCurrentInstance, ref, watch } from "vue";
+import { useRouter } from "vue-router";
+import { useStore } from "vuex";
+import submenu from "./sub-menu.vue";
+const currentColor = "#fff";
 
-import useTabsStore from '@/store/tabs'
-const tabsStore = useTabsStore()
+import useTabsStore from "@/store/tabs";
+const tabsStore = useTabsStore();
 
-const currentMenu = computed(() => tabsStore.currentMenu)
-watch(() => currentMenu.value, (n) => {
-  // console.log(n)
-})
+const currentMenu = computed(() => tabsStore.currentMenu);
+watch(
+  () => currentMenu.value,
+  (n) => {
+    // console.log(n)
+  }
+);
 const { proxy } = getCurrentInstance();
-let store = useStore()
-// const menuInfo = ref([
-//   {
-//     path: '/',
-//     name: 'home',
-//     label: '首页',
-//     icon:'HomeFilled'
-//   },
-//   {
-//     name: 'usertop',
-//     label: '用户菜单',
-//     icon: 'User',
-//     children: [
-//       {
-//         path: '/user',
-//         name: 'user',
-//         label: '用户管理',
-//         icon: 'User'
-//       },
-//       {
-//         path: '/role',
-//         name: 'role',
-//         label: '角色管理',
-//         icon: 'Avatar'
-//       }
-//     ]
-//   },
-//   {
-//     path: '/other',
-//     name: 'other',
-//     label: '设置',
-//     icon: 'Tools'
-//   },
-
-//   ])
+let store = useStore();
 const menuInfo = computed(() => {
   // 获取当前定义的所有路由信息
-  return store.state.menuInfo
-})
+  return store.state.menuInfo;
+});
+
+const dealMenu = (data) => {
+  let tmpArr = [];
+
+  for (let item of data) {
+    if (!item.status) continue;
+    let tmpObj = {
+      name: item.name,
+      label: item.label,
+      icon: item.icon,
+      is_iframe: item.is_iframe,
+      meta: item.meta,
+      children: [],
+    };
+    if (item.children && item.children.length > 0) {
+      tmpObj.children = dealMenu(item.children);
+    }
+    tmpArr.push(tmpObj);
+  }
+  return tmpArr;
+};
+
+// 禁用status为false的
+const showMenu = computed(() => {
+  return dealMenu(menuInfo.value);
+});
+watch(
+  () => showMenu.value,
+  (n) => {
+    console.log(n);
+  }
+);
+console.log(showMenu.value);
 const test = computed(() => {
   // console.log(store.state.currentMenu)
-  return store.state.currentMenu
-})
-const currentMenIndex = ref('name')
+  return store.state.currentMenu;
+});
+const currentMenIndex = ref("name");
 // watch(test,(newv,oldv) => {
 //   console.log(newv,oldv)
 // })
@@ -121,7 +104,7 @@ const currentMenIndex = ref('name')
 <style scoped>
 .el-menu {
   /* border-right: 1px; */
-  color: var(--el-text-color-regular)
+  color: var(--el-text-color-regular);
 }
 
 h3 {
@@ -130,8 +113,8 @@ h3 {
   color: #fff;
 }
 
-
-.el-menu-vertical-demo {}
+.el-menu-vertical-demo {
+}
 
 .top-icon {
   display: flex;
@@ -139,7 +122,7 @@ h3 {
   align-items: center;
   height: 56px;
 
-  >span {
+  > span {
     color: var(--el-text-color-regular);
   }
 }

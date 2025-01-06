@@ -64,17 +64,23 @@ html {
     }
   }
 }
+
+// 通用布局
 .flexCenter {
   display: flex;
   align-items: center;
   justify-content:center;
-
 }
 
 .gap-1 {
   gap: 10px
 }
-
+.gap-2 {
+  gap: 2px
+}
+.gap-5 {
+  gap: 5px
+}
 .flexJstart {
   display: flex;
   align-items: center;

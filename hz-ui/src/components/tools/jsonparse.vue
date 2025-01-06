@@ -14,10 +14,10 @@
     <div class="button">
       <el-row :gutter="20">
         <el-col :span="2" >
-          <el-button type="warning" plain tag="b" @click="change" >格式化JSON</el-button>
+          <el-button type="primary" plain tag="b" @click="change" >格式化JSON</el-button>
         </el-col>
         <el-col :span="1" :offset="1">
-          <el-button type="warning" plain tag="b" @click="jsonStr = '',jsonData = ''">清空</el-button>
+          <el-button type="primary" plain tag="b" @click="jsonStr = '',jsonData = ''">清空</el-button>
         </el-col>
       </el-row>
     </div>

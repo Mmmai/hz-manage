@@ -39,8 +39,8 @@ class ExcelHandler:
         if field.type == FieldType.MODEL_REF:
             ref_instances = ModelInstance.objects.filter(
                 model=field.ref_model
-            ).values_list('id', 'name')
-            enum_data = {str(id): name for id, name in ref_instances}
+            ).values_list('id', 'instance_name')
+            enum_data = {str(id): instance_name for id, instance_name in ref_instances}
         else:
             enum_data = json.loads(field.validation_rule.rule)
         
@@ -95,7 +95,7 @@ class ExcelHandler:
         
         # 设置name列标题
         cell = template_sheet[f'{name_col_letter}1']
-        cell.value = "name\r\n实例唯一标识"
+        cell.value = "instance_name\r\n实例唯一标识"
         cell.font = header_font
         cell.fill = required_fill  # 必填标记
         cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
@@ -154,7 +154,18 @@ class ExcelHandler:
             
             logger.info(f'Field name, type and constraints set')
             
-            if field.type == FieldType.MODEL_REF or (field.validation_rule and field.validation_rule.type == FieldType.ENUM):
+            if field.type == FieldType.BOOLEAN:
+                dv = DataValidation(
+                    type='list',
+                    formula1='"TRUE,FALSE"',
+                    allow_blank=True,
+                    showErrorMessage=True,
+                    errorTitle='输入错误',
+                    error='该字段只能输入 TRUE 或 FALSE'
+                )
+                template_sheet.add_data_validation(dv)
+                dv.add(f'{col_letter}4:{col_letter}1048576')
+            elif field.type == FieldType.MODEL_REF or (field.validation_rule and field.validation_rule.type == FieldType.ENUM):
                 try:
                     current_enum_col, constraint = ExcelHandler._handle_enum_data(
                         enum_sheet, field, current_enum_col, 
@@ -163,7 +174,7 @@ class ExcelHandler:
                     constraints.append(constraint)
                 except Exception as e:
                     logger.error(f"Error handling enum data: {str(e)}")
-            elif field.validation_rule:
+            if field.validation_rule:
                 rule = field.validation_rule
                 if rule.type == ValidationType.RANGE:
                     constraints.append(f"数值范围: {rule.rule.replace(',', ' ~ ')}")
@@ -218,7 +229,7 @@ class ExcelHandler:
         # 写入标题行
         col = 1
         name_col = get_column_letter(col)
-        data_sheet[f'{name_col}1'] = "name"
+        data_sheet[f'{name_col}1'] = "instance_name"
         data_sheet[f'{name_col}1'].font = header_font
         data_sheet[f'{name_col}1'].alignment = center_alignment
         
@@ -288,7 +299,7 @@ class ExcelHandler:
             if not {'配置数据', '枚举类型可选值'}.issubset(wb.sheetnames):
                 raise serializers.ValidationError('Invalid file format. Missing required sheets.')
             sheet = wb['配置数据']
-            if sheet['A1'].value != 'name\n实例唯一标识' or \
+            if sheet['A1'].value != 'instance_name\n实例唯一标识' or \
                 sheet['A2'].value != 'string\n字符串' or \
                 sheet['A3'].value != '必填':
                 raise serializers.ValidationError('Invalid file format. Missing required rows in template sheet.')
@@ -355,10 +366,10 @@ class ExcelHandler:
                         if cell.value is not None:
                             row_data[field_name] = cell.value
                             
-                    if row_data:  # 跳过空行
+                    if row_data:
                         results['results']['total'] += 1
                         instance_data = {
-                            'name': data_sheet[f'A{row}'].value,
+                            'instance_name': data_sheet[f'A{row}'].value,
                             'fields': row_data
                         }
                         results['instances'].append(instance_data)
@@ -383,7 +394,7 @@ class ExcelHandler:
             model: 模型实例
             headers: 原始表头列表
             error_data: [{
-                'name': 'instance_name',
+                'instance_name': 'instance_name',
                 'fields': {'field1': 'value1', ...},
                 'error': 'error message'
             }]
@@ -415,7 +426,7 @@ class ExcelHandler:
             # 按headers顺序填充字段值
             fields = error.get('fields', {})
             
-            sheet['A' + str(row)].value = error.get('name')
+            sheet['A' + str(row)].value = error.get('instance_name')
             sheet['A' + str(row)].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             
             for col_idx, header in enumerate(headers, 2):

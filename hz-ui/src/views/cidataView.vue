@@ -75,7 +75,11 @@
               >({{ data.instance_count }})</el-text
             ></el-text
           >
-          <div class="actionClass" :class="{ is_show_action: node.isShowEdit }">
+          <div
+            class="actionClass"
+            :class="{ is_show_action: node.isShowEdit }"
+            v-permission="`${route.name?.replace('_info', '')}:edit`"
+          >
             <!-- <Edit style="width: 1em; height: 1em; margin-right: 8px" @click.stop="editCateName(data)"
             v-if="!data.built_in" /> -->
             <el-space>
@@ -91,6 +95,8 @@
                 <DownOutlined @click.stop />
                 <template #overlay>
                   <a-menu>
+                    <div v-permission="`${route.name?.replace('_info', '')}:add`"
+                    >
                     <a-menu-item
                       key="0"
                       v-if="data.level === 1 ? false : true"
@@ -98,6 +104,8 @@
                     >
                       添加同级节点
                     </a-menu-item>
+                   
+                    
                     <a-menu-item
                       key="1"
                       v-if="canAddChildNone(data)"
@@ -105,6 +113,8 @@
                     >
                       添加子节点
                     </a-menu-item>
+                  </div>
+                  <div v-permission="`${route.name?.replace('_info', '')}:delete`">
                     <a-menu-item
                       key="2"
                       v-if="canDeleteNode(data)"
@@ -112,6 +122,8 @@
                     >
                       删除节点
                     </a-menu-item>
+                  </div>
+      
                   </a-menu>
                 </template>
               </a-dropdown>
@@ -151,6 +163,8 @@ import {
 import { ElMessageBox, ElMessage } from "element-plus";
 import { EditOutlined, DownOutlined, StarTwoTone } from "@ant-design/icons-vue";
 //
+import { useRoute } from "vue-router";
+const route = useRoute();
 import ciDataShow from "../components/cmdb/ciDataShow.vue";
 const { proxy } = getCurrentInstance();
 import { ElTree } from "element-plus";

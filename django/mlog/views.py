@@ -51,6 +51,7 @@ class LogFlowViewSet(APIView):
             # obj.steps.set = a
             bbb = model_to_dict(obj)
             bbb["steps"] = a
+            bbb["id"] = obj.id
             allRes.append(bbb)
         return JsonResponse({"data":allRes})
         
@@ -188,5 +189,4 @@ def test(request):
             birth_date=models.DateField(blank=True, null=True)
             )
         model_a = get_model('test_app', app_label='mlog', fields=al)
-        print(mo)
         return HttpResponse(111222)

@@ -1,6 +1,6 @@
 <template>
-  <el-row style="width: 100%;" justify="space-between">
-    <el-col :span="12" style="display: flex;align-items: center">
+  <el-row style="width: 100%" justify="space-between">
+    <el-col :span="12" style="display: flex; align-items: center">
       <!-- <div class="l-content"> -->
       <el-button @click="changeCollapse" size="small" class="collapseClass">
         <!-- <Menu /> -->
@@ -22,7 +22,9 @@
         {{ currentMenu.name }}
       </el-breadcrumb-item> -->
         <el-breadcrumb-item>首页</el-breadcrumb-item>
-        <el-breadcrumb-item v-if="currentMenuLabel && currentMenuLabel !== '首页'">
+        <el-breadcrumb-item
+          v-if="currentMenuLabel && currentMenuLabel !== '首页'"
+        >
           {{ currentMenuLabel }}
         </el-breadcrumb-item>
       </el-breadcrumb>
@@ -30,13 +32,23 @@
       <!-- <div>
     1111
   </div> -->
-
-
     </el-col>
     <el-col :span="3">
-      <div style="display: flex;justify-content:space-evenly;align-items: center">
-
-        <el-switch v-model="isDark" :active-icon="Moon" :inactive-icon="Sunny" inline-prompt @change="toggleDark" />
+      <div
+        style="
+          display: flex;
+          justify-content: flex-end;
+          align-items: center;
+          gap: 10px;
+        "
+      >
+        <el-switch
+          v-model="isDark"
+          :active-icon="Moon"
+          :inactive-icon="Sunny"
+          inline-prompt
+          @change="toggleDark"
+        />
         <el-dropdown trigger="click">
           <span class="el-dropdown-link">
             <el-icon>
@@ -55,39 +67,37 @@
               <!-- <el-dropdown-item disabled>Action 4</el-dropdown-item> -->
               <!-- <el-dropdown-item divided>Action 5</el-dropdown-item> -->
             </el-dropdown-menu>
-
           </template>
         </el-dropdown>
       </div>
-
     </el-col>
   </el-row>
-
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { useStore } from 'vuex'
-import { ArrowRight } from '@element-plus/icons-vue'
-import router from '@/router';
-import { ElMessageBox } from 'element-plus'
+import { ref, computed, watch } from "vue";
+import { useStore } from "vuex";
+import { ArrowRight } from "@element-plus/icons-vue";
+import router from "@/router";
+import { ElMessageBox } from "element-plus";
 import { Sunny, Moon } from "@element-plus/icons-vue";
 import { useDark, useToggle } from "@vueuse/core";
-import useTabsStore from '@/store/tabs'
+import useTabsStore from "@/store/tabs";
 
-
-const tabsStore = useTabsStore()
-const currentMenuLabel = computed(() => { return tabsStore.currentTitle })
+const tabsStore = useTabsStore();
+const currentMenuLabel = computed(() => {
+  return tabsStore.currentTitle;
+});
 const isDark = useDark();
 
 const toggleDark = useToggle(isDark);
-let store = useStore()
-const collapse = ref(true)
+let store = useStore();
+const collapse = ref(true);
 const changeCollapse = () => {
   //调用vuex中的
-  store.commit("changeIsCollapse")
-  collapse.value = store.state.isCollapse
-}
+  store.commit("changeIsCollapse");
+  collapse.value = store.state.isCollapse;
+};
 // const currentMenuLabel = computed(() => {
 //   // console.log(store.state.currentMenu)
 //   return store.state.currentMenu
@@ -95,32 +105,34 @@ const changeCollapse = () => {
 // const currentMenu = ref('')
 
 const currenUsername = computed(() => {
-  return store.state.username
-})
+  return store.state.username;
+});
 // console.log('所有路由记录:', router.getRoutes())
 
 // console.log(currentMenu)
 const handleLogout = (done) => {
-  ElMessageBox.confirm('是否退出?')
+  ElMessageBox.confirm("是否退出?")
     .then(() => {
-      store.commit('updateDynamicCreateRoute', false)
+      store.commit("updateDynamicCreateRoute", false);
+      // tabsStore.setTabs([]);
+      tabsStore.setTabs([]);
+
       localStorage.clear();
-      router.push({ name: "login" })
+      // 清楚tab打开的菜单列表
+      router.push({ name: "login" });
       // window.location.reload()
-
-      done()
-
     })
-    .catch(() => {
+    .catch((error) => {
+      console.log(123);
       // catch error
-    })
-
-}
+      console.error("发生错误: " + error);
+    });
+};
 </script>
 <style scoped>
 .l-content {
   display: flex;
-  align-items: center
+  align-items: center;
 }
 
 .collapseClass {
@@ -128,6 +140,6 @@ const handleLogout = (done) => {
 }
 
 .el-dropdown {
-  align-items: center
+  align-items: center;
 }
 </style>

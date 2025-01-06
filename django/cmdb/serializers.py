@@ -19,7 +19,7 @@ from types import SimpleNamespace
 from cacheops import invalidate_model, invalidate_obj
 from .utils import password_handler
 from .validators import FieldValidator
-from .constants import FieldMapping, ValidationType, FieldType
+from .constants import FieldMapping, ValidationType, FieldType, limit_field_names
 from .models import (
     ModelGroups,
     Models,
@@ -311,9 +311,13 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, data):
+        if data.get('name') in limit_field_names:
+            raise serializers.ValidationError({
+                'name': f"Field name '{data.get('name')}' is conflict with system reserved field names"
+            })
         if self.instance:
             if not self.instance.editable:
-                restricted_fields = ['name', 'verbose_name', 'type','validation', 'validation_rule']
+                restricted_fields = ['name', 'model', 'verbose_name', 'type','validation', 'validation_rule']
                 for field in restricted_fields:
                     if field in data and data[field] != getattr(self.instance, field):
                         raise PermissionDenied({
@@ -486,6 +490,12 @@ class UniqueConstraintSerializer(serializers.ModelSerializer):
                 'detail': 'Built-in unique constraint cannot be modified'
             })
             
+        for field in fields:
+            if field not in ModelFields.objects.filter(model=model).values_list('name', flat=True):
+                raise serializers.ValidationError({
+                    'fields': f'Field {field} does not exist in model {model.name}'
+                })
+        
         # 在应用层检查数组长度和内容
         for constraint in existing:
             if (len(constraint.fields) == len(fields) and 
@@ -666,12 +676,12 @@ class ModelFieldMetaNestedSerializer(ModelFieldMetaSerializer):
                 # 转换为嵌套字典
                 data['data'] = {
                     'id': str(ref_instance.id),
-                    'name': ref_instance.name
+                    'instance_name': ref_instance.instance_name
                 }
             except ModelInstance.DoesNotExist:
                 data['data'] = {
                     'id': data['data'],
-                    'name': None
+                    'instance_name': None
                 }
         elif instance.model_fields.type == FieldType.ENUM:
             if instance.model_fields.validation_rule \
@@ -704,10 +714,10 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = ModelInstance
-        fields = ['id', 'model', 'name',  'create_time', 'update_time', 'create_user', 'update_user', 'fields', 'field_values', 'instance_group']
+        fields = ['id', 'model', 'instance_name',  'create_time', 'update_time', 'create_user', 'update_user', 'fields', 'field_values', 'instance_group']
         extra_kwargs = {
             'model': {'required': False},
-            'name': {'required': False},
+            'instance_name': {'required': False},
             'create_user': {'required': False},
             'update_user': {'required': False}
         }
@@ -736,6 +746,8 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
         """验证字段值"""
         request = self.context.get('request', None)
         from_excel = self.context.get('from_excel', False)
+        if from_excel:
+            return fields_data
         if request and request.method in ['PUT', 'POST']:
             model = self.initial_data.get('model')
             if not model:
@@ -813,7 +825,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 target_model = field.ref_model
                 instance = ModelInstance.objects.filter(
                     model=target_model,
-                    name=value
+                    instance_name=value
                 ).first()
                 if instance:
                     return str(instance.id)
@@ -925,7 +937,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 for field in re.findall(r'\{([^}]+)\}', template)
             ]
         else:
-            raise serializers.ValidationError("Name template is required")
+            raise serializers.ValidationError("Instance name template is required")
         
         empty_fields = [
             field for field in required_fields 
@@ -942,72 +954,76 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
         
         return template.format(**fields_data)
 
-    def validate_name(self, value):
+    def validate_instance_name(self, value):
         """验证实例名称"""
         request = self.context.get('request')
+        from_excel = self.context.get('from_excel', False)
         if not request:
             return value
+        
+        if not from_excel:
+            is_create = request.method == 'POST'
+            if 'model' in request.data:
+                model = Models.objects.filter(id=request.data['model']).first()
+            else:
+                model = self.instance.model if self.instance else None
+            fields_data = request.data.get('fields', {})
+            logger.info(f'Fields data: {fields_data}')
             
-        is_create = request.method == 'POST'
-        if 'model' in request.data:
-            model = Models.objects.filter(id=request.data['model']).first()
+            
+            # 创建时如果未提供name则生成
+            if not value and is_create:
+                if not model or not model.instance_name_template:
+                    raise serializers.ValidationError("Neither instance_name nor instance_name_template provided")
+                    
+                try:
+                    value = self._format_name_with_validation(
+                        model.instance_name_template, 
+                        fields_data
+                    )
+                except KeyError as e:
+                    raise serializers.ValidationError(f"Key not found in fields data: {str(e)}")
+                except Exception as e:
+                    raise serializers.ValidationError(f"Error generating instance_name: {str(e)}")
+            
+            if not value and not is_create and ('instance_name' not in request.data or not request.data['instance_name']):
+                try:
+                    db_fields = ModelFieldMeta.objects.filter(
+                        model_instance=self.instance
+                    ).select_related('model_fields').values(
+                        'model_fields__name', 'data'
+                    )
+                    db_fields = {
+                        item['model_fields__name']: item['data']
+                        for item in db_fields
+                    }
+                    merged_fields = db_fields.copy()
+                    merged_fields.update(fields_data)
+                    logger.info(f'Merged fields: {merged_fields}')
+                    value = self._format_name_with_validation(
+                        self.instance.model.instance_name_template, 
+                        merged_fields
+                    )
+                except KeyError as e:
+                    raise serializers.ValidationError(f"Key not found in fields data: {str(e)}")
+                except Exception as e:
+                    raise serializers.ValidationError(f"Error generating instance_name: {str(e)}")
+        
+            # 验证唯一性
+            if value:
+                name_exists_query = ModelInstance.objects.filter(
+                    model=model,
+                    instance_name=value
+                )
+                if not is_create:
+                    name_exists_query = name_exists_query.exclude(id=self.instance.id)
+                    
+                if name_exists_query.exists():
+                    raise serializers.ValidationError(f"Instance_name {value} already exists in model {model.name}")
+            
+            return value
         else:
-            model = self.instance.model if self.instance else None
-        fields_data = request.data.get('fields', {})
-        logger.info(f'Fields data: {fields_data}')
-        
-        
-        # 创建时如果未提供name则生成
-        if not value and is_create:
-            if not model or not model.instance_name_template:
-                raise serializers.ValidationError("Neither name nor name template provided")
-                
-            try:
-                value = self._format_name_with_validation(
-                    model.instance_name_template, 
-                    fields_data
-                )
-            except KeyError as e:
-                raise serializers.ValidationError(f"Key not found in fields data: {str(e)}")
-            except Exception as e:
-                raise serializers.ValidationError(f"Error generating name: {str(e)}")
-        
-        if not value and not is_create and ('name' not in request.data or not request.data['name']):
-            try:
-                db_fields = ModelFieldMeta.objects.filter(
-                    model_instance=self.instance
-                ).select_related('model_fields').values(
-                    'model_fields__name', 'data'
-                )
-                db_fields = {
-                    item['model_fields__name']: item['data']
-                    for item in db_fields
-                }
-                merged_fields = db_fields.copy()
-                merged_fields.update(fields_data)
-                logger.info(f'Merged fields: {merged_fields}')
-                value = self._format_name_with_validation(
-                    self.instance.model.instance_name_template, 
-                    merged_fields
-                )
-            except KeyError as e:
-                raise serializers.ValidationError(f"Key not found in fields data: {str(e)}")
-            except Exception as e:
-                raise serializers.ValidationError(f"Error generating name: {str(e)}")
-        
-        # 验证唯一性
-        if value:
-            name_exists_query = ModelInstance.objects.filter(
-                model=model,
-                name=value
-            )
-            if not is_create:
-                name_exists_query = name_exists_query.exclude(id=self.instance.id)
-                
-            if name_exists_query.exists():
-                raise serializers.ValidationError(f"Name {value} already exists in model {model.name}")
-        
-        return value
+            return value
 
     def _validate_field_value(self, field, value):
         """验证单个字段值"""
@@ -1514,7 +1530,7 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
 class ModelInstanceBasicViewSerializer(ModelInstanceSerializer):
     class Meta:
         model = ModelInstance
-        fields = ['id', 'model', 'name', 'create_time', 'update_time', 'create_user', 'update_user']
+        fields = ['id', 'model', 'instance_name', 'create_time', 'update_time', 'create_user', 'update_user']
         
     def to_representation(self, instance):
         return super(ModelInstanceSerializer, self).to_representation(instance)

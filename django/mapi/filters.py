@@ -2,6 +2,7 @@ from django_filters import rest_framework as filters
 # import django_filters as filters
 from .models import (
 Role,
+Button,
 sysConfigParams
   )
 
@@ -26,5 +27,12 @@ class roleFilter(filters.FilterSet):
         model = Role
         fields = [
             'role',
+        ]
+class buttonFilter(filters.FilterSet):
+    menu = filters.CharFilter(field_name='menu')
+    class Meta:
+        model = Button
+        fields = [
+            'menu',
         ]
         

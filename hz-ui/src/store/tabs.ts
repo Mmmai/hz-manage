@@ -68,14 +68,10 @@ export const useTabsStore = defineStore(
       console.log('删除tabs', tabPath)
       if (isCurrent) {
         tabsMenuList.value.forEach((item, index) => {
-          console.log('进入')
 
           if (item.path !== tabPath) return;
-          console.log('进入这里')
           const nextTab = tabsMenuList.value[index + 1] || tabsMenuList.value[index - 1];
           if (!nextTab) return;
-          console.log(nextTab.path)
-          router.push(nextTab.fullPath);
           // currentTitle.value = nextTab.title
           // console.log(currentTitle.value)
         });
@@ -101,8 +97,8 @@ export const useTabsStore = defineStore(
 
       // })
     }
-    const setTabs = (tabsMenuList: TabsMenuProps[]) => {
-      tabsMenuList.value = tabsMenuList;
+    const setTabs = (params: TabsMenuProps[]) => {
+      tabsMenuList.value = params;
     }
     return {
       tabsMenuList,
