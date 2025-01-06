@@ -15,11 +15,13 @@
         :collapse-transition="false"
       >
         <div v-show="$store.state.isCollapse" class="top-icon">
-          <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg>
-          <span> HZ-MANAGE </span>
+          <!-- <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg> -->
+          <Icon icon="devicon:godot" width="32" height="32" style="margin-right: 5px;" />
+          <h5> HZ-MANAGE </h5>
         </div>
         <div v-show="!$store.state.isCollapse" class="top-icon">
-          <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg>
+          <!-- <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg> -->
+           <Icon icon="devicon:godot"  />
         </div>
         <submenu
           :menu="menu"
@@ -33,6 +35,7 @@
 
 <!-- <script setup> -->
 <script setup>
+import { Icon } from "@iconify/vue/dist/iconify.js";
 import { computed, onMounted, getCurrentInstance, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useStore } from "vuex";

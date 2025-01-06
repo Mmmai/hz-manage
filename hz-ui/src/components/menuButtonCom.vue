@@ -108,9 +108,9 @@ const showDrawer = defineModel("showDrawer");
 import { useRoute } from "vue-router";
 const route = useRoute();
 import axios from "axios";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessage, ElMessageBox,FormInstance} from "element-plus";
 import { CircleClose, Delete, Edit, Warning } from "@element-plus/icons-vue";
-const formRef = ref(null);
+const formRef = ref<FormInstance>();
 const menuButtonList = ref([]);
 const updateMenuButtonList = (params) => {
   menuButtonList.value = params;

@@ -37,8 +37,9 @@
       <div
         style="
           display: flex;
-          justify-content: space-evenly;
+          justify-content: flex-end;
           align-items: center;
+          gap: 10px;
         "
       >
         <el-switch

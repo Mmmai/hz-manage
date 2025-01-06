@@ -95,6 +95,8 @@
                 <DownOutlined @click.stop />
                 <template #overlay>
                   <a-menu>
+                    <div v-permission="`${route.name?.replace('_info', '')}:add`"
+                    >
                     <a-menu-item
                       key="0"
                       v-if="data.level === 1 ? false : true"
@@ -102,6 +104,8 @@
                     >
                       添加同级节点
                     </a-menu-item>
+                   
+                    
                     <a-menu-item
                       key="1"
                       v-if="canAddChildNone(data)"
@@ -109,6 +113,8 @@
                     >
                       添加子节点
                     </a-menu-item>
+                  </div>
+                  <div v-permission="`${route.name?.replace('_info', '')}:delete`">
                     <a-menu-item
                       key="2"
                       v-if="canDeleteNode(data)"
@@ -116,6 +122,8 @@
                     >
                       删除节点
                     </a-menu-item>
+                  </div>
+      
                   </a-menu>
                 </template>
               </a-dropdown>

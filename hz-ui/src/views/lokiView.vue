@@ -421,7 +421,7 @@ const matchKeyOptions = [
     text: "反向正则",
   },
 ];
-const resultLogs = ref({});
+const resultLogs = ref<any>({});
 const isDownload = ref(false);
 const logData = ref([]);
 const onSubmitIsLoading = ref(false);

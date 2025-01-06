@@ -63,28 +63,30 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item
+              <div  v-permission="`${route.name?.replace('_info', '')}:delete`">
+                <el-dropdown-item
                 :disabled="!(multipleSelect.length >>> 0)"
                 @click="bulkDelete()"
                 >批量删除</el-dropdown-item
               >
+              </div>
+              <div v-permission="`${route.name?.replace('_info', '')}:export`"
+              >
               <el-dropdown-item
-                v-permission="`${route.name?.replace('_info', '')}:export`"
                 :disabled="!(multipleSelect.length >>> 0)"
                 @click="exportSelect(false)"
                 >导出勾选(显示字段)</el-dropdown-item
               >
               <el-dropdown-item
-                v-permission="`${route.name?.replace('_info', '')}:export`"
                 :disabled="!(multipleSelect.length >>> 0)"
                 @click="exportSelect(true)"
                 >导出勾选(所有字段)</el-dropdown-item
               >
               <el-dropdown-item
-                v-permission="`${route.name?.replace('_info', '')}:export`"
                 @click="exportAll()"
                 >导出所有</el-dropdown-item
               >
+              </div>
             </el-dropdown-menu>
           </template>
         </el-dropdown>

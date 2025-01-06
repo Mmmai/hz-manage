@@ -326,8 +326,8 @@ const formLabelAlign = reactive({
   group: "",
   describe: "",
   status: true,
-  stepList: [{ step: "" }],
-  steps: [],
+  stepList: <any>[{ step: "" }],
+  steps: <any>[],
 });
 // 重置表单
 const resetForm = () => {
@@ -336,7 +336,7 @@ const resetForm = () => {
     formLabelAlign[key] = initFormLabelAlign[key];
   });
   // 重置环节对象
-  let tempLogModuleOptions = [];
+  let tempLogModuleOptions = <any>[];
   logModuleOptions.value.forEach((item) => {
     item.disabled = false;
     tempLogModuleOptions.push(item);
@@ -360,7 +360,7 @@ watch(
     }
     formLabelAlign.steps = [];
     let tempLogModuleOptions = [];
-    let tempStepList = [];
+    let tempStepList = <any>[];
     n.forEach((item) => {
       if (formLabelAlign.steps.indexOf(item.step) === -1 && item.step != "") {
         formLabelAlign.steps.push(item.step);
@@ -385,8 +385,8 @@ watch(
 // 分组
 // const groupSelectOptions = ref([])
 // 获取日志流列表
-const logFlowList = ref([]);
-const logFlowOptions = ref([]);
+const logFlowList = ref<any>([]);
+const logFlowOptions = ref<any>([]);
 // const groupList = ref([])
 const showDataList = ref([]);
 
@@ -424,7 +424,7 @@ const getLogFlowList = async () => {
 };
 // const groupOptions = ref(['所有'])
 const groupSelectOptions = computed(() => {
-  let tempList = [];
+  let tempList = <any>[];
   logFlowList.value.forEach((item) => {
     if (!tempList.includes({ value: item.group, label: item.group }))
       tempList.push({ value: item.group, label: item.group });
@@ -468,12 +468,12 @@ watch(
   }
 );
 // 获取环节列表
-const logModuleOptions = ref([]);
+const logModuleOptions = ref<any>([]);
 const logModuleObj = ref({});
 const getLogModuleOptions = async () => {
   let res = await proxy.$api.getLogModule();
   // console.log(res)
-  res.data.results.forEach((item) => {
+  res.data.results?.forEach((item) => {
     if (item.status) {
       logModuleOptions.value.push({ label: item.module_name, value: item.id });
       logModuleObj.value[item.id] = item;
@@ -522,7 +522,7 @@ const editLogFlow = (row) => {
   dialogVisible.value = true;
   isAdd.value = false;
   nowId.value = row.id;
-  let stepListTemp = [];
+  let stepListTemp = <any>[];
   row.steps.forEach((item) => {
     stepListTemp.push({ step: item });
   });
@@ -639,8 +639,7 @@ const currenUsername = computed(() => {
 // 日志分析功能代码
 // 点击检索
 const openSearch = ref(false);
-window.__TestOpenSearch = openSearch;
-const dataSourceOptions = ref([]);
+const dataSourceOptions = <any>ref([]);
 const searchForm = reactive({
   dataSourceId: "",
   dataSourceName: "",
