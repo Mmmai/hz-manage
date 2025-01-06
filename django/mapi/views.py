@@ -289,7 +289,16 @@ class RoleViewSet(ModelViewSet):
                     button_obj = Button.objects.get(id=button_id)
                     Permission.objects.create(role=instance,menu=button_obj.menu,button=button_obj)
                     print(f"为角色<{instance.role}>添加<${button_obj.action}>权限!")
-
+                    # 如果有其他按钮权限，查看的权限应该同步添加，就算用户没有勾选！
+                    if button_obj.action == "view":
+                        pass
+                    else:
+                        view_button_obj = Button.objects.get(action="view",menu=button_obj.menu)
+                        view_per_obj, created = Permission.objects.get_or_create(role=instance,menu=button_obj.menu,button=view_button_obj)
+                        if created:
+                            print(f"为角色<{instance.role}>添加<${view_button_obj.action}>权限!")
+                        else:
+                            print(f"为角色<{instance.role}>已拥有<${view_button_obj.action}>权限!")
         return Response(serializer.data)
 
 class MenuViewSet(ModelViewSet):

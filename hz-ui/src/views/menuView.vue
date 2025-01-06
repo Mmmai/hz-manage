@@ -4,7 +4,11 @@
       <div style="width: 100%">
         <div class="user-header">
           <div>
-            <el-button type="primary" size="small" @click="handleAdd"
+            <el-button
+              v-permission="`${route.name?.replace('_info', '')}:add`"
+              type="primary"
+              size="small"
+              @click="handleAdd"
               >+新增</el-button
             >
           </div>
@@ -40,10 +44,13 @@
               :key="item.prop"
               :label="item.label"
               :prop="item.prop"
-              
             >
               <template #default="scope" v-if="item.prop === 'is_menu'">
                 <el-switch
+                  v-permission="{
+                    id: `${route.name?.replace('_info', '')}:edit`,
+                    action: 'disabled',
+                  }"
                   v-model="scope.row.is_menu"
                   class="ml-2"
                   style="
@@ -55,6 +62,10 @@
               </template>
               <template #default="scope" v-if="item.prop === 'status'">
                 <el-switch
+                  v-permission="{
+                    id: `${route.name?.replace('_info', '')}:edit`,
+                    action: 'disabled',
+                  }"
                   v-model="scope.row.status"
                   class="ml-2"
                   style="
@@ -79,53 +90,62 @@
 
                 </el-icon> -->
                 <el-space wrap>
-                  <el-tag type="success" round effect="plain" :key="aItem.id" v-for="aItem in scope.row.buttons">{{ aItem.name }}</el-tag>
-
+                  <el-tag
+                    type="success"
+                    round
+                    effect="plain"
+                    :key="aItem.id"
+                    v-for="aItem in scope.row.buttons"
+                    >{{ aItem.name }}</el-tag
+                  >
                 </el-space>
               </template>
             </el-table-column>
-            <el-table-column fixed="right" label="操作" width="200" >
+            <el-table-column fixed="right" label="操作" width="200">
               <template #default="scope">
                 <el-tooltip
-            class="box-item"
-            effect="dark"
-            content="编辑按钮"
-            placement="top"
-            v-if="scope.row.is_menu"
-          >
-            <el-button
-              link
-              type="primary"
-              :icon="Pointer"
-              @click="buttonEdit(scope.row)"
-            ></el-button>
-          </el-tooltip>
+                  class="box-item"
+                  effect="dark"
+                  content="编辑按钮"
+                  placement="top"
+                  v-if="scope.row.is_menu"
+                >
+                  <el-button
+                    v-permission="`${route.name?.replace('_info', '')}:edit`"
+                    link
+                    type="primary"
+                    :icon="Pointer"
+                    @click="buttonEdit(scope.row)"
+                  ></el-button>
+                </el-tooltip>
                 <el-tooltip
-            class="box-item"
-            effect="dark"
-            content="编辑菜单"
-            placement="top"
-          >
-            <el-button
-              link
-              type="primary"
-              :icon="Edit"
-              @click="handleEdit(scope.row)"
-            ></el-button>
-          </el-tooltip>
-            <el-tooltip
-            class="box-item"
-            effect="dark"
-            content="删除"
-            placement="top"
-          >
-            <el-button
-              link
-              type="danger"
-              :icon="Delete"
-              @click="handleDelete(scope.row)"
-            ></el-button>
-          </el-tooltip>
+                  class="box-item"
+                  effect="dark"
+                  content="编辑菜单"
+                  placement="top"
+                >
+                  <el-button
+                    v-permission="`${route.name?.replace('_info', '')}:edit`"
+                    link
+                    type="primary"
+                    :icon="Edit"
+                    @click="handleEdit(scope.row)"
+                  ></el-button>
+                </el-tooltip>
+                <el-tooltip
+                  class="box-item"
+                  effect="dark"
+                  content="删除"
+                  placement="top"
+                >
+                  <el-button
+                    v-permission="`${route.name?.replace('_info', '')}:delete`"
+                    link
+                    type="danger"
+                    :icon="Delete"
+                    @click="handleDelete(scope.row)"
+                  ></el-button>
+                </el-tooltip>
               </template>
             </el-table-column>
           </el-table>
@@ -308,9 +328,12 @@
         <!-- </div> -->
       </el-form>
     </el-dialog>
-    <menuButtonCom ref="menuButtonComRef" v-model:showDrawer="showButtonDia" :nowMenu="nowMenu" @getMenuData="getMenuData" />
-
-
+    <menuButtonCom
+      ref="menuButtonComRef"
+      v-model:showDrawer="showButtonDia"
+      :nowMenu="nowMenu"
+      @getMenuData="getMenuData"
+    />
   </div>
 </template>
 
@@ -318,7 +341,8 @@
 import { getCurrentInstance, onMounted, ref, reactive } from "vue";
 import iconSelectCom from "../components/iconSelectCom.vue";
 import menuButtonCom from "../components/menuButtonCom.vue";
-
+import { useRoute } from "vue-router";
+const route = useRoute();
 import { Icon } from "@iconify/vue";
 
 import { useStore } from "vuex";
@@ -373,8 +397,8 @@ const menuListCol = ref([
   },
   {
     prop: "buttons",
-    label: "权限按钮"
-  }
+    label: "权限按钮",
+  },
 ]);
 // 分页变量
 const currentPage = ref(1);
@@ -518,8 +542,8 @@ const handleCommit = () => {
           proxy.$refs.userFrom.resetFields();
           getMenuData();
           await store.dispatch("getRoleMenu", {
-        role: store.state.role,
-      });
+            role: store.state.role,
+          });
         } else {
           ElMessage({
             showClose: true,
@@ -530,7 +554,6 @@ const handleCommit = () => {
       }
       // getMenuData();
       // 更新路由
-
     } else {
       ElMessage({
         showClose: true,
@@ -664,16 +687,16 @@ const updateIsMenu = async (param) => {
 };
 // const iconName = ref('ElemeFilled')
 
-const showButtonDia = ref(false)
-const nowMenu = ref({})
+const showButtonDia = ref(false);
+const nowMenu = ref({});
 // 按钮编辑
-const menuButtonComRef = ref(null)
-const buttonEdit = (row)=>{
-  showButtonDia.value = true
+const menuButtonComRef = ref(null);
+const buttonEdit = (row) => {
+  showButtonDia.value = true;
   // console.log
-  nowMenu.value = row
-  menuButtonComRef.value!.updateMenuButtonList(row.buttons)
-}
+  nowMenu.value = row;
+  menuButtonComRef.value!.updateMenuButtonList(row.buttons);
+};
 </script>
 <style scoped lang="less">
 .el-pagination {

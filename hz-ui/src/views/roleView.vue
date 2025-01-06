@@ -2,7 +2,11 @@
   <div class="card">
     <div class="user-header">
       <div>
-        <el-button type="primary" size="small" @click="handleAdd"
+        <el-button
+          type="primary"
+          size="small"
+          @click="handleAdd"
+          v-permission="`${route.name?.replace('_info', '')}:add`"
           >新增</el-button
         >
       </div>
@@ -66,12 +70,14 @@
             > -->
             <el-button
               link
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
               type="primary"
               :icon="Edit"
               :disabled="scope.row.role == 'sysadmin' ? true : false"
               @click="handleEdit(scope.row)"
             ></el-button>
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:delete`"
               :disabled="scope.row.role == 'sysadmin' ? true : false"
               link
               type="danger"
@@ -83,13 +89,12 @@
       </el-table>
       <!-- 分页 -->
     </div>
-
   </div>
   <!-- 新增的弹出框 -->
   <el-dialog
     v-model="dialogVisible"
     :title="action == 'add' ? '新增角色' : '编辑角色'"
-    width="40%"
+    width="50%"
     :before-close="handleClose"
   >
     <el-form
@@ -105,21 +110,22 @@
           v-model="formInline.role"
           placeholder="请输入英文"
           clearable
-          style="width: 30%;"
+          style="width: 30%"
           :disabled="isDisabled"
         />
       </el-form-item>
-      <el-form-item label="角色名称" prop="role_name" :rules="[{ required: true }]">
+      <el-form-item
+        label="角色名称"
+        prop="role_name"
+        :rules="[{ required: true }]"
+      >
         <el-input
           v-model="formInline.role_name"
           placeholder="中文名称"
-          style="width: 30%;"
-
+          style="width: 30%"
           clearable
           :disabled="isDisabled"
         />
-
-
       </el-form-item>
       <el-form-item label="菜单授权" prop="rolePermission">
         <div style="border: 1px solid var(--el-border-color); width: 90%">
@@ -133,9 +139,14 @@
             :expand-on-click-node="false"
             :props="{ class: customNodeClass }"
           >
-          <template #default="{ node, data }">
-              <span style="padding-left: 0px;">{{ node.label }}</span>
-      </template> 
+            <template #default="{ node, data }">
+              <span
+                :class="{
+                  buttonList: data.tree_type === 'button' ? true : false,
+                }"
+                >{{ node.label }}</span
+              >
+            </template>
           </el-tree>
         </div>
       </el-form-item>
@@ -161,12 +172,21 @@ import {
   toRaw,
   nextTick,
 } from "vue";
+import { useRoute } from "vue-router";
+const route = useRoute();
 const currentSelectRow = ref({});
 const { proxy } = getCurrentInstance();
 import { ElMessageBox, ElMessage } from "element-plus";
-const customNodeClass = ({ tree_type }, node) =>{
-  return tree_type === "menu" ? 'is-penultimate' : ''
-}
+const customNodeClass = ({ tree_type }, node) => {
+  if (tree_type === "menu") {
+    return "is-menu";
+  } else if (tree_type === "button") {
+    return "is-button";
+  } else {
+    return "";
+  }
+};
+
 // 搜素框变量
 const filterObject = reactive({
   search: "",
@@ -240,11 +260,10 @@ const handleClick = (val) => {
   // console.log(val)
   currentSelectRow.value = val;
 };
-const test = ()=>{
-  console.log(menuTreeRef.value!.getCheckedKeys())  
-  console.log(menuTreeRef.value!.getCheckedNodes())    
-
-}
+const test = () => {
+  console.log(menuTreeRef.value!.getCheckedKeys());
+  console.log(menuTreeRef.value!.getCheckedNodes());
+};
 // 弹出框
 
 // 新增按钮
@@ -252,7 +271,7 @@ const dialogVisible = ref(false);
 // from表单数据
 const formInline = reactive({
   role: "",
-  role_name:"",
+  role_name: "",
   rolePermission: [],
 });
 const action = ref("add");
@@ -281,11 +300,24 @@ const handleClose = (done) => {
       // catch error
     });
 };
+
+const rmMenuId = computed(() => {
+  // getCheckNodeList.value
+  let tmpArr = new Array();
+  menuTreeRef.value!.getCheckedNodes().forEach((item) => {
+    if (item.tree_type === "button") {
+      tmpArr.push(item.id);
+    }
+  });
+  return tmpArr;
+});
+// const getCheckNodeList = ref([]);
 // 点击触发提交
 const handleCommit = () => {
   // let newMenuList = menuTreeRef.value.getCheckedKeys().concat(menuTreeRef.value.getHalfCheckedKeys())
   // 更新对应关系
-  formInline.rolePermission = menuTreeRef.value!.getCheckedKeys();
+  // getCheckNodeList.value = menuTreeRef.value!.getCheckedNodes();
+  formInline.rolePermission = rmMenuId.value;
   // getCheckedKeys()
   console.log(JSON.stringify(formInline));
 
@@ -304,7 +336,7 @@ const handleCommit = () => {
           proxy.$refs.userFrom.resetFields();
           setCheckedKeys([]);
           getRoleData();
-          console.log(menuTreeRef.value!.getCheckedKeys())
+          console.log(menuTreeRef.value!.getCheckedKeys());
         } else {
           ElMessage({
             showClose: true,
@@ -315,10 +347,9 @@ const handleCommit = () => {
       }
       // 编辑接口
       else {
-
         let res = await proxy.$api.roleupdate({
           id: nowRow.value.id,
-          ...formInline
+          ...formInline,
         });
         console.log(res);
         if (res.status == 200) {
@@ -326,7 +357,7 @@ const handleCommit = () => {
           // 重置表单
           proxy.$refs.userFrom.resetFields();
           setCheckedKeys([]);
-          console.log(menuTreeRef.value!.getCheckedKeys())
+          console.log(menuTreeRef.value!.getCheckedKeys());
 
           getRoleData();
           ElMessage({
@@ -352,11 +383,11 @@ const handleCommit = () => {
 };
 
 // 编辑
-const nowRow = ref({})
+const nowRow = ref({});
 const handleEdit = (row) => {
-  console.log(row)
+  console.log(row);
   action.value = "edit";
-  nowRow.value = row
+  nowRow.value = row;
   dialogVisible.value = true;
   // 清除新增按钮会显示编辑按钮的记录
   // proxy.$nextTick(() => {
@@ -364,7 +395,7 @@ const handleEdit = (row) => {
   // });
   nextTick(() => {
     Object.keys(formInline).forEach((item) => {
-        formInline[item] = row[item];
+      formInline[item] = row[item];
     });
   });
   // setCheckedKeys(row.menu)
@@ -443,7 +474,6 @@ const setCheckedKeys = (val) => {
   nextTick().then(() => {
     menuTreeRef.value!.setCheckedKeys(val, false);
     console.log(menuTreeRef.value!.getCheckedKeys());
-
   });
 };
 
@@ -483,12 +513,17 @@ watch(
   display: flex;
   align-items: flex-start;
 }
-:deep(.el-tree .el-tree-node.is-penultimate > .el-tree-node__children) {
+:deep(.el-tree .el-tree-node.is-menu > .el-tree-node__children) {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
 }
-/* .is-penultimate > .el-tree-node__children > div {
+:deep(
+    .el-tree .el-tree-node.is-button > .el-tree-node__content:not(:first-child)
+  ) {
+  padding-left: 10px !important;
+}
+/* .is-menu > .el-tree-node__children > div {
   width: 25%;
 } */
-
 </style>

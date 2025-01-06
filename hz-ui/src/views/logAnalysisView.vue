@@ -30,7 +30,12 @@
         <el-segmented v-model="group" :options="groupOptions" size="large" />
       </el-col>
       <el-col :span="1">
-        <el-button type="primary" @click="addLogFlow">添加</el-button></el-col
+        <el-button
+          v-permission="`${route.name?.replace('_info', '')}:add`"
+          type="primary"
+          @click="addLogFlow"
+          >添加</el-button
+        ></el-col
       >
     </el-row>
     <!-- <el-button type="primary" @click="addLogFlow">添加</el-button>     -->
@@ -53,6 +58,7 @@
             <!-- <el-button class="button" text>Operation button</el-button> -->
             <div style="display: flex; justify-content: space-between">
               <el-button
+                v-permission="`${route.name?.replace('_info', '')}:edit`"
                 type="primary"
                 size="small"
                 :icon="Edit"
@@ -60,6 +66,7 @@
                 @click.stop="editLogFlow(fItem)"
               />
               <el-button
+                v-permission="`${route.name?.replace('_info', '')}:delete`"
                 type="danger"
                 size="small"
                 :icon="Delete"
@@ -304,7 +311,8 @@ import {
 import { Delete, Edit, CirclePlus } from "@element-plus/icons-vue";
 const { proxy } = getCurrentInstance();
 import { ElMessageBox, ElMessage } from "element-plus";
-
+import { useRoute } from "vue-router";
+const route = useRoute();
 const initFormLabelAlign = {
   name: "",
   group: "",

@@ -14,7 +14,12 @@
           @click="showTree = true"
           size="default"
         ></el-button>
-        <el-button type="primary" @click="addCiData" v-permission="`${route.name?.replace('_info', '')}:add`" >添加</el-button>
+        <el-button
+          type="primary"
+          @click="addCiData"
+          v-permission="`${route.name?.replace('_info', '')}:add`"
+          >添加</el-button
+        >
         <!-- <el-button @click="isShowUpload = true">导入</el-button> -->
         <el-button
           :disabled="!(multipleSelect.length >>> 0)"
@@ -52,7 +57,7 @@
             </a-menu>
           </template>
         </a-dropdown-button> -->
-        <el-dropdown style="margin-left: 12px" >
+        <el-dropdown style="margin-left: 12px">
           <el-button type="primary">
             更多操作<el-icon class="el-icon--right"><arrow-down /></el-icon>
           </el-button>
@@ -64,16 +69,22 @@
                 >批量删除</el-dropdown-item
               >
               <el-dropdown-item
+                v-permission="`${route.name?.replace('_info', '')}:export`"
                 :disabled="!(multipleSelect.length >>> 0)"
                 @click="exportSelect(false)"
                 >导出勾选(显示字段)</el-dropdown-item
               >
               <el-dropdown-item
+                v-permission="`${route.name?.replace('_info', '')}:export`"
                 :disabled="!(multipleSelect.length >>> 0)"
                 @click="exportSelect(true)"
                 >导出勾选(所有字段)</el-dropdown-item
               >
-              <el-dropdown-item @click="exportAll()">导出所有</el-dropdown-item>
+              <el-dropdown-item
+                v-permission="`${route.name?.replace('_info', '')}:export`"
+                @click="exportAll()"
+                >导出所有</el-dropdown-item
+              >
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -94,7 +105,12 @@
           placement="top"
           v-if="!showAllPass"
         >
-          <el-button :icon="View" circle @click="setShowAllPass" />
+          <el-button
+            v-permission="`${route.name?.replace('_info', '')}:showPassword`"
+            :icon="View"
+            circle
+            @click="setShowAllPass"
+          />
         </el-tooltip>
         <el-tooltip
           class="box-item"
@@ -134,7 +150,12 @@
           content="实例导入"
           placement="top"
         >
-          <el-button :icon="UploadFilled" circle @click="isShowUpload = true" />
+          <el-button
+            v-permission="`${route.name?.replace('_info', '')}:import`"
+            :icon="UploadFilled"
+            circle
+            @click="isShowUpload = true"
+          />
         </el-tooltip>
 
         <el-tooltip
@@ -206,6 +227,10 @@
           v-if="modelFieldType.boolean.indexOf(data.name) != -1"
         >
           <el-switch
+            v-permission="{
+              id: `${route.name?.replace('_info', '')}:edit`,
+              action: 'disabled',
+            }"
             v-model="scope.row[data.name]"
             class="ml-2"
             style="
@@ -267,6 +292,7 @@
             placement="top"
           >
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
               link
               type="primary"
               :icon="Edit"
@@ -280,6 +306,7 @@
             placement="top"
           >
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
               link
               type="primary"
               :icon="CopyDocument"
@@ -631,6 +658,9 @@
                         @mouseleave="showPassButton = false"
                         >********
                         <el-popover
+                          v-permission="
+                            `${route.name?.replace('_info', '')}:showPassword`
+                          "
                           :width="380"
                           trigger="click"
                           @after-leave="clearPass"
@@ -940,12 +970,14 @@
         <div v-else>
           <div v-if="isEdit">
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:delete`"
               type="danger"
               @click="ciDataDelete"
               v-if="currentRow.instance_group?.indexOf(treeIdleId) !== -1"
               >删除</el-button
             >
             <el-tooltip
+              v-permission="`${route.name?.replace('_info', '')}:delete`"
               content="无法删除非空闲池的主机"
               placement="top"
               effect="dark"
@@ -963,7 +995,12 @@
             >
           </div>
           <div v-else>
-            <el-button type="primary" @click="isEdit = true">编辑</el-button>
+            <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
+              type="primary"
+              @click="isEdit = true"
+              >编辑</el-button
+            >
           </div>
         </div>
 
@@ -1392,7 +1429,7 @@ import ciDataFilter from "./ciDataFilter.vue";
 import { useStore } from "vuex";
 import { useClipboard } from "vue-clipboard3";
 import { debounce } from "lodash";
-import { useRoute } from 'vue-router'
+import { useRoute } from "vue-router";
 const route = useRoute();
 const store = useStore();
 const emit = defineEmits(["getTree"]);
@@ -1524,6 +1561,24 @@ const bulkDelete = async () => {
   let res = await proxy.$api.bulkDeleteCiModelInstance({
     instances: multipleSelectId.value,
   });
+  if (res.status == "200") {
+    ElMessage({
+      type: "success",
+      message: "删除成功",
+    });
+    ciDataTableRef.value!.clearSelection();
+
+    await getCiData({
+      model: props.ciModelId,
+      model_instance_group: props.currentNodeId,
+    });
+    //
+  } else {
+    ElMessage({
+      type: "error",
+      message: "删除失败",
+    });
+  }
 };
 const exportSelect = async (params) => {
   if (params) {
@@ -1800,7 +1855,7 @@ const updateCiData = async (params) => {
 const selectable = () => true;
 
 // 表格勾选
-const ciDataTableRef = ref("");
+const ciDataTableRef = ref(null);
 const get_row_key = (row) => {
   return row.id;
 };

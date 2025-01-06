@@ -2,7 +2,12 @@
   <div class="card">
     <div class="table-header">
       <div class="header-button-lf">
-        <el-button type="primary" @click="addGroup">添加</el-button>
+        <el-button
+          v-permission="`${route.name?.replace('_info', '')}:add`"
+          type="primary"
+          @click="addGroup"
+          >添加</el-button
+        >
       </div>
     </div>
     <el-table
@@ -45,6 +50,7 @@
             placement="top"
           >
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
               :disabled="scope.row.group_name === '系统管理组' ? true : false"
               link
               type="primary"
@@ -59,6 +65,7 @@
             placement="top"
           >
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:delete`"
               link
               :disabled="scope.row.group_name === '系统管理组' ? true : false"
               type="danger"
@@ -166,6 +173,8 @@ import {
   reactive,
   nextTick,
 } from "vue";
+import { useRoute } from "vue-router";
+const route = useRoute();
 const { proxy } = getCurrentInstance();
 import { useStore } from "vuex";
 const store = useStore();

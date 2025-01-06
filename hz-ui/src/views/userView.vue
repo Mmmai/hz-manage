@@ -2,11 +2,16 @@
   <div class="card">
     <div class="user-header">
       <div>
-        <el-button type="primary" size="small" @click="handleAdd"
+        <el-button
+          v-permission="`${route.name?.replace('_info', '')}:add`"
+          type="primary"
+          size="small"
+          @click="handleAdd"
           >新增</el-button
         >
         <!-- <el-button  type="primary" size="small" @click="insertDaemonData">插入样例数据</el-button> -->
         <el-button
+          v-permission="`${route.name?.replace('_info', '')}:delete`"
           v-if="multipleSelect.length == 0"
           disabled
           type="danger"
@@ -14,7 +19,12 @@
           @click="handleDeleteMore"
           >批量删除</el-button
         >
-        <el-button v-else type="danger" size="small" @click="handleDeleteMore"
+        <el-button
+          v-permission="`${route.name?.replace('_info', '')}:delete`"
+          v-else
+          type="danger"
+          size="small"
+          @click="handleDeleteMore"
           >批量删除</el-button
         >
       </div>
@@ -63,6 +73,10 @@
         >
           <template #default="scope" v-if="item.prop === 'status'">
             <el-switch
+              v-permission="{
+                id: `${route.name?.replace('_info', '')}:edit`,
+                action: 'disabled',
+              }"
               v-model="scope.row.status"
               :disabled="scope.row.username == 'admin' ? true : false"
               class="ml-2"
@@ -91,6 +105,7 @@
         <el-table-column fixed="right" label="操作" width="150">
           <template #default="scope">
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
               link
               type="primary"
               :icon="Edit"
@@ -98,6 +113,7 @@
               @click="handleEdit(scope.row)"
             ></el-button>
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:delete`"
               :disabled="scope.row.username == 'admin' ? true : false"
               link
               type="danger"
@@ -219,10 +235,6 @@
         />
       </el-form-item>
       <el-form-item label="状态" prop="status">
-        <!-- <el-radio-group v-model="formInline.status">
-            <el-radio label=true />
-            <el-radio label=false />
-          </el-radio-group> -->
         <el-switch
           v-model="formInline.status"
           class="ml-2"
@@ -241,20 +253,13 @@
       </el-row>
       <!-- </div> -->
     </el-form>
-    <!-- <template #footer>
-      <span class="dialog-footer">
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="addUser">
-          新增
-        </el-button>
-      </span>
-    </template> -->
   </el-dialog>
 </template>
 
 <script setup>
 import { Delete, Edit } from "@element-plus/icons-vue";
-
+import { useRoute } from "vue-router";
+const route = useRoute();
 import {
   getCurrentInstance,
   onMounted,

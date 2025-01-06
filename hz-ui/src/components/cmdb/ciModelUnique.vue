@@ -20,6 +20,10 @@
       <el-table-column prop="validate_null" label="空值校验">
         <template #default="scope">
           <el-switch
+            v-permission="{
+              id: `${route.name?.replace('_info', '')}:edit`,
+              action: 'disabled',
+            }"
             v-model="scope.row.validate_null"
             class="ml-2"
             style="
@@ -47,6 +51,7 @@
             placement="top"
           >
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
               link
               type="primary"
               :icon="Edit"
@@ -61,6 +66,7 @@
           >
             <el-button
               link
+              v-permission="`${route.name?.replace('_info', '')}:delete`"
               type="danger"
               :icon="Delete"
               :disabled="scope.row.built_in"
@@ -148,6 +154,8 @@ import {
   nextTick,
   onActivated,
 } from "vue";
+import { useRoute } from "vue-router";
+const route = useRoute();
 const { proxy } = getCurrentInstance();
 import { useStore } from "vuex";
 const store = useStore();

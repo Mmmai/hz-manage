@@ -6,8 +6,7 @@ from django.db.utils import OperationalError
 
 # 初始化数据
 def init_script():
-    from mapi.models import UserInfo,UserGroup,Role,Menu,sysConfigParams
-
+    from mapi.models import UserInfo,UserGroup,Role,Menu,sysConfigParams,Button
 
     # 初始化用户、用户组和角色
     initList = UserInfo.objects.all()
@@ -38,6 +37,7 @@ def init_script():
     if len(initMenu) == 0:
     # print(123)
         for i in menuInitList:
+            buttons = i.pop("buttons",None)
             if i['parentid_id'] == '':
                 # Menu.objects.create(**i)
                 i['parentid_id'] = None
@@ -50,11 +50,19 @@ def init_script():
                 parent_name = i['parentid_id']
                 parentid_id = Menu.objects.get(name=parent_name).id
                 i['parentid_id'] = str(parentid_id)
+                # print(i)
                 instance, created = Menu.objects.get_or_create(**i)
                 if created:
-                     print(f"Created a new menu: {instance}")
+                    print(f"Created a new menu: {instance}")
+                    if buttons:
+                        # print(123)
+                        for button in buttons:
+                            button_instance,button_created  = Button.objects.get_or_create(name=button["name"],action=button["action"],menu=instance)
+                            if button_created:
+                                print(f"菜单<{instance.label}>添加<${button_instance.name}>按钮!")
+
                 else:
-                     print(f"Menu already exists: {instance}")         
+                    print(f"Menu already exists: {instance}")         
     # 授权菜单给系统管理员
     # admin_role_id = role_admin_obj.id
     #获取菜单id

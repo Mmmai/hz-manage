@@ -39,8 +39,8 @@ class ExcelHandler:
         if field.type == FieldType.MODEL_REF:
             ref_instances = ModelInstance.objects.filter(
                 model=field.ref_model
-            ).values_list('id', 'name')
-            enum_data = {str(id): name for id, name in ref_instances}
+            ).values_list('id', 'instance_name')
+            enum_data = {str(id): instance_name for id, instance_name in ref_instances}
         else:
             enum_data = json.loads(field.validation_rule.rule)
         
@@ -154,7 +154,18 @@ class ExcelHandler:
             
             logger.info(f'Field name, type and constraints set')
             
-            if field.type == FieldType.MODEL_REF or (field.validation_rule and field.validation_rule.type == FieldType.ENUM):
+            if field.type == FieldType.BOOLEAN:
+                dv = DataValidation(
+                    type='list',
+                    formula1='"TRUE,FALSE"',
+                    allow_blank=True,
+                    showErrorMessage=True,
+                    errorTitle='输入错误',
+                    error='该字段只能输入 TRUE 或 FALSE'
+                )
+                template_sheet.add_data_validation(dv)
+                dv.add(f'{col_letter}4:{col_letter}1048576')
+            elif field.type == FieldType.MODEL_REF or (field.validation_rule and field.validation_rule.type == FieldType.ENUM):
                 try:
                     current_enum_col, constraint = ExcelHandler._handle_enum_data(
                         enum_sheet, field, current_enum_col, 
@@ -163,7 +174,7 @@ class ExcelHandler:
                     constraints.append(constraint)
                 except Exception as e:
                     logger.error(f"Error handling enum data: {str(e)}")
-            elif field.validation_rule:
+            if field.validation_rule:
                 rule = field.validation_rule
                 if rule.type == ValidationType.RANGE:
                     constraints.append(f"数值范围: {rule.rule.replace(',', ' ~ ')}")
@@ -355,10 +366,10 @@ class ExcelHandler:
                         if cell.value is not None:
                             row_data[field_name] = cell.value
                             
-                    if row_data:  # 跳过空行
+                    if row_data:
                         results['results']['total'] += 1
                         instance_data = {
-                            'name': data_sheet[f'A{row}'].value,
+                            'instance_name': data_sheet[f'A{row}'].value,
                             'fields': row_data
                         }
                         results['instances'].append(instance_data)

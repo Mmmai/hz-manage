@@ -24,7 +24,7 @@ def process_import_data(cache_key, excel_data, model_id, request):
         results = {
             'status': 'processing',
             'total': len(excel_data.get('instances', [])),
-            'progress': '0 %',
+            'progress': 0,
             'created': 0,
             'updated': 0,
             'skipped': 0,
@@ -39,21 +39,23 @@ def process_import_data(cache_key, excel_data, model_id, request):
         with transaction.atomic():
             for instance_data in excel_data.get('instances', []):
                 try:
-                    name = instance_data.get('instance_name')
+                    instance_name = instance_data.get('instance_name')
                     instance = None
                     
-                    if name in processed_instance:
+                    if instance_name in processed_instance:
                         results['skipped'] += 1
+                        continue
                         
-                    if name:
+                    if instance_name:
                         instance = ModelInstance.objects.filter(
                             model_id=model_id,
-                            name=name
+                            instance_name=instance_name
                         ).first()
-                        processed_instance.add(name)
+                        processed_instance.add(instance_name)
                     else:
                         # TODO: 处理未提交name的实例，应用name填充规则补充
                         results['skipped'] += 1
+                        continue
                         
                         
                     # 过滤空值字段
@@ -79,16 +81,14 @@ def process_import_data(cache_key, excel_data, model_id, request):
                         if serializer.is_valid(raise_exception=True):
                             serializer.save()
                             results['updated'] += 1
-                        else:
-                            results['failed'] += 1
-                            results['errors'].append(serializer.errors)
                     else:
                         # TODO: get user name from request
                         data.update({
-                            'instance_name': name,
+                            'instance_name': instance_name,
                             'create_user': 'system',
                             'update_user': 'system'
                         })
+                        logger.info(f"Creating instance: {instance_name}, data: {data}")
                         serializer = ModelInstanceSerializer(
                             data=data,
                             context={
@@ -111,7 +111,7 @@ def process_import_data(cache_key, excel_data, model_id, request):
                     })
                     continue
                 percent = (results['created'] + results['updated'] + results['skipped'] + results['failed']) * 100 // results['total']
-                results['progress'] = f"{percent} %"
+                results['progress'] = percent
                 cache.set(cache_key, results, timeout=600)
             if results['failed'] > 0:
                 try:
@@ -134,3 +134,13 @@ def process_import_data(cache_key, excel_data, model_id, request):
         results['status'] = 'failed'
         results['errors'].append(f"Error loading Excel data: {str(e)}")
         cache.set(cache_key, results, timeout=600)
+        
+@shared_task
+def setup_host_monitoring(instances):
+    try:
+        for instance in instances:
+            # register host logic
+            pass
+    except Exception as e:
+        logger.error(f"Error setting up host monitoring: {str(e)}")
+        raise ValidationError({'detail': f'Failed to setup host monitoring: {str(e)}'})

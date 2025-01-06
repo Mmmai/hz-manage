@@ -58,7 +58,12 @@ INIT_MENU =  [
       "is_iframe": 0,
       "iframe_url": '',
       "description": "",
-      "parentid_id": "cmdb"
+      "parentid_id": "cmdb",
+      "buttons": [
+                  {"name":"导入","action":"import"},
+                  {"name":"导出","action":"export"},
+                  {"name":"显示密码","action":"showPassword"},
+                  ]
     },
     {
       "label": "模型管理",

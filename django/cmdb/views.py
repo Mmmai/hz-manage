@@ -22,6 +22,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q
 from django.db.models import Max, Case, When, Value, IntegerField
+from .utils import password_handler, celery_manager
 from .excel import ExcelHandler
 from .constants import FieldMapping, limit_field_names
 from .tasks import process_import_data
@@ -665,6 +666,10 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             request_context = {
                 'data': {},
             }
+            
+            if not celery_manager.check_heartbeat():
+                raise ValidationError({'detail': 'Celery worker is not available'})
+            
             process_import_data.delay(
                 cache_key,
                 excel_data,

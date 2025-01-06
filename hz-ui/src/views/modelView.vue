@@ -4,6 +4,7 @@
       <el-row :gutter="10">
         <el-col :span="6">
           <el-button
+            v-permission="`${route.name?.replace('_info', '')}:add`"
             type="primary"
             @click="
               addModel = true;
@@ -12,6 +13,7 @@
             >新增模型</el-button
           >
           <el-button
+            v-permission="`${route.name?.replace('_info', '')}:add`"
             type="default"
             @click="
               isModelGroup = true;
@@ -32,16 +34,28 @@
 
             <div class="operation_show groupCountClass">
               <el-tooltip effect="dark" content="添加模型" placement="right">
-                <el-icon :size="20" @click="addModelFromGroup(gd.id)">
+                <el-icon
+                  :size="20"
+                  @click="addModelFromGroup(gd.id)"
+                  v-permission="`${route.name?.replace('_info', '')}:add`"
+                >
                   <CirclePlusFilled />
                 </el-icon>
               </el-tooltip>
 
               <el-space v-if="!gd.built_in">
-                <el-icon :size="20" @click="editModelGroup(gd)">
+                <el-icon
+                  :size="20"
+                  @click="editModelGroup(gd)"
+                  v-permission="`${route.name?.replace('_info', '')}:edit`"
+                >
                   <Edit />
                 </el-icon>
-                <el-icon :size="20" @click="deleteModelGroup(gd.id)">
+                <el-icon
+                  :size="20"
+                  @click="deleteModelGroup(gd.id)"
+                  v-permission="`${route.name?.replace('_info', '')}:delete`"
+                >
                   <DeleteFilled />
                 </el-icon>
               </el-space>

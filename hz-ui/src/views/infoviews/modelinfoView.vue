@@ -28,12 +28,14 @@
         >
           <el-space alignment="flex-end">
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:delete`"
               :disabled="ciModelInfo.built_in"
               icon="Delete"
               @click="deleteCiModel(ciModelInfo.id)"
               circle
             />
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
               :disabled="ciModelInfo.built_in"
               icon="Edit"
               @click="editCiModel(ciModelInfo)"
@@ -168,6 +170,8 @@ import {
 import iconSelectCom from "../../components/iconSelectCom.vue";
 import { useStore } from "vuex";
 import { useRouter, useRoute } from "vue-router";
+const route = useRoute();
+
 import type { ComponentSize, FormInstance, FormRules } from "element-plus";
 import ciModelField from "../../components/cmdb/ciModelField.vue";
 import ciModelUnique from "../../components/cmdb/ciModelUnique.vue";
@@ -177,7 +181,6 @@ const ciModelUniqueRef = ref("");
 const ciModelFieldRef = ref("");
 const router = useRouter();
 const store = useStore();
-const route = useRoute();
 const { proxy } = getCurrentInstance();
 import type { TabsPaneContext } from "element-plus";
 const input = ref("");

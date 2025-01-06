@@ -75,7 +75,11 @@
               >({{ data.instance_count }})</el-text
             ></el-text
           >
-          <div class="actionClass" :class="{ is_show_action: node.isShowEdit }">
+          <div
+            class="actionClass"
+            :class="{ is_show_action: node.isShowEdit }"
+            v-permission="`${route.name?.replace('_info', '')}:edit`"
+          >
             <!-- <Edit style="width: 1em; height: 1em; margin-right: 8px" @click.stop="editCateName(data)"
             v-if="!data.built_in" /> -->
             <el-space>
@@ -151,6 +155,8 @@ import {
 import { ElMessageBox, ElMessage } from "element-plus";
 import { EditOutlined, DownOutlined, StarTwoTone } from "@ant-design/icons-vue";
 //
+import { useRoute } from "vue-router";
+const route = useRoute();
 import ciDataShow from "../components/cmdb/ciDataShow.vue";
 const { proxy } = getCurrentInstance();
 import { ElTree } from "element-plus";

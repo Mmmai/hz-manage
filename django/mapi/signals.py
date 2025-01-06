@@ -18,7 +18,7 @@ def atuo_create_default_botton(sender, instance, created, **kwargs):
         # 定义需要添加的按钮
         else:
             buttons = [
-                # Button(name='查看', action='view',menu=instance),
+                Button(name='查看', action='view',menu=instance),
                 Button(name='添加', action='add',menu=instance),
                 Button(name='删除', action='delete',menu=instance),
                 Button(name='修改', action='edit',menu=instance)

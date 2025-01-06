@@ -17,6 +17,7 @@
               <CirclePlusFilled />
             </el-icon> -->
               <el-tooltip
+                v-permission="`${route.name?.replace('_info', '')}:edit`"
                 class="box-item"
                 effect="dark"
                 content="编辑"
@@ -28,6 +29,7 @@
                 <el-button
                   size="small"
                   @click.stop="editModelFieldGroup(fieldGroup)"
+                  v-permission="`${route.name?.replace('_info', '')}:edit`"
                   :icon="Edit"
                   circle
                 ></el-button>
@@ -39,6 +41,7 @@
                 placement="top"
               >
                 <el-button
+                  v-permission="`${route.name?.replace('_info', '')}:delete`"
                   size="small"
                   @click.stop="deleteModelFieldGroup(fieldGroup.id)"
                   :icon="Delete"
@@ -95,6 +98,7 @@
                 class="modelFieldCard"
                 style="align-items: center; justify-content: center"
                 @click="addModelField(fieldGroup)"
+                v-permission="`${route.name?.replace('_info', '')}:add`"
               >
                 <el-text type="primary">+ 添加字段</el-text>
               </el-card>
@@ -105,7 +109,11 @@
     </el-collapse>
     <el-row style="margin-top: 10px">
       <el-col>
-        <el-button bg text @click="addModelFieldGroup(modelInfo)"
+        <el-button
+          v-permission="`${route.name?.replace('_info', '')}:add`"
+          bg
+          text
+          @click="addModelFieldGroup(modelInfo)"
           >添加分组</el-button
         >
       </el-col>
@@ -349,12 +357,14 @@
           >取消</el-button
         >
         <el-button
+          v-permission="`${route.name?.replace('_info', '')}:delete`"
           type="danger"
           @click="modelFieldDelete()"
           v-if="isEdit && !nowModelField.built_in"
           >删除</el-button
         >
         <el-button
+          v-permission="`${route.name?.replace('_info', '')}:edit`"
           type="primary"
           @click="modelFieldFormCommit(modelFieldFormRef)"
         >
