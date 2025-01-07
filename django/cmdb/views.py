@@ -311,19 +311,23 @@ class ModelFieldPreferenceViewSet(viewsets.ModelViewSet):
                         model=model
                     ).order_by('order').values_list('id', flat=True)
                 )
-                system_preference = ModelFieldPreference.objects.create(
-                    model=model,
-                    fields_preferred=fields,
-                    create_user='system',
-                    update_user='system'
+                serializer = ModelFieldPreferenceSerializer(
+                    data={
+                        'model': model.id,
+                        'fields_preferred': fields,
+                        'create_user': user,
+                        'update_user': user
+                    }
                 )
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
                 # fields_str_list = [str(field_id) for field_id in system_preference.fields_preferred]
                 # system_preference.fields_preferred = fields_str_list
-                return Response(ModelFieldPreferenceSerializer(system_preference).data)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
             else:
                 # fields_str_list = [str(field_id) for field_id in preference.fields_preferred]
                 # preference.fields_preferred = fields_str_list
-                return Response(ModelFieldPreferenceSerializer(preference).data)
+                return Response(ModelFieldPreferenceSerializer(preference).data, status=status.HTTP_200_OK)
         else:
             return super().list(request, *args, **kwargs)
         
