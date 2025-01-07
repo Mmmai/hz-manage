@@ -3,6 +3,7 @@ from django.db import transaction
 from django.db.utils import OperationalError
 from cacheops import invalidate_all
 from .config import BUILT_IN_MODELS, BUILT_IN_VALIDATION_RULES
+from .utils import password_handler
 import logging
 import json
 
@@ -164,7 +165,7 @@ class CMDBConfig(AppConfig):
                     'update_user': 'system'
                 }
                 if ValidationRules.objects.filter(name=name).exists():
-                    logger.info(f"Validation rule {name} already exists, skipping")
+                    # logger.info(f"Validation rule {name} already exists, skipping")
                     continue
                 rule_serializer = ValidationRulesSerializer(data=rule_data)
                 if rule_serializer.is_valid(raise_exception=True):
@@ -187,6 +188,7 @@ class CMDBConfig(AppConfig):
                 # 清除缓存
                 invalidate_all()
             
+            password_handler.load_keys()
             with transaction.atomic():
                 from .models import ModelGroups
                 from .serializers import ModelGroupsSerializer

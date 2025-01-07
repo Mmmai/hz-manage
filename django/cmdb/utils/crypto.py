@@ -1,3 +1,4 @@
+
 from cryptography.fernet import Fernet
 from gmssl.sm4 import CryptSM4, SM4_ENCRYPT, SM4_DECRYPT
 import traceback
@@ -5,17 +6,51 @@ from django.conf import settings
 import base64
 import logging
 from typing import Optional
+from threading import Lock
+
 
 logger = logging.getLogger(__name__)
 
 class PasswordHandler:
-    def __init__(self):
-        
-        key = base64.urlsafe_b64encode(settings.SECRET_KEY.encode()[:32].ljust(32, b'\0'))
-        self.fernet = Fernet(key)
+    _instance = None
+    _lock = Lock()
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
 
-        self.sm4_key = settings.SM4_KEY.encode('utf-8')
-        self._init_sm4()
+    def __init__(self):
+        # 初始化时不立即加载密钥
+        pass
+
+    def load_keys(self):
+        """加载加密密钥"""
+        if self._initialized:
+            return
+            
+        try:
+            with self._lock:  # 加锁防止多线程重复加载
+                if not self._initialized:
+                    from mapi.models import sysConfigParams
+                    secret_key = sysConfigParams.objects.get(param_name="secret_key").param_value
+                    key = base64.urlsafe_b64encode(secret_key.encode()[:32].ljust(32, b'\0'))
+                    self.fernet = Fernet(key)
+                    self.sm4_key = secret_key.encode('utf-8')
+                    self._init_sm4()
+                    self._initialized = True
+                    logger.info("Secret key loaded successfully.")
+        except Exception as e:
+            logger.error(f"Secret key loading failed: {str(e)}")
+            raise
+
+    def reload_keys(self):
+        """重新加载加密密钥"""
+        self._initialized = False
+        self.load_keys()
 
     def _init_sm4(self):
         """初始化 SM4 加解密器"""
@@ -74,6 +109,7 @@ class PasswordHandler:
 
 if __name__ == "__main__":
     handler = PasswordHandler()
+    handler.load_keys()
     plain = 'ttt11111132'
     encrypted = handler.encrypt_to_sm4(plain)
     print("Encrypted:", encrypted)
