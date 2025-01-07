@@ -599,7 +599,8 @@ onMounted(() => {
 
 <style scoped>
 .modelCard {
-  width: 160px;
+  min-width: 160px;
+  max-width: 280px;
 }
 
 .number {
