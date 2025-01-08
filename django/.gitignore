@@ -3,11 +3,4 @@ logs
 **/__pycache__
 **/migrations
 *-bak*
-<<<<<<< HEAD
-logs
 venv
-=======
-venv
-
-
->>>>>>> 6ca7d848fcdf34c583a1d857d66197145990373f
