@@ -7,20 +7,6 @@ create database hz-manage;
 
 create database cmdb;
 
-#已切换mysql，可以忽略
-
-mongodb:8
-
-docker run -it --name mongodb -e MONGO_INITDB_ROOT_USERNAME=cmdb -e  MONGO_INITDB_ROOT_PASSWORD=(密码与setting.py中的一致) -p 27017:27017 -d mongo:latest
-
-/bin/bash
-
-mongosh -u cmdb
-
-use cmdb;
-
-db.createUser({user:"admin", pwd:"(密码与setting.py中的一致)", roles:[{role: "dbOwner", db: "cmdb"}]})
-
 python-3.7.9
 
 部署redis
@@ -48,6 +34,18 @@ python .\manage.py migrate mlog
 python .\manage.py migrate cmdb --database=cmdb
 
 python .\manage.py runserver
+
+#windows
+
+cd django 
+
+celery -A vuedjnago worker -l info -P eventlet
+
+#linux
+
+cd django
+
+celery -A vuedjnago worker -l info
 
 # 前端部署
 
