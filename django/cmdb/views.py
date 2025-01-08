@@ -1223,3 +1223,19 @@ class PasswordManageViewSet(viewsets.ViewSet):
         except Exception as e:
             logger.error(f"Error re-encrypting password: {traceback.format_exc()}")
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+    @action(detail=False, methods=['post'])
+    def reset_passwords(self, request):
+        """将所有密码置空"""
+        try:
+            password_meta = ModelFieldMeta.objects.filter(model_fields__type='password').values('id')
+            if not password_meta:
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            with transaction.atomic():
+                ModelFieldMeta.objects.filter(id__in=[p['id'] for p in password_meta]).update(data='')
+            return Response({
+                'status': 'success'
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error resetting passwords: {str(e)}")
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
