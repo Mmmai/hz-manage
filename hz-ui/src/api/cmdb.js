@@ -14,7 +14,9 @@ const path = {
   cmdbCiDataCol: "/api/v1/cmdb/model_field_preference/",
   cmdbCiDataTree: "/api/v1/cmdb/model_instance_group/",
   cmdbCiDataTreeRelation: "/api/v1/cmdb/model_instance_group_relation/create_relations/",
-  cmdbModelRef: "/api/v1/cmdb/model_ref/"
+  cmdbModelRef: "/api/v1/cmdb/model_ref/",
+  cmdbReEncrypt: "/api/v1/cmdb/password_manage/re_encrypt/"
+
 }
 export default {
   // cmdb
@@ -185,5 +187,7 @@ export default {
     // return axios.request({url:path.cmdbCiModelInstance+'export_template/',method: 'get',params: params})
 
   },
-
+  reEncrypt(params, timeout = 60000) {
+    return axios.request({ url: path.cmdbReEncrypt, method: 'post', data: params, timeout: timeout })
+  }
 }

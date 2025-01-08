@@ -5,4 +5,4 @@ def generate_random_key(length=32):
     return random_key
 def get_uuid():
      import uuid
-     return str(uuid.uuid1()).replace("-","")[0:16]
+     return str(uuid.uuid4()).replace("-","")[0:16]

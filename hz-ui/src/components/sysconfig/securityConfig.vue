@@ -3,6 +3,7 @@
     <el-form :model="formInline" class="demo-form-inline">
       <el-form-item label="密码密钥">
         <span> {{ gmConfig.key }}</span>
+        <el-button @click="updateKey">更新密钥</el-button>
         <!-- <el-input
           v-model="formInline.key"
           placeholder="Approved by"
@@ -27,8 +28,11 @@ import {
   reactive,
   nextTick,
 } from "vue";
+import { v1 as uuidv1, v4 as uuidv4 } from "uuid";
 const { proxy } = getCurrentInstance();
 import { useStore } from "vuex";
+import { ElLoading } from "element-plus";
+
 const store = useStore();
 import useConfigStore from "@/store/config";
 const configStore = useConfigStore();
@@ -38,13 +42,53 @@ const formInline = reactive({
   region: "",
   date: "",
 });
+const nowKey = ref({});
+const getKey = async () => {
+  let res = await proxy.$api.getSysConfig({ param_name: "secret_key" });
+  nowKey.value = res.data.results[0];
+  // console.log(nowKey.value);
+};
+const updateKey = async () => {
+  // console.log(uuidv1());
+  let newKey = uuidv4().replace(/-/g, "").slice(0, 16);
+  // console.log();
+  const loading = ElLoading.service({
+    lock: true,
+    text: "Loading",
+    background: "rgba(0, 0, 0, 0.7)",
+  });
+  let res = await proxy.$api.updateSysConfig({
+    id: nowKey.value.id,
+    param_name: "secret_key",
+    param_value: newKey,
+  });
+  if (res.status == "200") {
+    console.log(
+      `旧密钥：${gmConfig.value.key};新密钥：${res.data.param_value}`
+    );
 
+    let res1 = await proxy.$api.reEncrypt({}, 300000);
+    if (res1.status == "204" || res1.status == "200") {
+      console.log("重新加密成功!");
+      // 更新内存中的key
+      let gmRes = await proxy.$api.getSysConfig({ params: "gm" });
+      configStore.setGmCry(gmRes.data);
+    } else {
+      console.log("数据重新加密失败");
+    }
+  } else {
+    console.log("更新密钥失败");
+  }
+  setTimeout(() => {
+    loading.close();
+  }, 2000);
+};
 const onSubmit = () => {
   console.log("submit!");
 };
-onMounted(()=>{
-  
-})
+onMounted(() => {
+  getKey();
+});
 </script>
 <style scoped lang="scss">
 </style>

@@ -1476,7 +1476,7 @@ const onCountdownEnd = () => {
   });
 };
 const getCountDownTime = (data) => {
-  console.log(data);
+  // console.log(data);
   // configStore.updateShowAllPassTime(data.totalSeconds);
   configStore.setShowAllPassTime(data.totalMilliseconds);
 };

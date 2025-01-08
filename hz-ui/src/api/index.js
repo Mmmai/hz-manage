@@ -7,202 +7,209 @@ const api = {
   ...userApis,
   ...cmdbApis,
   ...lokiApis,
-  getRouteInfo(params){
+  getRouteInfo(params) {
     return axios.request({
-      url:path.routeInfo,
+      url: path.routeInfo,
       method: 'post',
       data: params
     })
   },
-  getSecret(params){
+  getSecret(params) {
     return axios.request({
-      url:path.getSecret,
+      url: path.getSecret,
       method: 'get',
       params: params
 
     })
-  },  
-  getMenuList(params){
+  },
+  getMenuList(params) {
     return axios.request({
-      url:path.menuList,
+      url: path.menuList,
       method: 'post',
       data: params
 
     })
-  },  
+  },
   // 查看单个menu信息
-  getMenuInfo(params){
+  getMenuInfo(params) {
     return axios.request({
-      url:path.menu+params.id,
+      url: path.menu + params.id,
       method: 'get',
       // params: params
 
     })
-  },  
-  menuUpdate(params){
+  },
+  menuUpdate(params) {
     return axios.request({
-      url:path.menu+params.id+'/',
+      url: path.menu + params.id + '/',
       method: 'patch',
       data: params
     })
   },
-  menuAdd(params){
+  menuAdd(params) {
     // return axios.put(path.role+params.id+'/',params)
     return axios.request({
-      url:path.menu,
+      url: path.menu,
       method: 'post',
       data: params
     })
-  },  
-  menuDel(params){
-    return axios.delete(path.menu+params+'/')
+  },
+  menuDel(params) {
+    return axios.delete(path.menu + params + '/')
   },
   // 按钮
-  getButton(params){
+  getButton(params) {
     return axios.request({
-      url:path.button,
+      url: path.button,
       method: 'get',
       params: params
 
     })
-  },  
-  updateButton(params){
+  },
+  updateButton(params) {
     return axios.request({
-      url:path.button + params.id+'/',
+      url: path.button + params.id + '/',
       method: 'patch',
       data: params
     })
   },
-  addButton(params){
+  addButton(params) {
     // return axios.put(path.role+params.id+'/',params)
     return axios.request({
-      url:path.button,
+      url: path.button,
       method: 'post',
       data: params
     })
-  },  
-  deleteButton(params){
-    return axios.delete(path.button+params+'/')
+  },
+  deleteButton(params) {
+    return axios.delete(path.button + params + '/')
   },
   // 门户组
-  pgroupGet(params){
+  pgroupGet(params) {
     return axios.request({
-      url:path.pgroup,
+      url: path.pgroup,
       method: 'get',
-      params:params
+      params: params
     })
   },
-  pgroupAdd(params){
+  pgroupAdd(params) {
     return axios.request({
-      url:path.pgroup,
+      url: path.pgroup,
       method: 'post',
       data: params
     })
   },
-  pgroupDel(params){
+  pgroupDel(params) {
     return axios.request({
-      url:path.pgroup+params+'/',
+      url: path.pgroup + params + '/',
       method: 'delete',
     })
   },
-  pgroupUpdate(params){
+  pgroupUpdate(params) {
     // return axios.put(path.role+params.id+'/',params)
     return axios.request({
-      url:path.pgroup+params.id+'/',
+      url: path.pgroup + params.id + '/',
       method: 'patch',
       data: params
     })
   },
-  pgroupMuldel(data){
+  pgroupMuldel(data) {
     // return axios.delete(path.user+'multiple_delete/',data)
     return axios.request({
-      url:path.pgroup+'multiple_delete/',
-      method:'delete',
-      data:data
+      url: path.pgroup + 'multiple_delete/',
+      method: 'delete',
+      data: data
     })
-  },    
+  },
   // 门户
-  portalGet(params){
+  portalGet(params) {
     return axios.request({
-      url:path.portal,
+      url: path.portal,
       method: 'get',
-      params:params
+      params: params
     })
   },
-  portalAdd(params){
+  portalAdd(params) {
     return axios.request({
-      url:path.portal,
+      url: path.portal,
       method: 'post',
       data: params
     })
   },
-  portalDel(params){
+  portalDel(params) {
     return axios.request({
-      url:path.portal+params+'/',
+      url: path.portal + params + '/',
       method: 'delete',
     })
   },
-  portalUpdate(params){
+  portalUpdate(params) {
     // return axios.put(path.role+params.id+'/',params)
     return axios.request({
-      url:path.portal+params.id+'/',
+      url: path.portal + params.id + '/',
       method: 'patch',
       data: params
     })
   },
-  portalMuldel(data){
+  portalMuldel(data) {
     // return axios.delete(path.user+'multiple_delete/',data)
     return axios.request({
-      url:path.portal+'multiple_delete/',
-      method:'delete',
-      data:data
+      url: path.portal + 'multiple_delete/',
+      method: 'delete',
+      data: data
     })
-  }, 
+  },
   // 
-    // dataSource
-    dataSourceGet(params){
-      if (typeof(params) === 'string'){
-        return axios.request({
-          url:path.dataSource+params,
-          method: 'get',
-          // params: params
-        })
-      }else{
+  // dataSource
+  dataSourceGet(params) {
+    if (typeof (params) === 'string') {
       return axios.request({
-        url:path.dataSource,
+        url: path.dataSource + params,
+        method: 'get',
+        // params: params
+      })
+    } else {
+      return axios.request({
+        url: path.dataSource,
         method: 'get',
         params: params
       })
-      }
-    },
-    dataSourceAdd(params){
-      return axios.request({
-        url:path.dataSource,
-        method: 'post',
-        data: params
-      })
-    },
-    dataSourceDel(params){
-      return axios.request({
-        url:path.dataSource+params+'/',
-        method: 'delete',
-      })
-    },
-    dataSourceUpdate(params){
-      // return axios.put(path.role+params.id+'/',params)
-      return axios.request({
-        url:path.dataSource+params.id+'/',
-        method: 'put',
-        data: params
-      })
-    },
-    getSysConfig(params){
-      return axios.request({
-        url:path.sysConfig,
-        method: 'get',
-        params:params
-      })
     }
+  },
+  dataSourceAdd(params) {
+    return axios.request({
+      url: path.dataSource,
+      method: 'post',
+      data: params
+    })
+  },
+  dataSourceDel(params) {
+    return axios.request({
+      url: path.dataSource + params + '/',
+      method: 'delete',
+    })
+  },
+  dataSourceUpdate(params) {
+    // return axios.put(path.role+params.id+'/',params)
+    return axios.request({
+      url: path.dataSource + params.id + '/',
+      method: 'put',
+      data: params
+    })
+  },
+  getSysConfig(params) {
+    return axios.request({
+      url: path.sysConfig,
+      method: 'get',
+      params: params
+    })
+  },
+  updateSysConfig(params) {
+    return axios.request({
+      url: path.sysConfig + params.id + '/',
+      method: 'patch',
+      data: params
+    })
+  }
 
 }
 export default api;
