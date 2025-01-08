@@ -63,29 +63,27 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <div  v-permission="`${route.name?.replace('_info', '')}:delete`">
+              <div v-permission="`${route.name?.replace('_info', '')}:delete`">
                 <el-dropdown-item
-                :disabled="!(multipleSelect.length >>> 0)"
-                @click="bulkDelete()"
-                >批量删除</el-dropdown-item
-              >
+                  :disabled="!(multipleSelect.length >>> 0)"
+                  @click="bulkDelete()"
+                  >批量删除</el-dropdown-item
+                >
               </div>
-              <div v-permission="`${route.name?.replace('_info', '')}:export`"
-              >
-              <el-dropdown-item
-                :disabled="!(multipleSelect.length >>> 0)"
-                @click="exportSelect(false)"
-                >导出勾选(显示字段)</el-dropdown-item
-              >
-              <el-dropdown-item
-                :disabled="!(multipleSelect.length >>> 0)"
-                @click="exportSelect(true)"
-                >导出勾选(所有字段)</el-dropdown-item
-              >
-              <el-dropdown-item
-                @click="exportAll()"
-                >导出所有</el-dropdown-item
-              >
+              <div v-permission="`${route.name?.replace('_info', '')}:export`">
+                <el-dropdown-item
+                  :disabled="!(multipleSelect.length >>> 0)"
+                  @click="exportSelect(false)"
+                  >导出勾选(显示字段)</el-dropdown-item
+                >
+                <el-dropdown-item
+                  :disabled="!(multipleSelect.length >>> 0)"
+                  @click="exportSelect(true)"
+                  >导出勾选(所有字段)</el-dropdown-item
+                >
+                <el-dropdown-item @click="exportAll()"
+                  >导出所有</el-dropdown-item
+                >
               </div>
             </el-dropdown-menu>
           </template>
@@ -695,6 +693,7 @@
                                     type="password"
                                     v-model="passwordForm.secret"
                                     show-password
+                                    autoComplete="new-password"
                                     placeholder="输入密钥查看密码"
                                     clearable
                                     style="width: 250px"
@@ -741,6 +740,7 @@
                     v-model="ciDataForm[fitem.name]"
                     style="width: 240px"
                     type="password"
+                    autoComplete="new-password"
                     show-password
                     clearable
                     v-else
@@ -2462,6 +2462,10 @@ const ciDataCommit = async (
 };
 // 取消弹窗
 const ciDataHandleClose = (done: () => void) => {
+  if (isEdit.value == false && commitActionAdd.value == false) {
+    ciDrawer.value = false;
+    return;
+  }
   ElMessageBox.confirm("是否确认关闭?")
     .then(() => {
       done();
