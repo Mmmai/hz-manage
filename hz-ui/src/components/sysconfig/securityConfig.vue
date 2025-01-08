@@ -2,8 +2,22 @@
   <div class="card">
     <el-form :model="formInline" class="demo-form-inline">
       <el-form-item label="密码密钥">
-        <span> {{ gmConfig.key }}</span>
-        <el-button @click="updateKey">更新密钥</el-button>
+        <span style="margin-right: 20px"> {{ gmConfig.key }}</span>
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="更新密钥"
+          placement="top"
+        >
+          <el-button
+            size="small"
+            @click="updateKey"
+            type="warning"
+            :icon="RefreshRight"
+            circle
+          ></el-button>
+        </el-tooltip>
+
         <!-- <el-input
           v-model="formInline.key"
           placeholder="Approved by"
@@ -19,6 +33,7 @@
 </template>
 
 <script lang="ts" setup>
+import { RefreshRight } from "@element-plus/icons-vue";
 import {
   ref,
   computed,
@@ -31,7 +46,7 @@ import {
 import { v1 as uuidv1, v4 as uuidv4 } from "uuid";
 const { proxy } = getCurrentInstance();
 import { useStore } from "vuex";
-import { ElLoading } from "element-plus";
+import { ElLoading, ElNotification } from "element-plus";
 
 const store = useStore();
 import useConfigStore from "@/store/config";
@@ -48,13 +63,16 @@ const getKey = async () => {
   nowKey.value = res.data.results[0];
   // console.log(nowKey.value);
 };
+
+// const updateKeyResTip = ref("");
 const updateKey = async () => {
   // console.log(uuidv1());
+  // updateKeyResTip.value = "密钥更新中";
   let newKey = uuidv4().replace(/-/g, "").slice(0, 16);
   // console.log();
   const loading = ElLoading.service({
     lock: true,
-    text: "Loading",
+    text: "更新中...",
     background: "rgba(0, 0, 0, 0.7)",
   });
   let res = await proxy.$api.updateSysConfig({
@@ -69,14 +87,30 @@ const updateKey = async () => {
 
     let res1 = await proxy.$api.reEncrypt({}, 300000);
     if (res1.status == "204" || res1.status == "200") {
-      console.log("重新加密成功!");
-      // 更新内存中的key
-      let gmRes = await proxy.$api.getSysConfig({ params: "gm" });
-      configStore.setGmCry(gmRes.data);
+      ElNotification({
+        title: "Success",
+        message: "数据重新加密成功~",
+        type: "success",
+        duration: 3000,
+      });
     } else {
+      ElNotification({
+        title: "Error",
+        message: "数据重新加密失败！",
+        type: "error",
+      });
       console.log("数据重新加密失败");
     }
+    // 更新内存中的key
+    let gmRes = await proxy.$api.getSysConfig({ params: "gm" });
+    configStore.setGmCry(gmRes.data);
   } else {
+    ElNotification({
+      title: "Error",
+      message: "密钥更新失败！",
+      type: "error",
+      duration: 3000,
+    });
     console.log("更新密钥失败");
   }
   setTimeout(() => {
