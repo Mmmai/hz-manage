@@ -701,8 +701,10 @@ class ModelFieldMetaNestedSerializer(ModelFieldMetaSerializer):
                     'label': None
                 }
         elif instance.model_fields.type == FieldType.PASSWORD:
-            data['data'] = password_handler.decrypt(data['data'])
-                
+            try:
+                data['data'] = password_handler.decrypt(data['data'])
+            except:
+                data['data'] = None
         return data
 
 
