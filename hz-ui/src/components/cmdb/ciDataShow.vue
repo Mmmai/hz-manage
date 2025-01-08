@@ -693,7 +693,7 @@
                                     type="password"
                                     v-model="passwordForm.secret"
                                     show-password
-                                    autoComplete="new-password"
+                                    auto-complete="new-password"
                                     placeholder="输入密钥查看密码"
                                     clearable
                                     style="width: 250px"
@@ -740,7 +740,7 @@
                     v-model="ciDataForm[fitem.name]"
                     style="width: 240px"
                     type="password"
-                    autoComplete="new-password"
+                    auto-complete="new-password"
                     show-password
                     clearable
                     v-else
