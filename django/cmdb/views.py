@@ -1201,13 +1201,12 @@ class PasswordManageViewSet(viewsets.ViewSet):
         try:
             password_meta = ModelFieldMeta.objects.filter(model_fields__type='password').values('id', 'data')
             if not password_meta:
-                return Response({'error': 'No password field meta found'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(status=status.HTTP_204_NO_CONTENT)
             password_dict = {
                 str(password['id']): password['data']
                 for password in password_meta
             }
             encrypted = password_handler.re_encrypt(password_dict)
-            # 根据encrypted更新ModelFieldMeta
             with transaction.atomic():
                 to_update= []
                 for meta_id, encrypted_password in encrypted.items():

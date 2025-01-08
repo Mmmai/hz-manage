@@ -123,7 +123,7 @@ class PasswordHandler:
             for meta_id, plain in new_password.items():
                 if plain:
                     encrypted_sm4 = self.encrypt_to_sm4(plain)
-                    new_password[meta_id] = encrypted_sm4
+                    new_password[meta_id] = self.encrypt(encrypted_sm4)
             return new_password
         except Exception as e:
             raise ValueError(f"Re-encryption failed: {str(e)}")
