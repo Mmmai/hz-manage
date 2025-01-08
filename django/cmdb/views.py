@@ -1190,3 +1190,37 @@ class RelationDefinitionViewSet(viewsets.ModelViewSet):
 class RelationsViewSet(viewsets.ModelViewSet):
     queryset = Relations.objects.all().order_by('-create_time')
     serializer_class = RelationsSerializer
+
+
+class PasswordManageViewSet(viewsets.ViewSet):
+
+    
+    @action(detail=False, methods=['post'])
+    def re_encrypt(self, request):
+        """重新加密密码"""
+        try:
+            password_meta = ModelFieldMeta.objects.filter(model_fields__type='password').values('id', 'data')
+            if not password_meta:
+                return Response({'error': 'No password field meta found'}, status=status.HTTP_400_BAD_REQUEST)
+            password_dict = {
+                str(password['id']): password['data']
+                for password in password_meta
+            }
+            encrypted = password_handler.re_encrypt(password_dict)
+            # 根据encrypted更新ModelFieldMeta
+            with transaction.atomic():
+                to_update= []
+                for meta_id, encrypted_password in encrypted.items():
+                    to_update.append(
+                        ModelFieldMeta(
+                            id=meta_id,
+                            data=encrypted_password
+                        )
+                    )
+                ModelFieldMeta.objects.bulk_update(to_update, ['data'])
+            return Response({
+                'status': 'success',
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error re-encrypting password: {traceback.format_exc()}")
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)

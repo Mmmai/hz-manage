@@ -37,8 +37,8 @@ class PasswordHandler:
                 if not self._initialized:
                     from mapi.models import sysConfigParams
                     secret_key = sysConfigParams.objects.get(param_name="secret_key").param_value
-                    key = base64.urlsafe_b64encode(secret_key.encode()[:32].ljust(32, b'\0'))
-                    self.fernet = Fernet(key)
+                    self.fernet_key = base64.urlsafe_b64encode(secret_key.encode()[:32].ljust(32, b'\0'))
+                    self.fernet = Fernet(self.fernet_key)
                     self.sm4_key = secret_key.encode('utf-8')
                     self._init_sm4()
                     self._initialized = True
@@ -87,7 +87,6 @@ class PasswordHandler:
         except Exception as e:
             raise ValueError(f"SM4 encryption failed: {str(e)}")
         
-    
         
     def decrypt_to_plain(self, stored_value: str) -> str:
         """静态方法：完全解密获取明文密码"""
@@ -106,6 +105,29 @@ class PasswordHandler:
         except Exception as e:
             raise ValueError(f"Full decryption failed: {str(e)}")
 
+    
+    def re_encrypt(self, pass_dict: dict) -> dict:
+        """重新加密密码字典"""
+        if not isinstance(pass_dict, dict):
+            raise ValueError("Invalid password dictionary.")
+        
+        new_password = {}
+        try:
+            for meta_id, encrypted in pass_dict.items():
+                if encrypted:
+                    plain = self.decrypt_to_plain(encrypted)
+                    new_password[meta_id] = plain
+                else:
+                    new_password[meta_id] = ""
+            self.reload_keys()
+            for meta_id, plain in new_password.items():
+                if plain:
+                    encrypted_sm4 = self.encrypt_to_sm4(plain)
+                    new_password[meta_id] = encrypted_sm4
+            return new_password
+        except Exception as e:
+            raise ValueError(f"Re-encryption failed: {str(e)}")
+        
 
 if __name__ == "__main__":
     handler = PasswordHandler()
