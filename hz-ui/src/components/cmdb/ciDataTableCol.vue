@@ -1,5 +1,5 @@
 <template>
-  <el-drawer v-model="isShowTableCol" direction="rtl" size="50%">
+  <el-drawer v-model="isShowTableCol" direction="rtl" size="40%">
     <template #header>
       <el-text tag="b">表格列显示配置</el-text>
     </template>
@@ -171,10 +171,13 @@ const emits = defineEmits(["reloadTable"]);
 watch(
   () => hasConfigFieldList.value,
   (n) => {
+    console.log("更新表格");
     emits("reloadTable");
     // console.log(hasConfigFieldList.value);
-  }
+  },
+  { deep: true }
 );
+
 // watch(
 //   () => isShowTableCol.value,
 //   (n) => {
@@ -197,7 +200,6 @@ const colCommit = async () => {
       filterInputRef.value!.clear();
       isShowTableCol.value = false;
     });
-    // 获取数据源列表
   } else {
     ElMessage({
       showClose: true,

@@ -1,5 +1,8 @@
 <template>
-  <div class="card ci_data_tree">
+  <div class="card ci_data_tree" v-show="showTree">
+    <!-- <el-icon style="position: absolute; top: 50%; right: 10px" size="small"
+      ><DArrowLeft />
+    </el-icon> -->
     <el-row align="middle" justify="start">
       <el-col :span="8">
         <el-text tag="b">实例树</el-text>
@@ -72,7 +75,11 @@
               >({{ data.instance_count }})</el-text
             ></el-text
           >
-          <div class="actionClass" :class="{ is_show_action: node.isShowEdit }">
+          <div
+            class="actionClass"
+            :class="{ is_show_action: node.isShowEdit }"
+            v-permission="`${route.name?.replace('_info', '')}:edit`"
+          >
             <!-- <Edit style="width: 1em; height: 1em; margin-right: 8px" @click.stop="editCateName(data)"
             v-if="!data.built_in" /> -->
             <el-space>
@@ -88,6 +95,8 @@
                 <DownOutlined @click.stop />
                 <template #overlay>
                   <a-menu>
+                    <div v-permission="`${route.name?.replace('_info', '')}:add`"
+                    >
                     <a-menu-item
                       key="0"
                       v-if="data.level === 1 ? false : true"
@@ -95,6 +104,8 @@
                     >
                       添加同级节点
                     </a-menu-item>
+                   
+                    
                     <a-menu-item
                       key="1"
                       v-if="canAddChildNone(data)"
@@ -102,6 +113,8 @@
                     >
                       添加子节点
                     </a-menu-item>
+                  </div>
+                  <div v-permission="`${route.name?.replace('_info', '')}:delete`">
                     <a-menu-item
                       key="2"
                       v-if="canDeleteNode(data)"
@@ -109,6 +122,8 @@
                     >
                       删除节点
                     </a-menu-item>
+                  </div>
+      
                   </a-menu>
                 </template>
               </a-dropdown>
@@ -127,6 +142,7 @@
       :currentNodeId="currentNodeId"
       ref="ciDataShowRef"
       @getTree="getCiModelTree"
+      v-model:showTree="showTree"
     />
     <!-- 右键菜单 -->
   </div>
@@ -147,11 +163,14 @@ import {
 import { ElMessageBox, ElMessage } from "element-plus";
 import { EditOutlined, DownOutlined, StarTwoTone } from "@ant-design/icons-vue";
 //
+import { useRoute } from "vue-router";
+const route = useRoute();
 import ciDataShow from "../components/cmdb/ciDataShow.vue";
 const { proxy } = getCurrentInstance();
 import { ElTree } from "element-plus";
 import type Node from "element-plus/es/components/tree/src/model/node";
 import useCiStore from "@/store/cmdb/ci";
+const showTree = ref(true);
 const ciStore = useCiStore();
 const modelInfo = ref("");
 // const currentIconName = defineModel('iconName')
@@ -238,9 +257,9 @@ const changeModel = async () => {
   // modelInfo.value = modelInfoObj.value[ciModelId.value]
   // console.log(modelInfo.value)
   await ciDataShowRef.value!.closeFilter();
-
+  await ciDataShowRef.value!.updateFilterParam({});
   await ciDataShowRef.value!.clearMultipleSelect();
-
+  ciDataShowRef.value!.reloadCiDataFilter();
   await ciDataShowRef.value!.setLoading(true);
 
   await ciDataShowRef.value!.getModelField();
@@ -601,6 +620,7 @@ const allowDrag = (draggingNode: Node) => {
   // width: 19%;
   // height: $mainHeight - $headerHeight;
   flex: 0 0 $leftTreeWidth;
+  position: relative;
 }
 
 .el-divider--horizontal {

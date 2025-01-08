@@ -56,9 +56,9 @@
             label-position="top"
           >
             <el-space wrap>
-              <el-form-item label="唯一标识" prop="name">
+              <el-form-item label="唯一标识" prop="instance_name">
                 <el-input
-                  v-model="filterForm.name"
+                  v-model="filterForm.instance_name"
                   type="textarea"
                   style="width: 280px"
                 />
@@ -82,14 +82,8 @@
                   <el-select
                     v-model="item.match"
                     placeholder="匹配方式"
-                    style="max-width: 100px; width: 90px"
+                    style="max-width: 100px; width: 120px"
                   >
-                    <el-option
-                      v-for="oitem in matchOptions"
-                      :key="oitem.value"
-                      :label="oitem.label"
-                      :value="oitem.value"
-                    />
                     <el-option
                       v-for="oitem in matchOptions"
                       :key="oitem.value"
@@ -110,71 +104,80 @@
                   </el-select>
                   <div
                     v-if="
-                      ['enum'].indexOf(
-                        props.allModelFieldByNameObj[item.name].type
-                      ) >>> -1
-                        ? false
-                        : true
+                      item.match === 'null' || item.match === '!null'
+                        ? true
+                        : false
                     "
-                  >
-                    <el-select
-                      v-model="item.value"
-                      placeholder="请选择"
-                      style="width: 180px"
-                    >
-                      <el-option
-                        v-for="ritem in props.enumOptionObj[
-                          props.allModelFieldByNameObj[item.name]
-                            .validation_rule
-                        ]"
-                        :key="ritem.value"
-                        :label="ritem.label"
-                        :value="ritem.value"
-                      />
-                    </el-select>
-                  </div>
-                  <div
-                    v-else-if="
-                      ['model_ref'].indexOf(
-                        props.allModelFieldByNameObj[item.name].type
-                      ) >>> -1
-                        ? false
-                        : true
-                    "
-                  >
-                    <el-select
-                      v-model="item.value"
-                      placeholder="请选择"
-                      style="width: 180px"
-                    >
-                      <el-option
-                        v-for="ritem in props.modelRefOptions[item.name]"
-                        :key="ritem.value"
-                        :label="ritem.label"
-                        :value="ritem.value"
-                      />
-                    </el-select>
-                  </div>
-                  <div
-                    v-else-if="
-                      ['boolean'].indexOf(
-                        props.allModelFieldByNameObj[item.name].type
-                      ) >>> -1
-                        ? false
-                        : true
-                    "
-                  >
-                    <el-switch
-                      v-model="item.value"
-                      style="
-                        --el-switch-on-color: #13ce66;
-                        --el-switch-off-color: #ff4949;
-                      "
-                    />
-                  </div>
-
+                  ></div>
                   <div v-else>
-                    <el-input v-model="item.value" style="width: 180px" />
+                    <div
+                      v-if="
+                        ['enum'].indexOf(
+                          props.allModelFieldByNameObj[item.name].type
+                        ) >>> -1
+                          ? false
+                          : true
+                      "
+                    >
+                      <el-select
+                        v-model="item.value"
+                        placeholder="请选择"
+                        style="width: 180px"
+                      >
+                        <el-option
+                          v-for="ritem in props.enumOptionObj[
+                            props.allModelFieldByNameObj[item.name]
+                              .validation_rule
+                          ]"
+                          :key="ritem.value"
+                          :label="ritem.label"
+                          :value="ritem.value"
+                        />
+                      </el-select>
+                    </div>
+                    <div
+                      v-else-if="
+                        ['model_ref'].indexOf(
+                          props.allModelFieldByNameObj[item.name].type
+                        ) >>> -1
+                          ? false
+                          : true
+                      "
+                    >
+                      <el-select
+                        v-model="item.value"
+                        placeholder="请选择"
+                        style="width: 180px"
+                      >
+                        <el-option
+                          v-for="ritem in props.modelRefOptions[item.name]"
+                          :key="ritem.value"
+                          :label="ritem.label"
+                          :value="ritem.value"
+                        />
+                      </el-select>
+                    </div>
+                    <div
+                      v-else-if="
+                        ['boolean'].indexOf(
+                          props.allModelFieldByNameObj[item.name].type
+                        ) >>> -1
+                          ? false
+                          : true
+                      "
+                    >
+                      <el-switch
+                        v-model="item.value"
+                        style="
+                          --el-switch-on-color: #13ce66;
+                          --el-switch-off-color: #ff4949;
+                        "
+                      />
+                    </div>
+
+                    <div v-else>
+                      <el-input v-model="item.value" style="width: 180px" />
+                    </div>
                   </div>
                 </el-space>
               </el-form-item>
@@ -240,9 +243,9 @@ const toLeft = (params) => {
 };
 
 const removeFilterParam = (name, index) => {
-  if (name === "name") {
-    filterForm.name = "";
-    filterParam;
+  if (name === "instance_name") {
+    filterForm.instance_name = "";
+    // filterParam;
   } else {
     filterLists.value.splice(index, 1);
   }
@@ -262,16 +265,18 @@ const emit = defineEmits(["getCiData", "updateFilterParam"]);
 const filterFormRef = ref("");
 const filterForm = reactive({
   filterParams: [],
-  name: "",
+  instance_name: "",
 });
 const matchOptions = ref([
-  { value: "=", label: "=", description: "等于" },
-  { value: "not:", label: "!=", description: "不等于" },
-  { value: "like:", label: "*=", description: "模糊匹配" },
-  { value: "not:like:", label: "!=", description: "反向模糊匹配" },
-  { value: "in:", label: "in", description: "包含以,分隔" },
-  { value: "not:in:", label: "!in", description: "不包含以,分隔" },
-  { value: "regex:", label: "regex", description: "正则表达式" },
+  { value: "=", label: "等于", description: "等于" },
+  { value: "not:", label: "不等于", description: "不等于" },
+  { value: "like:", label: "模糊匹配", description: "模糊匹配" },
+  { value: "not:like:", label: "反向模糊", description: "反向模糊匹配" },
+  { value: "in:", label: "包含", description: "包含以,分隔" },
+  { value: "not:in:", label: "不包含", description: "不包含以,分隔" },
+  { value: "regex:", label: "正则", description: "正则表达式" },
+  { value: "null", label: "空", description: "正则表达式" },
+  { value: "!null", label: "非空", description: "正则表达式" },
 ]);
 const filterLists = ref([]);
 const filterParamComputed = computed(() => {
@@ -279,6 +284,11 @@ const filterParamComputed = computed(() => {
 
   // console.log(filterParams.value);
   filterForm.filterParams.forEach((item) => {
+    // 新增空和非空的匹配
+    if (item.match === "null" || item.match === "!null") {
+      tmpObj[item.name] = item.match;
+      return;
+    }
     if (item.value !== "") {
       let _tmpValue = null;
       if (item.value !== null) {
@@ -295,8 +305,8 @@ const filterParamComputed = computed(() => {
   });
 
   // name字段判断有没有过滤值
-  if (filterForm.name !== "") {
-    tmpObj.name = filterForm.name;
+  if (filterForm.instance_name !== "") {
+    tmpObj.instance_name = filterForm.instance_name;
   }
   return tmpObj;
 });
@@ -309,8 +319,10 @@ const filterParamComputed = computed(() => {
 // );
 // const filterLists = computed(() => ciStore.filterLists);
 const searchCommit = () => {
-  emit("updateFilterParam", filterParamComputed.value);
+  console.log(filterParamComputed.value);
 
+  emit("updateFilterParam", filterParamComputed.value);
+  console.log(filterParamComputed.value);
   // 发起查询流程
   nextTick(() => {
     emit("getCiData", {

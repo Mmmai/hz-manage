@@ -216,17 +216,41 @@ class UniqueConstraintFilter(filters.FilterSet):
 
 class ModelInstanceFilter(filters.FilterSet):
     model = filters.UUIDFilter(field_name='model')
-    name = filters.CharFilter(field_name='name', lookup_expr='icontains')
+    instance_name = filters.CharFilter(field_name='instance_name', lookup_expr='icontains')
+    model_instance_group = filters.UUIDFilter(method='filter_model_instance_group')
     create_time_after = filters.DateTimeFilter(field_name='create_time', lookup_expr='gte')
     create_time_before = filters.DateTimeFilter(field_name='create_time', lookup_expr='lte')
     update_time_after = filters.DateTimeFilter(field_name='update_time', lookup_expr='gte')
     update_time_before = filters.DateTimeFilter(field_name='update_time', lookup_expr='lte')
 
+    def filter_model_instance_group(self, queryset, name, value):
+        
+        def get_all_child_groups(group):
+            """递归获取所有子分组ID"""
+            group_ids = [group.id]
+            children = ModelInstanceGroup.objects.filter(parent=group)
+            for child in children:
+                group_ids.extend(get_all_child_groups(child))
+            return group_ids
+        
+        if value:
+            try:
+                group = ModelInstanceGroup.objects.get(id=value)
+                all_groups = get_all_child_groups(group)
+                instance_ids = ModelInstanceGroupRelation.objects.filter(
+                    group__in=all_groups
+                ).values_list('instance_id', flat=True)
+                return queryset.filter(id__in=instance_ids)
+            except ModelInstanceGroup.DoesNotExist:
+                return queryset.none()
+        return queryset
+    
     class Meta:
         model = ModelInstance
         fields = [
             'model',
-            'name',
+            'instance_name',
+            'model_instance_group',
             'create_time_after',
             'create_time_before',
             'update_time_after',

@@ -7,8 +7,6 @@
       <el-container class="l-container">
         <el-header>
           <headerCom />
-
-
         </el-header>
         <!-- <tabNewCom /> -->
         <tabNewCom />
@@ -24,42 +22,50 @@
           <router-view>
             <template #default="{ Component, route }">
               <keep-alive>
-                <component :is="Component" :key="route.path" v-if="!route.meta.is_iframe" />
+                <component
+                  :is="Component"
+                  :key="route.path"
+                  v-if="$route.name !== 'model'"
+                />
               </keep-alive>
             </template>
           </router-view>
           <iframe-view v-show="route.meta.is_iframe"></iframe-view>
-          <!-- <router-view v-if="!$route.meta.keepAlive"></router-view> -->
+          <router-view v-if="$route.name === 'model'"></router-view>
           <!-- </el-scrollbar> -->
         </el-main>
         <el-footer class="efooter">
-          <el-text tag="p"> 2024 © hz-manager By 工程售后服务中心-技术管理室 </el-text>
+          <el-text tag="p">
+            2024 © hz-manager By 工程售后服务中心-技术管理室
+          </el-text>
         </el-footer>
-
       </el-container>
     </el-container>
   </div>
 </template>
 <script setup>
-import headerCom from '../components/layout/headerCom.vue'
-import asideCom from '../components/layout/asideCom.vue'
-import tabNewCom from '../components/layout/tabNewCom.vue'
-import iframeView from './iframeView.vue';
-import { onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router'
-// import { getCurrentInstance } from 'vue'
-// const {proxy} = getCurrentInstance();
+import headerCom from "../components/layout/headerCom.vue";
+import asideCom from "../components/layout/asideCom.vue";
+import tabNewCom from "../components/layout/tabNewCom.vue";
+import iframeView from "./iframeView.vue";
+import { onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { getCurrentInstance } from "vue";
+const { proxy } = getCurrentInstance();
 // import router from '../router';
 // proxy.$api.test().then(res => {
 //   console.log(res)
 // })
+import { useStore } from "vuex";
+const store = useStore();
 
 const route = useRoute();
 const router = useRouter();
-onMounted(() => {
-  // console.log('route', route);
-  // console.log('router', router, router.getRoutes());
-})
+onMounted(async () => {
+  // await store.dispatch("getSecret");
+  // console.log("route", route);
+  // console.log("router", router, router.getRoutes());
+});
 </script>
 <style scoped lang="scss">
 header {
@@ -72,7 +78,7 @@ header {
 
 .el-header {
   padding: 0px 5px;
-  border-bottom: 1px solid #DCDCDC;
+  border-bottom: 1px solid #dcdcdc;
   height: $headerHeight;
 }
 
@@ -95,7 +101,6 @@ header {
     background-color: var(--el-bg-color-page);
     display: flex;
     gap: 10px;
-
   }
 }
 
@@ -103,7 +108,8 @@ header {
   height: 20px;
 }
 
-.l-container {}
+.l-container {
+}
 
 /* .el-header{
   padding: 0px 5px;

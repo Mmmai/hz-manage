@@ -1,7 +1,8 @@
 from django.db import models
 from datetime import timezone
-
+import uuid
 class UserInfo(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = models.CharField(max_length=32,null=False,unique=True)
     password = models.CharField(max_length=32,null=False)
     real_name = models.CharField(max_length=50, verbose_name="真实姓名",null=True,blank=True,default="")
@@ -10,7 +11,7 @@ class UserInfo(models.Model):
     update_time = models.DateTimeField(auto_now=True)
     create_time = models.DateTimeField(auto_now_add=True)
     roles = models.ManyToManyField(to='Role',verbose_name='角色')
-
+    groups = models.ManyToManyField(to='UserGroup',verbose_name='用户组',related_name="users")
     def __str__(self):
       return self.username
     class Meta:
@@ -19,13 +20,31 @@ class UserInfo(models.Model):
       verbose_name_plural = verbose_name
       app_label = 'mapi'
 
+class UserGroup(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    group_name = models.CharField(max_length=32,null=False,unique=True)
+    update_time = models.DateTimeField(auto_now=True)
+    create_time = models.DateTimeField(auto_now_add=True)
+    roles = models.ManyToManyField(to='Role',verbose_name='角色')
+    def __str__(self):
+      return self.group_name
+    class Meta:
+      db_table = "tb_user_group"
+      verbose_name = "用户组表"
+      verbose_name_plural = verbose_name
+      app_label = 'mapi'
+
 class Role(models.Model):
     """
     角色：绑定权限
     """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     role = models.CharField(max_length=32, unique=True,verbose_name = "角色")
-
-    menu = models.ManyToManyField("Menu",blank=True,null=True)
+    role_name = models.CharField(max_length=32, unique=True,verbose_name = "角色名称")
+    update_time = models.DateTimeField(auto_now=True)
+    create_time = models.DateTimeField(auto_now_add=True)
+    
+    # menu = models.ManyToManyField("Menu")
     # 定义角色和权限的多对多关系
 
     def __str__(self):
@@ -39,9 +58,14 @@ class Role(models.Model):
 
 
 class Menu(models.Model):
+    class MenuTypeChoices(models.IntegerChoices):
+        DIRETORY = '0', '目录'
+        MENU = '1', '菜单'
+        # BUTTON = '2', '按钮'
     """
     菜单
     """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     label = models.CharField(max_length=32, unique=True,verbose_name='菜单')
     icon = models.CharField(max_length=64, verbose_name='菜单图标', null=True, blank=True)
     name = models.CharField(max_length=32, unique=True,verbose_name='菜单编码',null=False)
@@ -50,44 +74,99 @@ class Menu(models.Model):
     status = models.BooleanField(verbose_name="状态",default=True)
     path = models.CharField(max_length=32,null=True, blank=True)
     is_menu = models.BooleanField(verbose_name="是否菜单",default=True)
+    # menu_type = models.IntegerField(choices=MenuTypeChoices.choices,default=MenuTypeChoices.MENU)
     sort = models.IntegerField(null=True,blank=True,default=0)
     has_info = models.BooleanField(verbose_name="是否有详细页面",default=False)
     info_view_name = models.CharField(max_length=128,verbose_name='详细页面路由',null=True,blank=True)
     is_iframe = models.BooleanField(verbose_name="是否内嵌",default=False)
     iframe_url = models.CharField(max_length=256, verbose_name='链接地址',null=True,blank=True)
     description = models.CharField(max_length=256,null=True,blank=True)
+    # role = models.ManyToManyField("Role")
 
     # 定义菜单间的自引用关系
     # 权限url 在 菜单下；菜单可以有父级菜单；还要支持用户创建菜单，因此需要定义parent字段（parent_id）
     # blank=True 意味着在后台管理中填写可以为空，根菜单没有父级菜单
+    
+    def __str__(self):
+        return self.name
+    # # 菜单创建时，自动创建
+    # def save(self, *args, **kwargs):
+    #     print(123)
+    #     print(self.pk)
+    #     print(456)
 
-    # def __str__(self):
-    #     return self.menu_name
+    #     if self.pk is None: 
+    #         print('我是新增')
+    #         super().save(*args, **kwargs)
+    #         # 同步新增管理员的权限
+    #         if not self.is_menu:
+    #             return
+    #         role_obj = Role.objects.get(role="管理员")
+    #         # 定义需要添加的按钮
+    #         buttons = [
+    #             Button(name='查看', action='view',menu=self),
+    #             Button(name='添加', action='add',menu=self),
+    #             Button(name='删除', action='delete',menu=self),
+    #             Button(name='修改', action='edit',menu=self)
+    #         ]
+    #         for button in buttons:
+    #             button.save()
+    #             Permission.objects.create(menu=self, button=button,role=role_obj)
+    #             print(f"创建按钮<{button.name}>及授予管理员权限!")
+    #     else:
+    #         super().save(*args, **kwargs)
+
 
     class Meta:
         db_table = "tb_menu"
         verbose_name = "菜单"
         verbose_name_plural = verbose_name
         app_label = 'mapi'
+# class RoleAndMenu(models.Model):
+#     menus = models.ForeignKey("Menu",on_delete=models.CASCADE) 
+#     roles = models.ForeignKey("Role",on_delete=models.CASCADE)
 
-# class Permission(models.Model):
-#     """
-#     权限
-#     """
-#     title = models.CharField(max_length=32, unique=True, verbose_name="权限")
-#     url = models.CharField(max_length=128, unique=True)
-#     icon = models.CharField(max_length=10, verbose_name='权限图标', null=True, blank=True)
-#     menu = models.ForeignKey("Menu", null=True, blank=True, on_delete=models.CASCADE)
-#
-#     def __str__(self):
-#         # 显示带菜单前缀的权限
-#         return '{menu}---{permission}'.format(menu=self.menu, permission=self.title)
-#
 #     class Meta:
-#         db_table = "tb_permission"
-#         verbose_name = "权限"
-#         verbose_name_plural = verbose_name
+#         db_table = "tb_role_menu"
+#         app_label = 'mapi'    
+# 按钮
+class Button(models.Model):
+    """
+    权限
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=32,verbose_name='按钮名称',null=False)
+    action = models.CharField(max_length=32,verbose_name='按钮动作',null=False)
+    menu = models.ForeignKey(Menu, on_delete=models.CASCADE,related_name="buttons")
+
+    # def __str__(self):
+    #     # 显示带菜单前缀的权限
+    #     return 
+
+    class Meta:
+        db_table = "tb_button"
+        verbose_name = "菜单按钮"
+        verbose_name_plural = verbose_name
+class Permission(models.Model):
+    """
+    权限
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    role = models.ForeignKey(Role, on_delete=models.CASCADE,related_name="permission")
+    menu = models.ForeignKey(Menu, on_delete=models.CASCADE,related_name="permission")
+    button = models.ForeignKey(Button, on_delete=models.CASCADE,related_name="permission")
+
+    # def __str__(self):
+    #     # 显示带菜单前缀的权限
+    #     return 
+
+    class Meta:
+        db_table = "tb_permission"
+        verbose_name = "权限"
+        verbose_name_plural = verbose_name
+
 class Portal(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(verbose_name='名称',max_length=32,null=False,unique=True)
     describe = models.CharField(verbose_name='描述',max_length=256,null=True,blank=True,default="")
     username = models.CharField(verbose_name='用户名',max_length=32,null=True,blank=True,default="")
@@ -115,6 +194,7 @@ class Pgroup(models.Model):
     """
     门户的用户组
     """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     group = models.CharField(max_length=32, unique=True,verbose_name = "角色")
     # owner = models.ForeignKey('Userinfo',on_delete=models.CASCADE)
     # 定义角色和权限的多对多关系
@@ -127,6 +207,7 @@ class Pgroup(models.Model):
         verbose_name_plural = verbose_name
         app_label = 'mapi'
 class Datasource(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     source_name = models.CharField(max_length=32, unique=True,verbose_name = "数据源名称")
     source_type = models.CharField(max_length=32,null=False,default="loki",verbose_name = "类型")
     username = models.CharField(verbose_name='用户名',max_length=32,null=True,blank=True,default="")
@@ -173,3 +254,13 @@ class Datasource(models.Model):
 #         # verbose_name_plural = verbose_name
 
 
+
+class sysConfigParams(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    param_name = models.CharField(max_length=254, unique=True,verbose_name = "参数名")
+    param_value = models.CharField(max_length=254,null=True,blank=True,verbose_name = "参数值")    
+    class Meta:
+        db_table = "tb_sysconfig"
+        verbose_name = "系统参数配置表"
+        verbose_name_plural = verbose_name
+        app_label = 'mapi'

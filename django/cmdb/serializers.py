@@ -16,9 +16,10 @@ from functools import reduce
 from django.db.models import Max, F, Q, Count
 from django.core.cache import cache
 from types import SimpleNamespace
+from cacheops import invalidate_model, invalidate_obj
 from .utils import password_handler
 from .validators import FieldValidator
-from .constants import FieldMapping, ValidationType, FieldType
+from .constants import FieldMapping, ValidationType, FieldType, limit_field_names
 from .models import (
     ModelGroups,
     Models,
@@ -176,7 +177,7 @@ class ValidationRulesSerializer(serializers.ModelSerializer):
                         "Can only modify rule content for editable enum type built_in rules"
                     )
                 # 检查所有字段变更
-                allowed_fields = {'rule', 'description', 'verbose_name','update_user'}
+                allowed_fields = {'rule', 'description', 'verbose_name', 'update_user'}
                 for field, new_value in data.items():
                     old_value = getattr(instance, field)
                     if new_value != old_value and field not in allowed_fields:
@@ -186,6 +187,10 @@ class ValidationRulesSerializer(serializers.ModelSerializer):
         # 基础字段验证
         field_type = data.get('field_type')
         validation_type = data.get('type')
+        if not field_type and self.instance:
+            field_type = self.instance.field_type
+        if not validation_type and self.instance:
+            validation_type = self.instance.type
         
         if not validation_type:
             raise serializers.ValidationError(
@@ -208,6 +213,8 @@ class ValidationRulesSerializer(serializers.ModelSerializer):
                     enum_data = json.loads(enum_data)
                 if not isinstance(enum_data, dict):
                     raise serializers.ValidationError("Enum rule must be a dict")
+                if len(enum_data) != len(set(enum_data.values())): 
+                    raise serializers.ValidationError("Enum labels must be unique")
             except json.JSONDecodeError:
                 raise serializers.ValidationError("Invalid JSON format for enum rule")
             except Exception as e:
@@ -304,9 +311,13 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, data):
+        if data.get('name') in limit_field_names:
+            raise serializers.ValidationError({
+                'name': f"Field name '{data.get('name')}' is conflict with system reserved field names"
+            })
         if self.instance:
             if not self.instance.editable:
-                restricted_fields = ['name', 'type','validation', 'validation_rule']
+                restricted_fields = ['name', 'model', 'verbose_name', 'type','validation', 'validation_rule']
                 for field in restricted_fields:
                     if field in data and data[field] != getattr(self.instance, field):
                         raise PermissionDenied({
@@ -450,10 +461,9 @@ class ModelFieldPreferenceSerializer(serializers.ModelSerializer):
         return data
 
     def to_internal_value(self, data):
-        # 将字符串列表转换为 UUID 列表
         if 'fields_preferred' in data:
             try:
-                data['fields_preferred'] = [UUID(str(field_id)) for field_id in data['fields_preferred']]
+                data['fields_preferred'] = [str(field_id) for field_id in data['fields_preferred']]
             except (ValueError, AttributeError, TypeError):
                 raise serializers.ValidationError({
                     'fields_preferred': 'Invalid UUID format in fields_preferred'
@@ -480,6 +490,12 @@ class UniqueConstraintSerializer(serializers.ModelSerializer):
                 'detail': 'Built-in unique constraint cannot be modified'
             })
             
+        for field in fields:
+            if field not in ModelFields.objects.filter(model=model).values_list('name', flat=True):
+                raise serializers.ValidationError({
+                    'fields': f'Field {field} does not exist in model {model.name}'
+                })
+        
         # 在应用层检查数组长度和内容
         for constraint in existing:
             if (len(constraint.fields) == len(fields) and 
@@ -660,12 +676,12 @@ class ModelFieldMetaNestedSerializer(ModelFieldMetaSerializer):
                 # 转换为嵌套字典
                 data['data'] = {
                     'id': str(ref_instance.id),
-                    'name': ref_instance.name
+                    'instance_name': ref_instance.instance_name
                 }
             except ModelInstance.DoesNotExist:
                 data['data'] = {
                     'id': data['data'],
-                    'name': None
+                    'instance_name': None
                 }
         elif instance.model_fields.type == FieldType.ENUM:
             if instance.model_fields.validation_rule \
@@ -685,9 +701,7 @@ class ModelFieldMetaNestedSerializer(ModelFieldMetaSerializer):
                     'label': None
                 }
         elif instance.model_fields.type == FieldType.PASSWORD:
-            logger.info(f'self.context: {self.context}')
-            if self.context.get('decrypt_password', False):
-                data['data'] = password_handler.decrypt(data['data'])
+            data['data'] = password_handler.decrypt(data['data'])
                 
         return data
 
@@ -700,10 +714,10 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = ModelInstance
-        fields = ['id', 'model', 'name',  'create_time', 'update_time', 'create_user', 'update_user', 'fields', 'field_values', 'instance_group']
+        fields = ['id', 'model', 'instance_name',  'create_time', 'update_time', 'create_user', 'update_user', 'fields', 'field_values', 'instance_group']
         extra_kwargs = {
             'model': {'required': False},
-            'name': {'required': False},
+            'instance_name': {'required': False},
             'create_user': {'required': False},
             'update_user': {'required': False}
         }
@@ -731,27 +745,30 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
     def validate_fields(self, fields_data):
         """验证字段值"""
         request = self.context.get('request', None)
+        from_excel = self.context.get('from_excel', False)
+        if from_excel:
+            return fields_data
         if request and request.method in ['PUT', 'POST']:
             model = self.initial_data.get('model')
             if not model:
                 raise serializers.ValidationError("Model is required")
+            if not self.instance:
+                # 获取模型的所有必填字段
+                required_fields = ModelFields.objects.filter(
+                    model=model,
+                    required=True
+                ).values_list('name', flat=True)
                 
-            # 获取模型的所有必填字段
-            required_fields = ModelFields.objects.filter(
-                model=model,
-                required=True
-            ).values_list('name', flat=True)
+                # 检查必填字段是否都提供了
+                missing_fields = [
+                    field for field in required_fields 
+                    if field not in fields_data or fields_data[field] is None
+                ]
             
-            # 检查必填字段是否都提供了
-            missing_fields = [
-                field for field in required_fields 
-                if field not in fields_data or fields_data[field] is None
-            ]
-            
-            if missing_fields:
-                raise serializers.ValidationError({
-                    'fields': f'Required fields are missing: {", ".join(missing_fields)}'
-                })
+                if missing_fields:
+                    raise serializers.ValidationError({
+                        'fields': f'Required fields are missing: {", ".join(missing_fields)}'
+                    })
         elif request and request.method == 'PATCH':
             # 检查是否有提供字段
             if not fields_data:
@@ -780,10 +797,50 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 })
         return fields_data
     
+    
+    def _process_field_value_from_excel(self, field, value):
+        """
+        Excel 数据导入特殊处理
+        - 密码字段: 明文 -> SM4
+        - 枚举字段: value -> key
+        - 引用字段: name -> id
+        """
+        if value is None or value == '':
+            return None
+        value = str(value)
+        try:
+            # 密码字段处理
+            if field.type == FieldType.PASSWORD:
+                sm4_encrypted = password_handler.encrypt_to_sm4(value)
+                return sm4_encrypted
+            # 枚举字段处理
+            elif field.validation_rule and field.validation_rule.type == ValidationType.ENUM:
+                enum_dict = ValidationRules.get_enum_dict(field.validation_rule.id)
+                reverse_dict = {v: k for k, v in enum_dict.items()}
+                if value in reverse_dict:
+                    return reverse_dict[value]
+                raise ValidationError(f"Invalid enum value: {value}")
+            # 引用字段处理
+            elif field.type == FieldType.MODEL_REF:
+                target_model = field.ref_model
+                instance = ModelInstance.objects.filter(
+                    model=target_model,
+                    instance_name=value
+                ).first()
+                if instance:
+                    return str(instance.id)
+                raise ValidationError(f"Invalid model instance name: {value}")
+                
+            return value
+            
+        except Exception as e:
+            raise ValidationError(f"Error processing field {field.name}: {str(e)}")
         
     def create(self, validated_data):
         fields_data = validated_data.pop('fields')
-        instance_group_ids = self.context['request'].data.get('instance_group')
+        instance_group_ids = self.context['request'].data.get('instance_group', [])
+        if instance_group_ids and isinstance(instance_group_ids, str):
+            instance_group_ids = [instance_group_ids]
         logger.info(f'Processing fields data: {fields_data}')
         
         try:
@@ -795,7 +852,9 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 field_serializers = []
                 for field in model_fields:
                     value = fields_data.get(field.name)
-                    logger.info(f'Processing field {field.name} with value {value}')
+                    if self.context.get('from_excel', False):
+                        value = self._process_field_value_from_excel(field, value)
+                    logger.info(f'Processed field {field.name} with value {value}')
                     
                     field_meta_data = {
                         'model_fields': field.id,
@@ -827,6 +886,8 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 )
                 valid_flag = False
                 group_cache_to_clear = []
+                if unassigned_group.id in instance_group_ids and len(instance_group_ids) > 1:
+                    instance_group_ids.remove(unassigned_group.id)
                 if instance_group_ids:
                     for instance_group_id in instance_group_ids:
                         target_group = ModelInstanceGroup.objects.filter(
@@ -876,7 +937,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 for field in re.findall(r'\{([^}]+)\}', template)
             ]
         else:
-            raise serializers.ValidationError("Name template is required")
+            raise serializers.ValidationError("Instance name template is required")
         
         empty_fields = [
             field for field in required_fields 
@@ -893,72 +954,76 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
         
         return template.format(**fields_data)
 
-    def validate_name(self, value):
+    def validate_instance_name(self, value):
         """验证实例名称"""
         request = self.context.get('request')
+        from_excel = self.context.get('from_excel', False)
         if not request:
             return value
+        
+        if not from_excel:
+            is_create = request.method == 'POST'
+            if 'model' in request.data:
+                model = Models.objects.filter(id=request.data['model']).first()
+            else:
+                model = self.instance.model if self.instance else None
+            fields_data = request.data.get('fields', {})
+            logger.info(f'Fields data: {fields_data}')
             
-        is_create = request.method == 'POST'
-        if 'model' in request.data:
-            model = Models.objects.filter(id=request.data['model']).first()
+            
+            # 创建时如果未提供name则生成
+            if not value and is_create:
+                if not model or not model.instance_name_template:
+                    raise serializers.ValidationError("Neither instance_name nor instance_name_template provided")
+                    
+                try:
+                    value = self._format_name_with_validation(
+                        model.instance_name_template, 
+                        fields_data
+                    )
+                except KeyError as e:
+                    raise serializers.ValidationError(f"Key not found in fields data: {str(e)}")
+                except Exception as e:
+                    raise serializers.ValidationError(f"Error generating instance_name: {str(e)}")
+            
+            if not value and not is_create and ('instance_name' not in request.data or not request.data['instance_name']):
+                try:
+                    db_fields = ModelFieldMeta.objects.filter(
+                        model_instance=self.instance
+                    ).select_related('model_fields').values(
+                        'model_fields__name', 'data'
+                    )
+                    db_fields = {
+                        item['model_fields__name']: item['data']
+                        for item in db_fields
+                    }
+                    merged_fields = db_fields.copy()
+                    merged_fields.update(fields_data)
+                    logger.info(f'Merged fields: {merged_fields}')
+                    value = self._format_name_with_validation(
+                        self.instance.model.instance_name_template, 
+                        merged_fields
+                    )
+                except KeyError as e:
+                    raise serializers.ValidationError(f"Key not found in fields data: {str(e)}")
+                except Exception as e:
+                    raise serializers.ValidationError(f"Error generating instance_name: {str(e)}")
+        
+            # 验证唯一性
+            if value:
+                name_exists_query = ModelInstance.objects.filter(
+                    model=model,
+                    instance_name=value
+                )
+                if not is_create:
+                    name_exists_query = name_exists_query.exclude(id=self.instance.id)
+                    
+                if name_exists_query.exists():
+                    raise serializers.ValidationError(f"Instance_name {value} already exists in model {model.name}")
+            
+            return value
         else:
-            model = self.instance.model if self.instance else None
-        fields_data = request.data.get('fields', {})
-        logger.info(f'Fields data: {fields_data}')
-        
-        
-        # 创建时如果未提供name则生成
-        if not value and is_create:
-            if not model or not model.instance_name_template:
-                raise serializers.ValidationError("Neither name nor name template provided")
-                
-            try:
-                value = self._format_name_with_validation(
-                    model.instance_name_template, 
-                    fields_data
-                )
-            except KeyError as e:
-                raise serializers.ValidationError(f"Key not found in fields data: {str(e)}")
-            except Exception as e:
-                raise serializers.ValidationError(f"Error generating name: {str(e)}")
-        
-        if not value and not is_create and ('name' not in request.data or not request.data['name']):
-            try:
-                db_fields = ModelFieldMeta.objects.filter(
-                    model_instance=self.instance
-                ).select_related('model_fields').values(
-                    'model_fields__name', 'data'
-                )
-                db_fields = {
-                    item['model_fields__name']: item['data']
-                    for item in db_fields
-                }
-                merged_fields = db_fields.copy()
-                merged_fields.update(fields_data)
-                logger.info(f'Merged fields: {merged_fields}')
-                value = self._format_name_with_validation(
-                    self.instance.model.instance_name_template, 
-                    merged_fields
-                )
-            except KeyError as e:
-                raise serializers.ValidationError(f"Key not found in fields data: {str(e)}")
-            except Exception as e:
-                raise serializers.ValidationError(f"Error generating name: {str(e)}")
-        
-        # 验证唯一性
-        if value:
-            name_exists_query = ModelInstance.objects.filter(
-                model=model,
-                name=value
-            )
-            if not is_create:
-                name_exists_query = name_exists_query.exclude(id=self.instance.id)
-                
-            if name_exists_query.exists():
-                raise serializers.ValidationError(f"Name {value} already exists in model {model.name}")
-        
-        return value
+            return value
 
     def _validate_field_value(self, field, value):
         """验证单个字段值"""
@@ -966,6 +1031,8 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
             'model_fields': field.id,
             'data': value
         }
+        if self.context.get('from_excel', False):
+            field_meta_data['data'] = self._process_field_value_from_excel(field, value)
         serializer = ModelFieldMetaNestedSerializer(data=field_meta_data)
         serializer.is_valid(raise_exception=True)
         return serializer.validated_data
@@ -1049,7 +1116,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
             try:
                 enum_data = json.loads(field_config.validation_rule.rule)
                 if value in enum_data:
-                    return value
+                    return enum_data.get(value)
                 raise ValueError(f"Invalid enum key: {value}")
             except json.JSONDecodeError:
                 raise ValueError("Invalid enum configuration")
@@ -1057,8 +1124,6 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
             return str(value) if value is not None else None
         elif field_config.type in (FieldType.STRING, FieldType.TEXT):
             return str(value) if value is not None else None
-        # elif field_config.type in (FieldType.DATE, FieldType.DATETIME):
-        #     return value.isoformat() if isinstance(value, (datetime, date)) else str(value) if value is not None else None
         elif field_config.type == FieldType.JSON:
             try:
                 if isinstance(value, str):
@@ -1132,6 +1197,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
 
             # 没有空值或唯一性约束要求验证空值
             if not has_null or constraint.validate_null:
+                logger.info(f'Beginning unique constraint validation')
                 duplicate_ids = self.check_duplicate_fields(field_values, model, instance)
                 if duplicate_ids:
                     field_names = ", ".join(field_values.keys())
@@ -1464,7 +1530,7 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
 class ModelInstanceBasicViewSerializer(ModelInstanceSerializer):
     class Meta:
         model = ModelInstance
-        fields = ['id', 'model', 'name', 'create_time', 'update_time', 'create_user', 'update_user']
+        fields = ['id', 'model', 'instance_name', 'create_time', 'update_time', 'create_user', 'update_user']
         
     def to_representation(self, instance):
         return super(ModelInstanceSerializer, self).to_representation(instance)
@@ -1632,6 +1698,7 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
                             update_user='system'
                         )
                         created_relations.append(relation)
+                    invalidate_obj(instance)
                 
                 logger.info(f'Saved {len(created_relations)} relations')
                 groups_to_clear.update(

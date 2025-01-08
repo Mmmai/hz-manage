@@ -2,7 +2,12 @@
   <div class="card">
     <div class="table-header">
       <div class="header-button-lf">
-        <el-button type="primary" @click="addData">添加</el-button>
+        <el-button
+          v-permission="`${route.name?.replace('_info', '')}:add`"
+          type="primary"
+          @click="addData"
+          >添加</el-button
+        >
       </div>
       <div class="header-button-ri">
         <el-select v-model="colValue" placeholder="Select" style="width: 120px">
@@ -50,6 +55,7 @@
             placement="top"
           >
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
               link
               type="primary"
               :icon="Edit"
@@ -63,6 +69,7 @@
             placement="top"
           >
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:delete`"
               link
               type="danger"
               :icon="Delete"
@@ -245,7 +252,8 @@ const { proxy } = getCurrentInstance();
 import { useStore } from "vuex";
 const store = useStore();
 const validationRules = ref([]);
-
+import { useRoute } from "vue-router";
+const route = useRoute();
 const colValue = ref("verbose_name");
 const filterValue = ref<string>("");
 const filterParam = computed(() => {

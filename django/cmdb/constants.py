@@ -5,6 +5,7 @@ class FieldType(str, Enum):
     TEXT = 'text'
     BOOLEAN = 'boolean'
     ENUM = 'enum'
+    CASCADE_ENUM = 'cascade_enum'
     JSON = 'json'
     INTEGER = 'integer'
     FLOAT = 'float'
@@ -12,24 +13,13 @@ class FieldType(str, Enum):
     DATE = 'date'
     DATETIME = 'datetime'
     MODEL_REF = 'model_ref'
-    
-FIELD_TYPE_DISPLAY_NAMES = {
-    FieldType.STRING: '字符串',
-    FieldType.TEXT: '文本',
-    FieldType.BOOLEAN: '布尔值',
-    FieldType.ENUM: '枚举',
-    FieldType.JSON: 'JSON',
-    FieldType.INTEGER: '整数',
-    FieldType.FLOAT: '浮点数',
-    FieldType.DATE: '日期',
-    FieldType.DATETIME: '日期时间',
-}
-    
+
 class ValidationType(str, Enum):
     REGEX = 'regex'
     RANGE = 'range'
     LENGTH = 'length'
     ENUM = 'enum'
+    CASCADE_ENUM = 'cascade_enum'
     IP = 'ip'
     IPV4 = 'ipv4'
     IPV6 = 'ipv6'
@@ -65,6 +55,9 @@ class DateTimeFormats:
         '%d-%m-%Y %H:%M:%S',  # dd-mm-yyyy HH:MM:SS
     ]
 
+
+limit_field_names = ['page', 'page_size', 'model', 'instance_name', 'model_instance_group', 'cache_key',]
+
 class FieldMapping:
     # 字段类型对应的可用验证类型
     FIELD_TYPES = {
@@ -72,6 +65,7 @@ class FieldMapping:
         FieldType.TEXT: '文本',
         FieldType.BOOLEAN: '布尔值',
         FieldType.ENUM: '枚举',
+        FieldType.CASCADE_ENUM: '级联枚举',
         FieldType.JSON: 'JSON',
         FieldType.INTEGER: '整数',
         FieldType.FLOAT: '浮点数',
@@ -85,6 +79,7 @@ class FieldMapping:
         FieldType.TEXT: '@',
         FieldType.BOOLEAN: 'General',
         FieldType.ENUM: '@',
+        FieldType.CASCADE_ENUM: '@',
         FieldType.JSON: '@',
         FieldType.INTEGER: '0',
         FieldType.FLOAT: '0.00',
@@ -194,7 +189,14 @@ class FieldMapping:
             {
                 'type': ValidationType.ENUM,
                 'description': '枚举值',
-                'example': '["A", "B", "C"]'
+                'example': ''
+            }
+        ],
+        FieldType.CASCADE_ENUM: [
+            {
+                'type': ValidationType.CASCADE_ENUM,
+                'description': '级联枚举值',
+                'example': ''
             }
         ],
         FieldType.PASSWORD: [

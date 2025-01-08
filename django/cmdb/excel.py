@@ -1,10 +1,13 @@
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Protection, Alignment
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter
+from ast import literal_eval
 import json
 from .constants import FieldMapping, FieldType, ValidationType
-from .models import ModelInstance, ValidationRules
+from .models import ModelInstance, ValidationRules, ModelFields, ModelFieldMeta, Models
+from .serializers import ModelInstanceSerializer
+from rest_framework import serializers
 from .utils import password_handler
 
 import logging
@@ -36,8 +39,8 @@ class ExcelHandler:
         if field.type == FieldType.MODEL_REF:
             ref_instances = ModelInstance.objects.filter(
                 model=field.ref_model
-            ).values_list('id', 'name')
-            enum_data = {str(id): name for id, name in ref_instances}
+            ).values_list('id', 'instance_name')
+            enum_data = {str(id): instance_name for id, instance_name in ref_instances}
         else:
             enum_data = json.loads(field.validation_rule.rule)
         
@@ -80,7 +83,7 @@ class ExcelHandler:
         """生成导入模板"""
         wb = Workbook()
         template_sheet = wb.active
-        template_sheet.title = "数据模板"
+        template_sheet.title = "配置数据"
         
         # 样式定义
         header_font = Font(bold=True)
@@ -92,7 +95,7 @@ class ExcelHandler:
         
         # 设置name列标题
         cell = template_sheet[f'{name_col_letter}1']
-        cell.value = "name\r\n实例唯一标识"
+        cell.value = "instance_name\r\n实例唯一标识"
         cell.font = header_font
         cell.fill = required_fill  # 必填标记
         cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
@@ -151,7 +154,18 @@ class ExcelHandler:
             
             logger.info(f'Field name, type and constraints set')
             
-            if field.type == FieldType.MODEL_REF or (field.validation_rule and field.validation_rule.type == FieldType.ENUM):
+            if field.type == FieldType.BOOLEAN:
+                dv = DataValidation(
+                    type='list',
+                    formula1='"TRUE,FALSE"',
+                    allow_blank=True,
+                    showErrorMessage=True,
+                    errorTitle='输入错误',
+                    error='该字段只能输入 TRUE 或 FALSE'
+                )
+                template_sheet.add_data_validation(dv)
+                dv.add(f'{col_letter}4:{col_letter}1048576')
+            elif field.type == FieldType.MODEL_REF or (field.validation_rule and field.validation_rule.type == FieldType.ENUM):
                 try:
                     current_enum_col, constraint = ExcelHandler._handle_enum_data(
                         enum_sheet, field, current_enum_col, 
@@ -160,7 +174,7 @@ class ExcelHandler:
                     constraints.append(constraint)
                 except Exception as e:
                     logger.error(f"Error handling enum data: {str(e)}")
-            elif field.validation_rule:
+            if field.validation_rule:
                 rule = field.validation_rule
                 if rule.type == ValidationType.RANGE:
                     constraints.append(f"数值范围: {rule.rule.replace(',', ' ~ ')}")
@@ -203,9 +217,10 @@ class ExcelHandler:
     @staticmethod
     def generate_data_export(fields, instances):
         """生成实例数据导出"""
+        # TODO: 导出时同时添加枚举类索引，方便修改，统一导出数据及模板格式
         wb = Workbook()
         data_sheet = wb.active
-        data_sheet.title = "实例数据"
+        data_sheet.title = "配置数据"
         
         # 复用模板格式设置
         header_font = Font(bold=True)
@@ -214,7 +229,7 @@ class ExcelHandler:
         # 写入标题行
         col = 1
         name_col = get_column_letter(col)
-        data_sheet[f'{name_col}1'] = "name"
+        data_sheet[f'{name_col}1'] = "instance_name"
         data_sheet[f'{name_col}1'].font = header_font
         data_sheet[f'{name_col}1'].alignment = center_alignment
         
@@ -260,7 +275,9 @@ class ExcelHandler:
                     ).first()
                     value = ref_instance.name if ref_instance else None
                 elif field_meta.model_fields.type == FieldType.PASSWORD:
-                    value = password_handler.decrypt(value)    
+                    logger.info(f"Decrypting password {value} for field {field_meta.model_fields.name}")
+                    value = password_handler.decrypt_to_plain(value)
+                    logger.info(f"Decrypted password: {value}")
                 field_values[field_meta.model_fields.name] = value
                 
             
@@ -276,3 +293,154 @@ class ExcelHandler:
         
         return wb
     
+
+    def validate_template(self, wb):
+        try:
+            if not {'配置数据', '枚举类型可选值'}.issubset(wb.sheetnames):
+                raise serializers.ValidationError('Invalid file format. Missing required sheets.')
+            sheet = wb['配置数据']
+            if sheet['A1'].value != 'instance_name\n实例唯一标识' or \
+                sheet['A2'].value != 'string\n字符串' or \
+                sheet['A3'].value != '必填':
+                raise serializers.ValidationError('Invalid file format. Missing required rows in template sheet.')
+            return True
+        except Exception as e:
+            raise serializers.ValidationError(f"Invalid file format: {str(e)}")
+
+
+    def load_data(self, file_path):
+        """从Excel导入实例数据"""
+        results = {
+            'status': 'pending',
+            'instances': [],
+            'headers': [],
+            'header_rows': [],
+            'errors': [],
+            'results': {
+                'total': 0,
+                'valid': 0,
+                'invalid': 0
+            }
+        }
+        try:
+            # 加载Excel文件
+            wb = load_workbook(file_path)
+            self.validate_template(wb)
+            
+            data_sheet = wb['配置数据']
+            # enum_sheet = wb['枚举类型可选值']
+            
+            # 保存前三行表头
+            for row in range(1, 4):
+                header_row = []
+                for col in range(1, data_sheet.max_column + 1):
+                    cell = data_sheet.cell(row=row, column=col)
+                    header_row.append(cell.value)
+                results['header_rows'].append(header_row)
+
+            # 获取字段映射
+            field_mapping = {}
+            for col in range(2, data_sheet.max_column + 1):
+                column_letter = get_column_letter(col)
+                field_cell = data_sheet[f'{column_letter}1']
+                
+                if not field_cell.value:
+                    continue
+                    
+                # 解析字段名格式：name\nverbose_name
+                try:
+                    field_name = field_cell.value.split('\n')[0].strip()
+                    if field_name:
+                        field_mapping[column_letter] = field_name
+                    results['headers'].append(field_name)
+                except (AttributeError, IndexError):
+                    logger.warning(f"Invalid field name format in column {column_letter}")
+                    continue
+            
+            # 读取数据行
+            for row in range(4, data_sheet.max_row + 1):
+                try:
+                    row_data = {}
+                    for col_letter, field_name in field_mapping.items():
+                        cell = data_sheet[f'{col_letter}{row}']
+                        if cell.value is not None:
+                            row_data[field_name] = cell.value
+                            
+                    if row_data:
+                        results['results']['total'] += 1
+                        instance_data = {
+                            'instance_name': data_sheet[f'A{row}'].value,
+                            'fields': row_data
+                        }
+                        results['instances'].append(instance_data)
+                        results['results']['valid'] += 1
+                        
+                except Exception as e:
+                    results['results']['invalid'] += 1
+                    results['errors'].append(f"Load data failed at row {row}: {str(e)}")
+                    
+            results['status'] = 'success'
+            return results
+            
+        except Exception as e:
+            results['errors'].append(f"Load data failed: {str(e)}")
+            results['status'] = 'failed'
+            return results
+        
+    @staticmethod
+    def generate_error_export(headers, header_rows, error_data):
+        """生成错误数据导出
+        Args:
+            model: 模型实例
+            headers: 原始表头列表
+            error_data: [{
+                'instance_name': 'instance_name',
+                'fields': {'field1': 'value1', ...},
+                'error': 'error message'
+            }]
+        """
+        # 生成基础表格
+        wb = Workbook()
+        sheet = wb.active
+        sheet.title = "配置数据"
+        
+        # 复制前三行表头
+        for row_idx, row_data in enumerate(header_rows, 1):
+            for col_idx, value in enumerate(row_data, 1):
+                cell = sheet.cell(row=row_idx, column=col_idx, value=value)
+                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                if row_idx == 1:
+                    cell.font = Font(bold=True)
+                sheet.column_dimensions[get_column_letter(col_idx)].width = 20
+                    
+        
+        
+        # 添加错误信息列
+        error_col = sheet.max_column + 1
+        error_cell = sheet.cell(row=1, column=error_col, value='错误信息')
+        error_cell.font = Font(bold=True)
+        error_cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        
+        # 填充错误数据和错误信息
+        for row, error in enumerate(error_data, 4):
+            # 按headers顺序填充字段值
+            fields = error.get('fields', {})
+            
+            sheet['A' + str(row)].value = error.get('instance_name')
+            sheet['A' + str(row)].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            
+            for col_idx, header in enumerate(headers, 2):
+                value = fields.get(header)
+                if value:
+                    cell = sheet.cell(row=row, column=col_idx, value=value)
+                    cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            
+            # 填充错误信息
+            error_msg = str(error.get('error', ''))
+            cell = sheet.cell(row=row, column=error_col, value=error_msg)
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        
+        # 调整错误列宽
+        sheet.column_dimensions[get_column_letter(error_col)].width = 50
+        
+        return wb

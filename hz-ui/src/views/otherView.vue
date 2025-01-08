@@ -1,5 +1,13 @@
 <template>
-  <div class="main-box card" style="flex: 0.1">111</div>
+  <div class="main-box card" style="flex: 1; flex-direction: column">
+    111
+    <el-button v-permission="'other:edit'" @click="showPass">解密</el-button>
+
+
+    <el-input v-model="testString"></el-input>
+    <el-text>加密：{{ xmString }}</el-text>
+    <el-text>解密：{{ jmString }}</el-text>
+  </div>
 
   <div class="table-box">
     <div
@@ -30,15 +38,50 @@
       </div> -->
     </div>
 
-    <div class="card">333</div>
+    <div class="card">
+      <vue-countdown
+        :time="2 * 24 * 60 * 60 * 1000"
+        v-slot="{ days, hours, minutes, seconds }"
+      >
+        Time Remaining：{{ days }} days, {{ hours }} hours,
+        {{ minutes }} minutes, {{ seconds }} seconds.
+      </vue-countdown>
+      <Countdown :time="3666" format="hh:mm:ss" @on-end="onCountdownEnd">
+        <template slot-scope="{ time }">{{ time }}</template>
+      </Countdown>
+      <icon-ep-close />
+      <el-button @click="isShowIconSelect">
+        <Icon :icon="iconName"></Icon>
+      </el-button>
+      <Icon :icon="iconName"></Icon>
+      <Icon icon="mdi:file-cabinet" width="24" height="24" />
+    </div>
+    <iconSelectCom1 v-model:isShow="isShow" v-model:iconName="iconName" />
   </div>
 </template>
 
 <script lang="ts" setup>
+import iconSelectCom1 from "../components/iconSelectCom.vue";
+
 import { CircleClose } from "@element-plus/icons-vue";
-import { watch, ref } from "vue";
+import { Icon, listIcons } from "@iconify/vue";
+import { watch, ref, onMounted, computed, resolveComponent } from "vue";
 const props = { multiple: true, checkStrictly: true };
+import { encrypt_sm4, decrypt_sm4 } from "@/utils/gmCrypto.ts";
+import useConfigStore from "@/store/config";
+import ZondiconsNetwork from "~icons/zondicons/network?width=20px&height=20px";
+const aaab = resolveComponent("icon-ep-close");
+const configStore = useConfigStore();
+const gmConfig = computed(() => configStore.gmCry);
 const test = ref([]);
+const isShow = ref(false);
+const iconName = ref("");
+const isShowIconSelect = () => {
+  isShow.value = true;
+};
+// import { listIcons } from "@iconify/vue";
+import ep from "@iconify/json/json/ep.json";
+console.log(ep);
 watch(
   () => test.value,
   (n) => {
@@ -128,4 +171,20 @@ const options = [
     ],
   },
 ];
+const testString = ref("");
+const aaa = ref(
+  "gAAAAABnaSWh0pvwkUrVD5YZbmvGlLktPcY7q51m9scHJUDIsGBT_sV5SJXTEjuZMW6l3Kpa7ZXzb07Fknw43oGzV2imBpO3BA=="
+);
+const xmString = ref("");
+const jmString = ref("");
+
+onMounted(() => {
+  // 定义密钥和待加密数据
+  let key = "77eabfc6c32511ef";
+  // let mode = "ecb";
+  let text = "Thinker@1234567890000123>_!$!";
+  let jiamihou = encrypt_sm4(key, gmConfig.value.mode, text);
+  console.log(jiamihou);
+  console.log(decrypt_sm4(key, gmConfig.value.mode, jiamihou));
+});
 </script>

@@ -12,10 +12,13 @@ export default createStore({
 
     // currentMenu: localStorage.getItem('currentMenu') ? JSON.parse(localStorage.getItem('currentMenu'))  : '',
     token: localStorage.getItem('token') ? localStorage.getItem('token') : '',
+    secret: localStorage.getItem('secret') ? localStorage.getItem('secret') : '',
+
     role: localStorage.getItem('role') ? JSON.parse(localStorage.getItem('role')) : '',
     username: localStorage.getItem('username') ? localStorage.getItem('username') : '',
     userinfo: localStorage.getItem('userinfo') ? JSON.parse(localStorage.getItem('userinfo')) : '',
 
+    permission: localStorage.getItem('permission') ? JSON.parse(localStorage.getItem('permission')) : '', 
     // 动态菜单
     dynamicCreateRoute: false,
     routeInfo: [],
@@ -23,6 +26,7 @@ export default createStore({
     menuInfo: [],
     // tagList: []
     tagList: localStorage.getItem('tagList') ? JSON.parse(localStorage.getItem('tagList')) : [],
+
   },
   getters: {},
   // 更新数据
@@ -105,7 +109,9 @@ export default createStore({
       // 存储username信息
       state.userinfo = config.userinfo;
       localStorage.setItem('userinfo', JSON.stringify(config.userinfo));
-
+      // 存储permission
+      state.permission = config.permission
+      localStorage.setItem('permission', JSON.stringify(config.permission));
     },
     updateUsername(state, config) {
       state.username = config
@@ -119,8 +125,9 @@ export default createStore({
     },
     // 更新菜单列表
     setRoleMenu(state, config) {
-      // 禁用的菜单不显示
-      state.menuInfo = config.filter(item => item.status )
+      // 禁用的菜单不显示,只禁用了第一级别
+      state.menuInfo = config
+      // state.menuInfo = config.filter(item => item.status )
       // console.log(config)
       // config.forEach(item => {
       //   if (item.name === 'home'){
@@ -130,9 +137,11 @@ export default createStore({
         
       // });
       // state.tagList = config.slice(0, 1)
-    }
+    },
     // 当前路由地址
-
+    setSecret(state,config){
+      state.secret = config
+    }
 
   },
   actions: {
@@ -144,12 +153,22 @@ export default createStore({
       console.log(res)
       commit("setRouteInfo", res.data.routeInfo)
     },
+    async getSecret({
+      commit,
+      state
+    }, config) {
+      let res = await api.getSecret(config)
+      console.log(res)
+      commit("setSecret", res.data.secret)
+    },
     async getRoleMenu({
       commit,
       state
     }, config) {
       // let role = JSON.parse(localStorage.getItem('role'))
+      console.log(config)
       let res = await api.getMenuList(config)
+      console.log(res.data.results)
       commit("setRoleMenu", res.data.results)
     }
 

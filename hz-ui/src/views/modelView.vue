@@ -4,6 +4,7 @@
       <el-row :gutter="10">
         <el-col :span="6">
           <el-button
+            v-permission="`${route.name?.replace('_info', '')}:add`"
             type="primary"
             @click="
               addModel = true;
@@ -12,6 +13,7 @@
             >新增模型</el-button
           >
           <el-button
+            v-permission="`${route.name?.replace('_info', '')}:add`"
             type="default"
             @click="
               isModelGroup = true;
@@ -32,16 +34,28 @@
 
             <div class="operation_show groupCountClass">
               <el-tooltip effect="dark" content="添加模型" placement="right">
-                <el-icon :size="20" @click="addModelFromGroup(gd.id)">
+                <el-icon
+                  :size="20"
+                  @click="addModelFromGroup(gd.id)"
+                  v-permission="`${route.name?.replace('_info', '')}:add`"
+                >
                   <CirclePlusFilled />
                 </el-icon>
               </el-tooltip>
 
               <el-space v-if="!gd.built_in">
-                <el-icon :size="20" @click="editModelGroup(gd)">
+                <el-icon
+                  :size="20"
+                  @click="editModelGroup(gd)"
+                  v-permission="`${route.name?.replace('_info', '')}:edit`"
+                >
                   <Edit />
                 </el-icon>
-                <el-icon :size="20" @click="deleteModelGroup(gd.id)">
+                <el-icon
+                  :size="20"
+                  @click="deleteModelGroup(gd.id)"
+                  v-permission="`${route.name?.replace('_info', '')}:delete`"
+                >
                   <DeleteFilled />
                 </el-icon>
               </el-space>
@@ -71,7 +85,8 @@
           >
             <el-space size="large">
               <el-icon :size="30">
-                <component :is="data.icon" />
+                <!-- <component :is="data.icon" /> -->
+                <Icon :icon="data.icon"></Icon>
               </el-icon>
               <el-space direction="vertical" size="small">
                 <el-text>
@@ -109,7 +124,9 @@
       status-icon
     >
       <el-form-item label="模型图标" prop="icon">
-        <el-button @click="isShowIconSelect" :icon="modelForm.icon"></el-button>
+        <el-button @click="isShowIconSelect">
+          <el-icon><Icon :icon="modelForm.icon"></Icon></el-icon>
+        </el-button>
         <iconSelectCom
           v-model:isShow="isShow"
           v-model:iconName="modelForm.icon"
@@ -176,6 +193,7 @@
 </template>
 
 <script setup lang="ts">
+import { Icon } from "@iconify/vue";
 import {
   ref,
   getCurrentInstance,
@@ -273,7 +291,7 @@ const modelForm = reactive<ModelForm>({
   name: "",
   verbose_name: "",
   model_group: "",
-  icon: "ElemeFilled",
+  icon: "clarity:block-line",
   built_in: false,
   create_user: "admin",
   update_user: "admin",
@@ -313,7 +331,8 @@ const modelCommit = async (formEl: FormInstance | undefined) => {
           addModel.value = false;
           resetForm(formEl);
           getCiModelList();
-          // 获取数据源列表
+          // 刷新页面
+          // location.reload();
         } else {
           ElMessage({
             showClose: true,

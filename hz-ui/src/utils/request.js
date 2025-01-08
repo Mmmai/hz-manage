@@ -41,7 +41,7 @@ instance.interceptors.request.use(
     //   console.log(config.data)
     //   config.data = querystring.stringify(config.data)
     //   console.log(config.data)
-
+    config.startTime = Date.now();
     // }
     if (localStorage.getItem('token')){
       config.headers.token = localStorage.getItem('token')
@@ -56,10 +56,20 @@ instance.interceptors.request.use(
 // 获取数据之前
 instance.interceptors.response.use(
     (response) => {
+      const endTime = Date.now();
+      const costTime = endTime - response.config.startTime;
+      response.costTime = costTime
       // return response.data.staus == 200 ? Promise.resolve(response) : Promise.reject(response)
       return Promise.resolve(response)
     },
     (error) => {
+      if (error.code === 'ECONNABORTED') {
+        // 超时处理，返回一个Promise，可以返回一个自定义的结果对象
+        return Promise.resolve({
+          timeout: true,
+          message: '请求超时',
+        });
+      }
       const {response} = error;
 
       // errorHandle(response.status,response.data)

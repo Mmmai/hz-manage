@@ -3,19 +3,38 @@ from django.http import HttpResponse,JsonResponse
 from rest_framework import filters,status
 from rest_framework.viewsets import ModelViewSet
 from django_filters.rest_framework import DjangoFilterBackend
-# from .sers import UserInfoModelSerializer,RoleModelSerializer,MenuModelSerializer,PortalModelSerializer,PgroupModelSerializer,DatasourceModelSerializer
+from rest_framework.renderers import JSONRenderer
 from .sers import *
 from rest_framework.views import APIView
 from rest_framework.response import Response
 # from .models import UserInfo,Role,Menu,Portal,Pgroup,Datasource,LogModule
-from .models import UserInfo,Role,Menu,Portal,Pgroup,Datasource
+from .models import (
+  UserInfo,UserGroup,Role,Menu,Button,Permission,Portal,Pgroup,Datasource,
+  sysConfigParams
+  )
+from .filters import (
+    roleFilter,
+    sysConfigParamsFilter,
+    buttonFilter   
+)
 from .utils.jwt_create_token import create_token
 from rest_framework.pagination import PageNumberPagination
 from .extensions.jwt_authenticate import JWTQueryParamsAuthentication
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
 import json
+from django.conf import settings
+from mapi.extensions.pagination import StandardResultsSetPagination
 
+def getRolePermissionList(role_ids):
+    allPermissionList = []
+    for role_id in role_ids:
+        for p_obj in Permission.objects.filter(role=role_id).all():
+            menu_name = p_obj.menu.name
+            # button_name = Button.objects.get(id=p_obj.button).action
+            button_name = p_obj.button.action
+            allPermissionList.append(f"{menu_name}:{button_name}")
+    return allPermissionList
 class LoginView(APIView):
     """用户登录"""
     authentication_classes = [] # 取消全局认证
@@ -26,65 +45,60 @@ class LoginView(APIView):
         user_obj = UserInfo.objects.filter(username=user,password=pwd).first()
         if not user_obj:
             return Response({'code':401,'error':'用户名或密码错误'})
-        roleList = [ i['id'] for i in user_obj.roles.all().values('id') ]
+        # 获取用户组id
+        userGroupList = [ i['id'] for i in user_obj.groups.all().values('id') ]
+        # 
+        userGroupRoleList = []
+        for group in userGroupList:
+            group_obj = UserGroup.objects.get(id=group)
+            for group_role in group_obj.roles.all():
+                userGroupRoleList.append(group_role.id)
+        # 判断用户的role
+        userRoleList = [ i['id'] for i in user_obj.roles.all().values('id') ]
+        roleList = list(set(userGroupRoleList + userRoleList))
+        permissionList = getRolePermissionList(role_ids=roleList)
         #print(roleList)
         payload = {
-            'user_id':user_obj.pk,#自定义用户ID
+            'user_id':str(user_obj.pk),#自定义用户ID
             'username':user_obj.username,#自定义用户名
             # 'exp':datetime.datetime.utcnow()+datetime.timedelta(minutes=1),# 设置超时时间，1min
         }
         jwt_token = create_token(payload=payload)
-        return Response({'code':200,'token':jwt_token,"role":roleList,"userinfo":payload})
+        return Response({'code':200,'token':jwt_token,"role":roleList,"userinfo":payload,"permission":permissionList})
 
 
 
-# class orderData(APIView):
-#     def post(self,request,*args,**kwargs):
-#         owner = request.data.get('owner')
-#         orderRes = request.data.get('orderRes')
-#         orderObj = orderMethod.objects.filter(owner=owner).first()
-#         orderObj.update(orderList={"orderList":orderRes})
-#         return Response({'code':200,'results':'success'})
-#     def get(self,request,*args,**kwargs):
-#         owner = request.query_params.get('owner')
-#         orderRes =  orderMethod.objects.filter(owner=owner).first()
-# # {"username":"admin","password":"admin123"}
-# # class IndexView(APIView):
-# # 		# 局部认证
-# #     # authentication_classes = [JWTQueryParamsAuthentication,]
-# #     def get(self,request,*args,**kwargs):
-# #         return Response("可以了")
 
-class getmodel(APIView):
+class getSecret(APIView):
     # def post(self,request,*args,**kwargs):
     #     owner = request.data.get('owner')
     #     orderRes = request.data.get('orderRes')
     #     orderObj = orderMethod.objects.filter(owner=owner).first()
     #     orderObj.update(orderList={"orderList":orderRes})
     #     return Response({'code':200,'results':'success'})
+
     def get(self,request,*args,**kwargs):
         # owner = request.query_params.get('owner')
         # orderRes =  orderMethod.objects.filter(owner=owner).first()
-        modelGroup = [
-                        { "id": 1, "name": '主机管理' },
-                        { "id": 2, "name": '网络设备' },
-                        { "id": 3, "name": '其他' }
-                    ]
-        return Response(modelGroup)
+        secretKey = settings.SECRET_KEY
+        return Response({"secret":secretKey})
 # Create your views here.
 # def test(request):
 #   data = {'1':2,'3':4}
 #   return JsonResponse(data)
 
+
+
 # def user(request):
 class getMenu(APIView):
     def __init__(self):
         self.get_menu_tree = self.get_menu_tree
-    def get(self,request,*args,**kwargs):
+    def post(self,request,*args,**kwargs):
         # print(request.query_params)
         # print(request.GET.getlist('role'))
         # role = request.GET.getlist('role')
-        role = request.query_params.get('role')
+        # print(request.GET.get('role[]'))
+        role = request.data.get('role')
         menuobj = Menu.objects.all().order_by('sort')
         # # print(menuobj)
         # for i in menuobj.all():
@@ -96,35 +110,91 @@ class getMenu(APIView):
     def get_menu_tree(self,menu_list,role,parent=None):
         tree = []
         for menu in menu_list.filter(parentid=parent):
-
+            # if not menu.status:
+            #     continue
+            
             roleList = []
-            for r in menu.role_set.all().values():
-                roleList.append(r["id"])
+            # for r in menu.role_set.all().values():
+            #     roleList.append(str(r["id"]))
+            # 获取角色列表
+
+            roleList = list(set([ str(i.role.id) for i in Permission.objects.filter(menu=menu).all()]))
+            # print(roleList)
+            # print(123)
+            # print(role)
+            # if len(list(set(roleList) & set(role))) == 0:
+            #     continue
+            button_queryset = menu.buttons.all().order_by("action")
+            button_serializer = ButtonModelSerializer(button_queryset, many=True)
+            serialized_data = JSONRenderer().render(button_serializer.data)
             info = menu.__dict__.copy()
             info.pop('_state')
             info["meta"] = {"role":roleList,"icon":menu.icon,"title":menu.label}
+            info["buttons"] = json.loads(serialized_data.decode('utf8'))
+            # info["button"] 
             if info["is_iframe"]:
                 info["meta"]["iframePath"] = info["iframe_url"]
                 info["meta"]["is_iframe"] = info["is_iframe"]
-
+            # if info["is_menu"]:
+            #     # print(info["label"])
+            #     info["meta"]["permission"] = []
             info['children'] = self.get_menu_tree(menu_list,role,menu)
             # print(info)
 
             if role != None:
-                currentRoleList = [int(i) for i in role.split(',')]
-
-                nlist = list(set(currentRoleList).intersection(set(roleList)))
-                if len(nlist) == 0:
+                # currentRoleList = [ i for i in role.split(',')]
+                if len(list(set(roleList) & set(role))) == 0:
                     if menu.is_menu == True:
                         continue
                 if menu.is_menu == False and len(info['children']) == 0:
                     continue
             tree.append(info)
-            # print(tree)
         return tree
+# 获取角色授权页面的tree
+class getPermissionToRole(APIView):
+    def __init__(self):
+        self.get_menu_tree = self.get_menu_tree
+    def post(self,request,*args,**kwargs):
+        menuobj = Menu.objects.all().order_by('sort')
+        menuList = self.get_menu_tree(menuobj)
+        # print(menuList)
+        return Response({'code':200,"results":menuList})
 
+    def get_menu_tree(self,menu_list,parent=None):
+        tree = []
+        for menu in menu_list.filter(parentid=parent):
+            if menu.is_menu:
+                # 添加按钮到对应菜单下
+                info = {"id":menu.id,"label":menu.label,"tree_type":"menu"}
+            else:
+                info = {"id":menu.id,"label":menu.label,"tree_type":"directory"}
 
-
+            info['children'] = self.get_menu_tree(menu_list,menu)
+            # print(info)
+                # 如果是目录，但是没有子目录，则跳过
+            # if menu.is_menu == False and len(info['children']) == 0:
+            #     continue
+            if menu.is_menu:
+                # 添加按钮到对应菜单下
+                info["children"] = [ {"id":str(i.id),"label":i.name,"button":i.action,"tree_type":"button"} for i in Button.objects.filter(menu=menu).all().order_by('action')]  
+            tree.append(info)
+        return tree
+# 获取当前用户的权限列表
+class getUserButton(APIView):
+    def post(self,request,*args,**kwargs):
+        # owner = request.query_params.get('owner')
+        # orderRes =  orderMethod.objects.filter(owner=owner).first()
+        role_ids = request.data.get('role')
+        # 拿permission表中所有权限,菜单name:按钮action,例如：home:edit
+        allPermissionList = []
+        for role_id in role_ids:
+            for p_obj in Permission.objects.filter(role=role_id).all():
+                menu_name = p_obj.menu.name
+                # button_name = Button.objects.get(id=p_obj.button).action
+                button_name = p_obj.button.action
+                allPermissionList.append(f"{menu_name}:{button_name}")
+        # print(allPermissionList)
+        return Response({'code':200,"results":allPermissionList})
 #   # data = {'1':2,'3':4}
 #   return JsonResponse(data)
 
@@ -151,7 +221,6 @@ class UserInfoViewSet(ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         # request.query_params = request.data
-        print(request.META.get('HTTP_TOKEN'))
         # page = request.data['page']
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
@@ -167,20 +236,70 @@ class UserInfoViewSet(ModelViewSet):
     def multiple_delete(self, request, *args, **kwargs):
         # pks = request.query_params.get('pks', None)
         pks = request.data.get('pks',None)
-        print(request.data)
         if not pks:
             return Response(status=status.HTTP_404_NOT_FOUND)
         for pk in pks:
             get_object_or_404(UserInfo, id=int(pk)).delete()
 
         return Response(data='delete success',status=status.HTTP_204_NO_CONTENT)
+class UserGroupViewSet(ModelViewSet):
+    queryset = UserGroup.objects.all()
+    serializer_class =  UserGroupModelSerializer
+    # pagination_class = StandardResultsSetPagination
+    # filterset_class = roleFilter
+    order_fields = ["id"]
+
 class RoleViewSet(ModelViewSet):
     queryset = Role.objects.all()
     serializer_class =  RoleModelSerializer
-    # pagination_class = defaultPageNumberPagination
-    filter_backends = (DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter)  # 指定后端
+    # pagination_class = StandardResultsSetPagination
+    filterset_class = roleFilter
     order_fields = ["id"]
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
 
+        if getattr(instance, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been applied to a queryset, we need to
+            # forcibly invalidate the prefetch cache on the instance.
+            instance._prefetched_objects_cache = {}
+        # 更新perrmison字段内容
+        rolePermission = request.data.get('rolePermission',None)
+        if not rolePermission:
+            pass
+        else:
+            # return
+            # print(rolePermission)
+            # instance.permission.all()
+            # print(instance)
+            # 判断原有的，若相同，则不处理
+            currentPermissionList = [ str(i) for i in  Permission.objects.filter(role=instance).values_list("button",flat=True)]
+            if sorted(rolePermission) == sorted(currentPermissionList):
+                pass
+            else:
+                # print(123)
+                # 先清空原有的，再添加新的
+                instance.permission.all().delete()
+                print(f"清空角色<{instance.role}>权限!")
+                # 添加新的
+                for button_id in rolePermission:
+                    button_obj = Button.objects.get(id=button_id)
+                    Permission.objects.create(role=instance,menu=button_obj.menu,button=button_obj)
+                    print(f"为角色<{instance.role}>添加<${button_obj.action}>权限!")
+                    # 如果有其他按钮权限，查看的权限应该同步添加，就算用户没有勾选！
+                    if button_obj.action == "view":
+                        pass
+                    else:
+                        view_button_obj = Button.objects.get(action="view",menu=button_obj.menu)
+                        view_per_obj, created = Permission.objects.get_or_create(role=instance,menu=button_obj.menu,button=view_button_obj)
+                        if created:
+                            print(f"为角色<{instance.role}>添加<${view_button_obj.action}>权限!")
+                        else:
+                            print(f"为角色<{instance.role}>已拥有<${view_button_obj.action}>权限!")
+        return Response(serializer.data)
 
 class MenuViewSet(ModelViewSet):
   queryset = Menu.objects.all()
@@ -192,6 +311,10 @@ class MenuViewSet(ModelViewSet):
   #         return serializer_class(many=True, *args, **kwargs)
   #     else:
   #         return serializer_class(*args, **kwargs)
+class ButtonViewSet(ModelViewSet):
+    queryset = Button.objects.all()
+    serializer_class = ButtonModelSerializer
+    filterset_class = buttonFilter
 
 # class PermissionViewSet(ModelViewSet):
 #   queryset = Menu.objects.all()
@@ -337,3 +460,24 @@ class dataSourceViewSet(ModelViewSet):
 # class LogModuleViewSet(ModelViewSet):
 #   queryset = LogModule.objects.all()
 #   serializer_class = LogModuleModelSerializer
+
+class sysConfigViewSet(ModelViewSet):
+    queryset = sysConfigParams.objects.all()
+    serializer_class = SysConfigSerializer
+    # filter_backends = (filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend)
+    filterset_class = sysConfigParamsFilter
+    ordering_fields = ['param_name', 'param_value',]
+    search_fields =  ('param_name', 'param_value',)
+    def list(self, request, *args, **kwargs):
+        if(request.query_params.get('params') == "gm"):
+            secretKey = sysConfigParams.objects.get(param_name="secret_key").param_value
+            keyMode = sysConfigParams.objects.get(param_name="secret_mode").param_value
+            return Response({"key":secretKey,"mode":keyMode})
+        # 在这里可以对queryset进行进一步的筛选或处理
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

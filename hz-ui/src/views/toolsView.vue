@@ -4,21 +4,24 @@
       <el-tab-pane label="二维码" name="qrCode">
         <qrCode />
       </el-tab-pane>
-      <el-tab-pane label="常用转换" name="transform">
-        <transform />
+      <el-tab-pane label="JSON转换" name="JsonParse">
+        <JsonParse />
+      </el-tab-pane>
+      <el-tab-pane label="时间格式转换" name="TimeTrans">
+        <TimeTrans />
       </el-tab-pane>
     </el-tabs>
-
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue'
-import qrCode from '../components/tools/qrCode.vue';
-import transform from '../components/tools/transform.vue';
+import { ref } from "vue";
+import qrCode from "../components/tools/qrCode.vue";
+// import transform from '../components/tools/transform.vue';
+import JsonParse from "../components/tools/jsonparse.vue";
+import TimeTrans from "../components/tools/timetrans.vue";
 
-const textarea = ref('')
-const activeName = ref('qrCode')
+const activeName = ref("qrCode");
 </script>
 
 <style scoped>

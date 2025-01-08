@@ -1,33 +1,37 @@
 <template>
-  <ciDataFilter
-    :ciModelId="props.ciModelId"
-    :currentNodeId="props.currentNodeId"
-    :allModelFieldByNameObj="allModelFieldByNameObj"
-    :enumOptionObj="enumOptionObj"
-    :validationRulesObj="validationRulesObj"
-    :allModelField="allModelField"
-    :modelRefOptions="modelRefOptions"
-    v-model:showFilter="showFilter"
-    @updateFilterParam="updateFilterParam"
-    @getCiData="getCiData"
-    ref="ciDataFilterRef"
-  />
-
-  <!-- <el-button @click="getHasConfigField">1111</el-button> -->
   <div class="card table-main" v-if="reloadTable" style="width: 100%; flex: 1">
     <div class="table-header">
       <div class="header-button-lf">
-        <el-button type="primary" @click="addCiData">添加</el-button>
+        <el-button
+          v-if="showTree"
+          :icon="Fold"
+          @click="showTree = false"
+          size="default"
+        ></el-button>
+        <el-button
+          v-else
+          :icon="Expand"
+          @click="showTree = true"
+          size="default"
+        ></el-button>
+        <el-button
+          type="primary"
+          @click="addCiData"
+          v-permission="`${route.name?.replace('_info', '')}:add`"
+          >添加</el-button
+        >
         <!-- <el-button @click="isShowUpload = true">导入</el-button> -->
         <el-button
           :disabled="!(multipleSelect.length >>> 0)"
           @click="ciDataToTree = true"
+          v-permission="`${route.name?.replace('_info', '')}:edit`"
           >转移</el-button
         >
 
         <el-button
           :disabled="!(multipleSelect.length >>> 0)"
           @click="multipleUpdate"
+          v-permission="`${route.name?.replace('_info', '')}:edit`"
           >批量更新</el-button
         >
         <!-- <el-button :disabled="!(multipleSelect.length >>> 0)">导出</el-button> -->
@@ -59,6 +63,15 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
+              <div  v-permission="`${route.name?.replace('_info', '')}:delete`">
+                <el-dropdown-item
+                :disabled="!(multipleSelect.length >>> 0)"
+                @click="bulkDelete()"
+                >批量删除</el-dropdown-item
+              >
+              </div>
+              <div v-permission="`${route.name?.replace('_info', '')}:export`"
+              >
               <el-dropdown-item
                 :disabled="!(multipleSelect.length >>> 0)"
                 @click="exportSelect(false)"
@@ -69,7 +82,11 @@
                 @click="exportSelect(true)"
                 >导出勾选(所有字段)</el-dropdown-item
               >
-              <el-dropdown-item @click="exportAll()">导出所有</el-dropdown-item>
+              <el-dropdown-item
+                @click="exportAll()"
+                >导出所有</el-dropdown-item
+              >
+              </div>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -82,6 +99,42 @@
           placement="top"
         >
           <el-button :icon="Refresh" circle @click="reloadWind" />
+        </el-tooltip>
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="显示密码"
+          placement="top"
+          v-if="!showAllPass"
+        >
+          <el-button
+            v-permission="`${route.name?.replace('_info', '')}:showPassword`"
+            :icon="View"
+            circle
+            @click="setShowAllPass"
+          />
+        </el-tooltip>
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="隐藏密码"
+          placement="top"
+          v-if="showAllPass"
+        >
+          <template #content>
+            <span>倒计时结束后自动隐藏密码<br />手动点击可立马隐藏</span>
+          </template>
+
+          <el-button circle @click="cancelShowAllPass">
+            <!-- <vue-countdown :time="showAllPassTime"  @end="onCountdownEnd"  @progress="getCountDownTime" v-slot="{ totalSeconds }">{{ totalSeconds }} </vue-countdown> -->
+            <vue-countdown
+              :time="showAllPassTime"
+              @end="onCountdownEnd"
+              @progress="getCountDownTime"
+              v-slot="{ totalSeconds }"
+              >{{ totalSeconds }}
+            </vue-countdown>
+          </el-button>
         </el-tooltip>
 
         <el-tooltip
@@ -99,7 +152,12 @@
           content="实例导入"
           placement="top"
         >
-          <el-button :icon="UploadFilled" circle @click="isShowUpload = true" />
+          <el-button
+            v-permission="`${route.name?.replace('_info', '')}:import`"
+            :icon="UploadFilled"
+            circle
+            @click="isShowUpload = true"
+          />
         </el-tooltip>
 
         <el-tooltip
@@ -112,8 +170,12 @@
         </el-tooltip>
       </div>
     </div>
-    <div class="flexJstart gap-1" style="overflow: auto">
-      <el-text v-show="filterTags.length >>> 0" tag="b">过滤器</el-text>
+    <div
+      class="flexJstart gap-1"
+      style="overflow: auto"
+      v-show="filterTags.length >>> 0"
+    >
+      <el-text tag="b">过滤器</el-text>
       <el-tag
         v-for="(tag, index) in filterTags"
         :key="tag.name"
@@ -121,7 +183,9 @@
         type="primary"
         @close="tagClose(tag.field, index)"
       >
-        {{ tag.name }}
+        <template #default>
+          <span>{{ tag.name }}</span>
+        </template>
       </el-tag>
     </div>
     <el-table
@@ -132,6 +196,7 @@
       highlight-current-row
       v-loading="tableLoading"
       style="flex: 1"
+      border
       :row-key="get_row_key"
     >
       <el-table-column
@@ -140,7 +205,12 @@
         width="55"
         :reserve-selection="true"
       />
-      <el-table-column prop="name" label="名称" fixed="left" width="180" />
+      <el-table-column
+        prop="instance_name"
+        label="名称"
+        fixed="left"
+        width="180"
+      />
 
       <!-- <el-table-column label="Date" width="120" @row-click="editCiData">
                   <template #default="scope">{{ scope.row.date }}</template>
@@ -159,6 +229,10 @@
           v-if="modelFieldType.boolean.indexOf(data.name) != -1"
         >
           <el-switch
+            v-permission="{
+              id: `${route.name?.replace('_info', '')}:edit`,
+              action: 'disabled',
+            }"
             v-model="scope.row[data.name]"
             class="ml-2"
             style="
@@ -177,13 +251,22 @@
           #default="scope"
           v-if="modelFieldType.enum.indexOf(data.name) != -1"
         >
-          <span>{{ scope.row[data.name].label }}</span>
+          <div class="text-class">{{ scope.row[data.name]?.label }}</div>
+        </template>
+        <template
+          #default="scope"
+          v-if="modelFieldType.password.indexOf(data.name) != -1"
+        >
+          <div v-if="showAllPass" class="text-class">
+            {{ decrypt_sm4(gmConfig.key, gmConfig.mode, scope.row[data.name]) }}
+          </div>
+          <div v-else class="text-class">******</div>
         </template>
         <template
           #default="scope"
           v-if="modelFieldType.model_ref.indexOf(data.name) != -1"
         >
-          <span>{{ scope.row[data.name]?.name }}</span>
+          <div class="text-class">{{ scope.row[data.name]?.name }}</div>
         </template>
       </el-table-column>
       <el-table-column fixed="right" width="150" label="操作">
@@ -211,6 +294,7 @@
             placement="top"
           >
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
               link
               type="primary"
               :icon="Edit"
@@ -224,6 +308,7 @@
             placement="top"
           >
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
               link
               type="primary"
               :icon="CopyDocument"
@@ -298,10 +383,10 @@
         require-asterisk-position="right"
       >
         <!-- <div v-for="(item, index) in modelInfo.field_groups"> -->
-        <el-form-item prop="name" required style="margin-left: 30px">
+        <el-form-item prop="instance_name" required style="margin-left: 30px">
           <template #label>
             <el-space :size="2">
-              <span>唯一标识</span>
+              <el-text tag="b">唯一标识</el-text>
               <el-tooltip
                 content="唯一命名标识"
                 placement="right"
@@ -315,12 +400,14 @@
           </template>
 
           <el-input
-            v-model="ciDataForm.name"
+            v-model="ciDataForm.instance_name"
             style="width: 240px"
             v-if="isEdit"
           >
           </el-input>
-          <span v-else class="requiredClass">{{ ciDataForm.name }}</span>
+          <span v-else class="requiredClass">{{
+            ciDataForm.instance_name
+          }}</span>
         </el-form-item>
         <el-collapse v-model="activeArr">
           <el-collapse-item
@@ -346,7 +433,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span>{{ fitem.verbose_name }}</span>
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -361,6 +448,7 @@
                   </template>
                   <div v-if="!isEdit">
                     <span
+                      class="text-class"
                       v-if="ciDataForm[fitem.name] != null"
                       :class="{ requiredClass: fitem.required }"
                       >{{ ciDataForm[fitem.name] }}</span
@@ -382,7 +470,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span>{{ fitem.verbose_name }}</span>
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
                       <el-tooltip placement="right" effect="dark">
                         <template #content>
                           json类型字段<br />请输入json格式数据!
@@ -404,6 +492,7 @@
                   </template>
                   <div v-if="!isEdit">
                     <span
+                      class="text-class"
                       v-if="ciDataForm[fitem.name] != null"
                       :class="{ requiredClass: fitem.required }"
                       >{{ ciDataForm[fitem.name] }}</span
@@ -426,7 +515,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span>{{ fitem.verbose_name }}</span>
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -441,6 +530,7 @@
                   </template>
                   <div v-if="!isEdit">
                     <span
+                      class="text-class"
                       v-if="ciDataForm[fitem.name] != null"
                       :class="{ requiredClass: fitem.required }"
                       >{{ ciDataForm[fitem.name] }}</span
@@ -461,6 +551,21 @@
                   v-if="fitem.type === 'boolean'"
                   :required="fitem.required"
                 >
+                  <template #label>
+                    <el-space :size="2">
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
+                      <el-tooltip
+                        :content="fitem.description"
+                        placement="right"
+                        effect="dark"
+                        v-if="fitem.description.length != 0 ? true : false"
+                      >
+                        <el-icon>
+                          <Warning />
+                        </el-icon>
+                      </el-tooltip>
+                    </el-space>
+                  </template>
                   <!-- <span>{{ fitem.verbose_name }}</span> -->
                   <el-switch
                     v-model="ciDataForm[fitem.name]"
@@ -479,10 +584,14 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span v-if="fitem.unit !== null ? true : false">{{
-                        fitem.verbose_name + "(" + fitem.unit + ")"
-                      }}</span>
-                      <span v-else>{{ fitem.verbose_name }}</span>
+                      <el-text
+                        tag="b"
+                        v-if="fitem.unit !== null ? true : false"
+                        >{{
+                          fitem.verbose_name + "(" + fitem.unit + ")"
+                        }}</el-text
+                      >
+                      <el-text tag="b" v-else>{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -497,6 +606,7 @@
                   </template>
                   <div v-if="!isEdit">
                     <span
+                      class="text-class"
                       v-if="ciDataForm[fitem.name] != null"
                       :class="{ requiredClass: fitem.required }"
                       >{{ ciDataForm[fitem.name] }}</span
@@ -506,7 +616,7 @@
                   <el-input-number
                     v-model="ciDataForm[fitem.name]"
                     :precision="2"
-                    :step="0.1"
+                    :step="1"
                     v-else
                   />
                 </el-form-item>
@@ -519,7 +629,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span>{{ fitem.verbose_name }}</span>
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -533,76 +643,97 @@
                     </el-space>
                   </template>
                   <div v-if="!isEdit">
-                    <span
-                      v-if="ciDataForm[fitem.name] != null"
-                      :class="{ requiredClass: fitem.required }"
-                      @mouseenter="showPassButton = true"
-                      @mouseleave="showPassButton = false"
-                      >********
-                      <el-popover
-                        :width="380"
-                        trigger="click"
-                        @after-leave="clearPass"
+                    <div v-if="ciDataForm[fitem.name] != null">
+                      <span v-if="showAllPass">
+                        {{
+                          decrypt_sm4(
+                            gmConfig.key,
+                            gmConfig.mode,
+                            ciDataForm[fitem.name]
+                          )
+                        }}</span
                       >
-                        <template #reference
-                          ><el-icon><View v-show="showPassButton" /></el-icon>
-                        </template>
-                        <el-form
-                          ref="passFormRef"
-                          :inline="true"
-                          :model="passwordForm"
-                          require-asterisk-position="right"
+                      <span
+                        v-else
+                        :class="{ requiredClass: fitem.required }"
+                        @mouseenter="showPassButton = true"
+                        @mouseleave="showPassButton = false"
+                        >********
+                        <el-popover
+                          v-permission="
+                            `${route.name?.replace('_info', '')}:showPassword`
+                          "
+                          :width="380"
+                          trigger="click"
+                          @after-leave="clearPass"
                         >
-                          <el-row align="middle">
-                            <el-col :span="20">
-                              <el-form-item
-                                label="密钥"
-                                prop="secret"
-                                :rules="[
-                                  {
-                                    required: true,
-                                    message: '输入密钥',
-                                    trigger: 'blur',
-                                  },
-                                ]"
-                              >
-                                <el-input
-                                  type="password"
-                                  v-model="passwordForm.secret"
-                                  show-password
-                                  placeholder="输入密钥查看密码"
-                                  clearable
-                                  style="width: 250px"
-                                />
-                              </el-form-item>
-                            </el-col>
-                            <el-col :span="2">
-                              <el-form-item>
-                                <el-button
-                                  type="primary"
-                                  size="small"
-                                  @click="getPassword(passFormRef, fitem.name)"
-                                  >查看</el-button
-                                >
-                              </el-form-item>
-                            </el-col>
-                          </el-row>
-                        </el-form>
-                        <el-text tag="b" v-if="isShowPass"
-                          >密码: {{ fieldPassword }}
-                          <el-tooltip
-                            class="box-item"
-                            effect="dark"
-                            content="点击复制密码"
-                            placement="top"
-                          >
-                            <el-icon
-                              ><CopyDocument v-copy="fieldPassword"
+                          <template #reference
+                            ><el-icon
+                              ><View v-show="showPassButton && !showAllPass"
                             /></el-icon>
-                          </el-tooltip>
-                        </el-text>
-                      </el-popover>
-                    </span>
+                          </template>
+                          <el-form
+                            ref="passFormRef"
+                            :inline="true"
+                            :model="passwordForm"
+                            require-asterisk-position="right"
+                          >
+                            <el-row align="middle">
+                              <el-col :span="20">
+                                <el-form-item
+                                  label="密钥"
+                                  prop="secret"
+                                  :rules="[
+                                    {
+                                      required: true,
+                                      message: '输入密钥',
+                                      trigger: 'blur',
+                                    },
+                                  ]"
+                                >
+                                  <el-input
+                                    type="password"
+                                    v-model="passwordForm.secret"
+                                    show-password
+                                    placeholder="输入密钥查看密码"
+                                    clearable
+                                    style="width: 250px"
+                                  />
+                                </el-form-item>
+                              </el-col>
+                              <el-col :span="2">
+                                <el-form-item>
+                                  <el-button
+                                    type="primary"
+                                    size="small"
+                                    @click="
+                                      getPassword(
+                                        passFormRef,
+                                        ciDataForm[fitem.name]
+                                      )
+                                    "
+                                    >查看</el-button
+                                  >
+                                </el-form-item>
+                              </el-col>
+                            </el-row>
+                          </el-form>
+                          <el-text tag="b" v-if="isShowPass"
+                            >密码: {{ fieldPassword }}
+                            <el-tooltip
+                              class="box-item"
+                              effect="dark"
+                              content="点击复制密码"
+                              placement="top"
+                            >
+                              <el-icon
+                                ><CopyDocument v-copy="fieldPassword"
+                              /></el-icon>
+                            </el-tooltip>
+                          </el-text>
+                        </el-popover>
+                      </span>
+                    </div>
 
                     <span v-else>--</span>
                   </div>
@@ -623,10 +754,14 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span v-if="fitem.unit !== null ? true : false">{{
-                        fitem.verbose_name + "(" + fitem.unit + ")"
-                      }}</span>
-                      <span v-else>{{ fitem.verbose_name }}</span>
+                      <el-text
+                        tag="b"
+                        v-if="fitem.unit !== null ? true : false"
+                        >{{
+                          fitem.verbose_name + "(" + fitem.unit + ")"
+                        }}</el-text
+                      >
+                      <el-text tag="b" v-else>{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -641,6 +776,7 @@
                   </template>
                   <div v-if="!isEdit">
                     <span
+                      class="text-class"
                       v-if="ciDataForm[fitem.name] != null"
                       :class="{ requiredClass: fitem.required }"
                       >{{ ciDataForm[fitem.name] }}</span
@@ -661,7 +797,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span>{{ fitem.verbose_name }}</span>
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -699,7 +835,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span>{{ fitem.verbose_name }}</span>
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -737,7 +873,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span>{{ fitem.verbose_name }}</span>
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -754,7 +890,7 @@
                     <span
                       v-if="ciDataForm[fitem.name] != null"
                       :class="{ requiredClass: fitem.required }"
-                      >{{ currentRow[fitem.name].label }}</span
+                      >{{ currentRow[fitem.name]?.label }}</span
                     >
                     <span v-else>--</span>
                   </div>
@@ -780,7 +916,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <span>{{ fitem.verbose_name }}</span>
+                      <el-text tag="b">{{ fitem.verbose_name }}</el-text>
                       <el-tooltip
                         :content="fitem.description"
                         placement="right"
@@ -795,6 +931,7 @@
                   </template>
                   <div v-if="!isEdit">
                     <span
+                      class="text-class"
                       v-if="ciDataForm[fitem.name] != null"
                       :class="{ requiredClass: fitem.required }"
                       >{{ currentRow[fitem.name].name }}</span
@@ -835,12 +972,14 @@
         <div v-else>
           <div v-if="isEdit">
             <el-button
+              v-permission="`${route.name?.replace('_info', '')}:delete`"
               type="danger"
               @click="ciDataDelete"
-              v-if="currentRow.instance_group.indexOf(treeIdleId) !== -1"
+              v-if="currentRow.instance_group?.indexOf(treeIdleId) !== -1"
               >删除</el-button
             >
             <el-tooltip
+              v-permission="`${route.name?.replace('_info', '')}:delete`"
               content="无法删除非空闲池的主机"
               placement="top"
               effect="dark"
@@ -858,7 +997,12 @@
             >
           </div>
           <div v-else>
-            <el-button type="primary" @click="isEdit = true">编辑</el-button>
+            <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
+              type="primary"
+              @click="isEdit = true"
+              >编辑</el-button
+            >
           </div>
         </div>
 
@@ -922,7 +1066,22 @@
                   : true
               "
             >
+              <el-switch
+                v-model="multipleUpdateTempObject[item]"
+                style="
+                  --el-switch-on-color: #13ce66;
+                  --el-switch-off-color: #ff4949;
+                  margin-right: 10px;
+                "
+                inline-prompt
+                active-text="置空"
+                inactive-text="非空"
+                @change="
+                  setMultipleUpdateParam(multipleUpdateTempObject[item], item)
+                "
+              />
               <el-input
+                v-if="!multipleUpdateTempObject[item]"
                 v-model="multipleForm.updateParams[item]"
                 type="textarea"
                 autosize
@@ -936,7 +1095,22 @@
                   : true
               "
             >
+              <el-switch
+                v-model="multipleUpdateTempObject[item]"
+                style="
+                  --el-switch-on-color: #13ce66;
+                  --el-switch-off-color: #ff4949;
+                  margin-right: 10px;
+                "
+                inline-prompt
+                active-text="置空"
+                inactive-text="非空"
+                @change="
+                  setMultipleUpdateParam(multipleUpdateTempObject[item], item)
+                "
+              />
               <el-input
+                v-if="!multipleUpdateTempObject[item]"
                 v-model="multipleForm.updateParams[item]"
                 style="width: 180px"
               />
@@ -1012,7 +1186,22 @@
                   : true
               "
             >
-              <el-input-number
+              <el-switch
+                v-model="multipleUpdateTempObject[item]"
+                style="
+                  --el-switch-on-color: #13ce66;
+                  --el-switch-off-color: #ff4949;
+                  margin-right: 10px;
+                "
+                inline-prompt
+                active-text="置空"
+                inactive-text="非空"
+                @change="
+                  setMultipleUpdateParam(multipleUpdateTempObject[item], item)
+                "
+              />
+              <el-input
+                v-if="!multipleUpdateTempObject[item]"
                 v-model="multipleForm.updateParams[item]"
                 :step="1"
                 style="width: 180px"
@@ -1025,7 +1214,22 @@
                   : true
               "
             >
+              <el-switch
+                v-model="multipleUpdateTempObject[item]"
+                style="
+                  --el-switch-on-color: #13ce66;
+                  --el-switch-off-color: #ff4949;
+                  margin-right: 10px;
+                "
+                inline-prompt
+                active-text="置空"
+                inactive-text="非空"
+                @change="
+                  setMultipleUpdateParam(multipleUpdateTempObject[item], item)
+                "
+              />
               <el-input-number
+                v-if="!multipleUpdateTempObject[item]"
                 v-model="multipleForm.updateParams[item]"
                 :precision="2"
                 :step="0.1"
@@ -1039,7 +1243,22 @@
                   : true
               "
             >
+              <el-switch
+                v-model="multipleUpdateTempObject[item]"
+                style="
+                  --el-switch-on-color: #13ce66;
+                  --el-switch-off-color: #ff4949;
+                  margin-right: 10px;
+                "
+                inline-prompt
+                active-text="置空"
+                inactive-text="非空"
+                @change="
+                  setMultipleUpdateParam(multipleUpdateTempObject[item], item)
+                "
+              />
               <el-date-picker
+                v-if="!multipleUpdateTempObject[item]"
                 v-model="multipleForm.updateParams[item]"
                 type="date"
                 placeholder="Pick a Date"
@@ -1055,7 +1274,22 @@
                   : true
               "
             >
+              <el-switch
+                v-model="multipleUpdateTempObject[item]"
+                style="
+                  --el-switch-on-color: #13ce66;
+                  --el-switch-off-color: #ff4949;
+                  margin-right: 10px;
+                "
+                inline-prompt
+                active-text="置空"
+                inactive-text="非空"
+                @change="
+                  setMultipleUpdateParam(multipleUpdateTempObject[item], item)
+                "
+              />
               <el-date-picker
+                v-if="!multipleUpdateTempObject[item]"
                 v-model="multipleForm.updateParams[item]"
                 type="datetime"
                 placeholder="Pick a Date"
@@ -1082,7 +1316,7 @@
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="multipleDia = false">取消</el-button>
+        <el-button @click="handleClose">取消</el-button>
         <el-button @click.prevent="addUpdateParams()">新增字段</el-button>
         <el-button
           v-throttle
@@ -1116,7 +1350,26 @@
   <ciDataUpload
     v-model:isShowUpload="isShowUpload"
     :ciModelId="props.ciModelId"
+    :currentNodeId="props.currentNodeId"
+    @getCiData="getCiData"
+    v-if="resetCom"
   />
+  <!-- 过滤 -->
+  <ciDataFilter
+    :ciModelId="props.ciModelId"
+    :currentNodeId="props.currentNodeId"
+    :allModelFieldByNameObj="allModelFieldByNameObj"
+    :enumOptionObj="enumOptionObj"
+    :validationRulesObj="validationRulesObj"
+    :allModelField="allModelField"
+    :modelRefOptions="modelRefOptions"
+    v-model:showFilter="showFilter"
+    @updateFilterParam="updateFilterParam"
+    @getCiData="getCiData"
+    ref="ciDataFilterRef"
+    v-if="resetCom"
+  />
+  <!-- 表格列显示 -->
   <ciDataTableCol
     :ciModelId="props.ciModelId"
     :allModelField="allModelField"
@@ -1126,11 +1379,15 @@
     @reloadTable="reloadWind"
     ref="ciDataTableColRef"
   />
+  <ciDataShowPass v-model:showAllPassDia="showAllPassDia" />
+  <!-- 全局密码显示 -->
 </template>
 
 <script lang="ts" setup>
 import ciDataUpload from "./ciDataUpload.vue";
 import ciDataTableCol from "./ciDataTableCol.vue";
+import ciDataShowPass from "./ciDataShowPass.vue";
+
 import {
   Check,
   Delete,
@@ -1146,6 +1403,9 @@ import {
   CopyDocument,
   UploadFilled,
   Edit,
+  Hide,
+  Fold,
+  Expand,
 } from "@element-plus/icons-vue";
 import { ElMessageBox, ElMessage, ElNotification } from "element-plus";
 import { Rank } from "@element-plus/icons-vue";
@@ -1162,15 +1422,21 @@ import {
 import { da, pa } from "element-plus/es/locale/index.mjs";
 const { proxy } = getCurrentInstance();
 import { EditOutlined, DownOutlined, StarTwoTone } from "@ant-design/icons-vue";
+import { encrypt_sm4, decrypt_sm4 } from "@/utils/gmCrypto.ts";
+import useConfigStore from "@/store/config";
 
+const configStore = useConfigStore();
 import type { FormInstance, FormItemInstance, FormRules } from "element-plus";
 import ciDataFilter from "./ciDataFilter.vue";
 import { useStore } from "vuex";
 import { useClipboard } from "vue-clipboard3";
 import { debounce } from "lodash";
+import { useRoute } from "vue-router";
+const route = useRoute();
 const store = useStore();
 const emit = defineEmits(["getTree"]);
 const props = defineProps(["ciModelId", "treeData", "currentNodeId"]);
+const showTree = defineModel("showTree");
 // const treeData = defineModel("treeData");
 // const currentNodeId = defineModel("currentNodeId");
 const activeArr = ref([0]);
@@ -1178,11 +1444,55 @@ const showFilter = ref(false);
 const openFilter = () => {
   showFilter.value = true;
 };
+const resetCom = ref(true);
+const reloadCiDataFilter = () => {
+  resetCom.value = false;
+  nextTick(() => {
+    resetCom.value = true;
+  });
+};
 const ciDataFilterRef = ref("");
 const closeFilter = () => {
   showFilter.value = false;
 };
 // 密码相关
+const showAllPassDia = ref(false);
+const gmConfig = computed(() => configStore.gmCry);
+
+const showAllPass = computed(() => configStore.showAllPass);
+const showAllPassTime = computed(() => configStore.showAllPassTime);
+
+const setShowAllPass = async () => {
+  showAllPassDia.value = true;
+};
+// const getCountDownTime =
+const onCountdownEnd = () => {
+  configStore.updateShowAllPass(false);
+  ElNotification({
+    title: "操作成功",
+    message: "密码到期已自动屏蔽",
+    type: "success",
+    duration: 2000,
+  });
+};
+const getCountDownTime = (data) => {
+  console.log(data);
+  // configStore.updateShowAllPassTime(data.totalSeconds);
+  configStore.setShowAllPassTime(data.totalMilliseconds);
+};
+const cancelShowAllPass = () => {
+  showAllPassDia.value = false;
+  configStore.updateShowAllPass(false);
+  configStore.setShowAllPassTime(0);
+
+  ElNotification({
+    title: "success",
+    message: "密码已屏蔽",
+    type: "success",
+    duration: 2000,
+  });
+};
+// 当全局密码显示为false的时候，单个密码生效
 const showPassButton = ref(false);
 const clearPass = () => {
   isShowPass.value = false;
@@ -1196,18 +1506,20 @@ const passwordForm = reactive({
 });
 const fieldPassword = ref("");
 const isShowPass = ref(false);
-const getPassword = async (formEl: FormItemInstance | undefined, fieldName) => {
-  console.log(passFormRef.value[0]);
+const getPassword = async (formEl: FormItemInstance | undefined, pValue) => {
   formEl![0].validate(async (valid) => {
     if (valid) {
-      console.log(passwordForm);
-      if (passwordForm.secret === "thinker") {
-        let res = await proxy.$api.getCiModelInstance({
-          decrypt_password: true,
-          name: currentRow.value.name,
-          model: props.ciModelId,
-        });
-        fieldPassword.value = res.data.results[0].fields[fieldName];
+      if (passwordForm.secret === gmConfig.value.key) {
+        // let res = await proxy.$api.getCiModelInstance({
+        //   decrypt_password: true,
+        //   name: currentRow.value.name,
+        //   model: props.ciModelId,
+        // });
+        fieldPassword.value = decrypt_sm4(
+          gmConfig.value.key,
+          gmConfig.value.mode,
+          pValue
+        );
         isShowPass.value = true;
       } else {
         ElNotification({
@@ -1247,6 +1559,29 @@ const allModelFieldNameArr = computed(() => {
   return allModelField.value.map((item) => item.name);
 });
 const isShowUpload = ref(false);
+const bulkDelete = async () => {
+  let res = await proxy.$api.bulkDeleteCiModelInstance({
+    instances: multipleSelectId.value,
+  });
+  if (res.status == "200") {
+    ElMessage({
+      type: "success",
+      message: "删除成功",
+    });
+    ciDataTableRef.value!.clearSelection();
+
+    await getCiData({
+      model: props.ciModelId,
+      model_instance_group: props.currentNodeId,
+    });
+    //
+  } else {
+    ElMessage({
+      type: "error",
+      message: "删除失败",
+    });
+  }
+};
 const exportSelect = async (params) => {
   if (params) {
     let res = await proxy.$api.exportCiData({
@@ -1312,6 +1647,14 @@ const treeDataCommit = async () => {
 // 批量更新
 const multipleFormRef = ref("");
 const multipleDia = ref(false);
+const multipleUpdateTempObject = ref({});
+const setMultipleUpdateParam = (val, item) => {
+  if (val) {
+    multipleForm.updateParams[item] = "null";
+  } else {
+    multipleForm.updateParams[item] = null;
+  }
+};
 const multipleUpdate = () => {
   multipleDia.value = true;
   console.log(multipleForm);
@@ -1387,24 +1730,38 @@ const selectName = (index, name) => {
 };
 const removeUpdateParams = (index, key) => {
   paramNames.value.splice(index, 1);
+  delete multipleUpdateTempObject.value[key];
   delete multipleForm.updateParams[key];
 };
+const multipleCommitParam = computed(() => {
+  let tmpObj = new Object();
+  for (let [ckey, cvalue] of Object.entries(multipleForm.updateParams)) {
+    if (cvalue === "null") {
+      tmpObj[ckey] = null;
+    } else {
+      tmpObj[ckey] = cvalue;
+    }
+    if (modelFieldType.value.password.indexOf(ckey) !== -1) {
+      // 加密
+      tmpObj[ckey] = encrypt_sm4(
+        gmConfig.value.key,
+        gmConfig.value.mode,
+        cvalue
+      );
+    }
+  }
+  return tmpObj;
+});
+
 const saveCommit = () => {
-  console.log(multipleFormRef.value);
   multipleFormRef.value!.validate(async (valid) => {
-    console.log(valid);
     if (valid) {
       // 批量更新的方法
-      // multipleForm.updateParams = [];
-      // paramNames.value = [];
-      // multipleDia.value = false;
-      // console.log(multipleForm.updateParams);
-
       // return;
       let res = await proxy.$api.multipleUpdateCiModelInstance({
         update_user: store.state.username,
         instances: multipleSelectId.value,
-        fields: multipleForm.updateParams,
+        fields: multipleCommitParam.value,
       });
 
       // 发起更新请求
@@ -1417,8 +1774,8 @@ const saveCommit = () => {
         });
         // resetForm(multipleFormRef.value)
         multipleForm.updateParams = {};
+        multipleUpdateTempObject.value = {};
         paramNames.value = [];
-        console.log(multipleForm.updateParams);
         multipleDia.value = false;
       } else {
         ElMessage({
@@ -1455,7 +1812,10 @@ const allModelFieldOptions = computed<any>(() => {
 });
 const handleClose = () => {
   multipleDia.value = false;
-  resetForm(multipleFormRef.value);
+  multipleForm.updateParams = {};
+  multipleUpdateTempObject.value = {};
+  paramNames.value = [];
+  // resetForm(multipleFormRef.value);
 };
 
 const tableLoading = ref(true);
@@ -1497,7 +1857,7 @@ const updateCiData = async (params) => {
 const selectable = () => true;
 
 // 表格勾选
-const ciDataTableRef = ref("");
+const ciDataTableRef = ref(null);
 const get_row_key = (row) => {
   return row.id;
 };
@@ -1586,8 +1946,12 @@ const enumOptionObj = computed(() => {
       if (field.type === "enum") {
         // let ruleObj = JSON.parse(validationRulesObj.value[params].rule)
         // JSON.parse(validationRulesObj.value[params].rule)
+        // console.log(field);
+        if (field.validation_rule === null) {
+          return;
+        }
         let ruleObj = JSON.parse(
-          validationRulesObj.value[field.validation_rule].rule
+          validationRulesObj?.value[field?.validation_rule].rule
         );
         let tmpList = [];
         Object.keys(ruleObj).forEach((ritem) => {
@@ -1628,11 +1992,11 @@ const getModelRefCiData = async (visible, params) => {
   let res = await proxy.$api.getModelRefCi({
     model: params.id,
     page: 1,
-    page_size: 1000,
+    page_size: 5000,
   });
   let tmpArr = [];
   res.data.results.forEach((item) => {
-    tmpArr.push({ value: item.id, label: item.name });
+    tmpArr.push({ value: item.id, label: item.instance_name });
   });
   modelRefOptions.value[params.name] = [
     { value: null, label: "无" },
@@ -1714,6 +2078,7 @@ const modelFieldType = computed(() => {
     enum: [],
     boolean: [],
     model_ref: [],
+    password: [],
   };
   allModelField.value.forEach((item) => {
     if (item.type === "enum") {
@@ -1722,6 +2087,8 @@ const modelFieldType = computed(() => {
       tempObj.boolean.push(item.name);
     } else if (item.type === "model_ref") {
       tempObj.model_ref.push(item.name);
+    } else if (item.type === "password") {
+      tempObj.password.push(item.name);
     }
   });
   return tempObj;
@@ -1743,6 +2110,7 @@ watch(
 // 获取ci数据
 const ciDataList = ref([]);
 const totalCount = ref(0);
+// 过滤filter
 const filterParam = ref({});
 const updateFilterParam = (params) => {
   filterParam.value = params;
@@ -1751,7 +2119,8 @@ const filterTags = computed(() => {
   let tmpArr = new Array();
   for (let [fName, fValue] of Object.entries(filterParam.value)) {
     // console.log(key + ": " + value);
-    if (fName === "name") {
+    console.log();
+    if (fName === "instance_name") {
       tmpArr.push({ name: "唯一标识:" + fValue, field: fName });
     } else {
       if (modelFieldType.value.model_ref.indexOf(fName) !== -1) {
@@ -1806,11 +2175,11 @@ const getCiData = async (params) => {
     // decrypt_password: true,
   });
   totalCount.value = res.data.count;
-  res.data.results.forEach((item) => {
+  res.data.results?.forEach((item) => {
     tmpList.push({
       id: item.id,
       instance_group: item.instance_group,
-      name: item.name,
+      instance_name: item.instance_name,
       ...item.fields,
     });
   });
@@ -1823,28 +2192,9 @@ const getCiData = async (params) => {
 //   loadingInstance.close()
 //   }, 2000)
 onMounted(async () => {
-  // const loading = ElLoading.service({
-  //   lock: true,
-  //   text: 'Loading',
-  //   background: 'rgba(0, 0, 0, 0.7)',
-  // })
-  // await ciDataTableColRef.value!.getHasConfigField();
+  reloadTable.value = true;
   await getRules();
   setLoading(false);
-
-  // 依赖模型id
-  // await getModelField();
-  // await getHasConfigField();
-  // await getCiData({model: props.ciModelId,model_instance_group: props.currentNodeId,});
-  // // getModelField()
-  // await initCiDataForm();
-  // setTimeout(() => {
-  //   loading.close()
-  // }, 2000)
-  //   nextTick(() => {
-  //   // Loading should be closed asynchronously
-  //   loadingInstance.close()
-  // })
 });
 
 // 实例编辑弹出框
@@ -1885,7 +2235,6 @@ const editCiData = (params, edit = false) => {
         }
       } // isDisabled.value = params.built_in
     );
-    console.log(ciDataForm);
     // ciDataForm = params
     beforeEditCiDataForm.value = JSON.parse(JSON.stringify(ciDataForm));
   });
@@ -1909,7 +2258,7 @@ const cpCiData = (params) => {
           }
         } else if (modelFieldType.value.enum.indexOf(item) !== -1) {
           ciDataForm[item] = params[item].value;
-        } else if (modelFieldType.value.model_ref.indexOf(item) !== -1) {
+        } else if (modelFieldType.value.password.indexOf(item) !== -1) {
         } else {
           ciDataForm[item] = params[item];
         }
@@ -1927,16 +2276,40 @@ const cpCiData = (params) => {
 
 const ciDataFormRef = ref<FormInstance>();
 const ciDataForm = reactive({
-  name: null,
+  instance_name: null,
 });
 const rmNameObj = computed(() => {
   let tmpObj = Object.assign({}, ciDataForm);
-  delete tmpObj.name;
+  delete tmpObj.instance_name;
+  for (let [ckey, cvalue] of Object.entries(tmpObj)) {
+    if (cvalue === null) continue;
+    if (modelFieldType.value.password.indexOf(ckey) !== -1) {
+      // 加密
+      tmpObj[ckey] = encrypt_sm4(
+        gmConfig.value.key,
+        gmConfig.value.mode,
+        cvalue
+      );
+    }
+  }
   return tmpObj;
 });
 const rmNameObjUpdate = computed(() => {
   let tmpObj = Object.assign({}, updateParams.value);
-  delete tmpObj.name;
+  delete tmpObj.instance_name;
+  console.log(modelFieldType.value);
+
+  for (let [ckey, cvalue] of Object.entries(updateParams.value)) {
+    if (cvalue === null) continue;
+    if (modelFieldType.value.password.indexOf(ckey) !== -1) {
+      // 加密
+      tmpObj[ckey] = encrypt_sm4(
+        gmConfig.value.key,
+        gmConfig.value.mode,
+        cvalue
+      );
+    }
+  }
   return tmpObj;
 });
 
@@ -1954,13 +2327,16 @@ const ciDataCommit = async (
         // 添加
         // let rmNameObj = Object.assign({}, ciDataForm)
         // delete rmNameObj.name
+        // 加密转换
+        // for (let [key, value] of Object.entries(obj))
+        console.log(rmNameObj.value);
         let res = await proxy.$api.addCiModelInstance({
           model: props.ciModelId,
           create_user: store.state.username,
           update_user: store.state.username,
           fields: rmNameObj.value,
-          name: ciDataForm.name,
-          instance_group: props.currentNodeId,
+          instance_name: ciDataForm.instance_name,
+          instance_group: [props.currentNodeId],
         });
         // console.log(res)
         // console.log(123)
@@ -2015,12 +2391,12 @@ const ciDataCommit = async (
           result.splice(0, arr1.length);
           //将键值对数组转为正常对象
           const obj = Object.fromEntries(result);
-          console.log(obj);
           let tmpObj = {};
           Object.keys(obj).forEach((item) => {
-            if (String(obj[item]) != "") {
-              tmpObj[item] = obj[item];
-            }
+            // if (String(obj[item]) != "") {
+            //   tmpObj[item] = obj[item];
+            // }
+            tmpObj[item] = obj[item];
           });
           updateParams.value = tmpObj;
           if (Object.keys(updateParams.value).length === 0) {
@@ -2040,17 +2416,19 @@ const ciDataCommit = async (
         // let updateObj = new Object();
         let updateObj = {
           id: currentRow.value.id,
-          model: modelInfo.value.id,
+          model: props.ciModelId,
           update_user: store.state.username,
         };
-        if (Object.keys(updateParams.value).indexOf("name") === -1) {
-          updateObj["fields"] = updateParams.value;
+        if (Object.keys(updateParams.value).indexOf("instance_name") === -1) {
+          updateObj["fields"] = rmNameObjUpdate.value;
           // fields: updateParams.value,
         } else {
-          updateObj["name"] = updateParams.value.name;
+          updateObj["instance_name"] = updateParams.value.instance_name;
           updateObj["fields"] = rmNameObjUpdate.value;
         }
-
+        console.log(modelFieldType.value);
+        console.log(updateObj);
+        console.log();
         let res = await proxy.$api.updateCiModelInstance(updateObj);
         // console.log(123)
         if (res.status == "200") {
@@ -2074,6 +2452,11 @@ const ciDataCommit = async (
       // console.log('submit!')
     } else {
       console.log("error submit!", fields);
+      ElNotification({
+        title: "表单校验",
+        message: "表单填写异常",
+        type: "error",
+      });
     }
   });
 };
@@ -2159,6 +2542,8 @@ defineExpose({
   setLoading,
   closeFilter,
   clearMultipleSelect,
+  updateFilterParam,
+  reloadCiDataFilter,
 });
 </script>
 <style scoped lang="scss">
@@ -2220,5 +2605,37 @@ defineExpose({
 //   display: flex;
 //   gap: 10px;
 //   justify-content: space-between;
+// }
+// :deep(span) {
+//   white-space: nowrap;
+//   /*强制单行显示*/
+//   text-overflow: ellipsis;
+//   /*文本超出部分省略号表示*/
+//   overflow: hidden;
+//   /*文本超出部分隐藏*/
+//   max-width: 200px;
+//   /*设置文本显示的最大宽度*/
+//   display: inline-block /*设为行内块元素*/;
+//   vertical-align: top;
+//   width: 200px;
+// }
+// span {
+//   white-space: nowrap;
+//   /*强制单行显示*/
+//   text-overflow: ellipsis;
+//   /*文本超出部分省略号表示*/
+//   overflow: hidden;
+//   /*文本超出部分隐藏*/
+//   max-width: 200px;
+//   /*设置文本显示的最大宽度*/
+//   display: inline-block /*设为行内块元素*/;
+//   vertical-align: top;
+//   width: auto;
+// }
+// span:hover {
+//   overflow: visible;
+//   white-space: pre-wrap;
+//   text-overflow: clip;
+//   overflow-wrap: break-word;
 // }
 </style>

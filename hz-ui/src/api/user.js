@@ -28,7 +28,7 @@ login(params){
     return axios.post(path.user,params)
   },
   userupdate(params){
-    return axios.put(path.user+params.id+'/',params)
+    return axios.patch(path.user+params.id+'/',params)
   },
   userdel(params){
     return axios.delete(path.user+params+'/')
@@ -68,6 +68,32 @@ login(params){
       data: params
     })
   },
+  // 获取角色关联权限的树状
+  getPermissionToRole(params){
+    return axios.request({
+      url:'/api/v1/getPermissionToRole/',
+      method: 'post',
+      data: params
+    })
+    // return axios.post(path.role)}
+  }, 
 
+  getUserGroup(config){
+    return axios.request({
+      url:path.userGroup,
+      method: 'get',
+      params:config
+    })
+
+  },
+  addUserGroup(params){
+    return axios.post(path.userGroup,params)
+  },
+  updateUserGroup(params){
+    return axios.patch(path.userGroup+params.id+'/',params)
+  },
+  deleteUserGroup(params){
+    return axios.delete(path.userGroup+params+'/')
+  },
 
 }

@@ -4,9 +4,13 @@
     v-if="pvar.menu.children.length === 0 ? false : true"
   >
     <template #title>
-      <el-icon>
+      <!-- <el-icon>
         <component :is="pvar.menu.icon" />
+      </el-icon> -->
+      <el-icon>
+        <Icon :icon="pvar.menu.icon"></Icon>
       </el-icon>
+      <!-- <span>{{ pvar.menu.icon }}</span> -->
       <span>{{ pvar.menu.label }}</span>
     </template>
     <!-- 多级嵌套菜单渲染 -->
@@ -18,12 +22,15 @@
   </el-sub-menu>
   <el-menu-item :index="pvar.menu.name" v-else @click="goRouter(pvar.menu)">
     <el-icon>
-      <component :is="pvar.menu.icon" />
+      <Icon :icon="pvar.menu.icon"></Icon>
     </el-icon>
+
     <template #title>{{ pvar.menu.label }}</template>
   </el-menu-item>
 </template>
 <script setup>
+import { Icon } from "@iconify/vue";
+
 import { getCurrentInstance } from "vue";
 import { useRouter } from "vue-router";
 // import {useStore} from 'vuex'
@@ -31,7 +38,6 @@ const { proxy } = getCurrentInstance();
 // let store = useStore()
 const router = useRouter();
 const goRouter = (item) => {
-  console.log(item.name);
   // 路由跳转
   if (item.meta.is_iframe) {
     router.push({

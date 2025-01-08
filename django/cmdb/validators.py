@@ -29,12 +29,12 @@ class FieldValidator:
                 
         if field_config.validation_rule.type == ValidationType.REGEX:
             if not re.match(field_config.validation_rule.rule, value):
-                raise ValueError(f"Value does not match pattern: {field_config.validation_rule}")
+                raise ValueError(f"Value does not match pattern: {field_config.validation_rule.rule}")
         return value
     
     def validate_custom_regex(value, field_config):
         if not re.match(field_config.validation_rule.rule, value):
-            raise ValueError(f"Value does not match pattern: {field_config.validation_rule}")
+            raise ValueError(f"Value does not match pattern: {field_config.validation_rule.rule}")
         return value
     
     @staticmethod
@@ -102,6 +102,22 @@ class FieldValidator:
             
         except (json.JSONDecodeError, AttributeError):
             raise ValueError("Invalid validation rule format: {field_config.validation_rule.rule}")
+
+    @staticmethod
+    def validate_cascade_enum(value, field_config):
+        """级联枚举值校验"""
+        try:
+            allowed_values = field_config.validation_rule.rule
+            if isinstance(allowed_values, str):
+                allowed_values = json.loads(allowed_values)
+            
+            if value not in allowed_values:
+                raise ValueError(f"Value must be one of: {allowed_values}")
+            return value
+            
+        except (json.JSONDecodeError, AttributeError):
+            raise ValueError("Invalid validation rule format: {field_config.validation_rule.rule}")
+        
 
     @staticmethod 
     def validate_ip(value, field_config):
@@ -250,6 +266,10 @@ class FieldValidator:
             logger.info(f'Using base validation for field: {field_config.name}')
             validator = getattr(cls, f'validate_{field_config.type}', None)
             logger.info(f'Validator method: {validator}')
+        elif field_config.validation_rule and field_config.validation_rule.type == ValidationType.REGEX:
+            # 使用自定义正则表达式校验
+            logger.info(f'Using custom regex validation for field: {field_config.name}')
+            validator = getattr(cls, 'validate_custom_regex', None)
         else:
             # 优先使用对应校验类型进行验证，此后如果有自定义验证规则再使用自定义规则二次验证
             logger.info(f'Using custom validation for field: {field_config.name}')

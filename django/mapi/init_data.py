@@ -2,7 +2,7 @@
 INIT_MENU =  [
     {
       "label": "首页",
-      "icon": "HomeFilled",
+      "icon": "ep:home-filled",
       "name": "home",
       "status": 1,
       "path": "/home",
@@ -17,7 +17,7 @@ INIT_MENU =  [
     },
     {
       "label": "可视化大屏",
-      "icon": "TrendCharts",
+      "icon": "ep:trend-charts",
       "name": "iframe",
       "status": 1,
       "path": "/iframe",
@@ -26,13 +26,13 @@ INIT_MENU =  [
       "has_info": 0,
       "info_view_name": "",
       "is_iframe": 1,
-      "iframe_url": "http://192.168.163.160:3000/d/ace855ee-5397-496d-8610-89324bea78e4/new-dashboard?orgId=1",
+      "iframe_url": "http://grafana:3000",
       "description": "",
       "parentid_id": ''
     },
     {
       "label": "资产配置",
-      "icon": "Management",
+      "icon": "ep:management",
       "name": "cmdb",
       "status": 1,
       "path": "",
@@ -47,7 +47,7 @@ INIT_MENU =  [
     },
     {
       "label": "资源",
-      "icon": "MessageBox",
+      "icon": "ep:message-box",
       "name": "cidata",
       "status": 1,
       "path": "/cidata",
@@ -58,11 +58,16 @@ INIT_MENU =  [
       "is_iframe": 0,
       "iframe_url": '',
       "description": "",
-      "parentid_id": "cmdb"
+      "parentid_id": "cmdb",
+      "buttons": [
+                  {"name":"导入","action":"import"},
+                  {"name":"导出","action":"export"},
+                  {"name":"显示密码","action":"showPassword"},
+                  ]
     },
     {
       "label": "模型管理",
-      "icon": "Box",
+      "icon": "mdi:alpha-m-box-outline",
       "name": "cimodelManage",
       "status": 1,
       "path": "",
@@ -77,7 +82,7 @@ INIT_MENU =  [
     },
     {
       "label": "模型配置",
-      "icon": "Box",
+      "icon": "mdi:table-cog",
       "name": "model",
       "status": 1,
       "path": "/model",
@@ -92,7 +97,7 @@ INIT_MENU =  [
     },
     {
 			"label": "校验配置",
-			"icon": "Memo",
+			"icon": "ep:memo",
 			"name": "ciConfig",
 			"status": 1,
 			"path": "ciConfig",
@@ -107,9 +112,9 @@ INIT_MENU =  [
 		},
     {
       "label": "资产审计",
-      "icon": "Box",
+      "icon": "ep:box",
       "name": "cidataAudit",
-      "status": 1,
+      "status": 0,
       "path": "/cidataAudit",
       "is_menu": 1,
       "sort": 2,
@@ -122,7 +127,7 @@ INIT_MENU =  [
     },
     {
       "label": "日志应用",
-      "icon": "Reading",
+      "icon": "ep:reading",
       "name": "log",
       "status": 1,
       "path": "",
@@ -137,7 +142,7 @@ INIT_MENU =  [
     },
     {
       "label": "日志检索",
-      "icon": "Search",
+      "icon": "ep:search",
       "name": "loki",
       "status": 1,
       "path": "/loki",
@@ -152,7 +157,7 @@ INIT_MENU =  [
     },
     {
       "label": "流程日志",
-      "icon": "Connection",
+      "icon": "ep:connection",
       "name": "logAnalysis",
       "status": 1,
       "path": "/logAnalysis",
@@ -167,7 +172,7 @@ INIT_MENU =  [
     },
     {
       "label": "环节配置",
-      "icon": "Guide",
+      "icon": "ep:guide",
       "name": "logModule",
       "status": 1,
       "path": "/logModule",
@@ -182,7 +187,7 @@ INIT_MENU =  [
     },
     {
       "label": "分析记录",
-      "icon": "ScaleToOriginal",
+      "icon": "ep:scale-to-original",
       "name": "logFlowMission",
       "status": 1,
       "path": "/logFlowMission",
@@ -198,7 +203,7 @@ INIT_MENU =  [
 
     {
       "label": "系统管理",
-      "icon": "Setting",
+      "icon": "ep:setting",
       "name": "settings",
       "status": 1,
       "path": '',
@@ -212,8 +217,8 @@ INIT_MENU =  [
       "parentid_id": ''
     },
     {
-      "label": "用户列表",
-      "icon": "User",
+      "label": "用户管理",
+      "icon": "ep:user",
       "name": "user",
       "status": 1,
       "path": "/user",
@@ -226,14 +231,29 @@ INIT_MENU =  [
       "description": '',
       "parentid_id": "settings"
     },
+        {
+      "label": "用户组管理",
+      "icon": "material-symbols:group-outline",
+      "name": "userGroup",
+      "status": 1,
+      "path": "/userGroup",
+      "is_menu": 1,
+      "sort": 2,
+      "has_info": 0,
+      "info_view_name": '',
+      "is_iframe": 0,
+      "iframe_url": '',
+      "description": '',
+      "parentid_id": "settings"
+    },
     {
       "label": "角色管理",
-      "icon": "Avatar",
+      "icon": "ep:avatar",
       "name": "role",
       "status": 1,
       "path": "/role",
       "is_menu": 1,
-      "sort": 2,
+      "sort": 3,
       "has_info": 0,
       "info_view_name": '',
       "is_iframe": 0,
@@ -243,12 +263,12 @@ INIT_MENU =  [
     },
     {
       "label": "菜单管理",
-      "icon": "Menu",
+      "icon": "ep:menu",
       "name": "menu",
       "status": 1,
       "path": "/menu",
       "is_menu": 1,
-      "sort": 3,
+      "sort": 4,
       "has_info": 0,
       "info_view_name": '',
       "is_iframe": 0,
@@ -259,12 +279,12 @@ INIT_MENU =  [
 
     {
       "label": "门户配置",
-      "icon": "Platform",
+      "icon": "ep:platform",
       "name": "portal",
       "status": 1,
       "path": "/portal",
       "is_menu": 1,
-      "sort": 4,
+      "sort": 5,
       "has_info": 1,
       "info_view_name": "test",
       "is_iframe": 0,
@@ -274,12 +294,12 @@ INIT_MENU =  [
     },
     {
       "label": "数据源配置",
-      "icon": "List",
+      "icon": "ep:list",
       "name": "datasource",
       "status": 1,
       "path": "/datasource",
       "is_menu": 1,
-      "sort": 5,
+      "sort": 6,
       "has_info": 0,
       "info_view_name": '',
       "is_iframe": 0,
@@ -287,10 +307,24 @@ INIT_MENU =  [
       "description": "",
       "parentid_id": "settings"
     },
-
+    {
+      "label": "系统参数",
+      "icon": "carbon:cloud-satellite-config",
+      "name": "sysconfig",
+      "status": 1,
+      "path": "/sysconfig",
+      "is_menu": 1,
+      "sort": 7,
+      "has_info": 0,
+      "info_view_name": '',
+      "is_iframe": 0,
+      "iframe_url": '',
+      "description": "",
+      "parentid_id": "settings"
+    },
     {
       "label": "其它",
-      "icon": "Tools",
+      "icon": "ep:tools",
       "name": "other",
       "status": 0,
       "path": "/other",
@@ -305,7 +339,7 @@ INIT_MENU =  [
     },
     {
       "label": "工具集",
-      "icon": "ForkSpoon",
+      "icon": "ep:fork-spoon",
       "name": "tools",
       "status": 1,
       "path": "tools",
@@ -320,7 +354,7 @@ INIT_MENU =  [
     },
     {
 			"label": "测试页1",
-			"icon": "Promotion",
+			"icon": "ep:promotion",
 			"name": "debug",
 			"status": 0,
 			"path": "debug",

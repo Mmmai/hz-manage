@@ -11,7 +11,7 @@ urlpatterns = [
     path('loki/queryContext',lokiapi.lokiNearLogQuery),
     path('test',views.test),
     path('logFlow/',views.LogFlowViewSet.as_view()),
-    path('logFlow/<int:pk>/',views.LogFlowViewSet.as_view()),
+    path('logFlow/<str:pk>/',views.LogFlowViewSet.as_view()),
     path('logFlow/stepQuery',lokiapi.lokiStepQuery)
 
 

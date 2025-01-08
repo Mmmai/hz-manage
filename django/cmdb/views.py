@@ -3,6 +3,8 @@ import uuid
 import traceback
 import re
 import io
+import tempfile
+from celery import shared_task
 from functools import reduce
 from django.conf import settings
 from rest_framework import viewsets
@@ -20,8 +22,10 @@ from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q
 from django.db.models import Max, Case, When, Value, IntegerField
+from .utils import password_handler, celery_manager
 from .excel import ExcelHandler
-from .constants import FieldMapping
+from .constants import FieldMapping, limit_field_names
+from .tasks import process_import_data
 from .filters import (
     ModelGroupsFilter, 
     ModelsFilter, 
@@ -112,7 +116,7 @@ class ModelsViewSet(viewsets.ModelViewSet):
         logger.info(f"New model created: {instance.name} (ID: {unique_id})")
 
         default_group, created = ModelFieldGroups.objects.get_or_create(
-            name='基础配置',
+            name='basic',
             model=instance,
             defaults={
                 'verbose_name': '基础配置',
@@ -234,6 +238,7 @@ class ModelFieldsMetadata(BaseMetadata):
         metadata.setdefault('field_validations', {})
         for field_type, info in FieldMapping.TYPE_VALIDATIONS.items():
             metadata['field_validations'][field_type] = info
+        metadata['limit_fields'] = limit_field_names
         return metadata
 
 class ModelFieldsViewSet(viewsets.ModelViewSet):
@@ -306,19 +311,23 @@ class ModelFieldPreferenceViewSet(viewsets.ModelViewSet):
                         model=model
                     ).order_by('order').values_list('id', flat=True)
                 )
-                system_preference = ModelFieldPreference.objects.create(
-                    model=model,
-                    fields_preferred=fields,
-                    create_user='system',
-                    update_user='system'
+                serializer = ModelFieldPreferenceSerializer(
+                    data={
+                        'model': model.id,
+                        'fields_preferred': fields,
+                        'create_user': user,
+                        'update_user': user
+                    }
                 )
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
                 # fields_str_list = [str(field_id) for field_id in system_preference.fields_preferred]
                 # system_preference.fields_preferred = fields_str_list
-                return Response(ModelFieldPreferenceSerializer(system_preference).data)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
             else:
                 # fields_str_list = [str(field_id) for field_id in preference.fields_preferred]
                 # preference.fields_preferred = fields_str_list
-                return Response(ModelFieldPreferenceSerializer(preference).data)
+                return Response(ModelFieldPreferenceSerializer(preference).data, status=status.HTTP_200_OK)
         else:
             return super().list(request, *args, **kwargs)
         
@@ -351,7 +360,6 @@ class BinaryFileRenderer(BaseRenderer):
         return data.get('file_content') if isinstance(data, dict) else data
 
 class ModelInstanceViewSet(viewsets.ModelViewSet):
-    # renderer_classes = [BinaryFileRenderer]
     queryset = ModelInstance.objects.all().order_by('-create_time').prefetch_related('field_values__model_fields')
     serializer_class = ModelInstanceSerializer
     pagination_class = StandardResultsSetPagination
@@ -380,29 +388,16 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             return queryset
 
         model_id = query_params.get('model')
-        group_id = self.request.query_params.get('model_instance_group', None)
         matching_ids_list = []
 
         if model_id:
             queryset = queryset.filter(model_id=model_id)
             logger.info(f"Filtered by model ID: {model_id}")
-            
-        if group_id is not None:
-            try:
-                group = ModelInstanceGroup.objects.get(id=group_id)
-                all_groups = [group] + self.get_all_child_groups(group)
-                # all_groups = [str(group) for group in all_groups]
-                instance_ids = ModelInstanceGroupRelation.objects.filter(
-                    group__in=all_groups
-                ).values_list('instance_id', flat=True)
-                # queryset = queryset.filter(id__in=instance_ids)
-                matching_ids_list.append(set(instance_ids))
-            except ModelInstanceGroup.DoesNotExist:
-                raise ValidationError({'detail': 'Group {group_id} not found'})
 
         
         for field_name, field_value in query_params.items():
-            if field_name in ['page', 'page_size', 'model', 'decrypt_password']:
+            # keyword for other query params will be ignored
+            if field_name in limit_field_names:
                 continue
 
             try:
@@ -525,16 +520,16 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
 
 
     def get_renderers(self):
-        if self.action in ['export_template', 'export_data']:
+        if self.action in ['export_template', 'export_data', 'download_error_records']:
             return [BinaryFileRenderer()]
         return [JSONRenderer()]
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['post'])
     def export_template(self, request):
         """导出实例数据模板"""
         try:
             # 获取模型ID
-            model_id = request.query_params.get('model')
+            model_id = request.data.get('model')
             if not model_id:
                 raise ValidationError({'detail': 'Model ID is required'})
 
@@ -590,7 +585,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
                 raise ValidationError({'detail': 'Model ID is required'})
 
             # 获取缓存的查询结果
-            cached_queryset = self.get_queryset()
+            cached_queryset = self.get_queryset().filter(model_id=model_id)
             
             # 如果有指定实例ID，则从缓存结果中过滤
             if instance_ids:
@@ -638,24 +633,156 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Error exporting data: {str(e)}")
             raise ValidationError({'detail': f'Failed to export data: {str(e)}'})
+            
+    
+    @action(detail=False, methods=['post'])
+    def import_data(self, request):
+        file = request.FILES.get('file')
+        model_id = request.data.get('model')
         
+        if not file or not model_id:
+            raise ValidationError({'detail': 'Missing file or model ID'})
         
+        results = {
+            'cache_key': None,
+        }
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp:
+            for chunk in file.chunks():
+                temp.write(chunk)
+            temp_path = temp.name
+        logger.info(f"Temp file created: {temp_path}")
+            
+        try:
+            excel_handler = ExcelHandler()
+            excel_data = excel_handler.load_data(temp_path)
+            if excel_data['status'] == 'failed':
+                raise ValidationError({'detail': f'Failed to load Excel data: {excel_data["errors"][-1]}'})
+            else:
+                logger.info(f"Excel data loaded successfully: {excel_data}")
+            
+            headers = excel_data.get('headers', [])
+            model = Models.objects.get(id=model_id)
+            fields_query = ModelFields.objects.filter(model=model).values_list('name', flat=True)
+            if set(fields_query) != set(headers):
+                raise ValidationError({'detail': 'Excel headers do not match model fields'})
+            
+            cache_key = f"import_task_{uuid.uuid4()}"
+            request_context = {
+                'data': {},
+            }
+            
+            if not celery_manager.check_heartbeat():
+                raise ValidationError({'detail': 'Celery worker is not available'})
+            
+            process_import_data.delay(
+                cache_key,
+                excel_data,
+                model_id,
+                request_context
+            )
+            results['cache_key'] = cache_key
+            cache_results = {
+                'status': 'pending',
+                'total': len(excel_data.get('instances', [])),
+                'progress': '0 %',
+                'created': 0,
+                'updated': 0,
+                'skipped': 0,
+                'failed': 0,
+                'errors': [],
+                'error_file_key': None
+            }
+            cache.set(cache_key, cache_results, timeout=600)
+            return Response(results, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error loading Excel data: {str(e)}")
+            raise ValidationError({'detail': f'Failed to load Excel data: {str(e)}'})    
+        
+    @action(detail=False, methods=['get'])
+    def import_status(self, request):
+        cache_key = request.query_params.get('cache_key')
+        if not cache_key:
+            raise ValidationError({'detail': 'Missing cache key'})
+        result = cache.get(cache_key)
+        if not result:
+            raise ValidationError({'detail': 'Cache key not found'})
+        return Response(result, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['post'])
+    def download_error_records(self, request):
+        cache_key = request.data.get('error_file_key')
+        if not cache_key:
+            raise ValidationError({'detail': 'Missing error file key'})
+        error_file = cache.get(cache_key)
+        if not error_file:
+            raise ValidationError({'detail': 'Error file not found'})
+        
+        headers = {
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': 'attachment; filename="import_errors.xlsx"'
+        }
+        
+        return Response(
+                {
+                    'filename': f"import_errors.xlsx",
+                    'file_content': error_file
+                },
+                status=status.HTTP_200_OK,
+                headers=headers
+        )
+        
+
     def perform_destroy(self, instance):
         groups = ModelInstanceGroupRelation.objects.filter(instance=instance).values_list('group', flat=True)
         groups = ModelInstanceGroup.objects.filter(id__in=groups)
         ModelInstanceGroup.clear_groups_cache(groups)
-        ModelFieldMeta.objects.filter(model_instance=instance).delete()
-        ModelInstanceGroupRelation.objects.filter(instance=instance).delete()
         instance.delete()
-    
 
+    
+    @action(detail=False, methods=['post'])
+    def bulk_delete(self, request):
+        instance_ids = request.data.get('instances', [])
+        instances = ModelInstance.objects.filter(id__in=instance_ids)
+        try:
+            if not instances.exists():
+                raise ValidationError("No instances found for the given IDs.")
+            model_id = instances.first().model_id
+            if instances.filter(model_id=model_id).count() != instances.count():
+                raise ValidationError("Instances do not belong to the same model.")
+            
+            valid_id = instances.values_list('id', flat=True)
+            invalid_id = {}
+            
+            unassigned_group = ModelInstanceGroup.objects.get(
+                model=model_id,
+                label='空闲池'
+            )
+            relations = ModelInstanceGroupRelation.objects.filter(instance__in=valid_id)
+            group_invalid_ids = relations.exclude(group=unassigned_group).values_list('instance_id', flat=True)
+            invalid_id = {instance_id: 'Instance is not in unassigned group' for instance_id in group_invalid_ids}
+            
+            if ModelFields.objects.filter(ref_model_id=model_id).exists():
+                for instance in instances:
+                    if ModelFieldMeta.objects.filter(data=str(instance.id)).exists():
+                        invalid_id[instance.id] = 'Referenced by other model field meta'
+            
+            valid_id = set(valid_id) - set(invalid_id.keys())
+            
+            ModelInstance.objects.filter(id__in=valid_id).delete()
+            return Response({
+                'success': len(valid_id),
+                'errors': list(invalid_id)
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            raise ValidationError(f'Error deleting instances: {str(e)}')
+    
 
 class ModelInstanceBasicViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ModelInstanceBasicViewSerializer
     queryset = ModelInstance.objects.all().order_by('-create_time')
     filterset_class = ModelInstanceBasicFilter
     pagination_class = StandardResultsSetPagination    
-    search_fields = ['model', 'name', 'create_user', 'update_user']
+    search_fields = ['model', 'instance_name', 'create_user', 'update_user']
     ordering_fields = ['name', 'create_time', 'update_time']
     
         
@@ -666,8 +793,10 @@ class ModelFieldMetaViewSet(viewsets.ModelViewSet):
     filterset_class = ModelFieldMetaFilter
     ordering_fields = ['create_time', 'update_time']
     
+    
+    
 class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
-    queryset = ModelInstanceGroup.objects.all()
+    queryset = ModelInstanceGroup.objects.all().order_by('create_time')
     serializer_class = ModelInstanceGroupSerializer
     pagination_class = StandardResultsSetPagination
     filterset_class = ModelInstanceGroupFilter
@@ -1061,3 +1190,36 @@ class RelationDefinitionViewSet(viewsets.ModelViewSet):
 class RelationsViewSet(viewsets.ModelViewSet):
     queryset = Relations.objects.all().order_by('-create_time')
     serializer_class = RelationsSerializer
+
+
+class PasswordManageViewSet(viewsets.ViewSet):
+
+    
+    @action(detail=False, methods=['post'])
+    def re_encrypt(self, request):
+        """重新加密密码"""
+        try:
+            password_meta = ModelFieldMeta.objects.filter(model_fields__type='password').values('id', 'data')
+            if not password_meta:
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            password_dict = {
+                str(password['id']): password['data']
+                for password in password_meta
+            }
+            encrypted = password_handler.re_encrypt(password_dict)
+            with transaction.atomic():
+                to_update= []
+                for meta_id, encrypted_password in encrypted.items():
+                    to_update.append(
+                        ModelFieldMeta(
+                            id=meta_id,
+                            data=encrypted_password
+                        )
+                    )
+                ModelFieldMeta.objects.bulk_update(to_update, ['data'])
+            return Response({
+                'status': 'success',
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error re-encrypting password: {traceback.format_exc()}")
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
