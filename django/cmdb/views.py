@@ -311,19 +311,23 @@ class ModelFieldPreferenceViewSet(viewsets.ModelViewSet):
                         model=model
                     ).order_by('order').values_list('id', flat=True)
                 )
-                system_preference = ModelFieldPreference.objects.create(
-                    model=model,
-                    fields_preferred=fields,
-                    create_user='system',
-                    update_user='system'
+                serializer = ModelFieldPreferenceSerializer(
+                    data={
+                        'model': model.id,
+                        'fields_preferred': fields,
+                        'create_user': user,
+                        'update_user': user
+                    }
                 )
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
                 # fields_str_list = [str(field_id) for field_id in system_preference.fields_preferred]
                 # system_preference.fields_preferred = fields_str_list
-                return Response(ModelFieldPreferenceSerializer(system_preference).data)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
             else:
                 # fields_str_list = [str(field_id) for field_id in preference.fields_preferred]
                 # preference.fields_preferred = fields_str_list
-                return Response(ModelFieldPreferenceSerializer(preference).data)
+                return Response(ModelFieldPreferenceSerializer(preference).data, status=status.HTTP_200_OK)
         else:
             return super().list(request, *args, **kwargs)
         
@@ -1186,3 +1190,36 @@ class RelationDefinitionViewSet(viewsets.ModelViewSet):
 class RelationsViewSet(viewsets.ModelViewSet):
     queryset = Relations.objects.all().order_by('-create_time')
     serializer_class = RelationsSerializer
+
+
+class PasswordManageViewSet(viewsets.ViewSet):
+
+    
+    @action(detail=False, methods=['post'])
+    def re_encrypt(self, request):
+        """重新加密密码"""
+        try:
+            password_meta = ModelFieldMeta.objects.filter(model_fields__type='password').values('id', 'data')
+            if not password_meta:
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            password_dict = {
+                str(password['id']): password['data']
+                for password in password_meta
+            }
+            encrypted = password_handler.re_encrypt(password_dict)
+            with transaction.atomic():
+                to_update= []
+                for meta_id, encrypted_password in encrypted.items():
+                    to_update.append(
+                        ModelFieldMeta(
+                            id=meta_id,
+                            data=encrypted_password
+                        )
+                    )
+                ModelFieldMeta.objects.bulk_update(to_update, ['data'])
+            return Response({
+                'status': 'success',
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error re-encrypting password: {traceback.format_exc()}")
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)

@@ -15,7 +15,8 @@ from .views import (
     ModelInstanceGroupViewSet,
     ModelInstanceGroupRelationViewSet,
     RelationDefinitionViewSet, 
-    RelationsViewSet
+    RelationsViewSet,
+    PasswordManageViewSet
 )
 
 router = DefaultRouter()
@@ -34,6 +35,7 @@ router.register(r'model_instance_group', ModelInstanceGroupViewSet)
 router.register(r'model_instance_group_relation', ModelInstanceGroupRelationViewSet)
 router.register(r'relation_definitions', RelationDefinitionViewSet)
 router.register(r'relations', RelationsViewSet)
+router.register(r'password_manage', PasswordManageViewSet, basename='password_manage')
 
 urlpatterns = [
     path('', include(router.urls)),
