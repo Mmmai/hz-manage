@@ -1,3 +1,4 @@
+import os
 from django.apps import AppConfig
 from django.db import transaction
 from django.db.utils import OperationalError
@@ -182,7 +183,8 @@ class CMDBConfig(AppConfig):
         """应用启动时初始化内置模型和验证规则"""
         try:
             import sys
-            if any(keyword in sys.argv for keyword in ['makemigrations', 'migrate', 'test', 'shell']):
+            if any(keyword in sys.argv for keyword in ['makemigrations', 'migrate', 'test', 'shell']) or \
+                not os.environ.get('RUN_MAIN', None):
                 return
             elif 'runserver' in sys.argv:
                 # 清除缓存
