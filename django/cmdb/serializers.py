@@ -306,8 +306,6 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
         elif field_type == FieldType.FLOAT:
             return float(value) if value is not None else None
 
-
-                
         return value
 
     def validate(self, data):
@@ -375,13 +373,11 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
                     if isinstance(temp_obj.default, bool):
                         default = str(temp_obj.default).lower()
                 validated_default = FieldValidator.validate(default, temp_obj)
-                logger.info(f'Validated default: {validated_default}')
                 if validated_default is not None:
                     temp_obj.default = self._convert_to_storage_value(
                         validated_default, 
                         temp_obj
                     )
-                logger.info(f'Field {temp_obj.name} converted default value: {temp_obj.default}, type: {type(temp_obj.default)}')
             except ValueError as e:
                 raise serializers.ValidationError({
                     'detail': str(e),
