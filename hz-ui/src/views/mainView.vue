@@ -30,7 +30,7 @@
               </keep-alive>
             </template>
           </router-view>
-          <iframe-view v-show="route.meta.is_iframe"></iframe-view>
+          <!-- <iframe-view v-show="route.meta.is_iframe"></iframe-view> -->
           <router-view v-if="$route.name === 'model'"></router-view>
           <!-- </el-scrollbar> -->
         </el-main>

@@ -264,7 +264,9 @@
           #default="scope"
           v-if="modelFieldType.model_ref.indexOf(data.name) != -1"
         >
-          <div class="text-class">{{ scope.row[data.name]?.name }}</div>
+          <div class="text-class">
+            {{ scope.row[data.name]?.instance_name }}
+          </div>
         </template>
       </el-table-column>
       <el-table-column fixed="right" width="150" label="操作">

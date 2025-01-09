@@ -403,7 +403,7 @@ import { ElMessageBox, ElMessage } from "element-plus";
 import { useStore } from "vuex";
 import upload from "../components/uploadCom.vue";
 import { useRoute } from "vue-router";
-const route = useRoute()
+const route = useRoute();
 const store = useStore();
 const { proxy } = getCurrentInstance();
 
@@ -442,11 +442,11 @@ const handleCurrentChangePgroup = (val) => {
   pgroupPageConfig.page = val;
   // getTableNowData(pageSize,currentPage);
   // getPgroupData(allDataConfig)
-//   pgroupDataPage.value = proxy.$commonFunc.pageFunc(
-//     pgroupData.value,
-//     pgroupPageConfig
-//   );
-// };
+  //   pgroupDataPage.value = proxy.$commonFunc.pageFunc(
+  //     pgroupData.value,
+  //     pgroupPageConfig
+  //   );
+};
 // pgroup多选
 const multipleSelectPgroup = ref([]);
 const handleSelectionChangePgroup = (val) => {
