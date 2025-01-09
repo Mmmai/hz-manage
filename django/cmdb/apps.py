@@ -12,13 +12,6 @@ class CMDBConfig(AppConfig):
     
     def ready(self):
         """应用启动时初始化内置模型和验证规则"""
-    
-            import sys
-            if any(keyword in sys.argv for keyword in ['makemigrations', 'migrate', 'test', 'shell']):
-                return
-            elif 'runserver' in sys.argv:
-                # 清除缓存
-                invalidate_all()
         import sys
         if 'runserver' in sys.argv:
             # 清除缓存
