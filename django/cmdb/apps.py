@@ -1,8 +1,10 @@
 import os
+import tempfile
 from django.apps import AppConfig
 from django.db import transaction
 from django.db.utils import OperationalError
 from cacheops import invalidate_all
+import portalocker
 from .config import BUILT_IN_MODELS, BUILT_IN_VALIDATION_RULES
 from .utils import password_handler
 import logging
@@ -179,16 +181,39 @@ class CMDBConfig(AppConfig):
                 logger.error(f"Error creating validation rule {name}: {str(e)}")
                 raise
 
+    def _initialize_lock(self):
+        """获取文件锁"""
+        lock_file = os.path.join(tempfile.gettempdir(), 'cmdb_init.lock')
+        self._lock_fd = open(lock_file, 'w')
+        try:
+            portalocker.lock(self._lock_fd, portalocker.LOCK_EX | portalocker.LOCK_NB)
+            logger.info("Acquired lock for CMDB initialization")
+            return True
+        except (IOError, BlockingIOError):
+            return False
+        
+    def _release_lock(self):
+        """释放文件锁"""
+        if self._lock_fd:
+            try:
+                portalocker.unlock(self._lock_fd)
+            finally:
+                self._lock_fd.close()
+                logger.info("Released lock for CMDB initialization")
+
     def ready(self):
         """应用启动时初始化内置模型和验证规则"""
         try:
             import sys
-            if any(keyword in sys.argv for keyword in ['makemigrations', 'migrate', 'test', 'shell']) or \
-                not os.environ.get('RUN_MAIN', None):
+            if any(keyword in sys.argv for keyword in ['makemigrations', 'migrate', 'test', 'shell']):
                 return
             elif 'runserver' in sys.argv:
                 # 清除缓存
                 invalidate_all()
+            
+            if not self._initialize_lock():
+                logger.info("Another process is initializing, skipping")
+                return
             
             password_handler.load_keys()
             with transaction.atomic():
@@ -240,6 +265,7 @@ class CMDBConfig(AppConfig):
             logger.warning("Database not ready, skipping initialization")
         except Exception as e:
             logger.error(f"Error during initialization: {str(e)}")
-            raise 
+        finally:
+            self._release_lock()
         
         from .signals import create_field_meta_for_instances
