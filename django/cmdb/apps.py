@@ -12,7 +12,7 @@ class CMDBConfig(AppConfig):
     
     def ready(self):
         """应用启动时初始化内置模型和验证规则"""
-        try:
+    
             import sys
             if any(keyword in sys.argv for keyword in ['makemigrations', 'migrate', 'test', 'shell']):
                 return
