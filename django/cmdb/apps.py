@@ -12,7 +12,6 @@ class CMDBConfig(AppConfig):
     
     def ready(self):
         """应用启动时初始化内置模型和验证规则"""
-<<<<<<< HEAD
         try:
             import sys
             if any(keyword in sys.argv for keyword in ['makemigrations', 'migrate', 'test', 'shell']):
@@ -20,7 +19,6 @@ class CMDBConfig(AppConfig):
             elif 'runserver' in sys.argv:
                 # 清除缓存
                 invalidate_all()
-=======
         import sys
         if 'runserver' in sys.argv:
             # 清除缓存
@@ -38,7 +36,7 @@ class CMDBConfig(AppConfig):
             #     token_manager = ZabbixTokenManager()
             #     token_manager.initialize(config)
             #     logger.info("Zabbix token manager initialized")
->>>>>>> cmdb
+
             
             password_handler.load_keys()
             
