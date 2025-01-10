@@ -145,7 +145,8 @@ BUILT_IN_MODELS = {
                 'verbose_name': '项目状态',
                 'required': True,
                 'editable': True,
-                'order': 4
+                'order': 4,
+                'validation_rule': 'project_status'
             },
             {
                 'name': 'remarks',
@@ -927,5 +928,12 @@ BUILT_IN_VALIDATION_RULES = {
         'type': 'enum',
         'rule': "{\"linux\": \"Linux\", \"windows\": \"Windows\", \"unix\": \"Unix\", \"other\": \"其他\"}",
         'description': '操作系统类型'
+    },
+    'project_status': {
+        'verbose_name': '项目状态',
+        'field_type': 'enum',
+        'type': 'enum',
+        'rule': "{\"planning\": \"规划中\", \"implementing\": \"实施中\", \"completed\": \"已完成\", \"closed\": \"已关闭\"}",
+        'description': '项目状态'
     },
 }
