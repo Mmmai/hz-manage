@@ -254,9 +254,7 @@ def _initialize_model_groups():
 @receiver(post_migrate)
 def initialize_cmdb(sender, **kwargs):
     """初始化 CMDB 应用"""
-    if not all([kw in sys.argv for kw in ['cmdb', 'migrate']]):
-        return
-    if sender.name != 'cmdb':
+    if not all([kw in sys.argv for kw in ['cmdb', 'migrate']]) or sender.name != 'cmdb':
         return
     logger.info(f'Initializing CMDB application')
     try:
