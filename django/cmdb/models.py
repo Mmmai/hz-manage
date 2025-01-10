@@ -382,3 +382,19 @@ class Relations(models.Model):
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
+    
+
+class ZabbixSyncHost(models.Model):
+    class Meta:
+        db_table = 'zabbix_sync_host'
+        managed = True
+        app_label = 'cmdb'
+        
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    instance = models.OneToOneField('ModelInstance', on_delete=models.CASCADE)
+    host_id = models.IntegerField(null=False, blank=False)
+    ip = models.CharField(max_length=50, null=False, blank=False)
+    name = models.CharField(max_length=50, null=False, blank=False)
+    agent_installed = models.BooleanField(default=False)
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')

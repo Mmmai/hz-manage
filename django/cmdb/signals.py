@@ -5,6 +5,7 @@ from django.core.cache import cache
 from django.db import transaction
 from django.db.utils import OperationalError
 from .config import BUILT_IN_MODELS, BUILT_IN_VALIDATION_RULES
+from .tasks import setup_host_monitoring
 from .models import (
     ModelGroups,
     Models, 
@@ -254,6 +255,7 @@ def _initialize_model_groups():
 @receiver(post_migrate)
 def initialize_cmdb(sender, **kwargs):
     """初始化 CMDB 应用"""
+    # 仅允许通过 migrate cmdb 命令触发初始化
     if not all([kw in sys.argv for kw in ['cmdb', 'migrate']]) or sender.name != 'cmdb':
         return
     logger.info(f'Initializing CMDB application')
@@ -276,3 +278,44 @@ def initialize_cmdb(sender, **kwargs):
         logger.warning("Database not ready, skipping initialization")
     except Exception as e:
         logger.error(f"Error during CMDB initialization: {traceback.format_exc()}")
+        
+
+@receiver(post_save, sender=ModelInstance)
+def sync_zabbix_host(sender, instance, created, **kwargs):
+    """同步Zabbix主机"""
+    logger.info(f"Syncing Zabbix host for instance {instance.id}")
+    def delayed_process():
+        logger.info(f'Delayed process started for instance {instance.id}')
+        try:
+            model = Models.objects.get(id=instance.model_id)
+            if model.name != 'hosts':
+                return
+                
+            # 获取主机信息
+            host_info = {}
+            field_values = ModelFieldMeta.objects.filter(
+                model_instance=instance
+            ).select_related('model_fields')
+            
+            for field in field_values:
+                logger.info(f"Field: {field.model_fields.name}, Value: {field.data}")
+                if field.model_fields.name == 'ip':
+                    host_info[field.model_fields.name] = field.data
+                    
+            if not host_info.get('ip'):
+                logger.warning(f"Missing required host information for instance {instance.id}")
+                return
+                
+            # 异步创建Zabbix主机
+            setup_host_monitoring.delay(
+                instance_id=str(instance.id),
+                instance_name=instance.instance_name,
+                ip=host_info['ip']
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to sync Zabbix host: {str(e)}")
+            
+    logger.info(f'Scheduling delayed process for instance {instance.id}')
+    transaction.on_commit(delayed_process)
+    logger.info(f'Syncing Zabbix host for instance {instance.id} completed')

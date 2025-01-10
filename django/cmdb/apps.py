@@ -1,5 +1,6 @@
 from django.apps import AppConfig
 from cacheops import invalidate_all
+from django.core.cache import cache
 from .utils import password_handler
 import logging
 
@@ -15,20 +16,21 @@ class CMDBConfig(AppConfig):
         import sys
         if 'runserver' in sys.argv:
             # 清除缓存
-            invalidate_all()
+            invalidate_all()            
+            cache.delete('zabbix_token')
+
             
-            # from .utils.zabbix import ZabbixTokenManager
+            from .utils.zabbix import ZabbixTokenManager
             
-            # config = {
-            #     'url': 'http://192.168.137.2/zabbix/api_jsonrpc.php',
-            #     'username': 'Admin',
-            #     'password': 'zabbix',
-            #     'interval': 0
-            # }
-            # if config:
-            #     token_manager = ZabbixTokenManager()
-            #     token_manager.initialize(config)
-            #     logger.info("Zabbix token manager initialized")
+            config = {
+                'url': 'http://192.168.137.2/zabbix/api_jsonrpc.php',
+                'username': 'Admin',
+                'password': 'zabbix',
+                'interval': 0
+            }
+            token_manager = ZabbixTokenManager()
+            token_manager.initialize(config)
+            logger.info(f"ZabbixTokenManager initialized")
             
             password_handler.load_keys()
             
