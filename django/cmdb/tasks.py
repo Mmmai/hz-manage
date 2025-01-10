@@ -13,9 +13,11 @@ from .excel import ExcelHandler
 
 logger = logging.getLogger(__name__)
 
-@shared_task
-def process_import_data(cache_key, excel_data, model_id, request):
+@shared_task(bind=True)
+def process_import_data(self, excel_data, model_id, request):
     try:
+        task_id = self.request.id
+        cache_key = f'import_task_{task_id}'
         class MiniRequest:
             def __init__(self, data):
                 self.data = data

@@ -674,13 +674,12 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             if not celery_manager.check_heartbeat():
                 raise ValidationError({'detail': 'Celery worker is not available'})
             
-            process_import_data.delay(
-                cache_key,
+            task = process_import_data.delay(
                 excel_data,
                 model_id,
                 request_context
             )
-            results['cache_key'] = cache_key
+            results['cache_key'] = f'import_task_{task.id}'
             cache_results = {
                 'status': 'pending',
                 'total': len(excel_data.get('instances', [])),
