@@ -7,9 +7,10 @@ from django.core.cache import cache
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIRequestFactory
-from .models import ModelInstance
+from .models import ModelInstance, ZabbixSyncHost
 from .serializers import ModelInstanceSerializer
 from .excel import ExcelHandler
+from .utils.zabbix import ZabbixAPI
 
 logger = logging.getLogger(__name__)
 
@@ -138,11 +139,32 @@ def process_import_data(self, excel_data, model_id, request):
         cache.set(cache_key, results, timeout=600)
         
 @shared_task
-def setup_host_monitoring(instances):
+def setup_host_monitoring(instance_id, instance_name, ip):
     try:
-        for instance in instances:
-            # register host logic
-            pass
+        zabbix_host = ZabbixSyncHost.objects.filter(instance_id=instance_id)
+        if zabbix_host.exists():
+            ip_cur = zabbix_host.first().ip
+            if ip != ip_cur or instance_name != zabbix_host.first().name:
+                zabbix_api = ZabbixAPI()
+                result = zabbix_api.host_update(hostid=str(zabbix_host.first().host_id), host=ip, name=instance_name, ip=ip)
+                host_id = result.get('hostids', [None])[0]
+                if host_id and host_id.isdigit():
+                    ZabbixSyncHost.objects.filter(instance_id=instance_id).update(ip=ip, name=instance_name)
+                    logger.info(f"Zabbix host monitoring updated for {ip}")
+                else:
+                    raise ValidationError({'detail': f'Failed to update host: {result}'})
+            else:
+                logger.debug(f"Host monitoring already setup for {ip}")
+        else:
+            zabbix_api = ZabbixAPI()
+            result = zabbix_api.host_create(host=ip, name=instance_name, ip=ip)
+            host_id = result.get('hostids', [None])[0]
+            if host_id and host_id.isdigit():
+                ZabbixSyncHost.objects.create(instance_id=instance_id, host_id=int(host_id), name=instance_name, ip=ip)
+                logger.info(f"Zabbix host monitoring setup for {ip}")
+            else:
+                raise ValidationError({'detail': f'Failed to create host: {result}'})
+            # setup ansible playbook
     except Exception as e:
         logger.error(f"Error setting up host monitoring: {str(e)}")
         raise ValidationError({'detail': f'Failed to setup host monitoring: {str(e)}'})
