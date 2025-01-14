@@ -12,17 +12,6 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 
 import os
 from pathlib import Path
-from djongo.operations import DatabaseOperations
-
-# Disable conditional_expression_supported_in_where_clause
-# BASE_DIR = Path(__file__).resolve().parent.parent
-
-DatabaseOperations.conditional_expression_supported_in_where_clause = (
-    lambda *args, **kwargs: False
-)
-# LOG_DIR = os.path.join(BASE_DIR, 'logs')
-# if not os.path.exists(LOG_DIR):
-#     os.makedirs(LOG_DIR)
 
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -179,11 +168,11 @@ CELERY_TIMEZONE = 'Asia/Shanghai'
 
 # Zabbix配置
 ZABBIX_CONFIG = {
-    'url': 'http://192.168.137.2/zabbix/api_jsonrpc.php',
-    'server': '192.168.137.2',
-    'username': 'Admin',
-    'password': 'zabbix',
-    'interval': 0  # 自动注销时间，维护token用，单位秒，0表示不自动注销
+    'url': os.environ.get('ZABBIX_URL', ''),
+    'server': os.environ.get('ZABBIX_SERVER'),
+    'username': os.environ.get('ZABBIX_USERNAME', 'Admin'),
+    'password': os.environ.get('ZABBIX_PASSWORD', 'zabbix'),
+    'interval': int(os.environ.get('ZABBIX_INTERVAL', 0))  # 自动注销时间，维护token用，单位秒，0表示不自动注销
 }
 
 # Password validation
