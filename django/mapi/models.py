@@ -70,7 +70,7 @@ class Menu(models.Model):
     icon = models.CharField(max_length=64, verbose_name='菜单图标', null=True, blank=True)
     name = models.CharField(max_length=32, unique=True,verbose_name='菜单编码',null=False)
     # parentid = models.IntegerField(null=True, blank=True,verbose_name='父菜单ID')
-    parentid = models.ForeignKey("Menu", null=True, blank=True, on_delete=models.CASCADE)
+    parentid = models.ForeignKey("self", null=True, blank=True, on_delete=models.CASCADE)
     status = models.BooleanField(verbose_name="状态",default=True)
     path = models.CharField(max_length=32,null=True, blank=True)
     is_menu = models.BooleanField(verbose_name="是否菜单",default=True)

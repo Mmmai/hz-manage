@@ -33,7 +33,8 @@
     1111
   </div> -->
     </el-col>
-    <el-col :span="3">
+
+    <el-col :span="4">
       <div
         style="
           display: flex;
@@ -42,6 +43,8 @@
           gap: 10px;
         "
       >
+        <el-link type="primary" href="/docs/" target="_blank">指南</el-link>
+
         <el-switch
           v-model="isDark"
           :active-icon="Moon"

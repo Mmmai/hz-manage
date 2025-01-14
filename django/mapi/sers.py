@@ -212,23 +212,8 @@ class MenuModelSerializer(serializers.ModelSerializer):
         # 表名
         model = Menu
         fields = "__all__"
-        depth = 1
-
-    # def create(self, validated_data):
-    #     # print(validated_data)
-    #     # role = validated_data.pop('role')
-    #     # print(role)
-    #     menu = Menu.objects.create(**validated_data)
-    #     # if  menu.menu_type == 1:
-            
-    #     # 自动添加到系统管理员
-    #     if menu:
-    #         sysadminObj = Role.objects.get(role="管理员")
-    #         # 添加权限给系统管理员
-    #         Permission.objects.create(role=sysadminObj.id,menu=menu.id)
-    #         # sysadminObj.menu.add(*[menu.id])
-    #     return menu
-  #
+        # depth = 1
+  
 class ButtonModelSerializer(serializers.ModelSerializer):
     # role_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)   
     #     rolePermission = serializers.SerializerMethodField() 

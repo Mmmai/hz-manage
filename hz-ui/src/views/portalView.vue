@@ -84,63 +84,72 @@
       </el-form>
     </div>
     <!-- 表格 -->
-    <div>
-      <el-table
-        border
-        :data="tableDataPage"
-        style="width: 100%"
-        max-height="100%"
-        @selection-change="handleSelectionChange"
+
+    <el-table
+      border
+      :data="tableData"
+      style="width: 100%; flex: 1"
+      max-height="100%"
+      @selection-change="handleSelectionChange"
+    >
+      <el-table-column type="selection" width="55" />
+      <el-table-column
+        v-for="item in tableDataCol"
+        :key="item.prop"
+        :label="item.label"
+        :prop="item.prop"
       >
-        <el-table-column type="selection" width="55" />
-        <el-table-column
-          v-for="item in tableDataCol"
-          :key="item.prop"
-          :label="item.label"
-          :prop="item.prop"
-        >
-          <template #default="scope" v-if="item.prop === 'group'">
-            <el-tag>
-              {{ pgroupObject[scope.row.group] }}
-            </el-tag>
-          </template>
-          <template #default="scope" v-if="item.prop === 'status'">
-            <el-switch
-              v-model="scope.row.status"
-              class="ml-2"
-              style="
-                --el-switch-on-color: #13ce66;
-                --el-switch-off-color: #ff4949;
-              "
-              @change="updatePartolStatus(scope.row)"
-            />
-          </template>
-        </el-table-column>
+        <template #default="scope" v-if="item.prop === 'group'">
+          <el-tag>
+            {{ pgroupObject[scope.row.group] }}
+          </el-tag>
+        </template>
+        <template #default="scope" v-if="item.prop === 'status'">
+          <el-switch
+            v-model="scope.row.status"
+            class="ml-2"
+            style="
+              --el-switch-on-color: #13ce66;
+              --el-switch-off-color: #ff4949;
+            "
+            @change="updatePartolStatus(scope.row)"
+          />
+        </template>
+      </el-table-column>
 
-        <el-table-column fixed="right" label="操作" width="150">
-          <template #default="scope">
-            <el-button
-              type="primary"
-              size="small"
-              @click="handleEdit(scope.row)"
-              v-permission="`${route.name?.replace('_info', '')}:edit`"
-            >
-              编辑
-            </el-button>
+      <el-table-column fixed="right" label="操作" width="150">
+        <template #default="scope">
+          <el-button
+            type="primary"
+            size="small"
+            @click="handleEdit(scope.row)"
+            v-permission="`${route.name?.replace('_info', '')}:edit`"
+          >
+            编辑
+          </el-button>
 
-            <!-- <el-button v-if="scope.row.username == 'admin'" type="danger" size="small" disabled @click="handleDelete(scope.row)">删除</el-button> -->
-            <el-button
-              v-permission="`${route.name?.replace('_info', '')}:delete`"
-              type="danger"
-              size="small"
-              @click="handleDelete(scope.row)"
-            >
-              删除
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <div style="display: flex; justify-content: center; margin-top: 10px">
+          <!-- <el-button v-if="scope.row.username == 'admin'" type="danger" size="small" disabled @click="handleDelete(scope.row)">删除</el-button> -->
+          <el-button
+            v-permission="`${route.name?.replace('_info', '')}:delete`"
+            type="danger"
+            size="small"
+            @click="handleDelete(scope.row)"
+          >
+            删除
+          </el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+    <el-pagination
+      v-model:current-page="tablePageConfig.page"
+      v-model:page-size="tablePageConfig.page_size"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next, jumper"
+      :total="tableDataTotal"
+      style="margin-top: 5px; justify-content: flex-end"
+    >
+    </el-pagination>
+    <!-- <div style="display: flex; justify-content: center; margin-top: 10px">
         <el-pagination
           v-model:current-page="tablePageConfig.page"
           v-model:page-size="tablePageConfig.size"
@@ -151,8 +160,7 @@
           :hide-on-single-page="tableIsPage"
           @current-change="handleCurrentChangeTable"
         />
-      </div>
-    </div>
+      </div> -->
   </div>
   <!-- 门户组的弹出框 -->
   <el-dialog v-model="diaglogPgroup" title="编辑分组" width="30%">
@@ -218,47 +226,37 @@
         </div>
       </div>
       <el-table
-        :data="pgroupDataPage"
+        :data="pgroupData"
         :default-sort="{ prop: 'id', order: 'ascending' }"
         @selection-change="handleSelectionChangePgroup"
       >
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" label="id" sortable />
-        <el-table-column prop="group" label="group" sortable />
-        <el-table-column fixed="right" label="Operations">
+        <el-table-column prop="group" label="分组名" sortable />
+        <el-table-column fixed="right" label="操作">
           <template #default="scope">
             <el-button
               type="primary"
               size="small"
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
+              link
+              :icon="Edit"
               @click="handleEditPgroup(scope.row)"
             >
-              编辑
             </el-button>
 
             <!-- <el-button v-if="scope.row.username == 'admin'" type="danger" size="small" disabled @click="handleDelete(scope.row)">删除</el-button> -->
             <el-button
               type="danger"
+              v-permission="`${route.name?.replace('_info', '')}:delete`"
+              link
               size="small"
+              :icon="Delete"
               @click="handleDeletePgroup(scope.row)"
             >
-              删除
             </el-button>
           </template>
         </el-table-column>
       </el-table>
-      <!-- 分页 -->
-      <div style="display: flex; justify-content: center; margin-top: 10px">
-        <el-pagination
-          v-model:current-page="pgroupPageConfig.page"
-          v-model:page-size="pgroupPageConfig.size"
-          small
-          background
-          layout="prev, pager, next"
-          :total="pgroupTotal"
-          :hide-on-single-page="pgroupIsPage"
-          @current-change="handleCurrentChangePgroup"
-        />
-      </div>
     </template>
   </el-dialog>
 
@@ -398,8 +396,17 @@
 </template>
 
 <script setup>
-import { ref, getCurrentInstance, onMounted, reactive, computed } from "vue";
+import {
+  ref,
+  getCurrentInstance,
+  onMounted,
+  reactive,
+  watch,
+  computed,
+} from "vue";
 import { ElMessageBox, ElMessage } from "element-plus";
+import { Delete, Edit, CircleClose, CirclePlus } from "@element-plus/icons-vue";
+
 import { useStore } from "vuex";
 import upload from "../components/uploadCom.vue";
 import { useRoute } from "vue-router";
@@ -418,17 +425,10 @@ const pgroupAction = ref("add");
 const pgroupIsPage = ref(true);
 const pgroupFormInline = reactive({
   group: "",
-  id: "",
-  // group_name:'11',
   owner: store.state.userinfo.user_id,
 });
 
 const pgroupTotal = ref(0);
-const pgroupPageConfig = reactive({
-  page: 1,
-  size: 5,
-  owner: store.state.userinfo.user_id,
-});
 const allDataConfig = reactive({
   owner: store.state.userinfo.user_id,
 });
@@ -438,15 +438,7 @@ const handleShowPgroup = () => {
   diaglogPgroup.value = true;
 };
 // 分页
-const handleCurrentChangePgroup = (val) => {
-  pgroupPageConfig.page = val;
-  // getTableNowData(pageSize,currentPage);
-  // getPgroupData(allDataConfig)
-  //   pgroupDataPage.value = proxy.$commonFunc.pageFunc(
-  //     pgroupData.value,
-  //     pgroupPageConfig
-  //   );
-};
+
 // pgroup多选
 const multipleSelectPgroup = ref([]);
 const handleSelectionChangePgroup = (val) => {
@@ -494,7 +486,7 @@ const handleDeleteMorePgroup = () => {
         });
       }
       // sleep(20000)
-      getPgroupData(allDataConfig);
+      getPgroupData();
     })
     .catch(() => {
       ElMessage({
@@ -521,14 +513,9 @@ const pgroupObject = computed(() => {
   });
   return _pgroupObject;
 });
-const getPgroupData = async (config) => {
-  let res = await proxy.$api.pgroupGet(config);
+const getPgroupData = async () => {
+  let res = await proxy.$api.pgroupGet({ page: 1, page_size: 1000 });
   pgroupData.value = res.data.results;
-  console.log(pgroupData.value);
-  pgroupTotal.value = res.data.count;
-  pgroupIsPage.value =
-    pgroupTotal.value <= pgroupPageConfig.size ? true : false;
-  pgroupDataPage.value = proxy.$commonFunc.pageFunc(res.data, pgroupPageConfig);
 };
 const handleDeletePgroup = (row) => {
   ElMessageBox.confirm("是否确认删除?", "Warning", {
@@ -545,7 +532,7 @@ const handleDeletePgroup = (row) => {
           type: "success",
           message: "删除成功",
         });
-        getPgroupData(allDataConfig);
+        getPgroupData();
       } else {
         ElMessage({
           type: "error",
@@ -575,7 +562,7 @@ const handleCommitPgroup = () => {
           });
           // 重置表单
           proxy.$refs.pgroupForm.resetFields();
-          getPgroupData(allDataConfig);
+          getPgroupData();
         } else {
           ElMessage({
             showClose: true,
@@ -599,7 +586,7 @@ const handleCommitPgroup = () => {
           });
           // 重置表单
           proxy.$refs.pgroupForm.resetFields();
-          getPgroupData(allDataConfig);
+          getPgroupData();
         } else {
           ElMessage({
             showClose: true,
@@ -633,8 +620,15 @@ const portalFormInline = reactive({
 });
 const tablePageConfig = reactive({
   page: 1,
-  size: 10,
+  page_size: 10,
 });
+watch(
+  () => tablePageConfig,
+  (n) => {
+    getTableData(n);
+  },
+  { deep: true }
+);
 const tableDataCol = ref([
   // {
   //   prop:'id',
@@ -676,15 +670,13 @@ const tableDataCol = ref([
 const portalAction = ref("add");
 const tableData = ref([]);
 // const tableDataPage = ref([])
-const tableDataPage = computed(() => {
-  return proxy.$commonFunc.pageFunc(tableData.value, tablePageConfig);
-});
-const tableDataTotal = computed(() => {
-  return tableData.value.length;
-});
-const tableIsPage = computed(() => {
-  return tableData.value.length <= tablePageConfig.size ? true : false;
-});
+// const tableDataPage = computed(() => {
+//   return proxy.$commonFunc.pageFunc(tableData.value, tablePageConfig);
+// });
+const tableDataTotal = ref(0);
+// const tableIsPage = computed(() => {
+//   return tableData.value.length <= tablePageConfig.size ? true : false;
+// });
 const allTableDataConfig = reactive({
   owner: store.state.userinfo.user_id,
 });
@@ -692,7 +684,7 @@ const sourceTableData = ref([]);
 const getTableData = async (config) => {
   let res = await proxy.$api.portalGet(config);
   tableData.value = res.data.results;
-  sourceTableData.value = res.data.results;
+  tableDataTotal.value = res.data.count;
 };
 const handleAddPortal = () => {
   diaglogPortal.value = true;
@@ -702,13 +694,7 @@ const cancelAdd = () => {
   diaglogPortal.value = false;
   proxy.$refs.portalForm.resetFields();
 };
-// 分页
-const handleCurrentChangeTable = (val) => {
-  tablePageConfig.page = val;
-  // getTableNowData(pageSize,currentPage);
-  // getPgroupData(allDataConfig)
-  // pgroupDataPage.value = proxy.$commonFunc.pageFunc(tableData.value,tablePageConfig)
-};
+
 // 添加确定
 const handleCommit = () => {
   proxy.$refs.portalForm.validate(async (valid) => {
@@ -839,7 +825,7 @@ const handleDeleteMore = () => {
     });
 };
 onMounted(async () => {
-  await getPgroupData(allDataConfig);
+  await getPgroupData();
   //  await
   await getTableData(allTableDataConfig);
 });
@@ -890,7 +876,7 @@ const updatePartolStatus = async (param) => {
     });
     // 重置表单
     // proxy.$refs.pgroupForm.resetFields();
-    getPgroupData(allDataConfig);
+    getPgroupData();
   } else {
     ElMessage({
       showClose: true,

@@ -129,6 +129,8 @@ class getMenu(APIView):
             serialized_data = JSONRenderer().render(button_serializer.data)
             info = menu.__dict__.copy()
             info.pop('_state')
+            parentid = info.pop('parentid_id')
+            info["parentid"] = parentid
             info["meta"] = {"role":roleList,"icon":menu.icon,"title":menu.label}
             info["buttons"] = json.loads(serialized_data.decode('utf8'))
             # info["button"] 
@@ -302,8 +304,8 @@ class RoleViewSet(ModelViewSet):
         return Response(serializer.data)
 
 class MenuViewSet(ModelViewSet):
-  queryset = Menu.objects.all()
-  serializer_class = MenuModelSerializer
+    queryset = Menu.objects.all()
+    serializer_class = MenuModelSerializer
   # def get_serializer(self, *args, **kwargs):
   #     serializer_class = self.get_serializer_class()
   #     kwargs.setdefault('context', self.get_serializer_context())
@@ -311,6 +313,7 @@ class MenuViewSet(ModelViewSet):
   #         return serializer_class(many=True, *args, **kwargs)
   #     else:
   #         return serializer_class(*args, **kwargs)
+
 class ButtonViewSet(ModelViewSet):
     queryset = Button.objects.all()
     serializer_class = ButtonModelSerializer

@@ -225,10 +225,10 @@
             style="width: 120px"
           />
         </el-form-item>
-        <el-form-item label="父级节点" prop="parentid_id">
+        <el-form-item label="父级节点" prop="parentid">
           <!-- <el-input v-model="formInline.parentid" placeholder="" clearable /> -->
           <el-tree-select
-            v-model="formInline.parentid_id"
+            v-model="formInline.parentid"
             ref="elTreeSelectRef"
             :data="menuList"
             clearable
@@ -338,7 +338,7 @@
 </template>
 
 <script lang="ts" setup>
-import { getCurrentInstance, onMounted, ref, reactive } from "vue";
+import { getCurrentInstance, onMounted, nextTick, ref, reactive } from "vue";
 import iconSelectCom from "../components/iconSelectCom.vue";
 import menuButtonCom from "../components/menuButtonCom.vue";
 import { useRoute } from "vue-router";
@@ -474,8 +474,7 @@ const formInline = reactive({
   description: "",
   path: "",
   name: "",
-  parentid: "",
-  parentid_id: "",
+  parentid: null,
   has_info: false,
   info_view_name: "",
   is_iframe: false,
@@ -510,10 +509,8 @@ const handleCommit = () => {
   proxy.$refs.userFrom.validate(async (valid) => {
     if (valid) {
       // 新增接口
-      formInline.parentid = formInline.parentid_id;
       if (action.value == "add") {
         let res = await proxy.$api.menuAdd(formInline);
-        console.log(res);
         //
         if (res.status == 201) {
           dialogVisible.value = false;
@@ -534,8 +531,10 @@ const handleCommit = () => {
       }
       // 编辑接口
       else {
-        let res = await proxy.$api.menuUpdate(formInline);
-        console.log(res);
+        let res = await proxy.$api.menuUpdate({
+          id: nowRow.value.id,
+          ...formInline,
+        });
         if (res.status == 200) {
           dialogVisible.value = false;
           // 重置表单
@@ -569,13 +568,18 @@ import { Delete, Edit, Pointer } from "@element-plus/icons-vue";
 const elTreeSelectRef = ref<InstanceType<typeof ElTree>>();
 
 // 编辑
+const nowRow = ref({});
 const handleEdit = (row) => {
   action.value = "edit";
+  nowRow.value = row;
   dialogVisible.value = true;
   // 清除新增按钮会显示编辑按钮的记录
-  proxy.$nextTick(() => {
-    Object.assign(formInline, row);
+  nextTick(() => {
+    Object.keys(formInline).forEach((item) => {
+      formInline[item] = row[item];
+    });
   });
+  console.log(formInline);
   // formInline.roleMenus = row.menu
   // elTreeSelectRef.value.setCurrentKey()
 };
@@ -595,7 +599,7 @@ const handleDelete = (row) => {
           type: "success",
           message: "删除成功",
         });
-        await getMenuData(pageConfig);
+        await getMenuData();
         // 更新路由
         await store.dispatch("getRoleMenu", {
           role: store.state.role,
@@ -633,7 +637,6 @@ const handleSelectionChange = (val) => {
 const isShow = ref(false);
 
 const isShowIconSelect = () => {
-  console.log(formInline.icon);
   isShow.value = true;
 };
 const updateStatus = async (param) => {
@@ -648,7 +651,7 @@ const updateStatus = async (param) => {
     });
     // 重置表单
     // proxy.$refs.pgroupForm.resetFields();
-    getMenuData(pageConfig);
+    getMenuData();
     await store.dispatch("getRoleMenu", {
       role: store.state.role,
     });
@@ -673,7 +676,7 @@ const updateIsMenu = async (param) => {
     });
     // 重置表单
     // proxy.$refs.pgroupForm.resetFields();
-    getMenuData(pageConfig);
+    getMenuData();
     await store.dispatch("getRoleMenu", {
       role: store.state.role,
     });
