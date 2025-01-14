@@ -1,26 +1,30 @@
-import { sidebar } from "vuepress-theme-hope";
+import path from "path";
 
-export default sidebar({
-  "/": [
-    "",
-    "portfolio",
-    {
-      text: "案例",
-      icon: "laptop-code",
-      prefix: "demo/",
-      link: "demo/",
-      children: "structure",
-    },
-    {
-      text: "文档",
-      icon: "book",
-      prefix: "guide/",
-      children: "structure",
-    },
-    {
-      text: "幻灯片",
-      icon: "person-chalkboard",
-      link: "https://ecosystem.vuejs.press/zh/plugins/markdown/revealjs/demo.html",
-    },
-  ],
-});
+export default {
+  sidebar: {
+    '/manage/': [
+      {
+        text: "介绍",
+        link: "/manage/"
+      },
+      {
+        text: "安装部署",
+        link: "/manage/install.md"
+      },
+      {
+        text: '基础功能',
+        collapsible: true,
+        children: [
+          {
+            text: "用户管理",
+            link: '/manage/basic/rbac.md',
+          },
+          {
+            text: "菜单管理",
+            link: '/manage/basic/menu.md',
+          },
+        ]
+      }
+    ]
+  }
+}

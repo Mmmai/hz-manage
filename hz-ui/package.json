@@ -50,6 +50,7 @@
     "@vitejs/plugin-vue": "^4.3.4",
     "@vuepress/bundler-vite": "2.0.0-rc.19",
     "@vuepress/plugin-search": "next",
+    "@vuepress/plugin-slimsearch": "next",
     "@vuepress/theme-default": "next",
     "eslint": "^8.49.0",
     "eslint-plugin-vue": "^9.17.0",

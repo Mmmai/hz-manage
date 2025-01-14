@@ -523,9 +523,9 @@ const pgroupObject = computed(() => {
 });
 const getPgroupData = async (config) => {
   let res = await proxy.$api.pgroupGet(config);
-  pgroupData.value = res.data;
+  pgroupData.value = res.data.results;
   console.log(pgroupData.value);
-  pgroupTotal.value = res.data.length;
+  pgroupTotal.value = res.data.count;
   pgroupIsPage.value =
     pgroupTotal.value <= pgroupPageConfig.size ? true : false;
   pgroupDataPage.value = proxy.$commonFunc.pageFunc(res.data, pgroupPageConfig);
@@ -691,8 +691,8 @@ const allTableDataConfig = reactive({
 const sourceTableData = ref([]);
 const getTableData = async (config) => {
   let res = await proxy.$api.portalGet(config);
-  tableData.value = res.data;
-  sourceTableData.value = res.data;
+  tableData.value = res.data.results;
+  sourceTableData.value = res.data.results;
 };
 const handleAddPortal = () => {
   diaglogPortal.value = true;
