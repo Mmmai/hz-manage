@@ -1,8 +1,9 @@
 import io
+import os
 import uuid
 import logging
 import traceback
-from celery import shared_task
+from celery import chain, shared_task
 from django.core.cache import cache
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
@@ -13,6 +14,15 @@ from .excel import ExcelHandler
 from .utils.zabbix import ZabbixAPI
 
 logger = logging.getLogger(__name__)
+
+# 仅在Linux环境下导入ansible相关功能
+if os.name != 'nt':
+    from .utils.ansible import AnsibleAPI
+    ANSIBLE_AVAILABLE = True
+else:
+    ANSIBLE_AVAILABLE = False
+    logger.warning("Ansible functionality not available on Windows")
+
 
 @shared_task(bind=True)
 def process_import_data(self, excel_data, model_id, request):
@@ -139,32 +149,88 @@ def process_import_data(self, excel_data, model_id, request):
         cache.set(cache_key, results, timeout=600)
         
 @shared_task
-def setup_host_monitoring(instance_id, instance_name, ip):
+def setup_host_monitoring(instance_id, instance_name, ip, password, delete=False):
     try:
+        
+        # 删除主机监控
+        if delete:
+            zabbix_api = ZabbixAPI()
+            result = zabbix_api.host_get(host=ip)
+            host_id = result[0].get('hostid') if result else None
+            if host_id:
+                result = zabbix_api.host_delete(hostid=str(host_id))
+                if result:
+                    ZabbixSyncHost.objects.filter(instance_id=instance_id).delete()
+                    logger.info(f"Zabbix host monitoring deleted for {ip}")
+                    return {'detail': f"Zabbix host monitoring deleted for {ip}"}
+                else:
+                    raise ValidationError({'detail': f'Failed to delete host: {result}'})
+            else:
+                logger.debug(f"Host monitoring does not exist for {ip}, skipping deletion")
+                return {'detail': f"Host monitoring does not exist for {ip}, skipping deletion"}
+        
         zabbix_host = ZabbixSyncHost.objects.filter(instance_id=instance_id)
+        # 更新主机监控
         if zabbix_host.exists():
             ip_cur = zabbix_host.first().ip
+            # 更新监控配置
             if ip != ip_cur or instance_name != zabbix_host.first().name:
                 zabbix_api = ZabbixAPI()
                 result = zabbix_api.host_update(hostid=str(zabbix_host.first().host_id), host=ip, name=instance_name, ip=ip)
-                host_id = result.get('hostids', [None])[0]
+                host_id = result.get('hostids', [None])[0] if result.get('hostids') else None
                 if host_id and host_id.isdigit():
                     ZabbixSyncHost.objects.filter(instance_id=instance_id).update(ip=ip, name=instance_name)
                     logger.info(f"Zabbix host monitoring updated for {ip}")
                 else:
                     raise ValidationError({'detail': f'Failed to update host: {result}'})
+                
+                # 当IP地址发生变化时触发ansible重新安装客户端
+                if ANSIBLE_AVAILABLE and ip != ip_cur:
+                    chain(
+                        install_zabbix_agent.s(ip, password)
+                    ).apply_async()
             else:
-                logger.debug(f"Host monitoring already setup for {ip}")
+                logger.debug(f"No changes detected for {ip}, skipping update")
+                return {'detail': f"No changes detected for {ip}, skipping update"}
+        # 创建主机监控
         else:
             zabbix_api = ZabbixAPI()
-            result = zabbix_api.host_create(host=ip, name=instance_name, ip=ip)
-            host_id = result.get('hostids', [None])[0]
-            if host_id and host_id.isdigit():
+            result = zabbix_api.host_get(host=ip)
+            host_id = result[0].get('hostid') if result else None
+            # 主机ip已存在则跳过
+            if host_id:
+                logger.debug(f"Host monitoring already exists for {ip}, skipping creation")
                 ZabbixSyncHost.objects.create(instance_id=instance_id, host_id=int(host_id), name=instance_name, ip=ip)
-                logger.info(f"Zabbix host monitoring setup for {ip}")
+                return {'detail': f"Host monitoring already exists for {ip}, skipping creation"}
+            # 主机ip不存在则创建主机并设置监控
             else:
-                raise ValidationError({'detail': f'Failed to create host: {result}'})
-            # setup ansible playbook
+                result = zabbix_api.host_create(host=ip, name=instance_name, ip=ip)
+                host_id = result.get('hostids', [None])[0] if result.get('hostids') else None
+                if host_id and host_id.isdigit():
+                    ZabbixSyncHost.objects.create(instance_id=instance_id, host_id=int(host_id), name=instance_name, ip=ip)
+                    logger.info(f"Zabbix host monitoring setup for {ip}")
+                if ANSIBLE_AVAILABLE:
+                    chain(
+                        install_zabbix_agent.s(ip, password)
+                    ).apply_async()
+                else:
+                    raise ValidationError({'detail': f'Failed to create host: {result}'})
     except Exception as e:
         logger.error(f"Error setting up host monitoring: {str(e)}")
         raise ValidationError({'detail': f'Failed to setup host monitoring: {str(e)}'})
+    
+@shared_task
+def install_zabbix_agent(host_ip, password):
+    try:
+        logger.info(f'Installing Zabbix agent on {host_ip}')
+        ansible_api = AnsibleAPI()
+        result = ansible_api.install_zabbix_agent(host_ip, ssh_pass=password)
+        if result['status'] == 'success':
+            ZabbixSyncHost.objects.filter(ip=host_ip).update(agent_installed=True)
+            return result
+        else:
+            ZabbixSyncHost.objects.filter(ip=host_ip).update(agent_installed=False)
+            raise ValidationError({'detail': f'Failed to install Zabbix agent: {result["message"]}'})
+    except Exception as e:
+        logger.error(f"Error installing Zabbix agent: {str(e)}")
+        raise ValidationError({'detail': f'Failed to install Zabbix agent: {str(e)}'})

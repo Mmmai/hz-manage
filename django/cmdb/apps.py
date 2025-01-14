@@ -22,14 +22,8 @@ class CMDBConfig(AppConfig):
             
             from .utils.zabbix import ZabbixTokenManager
             
-            config = {
-                'url': 'http://192.168.137.2/zabbix/api_jsonrpc.php',
-                'username': 'Admin',
-                'password': 'zabbix',
-                'interval': 0
-            }
             token_manager = ZabbixTokenManager()
-            token_manager.initialize(config)
+            token_manager.initialize()
             logger.info(f"ZabbixTokenManager initialized")
             
             password_handler.load_keys()

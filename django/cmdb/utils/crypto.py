@@ -87,6 +87,18 @@ class PasswordHandler:
         except Exception as e:
             raise ValueError(f"SM4 encryption failed: {str(e)}")
         
+    
+    def decrypt_sm4(self, value: str) -> str:
+        """静态方法：使用 SM4 解密"""
+        try:
+            # 使用 SM4 解密
+            plain_text = self.sm4_decryptor.crypt_ecb(
+                bytes.fromhex(value)
+            )
+            return plain_text.decode('utf-8')
+        except Exception as e:
+            raise ValueError(f"SM4 decryption failed: {str(e)}")
+        
         
     def decrypt_to_plain(self, stored_value: str) -> str:
         """静态方法：完全解密获取明文密码"""

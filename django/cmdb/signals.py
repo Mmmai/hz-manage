@@ -1,11 +1,12 @@
 from django.dispatch import receiver
-from django.db.models.signals import post_save, post_delete, pre_save, post_migrate
+from django.db.models.signals import post_save, post_delete, pre_save, pre_delete, post_migrate
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.core.cache import cache
 from django.db import transaction
 from django.db.utils import OperationalError
 from .config import BUILT_IN_MODELS, BUILT_IN_VALIDATION_RULES
 from .tasks import setup_host_monitoring
+from .utils import password_handler
 from .models import (
     ModelGroups,
     Models, 
@@ -301,6 +302,8 @@ def sync_zabbix_host(sender, instance, created, **kwargs):
                 logger.info(f"Field: {field.model_fields.name}, Value: {field.data}")
                 if field.model_fields.name == 'ip':
                     host_info[field.model_fields.name] = field.data
+                elif field.model_fields.name == 'root_password':
+                    host_info[field.model_fields.name] = password_handler.decrypt_to_plain(field.data)
                     
             if not host_info.get('ip'):
                 logger.warning(f"Missing required host information for instance {instance.id}")
@@ -310,7 +313,8 @@ def sync_zabbix_host(sender, instance, created, **kwargs):
             setup_host_monitoring.delay(
                 instance_id=str(instance.id),
                 instance_name=instance.instance_name,
-                ip=host_info['ip']
+                ip=host_info['ip'],
+                password=host_info['root_password']
             )
             
         except Exception as e:
@@ -319,3 +323,66 @@ def sync_zabbix_host(sender, instance, created, **kwargs):
     logger.info(f'Scheduling delayed process for instance {instance.id}')
     transaction.on_commit(delayed_process)
     logger.info(f'Syncing Zabbix host for instance {instance.id} completed')
+    
+    
+@receiver(pre_delete, sender=ModelInstance)
+def prepare_delete_zabbix_host(sender, instance, **kwargs):
+    """准备删除Zabbix主机"""
+    logger.info(f"Preparing to delete Zabbix host for instance {instance.id}")
+    try:
+        model = Models.objects.get(id=instance.model_id)
+        if model.name != 'hosts':
+            return
+        
+        # 获取主机信息
+        cache_key = f'delete_zabbix_host_{instance.id}'
+        host_info = {}
+        field_values = ModelFieldMeta.objects.filter(
+            model_instance=instance
+        ).select_related('model_fields')
+        
+        for field in field_values:
+            logger.info(f"Field: {field.model_fields.name}, Value: {field.data}")
+            if field.model_fields.name == 'ip':
+                host_info[field.model_fields.name] = field.data
+        host_info.update({
+            'instance_id': instance.id,
+            'instance_name': instance.instance_name,
+        })
+        cache.set(cache_key, host_info, timeout=60)
+        logger.info(f'Cached host information for instance {instance.id}: {host_info}')
+    except Exception as e:
+        logger.error(f"Failed to prepare delete Zabbix host: {str(e)}")
+            
+@receiver(post_delete, sender=ModelInstance)
+def delete_zabbix_host(sender, instance, **kwargs):
+    """删除Zabbix主机"""
+    logger.info(f"Deleting Zabbix host for instance {instance.id}")
+    def delayed_process():
+        logger.info(f'Delayed process started for instance {instance.id}')
+        try:
+            model = Models.objects.get(id=instance.model_id)
+            if model.name != 'hosts':
+                return
+            
+            # 获取主机信息
+            cache_key = f'delete_zabbix_host_{instance.id}'
+            cache_data = cache.get(cache_key)
+            if not cache_data:
+                logger.warning(f"Missing required host information for instance {instance.id}")
+                return
+            # 异步删除Zabbix主机
+            setup_host_monitoring.delay(
+                instance_id=str(instance.id),
+                instance_name=instance.instance_name,
+                ip=cache_data.get('ip'),
+                password=None,
+                delete=True
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to delete Zabbix host: {str(e)}")
+            
+    logger.info(f'Scheduling delayed process for instance {instance.id}')
+    transaction.on_commit(delayed_process)
+    logger.info(f'Deleting Zabbix host for instance {instance.id} completed')

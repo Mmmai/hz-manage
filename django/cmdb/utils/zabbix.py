@@ -1,4 +1,5 @@
 from django.core.cache import cache
+from django.conf import settings
 import threading
 import requests
 import json
@@ -30,8 +31,9 @@ class ZabbixTokenManager:
             self._running = False
             self._initialized = True
 
-    def initialize(self, config):
+    def initialize(self):
         """初始化 token 管理"""
+        config = getattr(settings, 'ZABBIX_CONFIG', {})
         self.url = config.get('url')
         self.username = config.get('username')
         self.password = config.get('password')
@@ -85,7 +87,7 @@ class ZabbixAPI:
     _default_group_id = None
     
     def __init__(self):
-        self.url = 'http://192.168.137.2/zabbix/api_jsonrpc.php'
+        self.url = getattr(settings, 'ZABBIX_CONFIG', {}).get('url')
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json-rpc"})
         self.token_manager = ZabbixTokenManager()
@@ -157,9 +159,29 @@ class ZabbixAPI:
         result = self._call("host.create", data["params"])
         logger.info(f"Host created: {result}")
         return result["result"]
+    
+    def host_get_interfaces(self, hostid):
+        """获取主机接口信息"""
+        data = {
+            "jsonrpc": "2.0",
+            "method": "hostinterface.get",
+            "params": {
+                "hostids": hostid,
+                "output": "extend"
+            },
+            "auth": self.auth,
+            "id": 1
+        }
+        result = self._call("hostinterface.get", data["params"])
+        return result["result"]
 
     def host_update(self, hostid, host, name, ip):
         """更新主机IP"""
+        # 获取现有接口
+        interfaces = self.host_get_interfaces(hostid)
+        if not interfaces:
+            raise Exception("No interfaces found for host")
+        
         data = {
             "jsonrpc": "2.0",
             "method": "host.update",
@@ -169,6 +191,7 @@ class ZabbixAPI:
                 "name": name,
                 "interfaces": [
                     {
+                        "interfaceid": interfaces[0]["interfaceid"],
                         "type": 1,
                         "main": 1,
                         "useip": 1,
@@ -184,12 +207,40 @@ class ZabbixAPI:
         result = self._call("host.update", data["params"])
         logger.info(f"Host updated: {result}")
         return result["result"]
+    
+    def host_enable(self, host):
+        data = {
+            "jsonrpc": "2.0",
+            "method": "host.update",
+            "params": {
+                "hostid": host,
+                "status": 0
+            },
+            "id": 1,
+            "auth": self.auth
+        }
+        result = self._call("host.update", data["params"])
+        return result["result"]
+    
+    def host_disable(self, host):
+        data = {
+            "jsonrpc": "2.0",
+            "method": "host.update",
+            "params": {
+                "hostid": host,
+                "status": 1
+            },
+            "id": 1,
+            "auth": self.auth
+        }
+        result = self._call("host.update", data["params"])
+        return result["result"]
 
-    def host_delete(self, host):
+    def host_delete(self, hostid):
         data = {
             "jsonrpc": "2.0",
             "method": "host.delete",
-            "params": [host],
+            "params": [hostid],
             "id": 1,
             "auth": self.auth
         }

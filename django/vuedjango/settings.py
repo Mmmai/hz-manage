@@ -95,12 +95,6 @@ WSGI_APPLICATION = 'vuedjango.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-#     }
-# }
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
@@ -117,26 +111,6 @@ DATABASES = {
             'PASSWORD': 'thinker',
             'HOST': '127.0.0.1',
             'PORT': '3306',
-        # 'ENGINE': 'djongo',
-        # 'NAME': 'cmdb',
-        # 'ENFORCE_SCHEMA': False,
-        # 'CLIENT': {
-        #     'host': 'localhost',
-        #     'port': 27017,
-        #     'username': 'cmdb',
-        #     'password': 'thinker',
-        #     'authSource': 'admin',
-        #     'authMechanism': 'SCRAM-SHA-1',
-        # },
-        # 'LOGGING': {
-        #     'version': 1,
-        #     'loggers': {
-        #         'djongo': {
-        #             'level': 'DEBUG',
-        #             'propagate': False,
-        #         }
-        #     },
-        # },
     },
 }
 # 多数据库配置
@@ -160,8 +134,6 @@ CACHEOPS = {
     'cmdb.modelfields': {'ops': 'all', 'timeout': 60*60},
     'cmdb.modelfieldmeta': {'ops': 'all', 'timeout': 60*60},
     'cmdb.validationrules': {'ops': 'all', 'timeout': 60*60},
-    # 'cmdb.validationrules': {'get': 'fetch', 'timeout': 60*60},
-
 }
 
 CACHEOPS_ENABLED = True
@@ -204,6 +176,15 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Shanghai'
+
+# Zabbix配置
+ZABBIX_CONFIG = {
+    'url': 'http://192.168.137.2/zabbix/api_jsonrpc.php',
+    'server': '192.168.137.2',
+    'username': 'Admin',
+    'password': 'zabbix',
+    'interval': 0  # 自动注销时间，维护token用，单位秒，0表示不自动注销
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
