@@ -16,6 +16,7 @@ from .models import (
     Relations
 )
 
+
 class ModelGroupsFilter(filters.FilterSet):
     name = filters.CharFilter(field_name='name', lookup_expr='icontains')
     verbose_name = filters.CharFilter(field_name='verbose_name', lookup_expr='icontains')
@@ -40,7 +41,8 @@ class ModelGroupsFilter(filters.FilterSet):
             'update_time_after',
             'update_time_before',
         ]
-        
+
+
 class ModelsFilter(filters.FilterSet):
     name = filters.CharFilter(field_name='name', lookup_expr='icontains')
     verbose_name = filters.CharFilter(field_name='verbose_name', lookup_expr='icontains')
@@ -65,7 +67,8 @@ class ModelsFilter(filters.FilterSet):
             'update_time_after',
             'update_time_before',
         ]
-        
+
+
 class ModelFieldGroupsFilter(filters.FilterSet):
     name = filters.CharFilter(field_name='name', lookup_expr='icontains')
     verbose_name = filters.CharFilter(field_name='verbose_name', lookup_expr='icontains')
@@ -92,7 +95,8 @@ class ModelFieldGroupsFilter(filters.FilterSet):
             'update_time_after',
             'update_time_before',
         ]
-        
+
+
 class ValidationRulesFilter(filters.FilterSet):
     name = filters.CharFilter(field_name='name', lookup_expr='icontains')
     verbose_name = filters.CharFilter(field_name='verbose_name', lookup_expr='icontains')
@@ -120,6 +124,7 @@ class ValidationRulesFilter(filters.FilterSet):
             'update_time_before',
         ]
 
+
 class ModelFieldsFilter(filters.FilterSet):
     name = filters.CharFilter(field_name='name', lookup_expr='icontains')
     type = filters.CharFilter(field_name='type', lookup_expr='exact')
@@ -135,7 +140,6 @@ class ModelFieldsFilter(filters.FilterSet):
     create_time_before = filters.DateTimeFilter(field_name='create_time', lookup_expr='lte')
     update_time_after = filters.DateTimeFilter(field_name='update_time', lookup_expr='gte')
     update_time_before = filters.DateTimeFilter(field_name='update_time', lookup_expr='lte')
-
 
     class Meta:
         model = ModelFields
@@ -156,13 +160,13 @@ class ModelFieldsFilter(filters.FilterSet):
             'update_time_before',
         ]
 
+
 class ModelFieldOrderFilter(filters.FilterSet):
     model = filters.UUIDFilter(field_name='model')
     create_time_after = filters.DateTimeFilter(field_name='create_time', lookup_expr='gte')
     create_time_before = filters.DateTimeFilter(field_name='create_time', lookup_expr='lte')
     update_time_after = filters.DateTimeFilter(field_name='update_time', lookup_expr='gte')
     update_time_before = filters.DateTimeFilter(field_name='update_time', lookup_expr='lte')
-
 
     class Meta:
         model = ModelFieldOrder
@@ -173,8 +177,8 @@ class ModelFieldOrderFilter(filters.FilterSet):
             'update_time_after',
             'update_time_before',
         ]
-        
-        
+
+
 class ModelFieldPreferenceFilter(filters.FilterSet):
     model = filters.UUIDFilter(field_name='model')
     create_time_after = filters.DateTimeFilter(field_name='create_time', lookup_expr='gte')
@@ -182,7 +186,6 @@ class ModelFieldPreferenceFilter(filters.FilterSet):
     update_time_after = filters.DateTimeFilter(field_name='update_time', lookup_expr='gte')
     update_time_before = filters.DateTimeFilter(field_name='update_time', lookup_expr='lte')
 
-    
     class Meta:
         model = ModelFieldPreference
         fields = [
@@ -192,8 +195,8 @@ class ModelFieldPreferenceFilter(filters.FilterSet):
             'update_time_after',
             'update_time_before',
         ]
-        
-        
+
+
 class UniqueConstraintFilter(filters.FilterSet):
     model = filters.UUIDFilter(field_name='model')
     fields = filters.UUIDFilter(field_name='fields')
@@ -224,7 +227,7 @@ class ModelInstanceFilter(filters.FilterSet):
     update_time_before = filters.DateTimeFilter(field_name='update_time', lookup_expr='lte')
 
     def filter_model_instance_group(self, queryset, name, value):
-        
+
         def get_all_child_groups(group):
             """递归获取所有子分组ID"""
             group_ids = [group.id]
@@ -232,7 +235,7 @@ class ModelInstanceFilter(filters.FilterSet):
             for child in children:
                 group_ids.extend(get_all_child_groups(child))
             return group_ids
-        
+
         if value:
             try:
                 group = ModelInstanceGroup.objects.get(id=value)
@@ -244,7 +247,7 @@ class ModelInstanceFilter(filters.FilterSet):
             except ModelInstanceGroup.DoesNotExist:
                 return queryset.none()
         return queryset
-    
+
     class Meta:
         model = ModelInstance
         fields = [
@@ -265,7 +268,7 @@ class ModelInstanceBasicFilter(filters.FilterSet):
     create_time_before = filters.DateTimeFilter(field_name='create_time', lookup_expr='lte')
     update_time_after = filters.DateTimeFilter(field_name='update_time', lookup_expr='gte')
     update_time_before = filters.DateTimeFilter(field_name='update_time', lookup_expr='lte')
-    
+
     class Meta:
         model = ModelInstance
         fields = [
@@ -326,12 +329,12 @@ class ModelInstanceGroupFilter(filters.FilterSet):
             'update_time_after',
             'update_time_before',
         ]
-        
+
 
 class ModelInstanceGroupRelationFilter(filters.FilterSet):
     instance = filters.UUIDFilter(field_name='instance')
     group = filters.UUIDFilter(field_name='group')
-    create_time_after = filters.DateTimeFilter(field_name='create_time', lookup_expr='gte') 
+    create_time_after = filters.DateTimeFilter(field_name='create_time', lookup_expr='gte')
     create_time_before = filters.DateTimeFilter(field_name='create_time', lookup_expr='lte')
     update_time_after = filters.DateTimeFilter(field_name='update_time', lookup_expr='gte')
     update_time_before = filters.DateTimeFilter(field_name='update_time', lookup_expr='lte')
@@ -346,6 +349,7 @@ class ModelInstanceGroupRelationFilter(filters.FilterSet):
             'update_time_after',
             'update_time_before',
         ]
+
 
 class RelationDefinitionFilter(filters.FilterSet):
     name = filters.CharFilter(field_name='name', lookup_expr='icontains')
@@ -368,6 +372,7 @@ class RelationDefinitionFilter(filters.FilterSet):
             'update_time_before',
         ]
 
+
 class RelationsFilter(filters.FilterSet):
     source_instance = filters.UUIDFilter(field_name='source_instance')
     target_instance = filters.UUIDFilter(field_name='target_instance')
@@ -388,5 +393,3 @@ class RelationsFilter(filters.FilterSet):
             'update_time_after',
             'update_time_before',
         ]
-
-

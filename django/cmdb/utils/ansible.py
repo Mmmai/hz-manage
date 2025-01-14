@@ -12,11 +12,11 @@ class AnsibleAPI:
         for subdir in ['inventory', 'project', 'artifacts']:
             path = os.path.join(self.private_data_dir, subdir)
             os.makedirs(path, exist_ok=True)
-    
+
     def run_playbook(self, playbook_path, inventory_dict, extra_vars=None):
         """运行playbook并获取结果"""
         try:
-            
+
             result = ansible_runner.run(
                 private_data_dir=self.private_data_dir,
                 playbook=playbook_path,
@@ -66,7 +66,7 @@ class AnsibleAPI:
                     task_name = event_data.get('task', 'unknown')
                     error_msg = event_data.get('res', {}).get('msg', 'No error message')
                     ignore_errors = event_data.get('ignore_errors', False)
-                    
+
                     if not ignore_errors:
                         if event.get('event') == 'runner_on_failed':
                             installation_status['status'] = 'failed'
@@ -74,7 +74,7 @@ class AnsibleAPI:
                         else:
                             installation_status['status'] = 'unreachable'
                             installation_status['message'] = f"Host unreachable: {error_msg}"
-                    
+
                     installation_status['task_details'].append({
                         'task': task_name,
                         'status': 'ignored' if ignore_errors else installation_status['status'],
@@ -85,21 +85,21 @@ class AnsibleAPI:
                 logger.info(f'Installation for {host_ip} completed with status: {installation_status["status"]}')
             else:
                 logger.error(f'Installation for {host_ip} failed with status: {installation_status["status"]}'
-                            f' and message: {installation_status["message"]}'
-                            f' and task details: {installation_status["task_details"]}')
+                             f' and message: {installation_status["message"]}'
+                             f' and task details: {installation_status["task_details"]}')
             return installation_status
         logger.error(f'Installation for {host_ip} failed, no result found')
         return {
             'status': 'unknown'
         }
-        
-    
+
+
 def main():
-    
+
     host_ip = '192.168.137.2'
     ansible_api = AnsibleAPI()
     result = ansible_api.install_zabbix_agent(host_ip)
-    
+
     if result:
         print(f"\nZabbix agent installation result for {host_ip}:")
         print(f"Status: {result['status']}")
@@ -112,6 +112,7 @@ def main():
                 print(f"  Message: {task['message']}")
     else:
         print(f"Failed to execute playbook for {host_ip}")
+
 
 if __name__ == "__main__":
     main()

@@ -7,18 +7,19 @@ from .constants import FieldType, ValidationType, DateTimeFormats
 import logging
 logger = logging.getLogger(__name__)
 
+
 class FieldValidator:
     EMAIL_PATTERN = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     PHONE_PATTERN = r'^1[3-9]\d{9}$'
     URL_PATTERN = r'^https?://\S+$'
     IPV4_PATTERN = r'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
     IPV6_PATTERN = r'^(?:(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:(?:(?::[0-9a-fA-F]{1,4}){1,6})|:(?:(?::[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(?::[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(?:ffff(?::0{1,4}){0,1}:){0,1}(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])|(?:[0-9a-fA-F]{1,4}:){1,4}:(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$'
-    
+
     @staticmethod
     def validate_string_common(value, field_config):
         if not isinstance(value, str):
             raise ValueError("Value must be string type")
-        
+
         if field_config.validation_rule.type == ValidationType.LENGTH:
             try:
                 min_len, max_len = map(int, field_config.validation_rule.rule.split(','))
@@ -26,17 +27,17 @@ class FieldValidator:
                     raise ValueError(f"String length must be between {min_len} and {max_len}")
             except ValueError as e:
                 raise ValueError(f"Invalid length validation rule: {field_config.validation_rule}")
-                
+
         if field_config.validation_rule.type == ValidationType.REGEX:
             if not re.match(field_config.validation_rule.rule, value):
                 raise ValueError(f"Value does not match pattern: {field_config.validation_rule.rule}")
         return value
-    
+
     def validate_custom_regex(value, field_config):
         if not re.match(field_config.validation_rule.rule, value):
             raise ValueError(f"Value does not match pattern: {field_config.validation_rule.rule}")
         return value
-    
+
     @staticmethod
     def validate_string(value, field_config):
         return FieldValidator.validate_string_common(value, field_config)
@@ -51,7 +52,7 @@ class FieldValidator:
             value = int(value)
         except (TypeError, ValueError):
             raise ValueError("Value must be integer type")
-        
+
         if not field_config.validation_rule:
             return value
         if field_config.validation_rule.type == ValidationType.RANGE:
@@ -69,7 +70,7 @@ class FieldValidator:
             value = float(value)
         except (TypeError, ValueError):
             raise ValueError("Value must be float type")
-        
+
         if not field_config.validation_rule:
             return value
         if field_config.validation_rule.type == ValidationType.RANGE:
@@ -95,11 +96,11 @@ class FieldValidator:
             allowed_values = field_config.validation_rule.rule
             if isinstance(allowed_values, str):
                 allowed_values = json.loads(allowed_values)
-            
+
             if value not in allowed_values:
                 raise ValueError(f"Value must be one of: {allowed_values}")
             return value
-            
+
         except (json.JSONDecodeError, AttributeError):
             raise ValueError("Invalid validation rule format: {field_config.validation_rule.rule}")
 
@@ -110,22 +111,21 @@ class FieldValidator:
             allowed_values = field_config.validation_rule.rule
             if isinstance(allowed_values, str):
                 allowed_values = json.loads(allowed_values)
-            
+
             if value not in allowed_values:
                 raise ValueError(f"Value must be one of: {allowed_values}")
             return value
-            
+
         except (json.JSONDecodeError, AttributeError):
             raise ValueError("Invalid validation rule format: {field_config.validation_rule.rule}")
-        
 
-    @staticmethod 
+    @staticmethod
     def validate_ip(value, field_config):
         """IP地址验证(支持v4和v6)"""
         logger.info(f'Validating IP address: {value}')
         if not re.match(FieldValidator.IPV4_PATTERN, value) and not re.match(FieldValidator.IPV6_PATTERN, value):
             raise ValueError("Invalid IP address format")
-        
+
         return FieldValidator.validate_custom_regex(value, field_config)
         # return value
 
@@ -134,24 +134,24 @@ class FieldValidator:
         """IPv4地址验证"""
         if not re.match(FieldValidator.IPV4_PATTERN, value):
             raise ValueError("Invalid IPv4 address format")
-        
+
         # FieldValidator.validate_custom_regex(value, field_config)
         return value
-    
+
     @staticmethod
     def validate_ipv6(value, field_config):
         """IPv6地址验证"""
         if not re.match(FieldValidator.IPV6_PATTERN, value):
             raise ValueError("Invalid IPv6 address format")
-        
+
         # FieldValidator.validate_custom_regex(value, field_config)
         return value
-    
+
     @staticmethod
     def validate_email(value, field_config):
         if not re.match(FieldValidator.EMAIL_PATTERN, value):
             raise ValueError("Invalid email format")
-        
+
         FieldValidator.validate_custom_regex(value, field_config)
         return value
 
@@ -159,7 +159,7 @@ class FieldValidator:
     def validate_phone(value, field_config):
         if not re.match(FieldValidator.PHONE_PATTERN, value):
             raise ValueError("Invalid phone number format")
-        
+
         FieldValidator.validate_custom_regex(value, field_config)
         return value
 
@@ -167,7 +167,7 @@ class FieldValidator:
     def validate_url(value, field_config):
         if not re.match(FieldValidator.URL_PATTERN, value):
             raise ValueError("Invalid URL format")
-        
+
         FieldValidator.validate_custom_regex(value, field_config)
         return value
 
@@ -175,7 +175,7 @@ class FieldValidator:
     def validate_date(value, field_config):
         if not isinstance(value, str):
             raise ValueError("日期值必须是字符串类型")
-        
+
         # 尝试解析为日期或日期时间格式
         for fmt in DateTimeFormats.DATE_FORMATS + DateTimeFormats.DATETIME_FORMATS:
             try:
@@ -190,7 +190,7 @@ class FieldValidator:
     def validate_datetime(value, field_config):
         if not isinstance(value, str):
             raise ValueError("日期时间值必须是字符串类型")
-        
+
         for fmt in DateTimeFormats.DATETIME_FORMATS:
             try:
                 parsed_datetime = datetime.strptime(value, fmt)
@@ -203,7 +203,7 @@ class FieldValidator:
     def validate_timestamp(value, field_config):
         if not isinstance(value, (int, float)):
             raise ValueError("Timestamp value must be integer or float type")
-        
+
         try:
             return datetime.fromtimestamp(value)
         except ValueError:
@@ -240,8 +240,8 @@ class FieldValidator:
         # 特殊类型字段跳过验证
         if field_config.type in [FieldType.PASSWORD, FieldType.MODEL_REF]:
             return value
-        
-        if not value and value != 0 and value != False:
+
+        if not value and value != 0 and value:
             if field_config.default:
                 return field_config.default
             if field_config.required and not hasattr(field_config, 'create_field_flag'):

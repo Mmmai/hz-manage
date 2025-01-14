@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class FieldType(str, Enum):
     STRING = 'string'
     TEXT = 'text'
@@ -13,6 +14,7 @@ class FieldType(str, Enum):
     DATE = 'date'
     DATETIME = 'datetime'
     MODEL_REF = 'model_ref'
+
 
 class ValidationType(str, Enum):
     REGEX = 'regex'
@@ -33,8 +35,8 @@ class ValidationType(str, Enum):
     BOOLEAN = 'boolean'
     PASSWORD = 'password'
     MODEL_REF = 'model_ref'
-    
-    
+
+
 class DateTimeFormats:
     DATE_FORMATS = [
         '%Y%m%d',             # YYYYmmdd
@@ -57,6 +59,7 @@ class DateTimeFormats:
 
 
 limit_field_names = ['page', 'page_size', 'model', 'instance_name', 'model_instance_group', 'cache_key',]
+
 
 class FieldMapping:
     # 字段类型对应的可用验证类型
@@ -145,9 +148,9 @@ class FieldMapping:
         ],
         FieldType.BOOLEAN: [
             {
-            'type': ValidationType.BOOLEAN,
-            'description': '布尔值',
-            'example': 'true/false, 0/1'
+                'type': ValidationType.BOOLEAN,
+                'description': '布尔值',
+                'example': 'true/false, 0/1'
             }
         ],
         FieldType.INTEGER: [

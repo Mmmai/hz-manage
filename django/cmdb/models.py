@@ -11,6 +11,7 @@ from .constants import ValidationType
 
 logger = logging.getLogger(__name__)
 
+
 class ModelGroups(models.Model):
     class Meta:
         db_table = 'model_groups'
@@ -27,7 +28,7 @@ class ModelGroups(models.Model):
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
-    
+
     @classmethod
     def get_default_model_group(cls):
         """获取或创建默认模型组"""
@@ -43,7 +44,7 @@ class ModelGroups(models.Model):
             }
         )
         return default_group
-    
+
     def delete(self, *args, **kwargs):
         if self.built_in:
             raise PermissionDenied('Built-in model group cannot be deleted')
@@ -60,7 +61,7 @@ class Models(models.Model):
         db_table = 'models'
         managed = True
         app_label = 'cmdb'
-        
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50, unique=True, db_index=True, null=False, blank=False)
     verbose_name = models.CharField(max_length=50, null=False, blank=False)
@@ -74,12 +75,13 @@ class Models(models.Model):
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
 
+
 class ModelFieldGroups(models.Model):
     class Meta:
         db_table = 'model_field_groups'
         managed = True
         app_label = 'cmdb'
-        
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50, db_index=True, null=False, blank=False)
     verbose_name = models.CharField(max_length=50, null=False, blank=False)
@@ -91,7 +93,7 @@ class ModelFieldGroups(models.Model):
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
-    
+
     @classmethod
     def get_default_field_group(cls, model):
         """获取或创建默认模型组"""
@@ -111,13 +113,14 @@ class ModelFieldGroups(models.Model):
         )
         return default_field_group
 
+
 class ValidationRules(models.Model):
     """验证规则表"""
     class Meta:
         db_table = 'validation_rules'
         managed = True
         app_label = 'cmdb'
-        
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50, unique=True, db_index=True, help_text='规则名称')
     verbose_name = models.CharField(max_length=50, help_text='显示名称')
@@ -134,7 +137,7 @@ class ValidationRules(models.Model):
 
     @classmethod
     def get_enum_dict(cls, rule_id):
-        
+
         @cached_as(ValidationRules, timeout=60*60)
         def _get_enum_dict(rule_id):
             """获取枚举规则字典"""
@@ -145,16 +148,16 @@ class ValidationRules(models.Model):
             except (cls.DoesNotExist, json.JSONDecodeError):
                 pass
             return {}
-        
+
         return _get_enum_dict(rule_id)
-    
-    
+
+
 class ModelFields(models.Model):
     class Meta:
         db_table = 'model_fields'
         managed = True
         app_label = 'cmdb'
-        
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True)
     model_field_group = models.ForeignKey('ModelFieldGroups', on_delete=models.SET_NULL, null=True, blank=True)
@@ -176,12 +179,13 @@ class ModelFields(models.Model):
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
 
+
 class ModelFieldOrder(models.Model):
     class Meta:
         db_table = 'model_field_order'
         managed = True
         app_label = 'cmdb'
-        
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True)
     field_order = models.JSONField(default=list, blank=True, null=True)
@@ -190,12 +194,13 @@ class ModelFieldOrder(models.Model):
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
 
+
 class ModelFieldPreference(models.Model):
     class Meta:
         db_table = 'model_field_preference'
         managed = True
         app_label = 'cmdb'
-        
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True)
     fields_preferred = models.JSONField(default=list, blank=True, null=True)
@@ -204,12 +209,13 @@ class ModelFieldPreference(models.Model):
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
 
+
 class UniqueConstraint(models.Model):
     class Meta:
         db_table = 'unique_constraint'
         managed = True
         app_label = 'cmdb'
-        
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True)
     fields = models.JSONField(default=list, blank=True, null=True)
@@ -220,6 +226,7 @@ class UniqueConstraint(models.Model):
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
+
 
 class ModelInstance(models.Model):
     class Meta:
@@ -232,7 +239,7 @@ class ModelInstance(models.Model):
                 name='unique_model_instance_name'
             )
         ]
-        
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True)
     instance_name = models.CharField(max_length=100, db_index=True, null=True, blank=True)
@@ -240,14 +247,14 @@ class ModelInstance(models.Model):
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
-    
+
 
 class ModelFieldMeta(models.Model):
     class Meta:
         db_table = 'model_field_meta'
         managed = True
         app_label = 'cmdb'
-        
+
     # TODO: 添加实例name字段，用于存储实例名称，作为唯一性校验
     # TODO: 在模型删除时，如果没有删除子实例，保留字段信息等 待修改
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -259,14 +266,14 @@ class ModelFieldMeta(models.Model):
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
-    
+
 
 class ModelInstanceGroup(models.Model):
     class Meta:
         db_table = 'model_instance_group'
         managed = True
         app_label = 'cmdb'
-        
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     label = models.CharField(max_length=50, null=False, blank=False)
     model = models.ForeignKey('Models', on_delete=models.CASCADE, null=False, blank=False)
@@ -310,7 +317,7 @@ class ModelInstanceGroup(models.Model):
             }
         )
         return unassigned_group
-    
+
     @classmethod
     def clear_group_cache(cls, group):
         """清除指定分组和空闲池的缓存"""
@@ -319,12 +326,12 @@ class ModelInstanceGroup(models.Model):
         cache.delete(f'group_count_{group.id}')
         cache.delete(f'group_count_{unassigned_group.id}')
         logger.info(f'Cache cleared successfully')
-    
+
     @classmethod
     def clear_groups_cache(cls, groups):
         """批量清除多个分组的缓存"""
         groups_to_clear = set()
-        
+
         # 收集所有需要清除的分组ID
         for group in groups:
             groups_to_clear.add(group.id)
@@ -333,7 +340,7 @@ class ModelInstanceGroup(models.Model):
                 groups_to_clear.add(parent.id)
                 parent = parent.parent
         logger.info(f'Clearing instance count cache for groups: {groups_to_clear}')
-                
+
         cache_keys = [f'group_count_{gid}' for gid in groups_to_clear]
         cache.delete_many(cache_keys)
         logger.info(f'Cache cleared successfully')
@@ -344,7 +351,7 @@ class ModelInstanceGroupRelation(models.Model):
     class Meta:
         db_table = 'model_instance_group_relation'
         managed = True
-        
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     instance = models.ForeignKey('ModelInstance', on_delete=models.CASCADE)
     group = models.ForeignKey('ModelInstanceGroup', on_delete=models.CASCADE)
@@ -359,7 +366,7 @@ class RelationDefinition(models.Model):
         db_table = 'relation_definition'
         managed = True
         app_label = 'cmdb'
-        
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50, db_index=True, null=False, blank=False)
     type = models.CharField(max_length=50, null=False, blank=False)
@@ -373,7 +380,7 @@ class Relations(models.Model):
         db_table = 'relations'
         managed = True
         app_label = 'cmdb'
-        
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     source_instance = models.ForeignKey('ModelInstance', related_name='source_instance', on_delete=models.CASCADE)
     target_instance = models.ForeignKey('ModelInstance', related_name='target_instance', on_delete=models.CASCADE)
@@ -382,14 +389,14 @@ class Relations(models.Model):
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
-    
+
 
 class ZabbixSyncHost(models.Model):
     class Meta:
         db_table = 'zabbix_sync_host'
         managed = True
         app_label = 'cmdb'
-        
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     instance = models.OneToOneField('ModelInstance', on_delete=models.CASCADE)
     host_id = models.IntegerField(null=False, blank=False)

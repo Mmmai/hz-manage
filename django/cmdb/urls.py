@@ -2,19 +2,19 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     ModelGroupsViewSet,
-    ModelsViewSet, 
+    ModelsViewSet,
     ModelFieldGroupsViewSet,
     ValidationRulesViewSet,
-    ModelFieldsViewSet, 
+    ModelFieldsViewSet,
     ModelFieldOrderViewSet,
     ModelFieldPreferenceViewSet,
     UniqueConstraintViewSet,
-    ModelInstanceViewSet, 
+    ModelInstanceViewSet,
     ModelInstanceBasicViewSet,
-    ModelFieldMetaViewSet, 
+    ModelFieldMetaViewSet,
     ModelInstanceGroupViewSet,
     ModelInstanceGroupRelationViewSet,
-    RelationDefinitionViewSet, 
+    RelationDefinitionViewSet,
     RelationsViewSet,
     PasswordManageViewSet
 )
