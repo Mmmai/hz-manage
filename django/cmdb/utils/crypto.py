@@ -134,7 +134,9 @@ class PasswordHandler:
             for meta_id, plain in new_password.items():
                 if plain:
                     encrypted_sm4 = self.encrypt_to_sm4(plain)
+                    # logger.info(f'Re-encrypting plain -> sm4: {plain} -> {encrypted_sm4}')
                     new_password[meta_id] = self.encrypt(encrypted_sm4)
+                    # logger.info(f'Re-encrypted by fernet: {new_password[meta_id]}')
             return new_password
         except Exception as e:
             raise ValueError(f"Re-encryption failed: {str(e)}")
