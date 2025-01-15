@@ -142,7 +142,7 @@ def process_import_data(self, excel_data, model_id, request):
                     logger.error(f"Error generating error report: {str(e)}")
                     raise ValidationError({'detail': f'Failed to generate error report: {str(e)}'})
         results['status'] = 'completed'
-        results['progress'] = '100 %'
+        results['progress'] = 100
         cache.set(cache_key, results, timeout=600)
 
     except Exception as e:
@@ -188,11 +188,11 @@ def setup_host_monitoring(instance_id, instance_name, ip, password, delete=False
                 else:
                     raise ValidationError({'detail': f'Failed to update host: {result}'})
 
-                # 当IP地址发生变化时触发ansible重新安装客户端
-                if ANSIBLE_AVAILABLE and ip != ip_cur:
-                    chain(
-                        install_zabbix_agent.s(ip, password)
-                    ).apply_async()
+            # 当IP地址发生变化或客户端安装状态为失败时触发ansible重新安装客户端
+            if ANSIBLE_AVAILABLE and (ip != ip_cur or not zabbix_host.first().agent_installed):
+                chain(
+                    install_zabbix_agent.s(ip, password)
+                ).apply_async()
             else:
                 logger.debug(f"No changes detected for {ip}, skipping update")
                 return {'detail': f"No changes detected for {ip}, skipping update"}
@@ -230,13 +230,13 @@ def install_zabbix_agent(host_ip, password):
     try:
         logger.info(f'Installing Zabbix agent on {host_ip}')
         ansible_api = AnsibleAPI()
-        result = ansible_api.install_zabbix_agent(host_ip, ssh_pass=password)
+        result = ansible_api.install_zabbix_agent(host_ip, 'root', 22, password)
         if result['status'] == 'success':
             ZabbixSyncHost.objects.filter(ip=host_ip).update(agent_installed=True)
             return result
         else:
             ZabbixSyncHost.objects.filter(ip=host_ip).update(agent_installed=False)
-            raise ValidationError({'detail': f'Failed to install Zabbix agent: {result["message"]}'})
+            raise ValidationError({'detail': f'Failed to install Zabbix agent for {host_ip}: {result["message"]}'})
     except Exception as e:
         logger.error(f"Error installing Zabbix agent: {str(e)}")
-        raise ValidationError({'detail': f'Failed to install Zabbix agent: {str(e)}'})
+        return result

@@ -700,7 +700,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             cache_results = {
                 'status': 'pending',
                 'total': len(excel_data.get('instances', [])),
-                'progress': '0 %',
+                'progress': 0,
                 'created': 0,
                 'updated': 0,
                 'skipped': 0,
