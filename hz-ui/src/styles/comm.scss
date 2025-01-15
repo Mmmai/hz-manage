@@ -87,7 +87,12 @@ html {
   justify-content:flex-start;
 
 }
+.flexJbetween {
+  display: flex;
+  align-items: center;
+  justify-content:space-between;
 
+}
 // 。。。。做完必填对齐后，发现星号的位置可以调到右边！！！！
 .requiredClass {
   margin-left: 0px;

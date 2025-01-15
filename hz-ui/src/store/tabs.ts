@@ -39,7 +39,7 @@ export const useTabsStore = defineStore(
     //   }
     // }
     // 添加标签
-    const addTabs = async (tabItem) => {
+    const addTabs = (tabItem) => {
       // 实现看单个详情,每次都覆盖之前的详单tabs
       if (tabItem.name === 'logFlowMission_info') {
         console.log('名字一致')
@@ -65,13 +65,15 @@ export const useTabsStore = defineStore(
     }
     const removeTabs = (tabPath: string, isCurrent: boolean = true) => {
       // console.log(tabPath.path)
-      console.log('删除tabs', tabPath)
       if (isCurrent) {
         tabsMenuList.value.forEach((item, index) => {
 
           if (item.path !== tabPath) return;
+
           const nextTab = tabsMenuList.value[index + 1] || tabsMenuList.value[index - 1];
+
           if (!nextTab) return;
+          router.push(nextTab.path)
           // currentTitle.value = nextTab.title
           // console.log(currentTitle.value)
         });
@@ -83,25 +85,38 @@ export const useTabsStore = defineStore(
         if (item.path !== tabPath) {
           if (item.fullPath !== tabPath) {
             _tempList.push(item)
-
           }
         }
       })
 
       // let _tempList = tabsMenuList.value.filter(item => item.path !== tabPath || item.fullPath !== tabPath)
       tabsMenuList.value = _tempList
-      // tabsMenuList.value.forEach((item,index)=>{
-      //   if (tabPath != item.path){
-
-      //   }
-
-      // })
+      console.log(tabsMenuList.value)
     }
     const setTabs = (params: TabsMenuProps[]) => {
       tabsMenuList.value = params;
     }
+    const closeTabsOnSide = (path: string, type: "left" | "right") => {
+      const currentIndex = tabsMenuList.value.findIndex(item => item.fullPath === path);
+      if (currentIndex !== -1) {
+        const range = type === "left" ? [0, currentIndex] : [currentIndex + 1, tabsMenuList.value.length];
+        tabsMenuList.value = tabsMenuList.value.filter((item, index) => {
+          return index < range[0] || index >= range[1] || item.name == 'home';
+        });
+      }
+    }
+    // Close MultipleTab
+    const closeMultipleTab = (tabsMenuValue?: string) => {
+      tabsMenuList.value = tabsMenuList.value.filter(item => {
+        return item.path === tabsMenuValue || item.name == 'home';
+      });
+      // router.push(tabsMenuValue)
+    }
+
+
+
     return {
-      tabsMenuList,
+      tabsMenuList, closeTabsOnSide, closeMultipleTab,
       addTabs, removeTabs, tabsMenuDict, currentTitle, updateCurrentTitle, currentMenu, setTabs
     }
   },
@@ -117,17 +132,17 @@ export const useTabsStore = defineStore(
   //   actions: {
   //     // Add Tabs
   //     async addTabs(tabItem) {
-  //       if (this.tabsMenuList.every(item => item.path !== tabItem.path)) {
-  //         this.tabsMenuList.push(tabItem);
+  //       if (tabsMenuList.value.every(item => item.path !== tabItem.path)) {
+  //         tabsMenuList.value.push(tabItem);
   //       }
 
   //     },
   //     // Remove Tabs
   //     async removeTabs(tabPath, isCurrent) {
   //       if (isCurrent) {
-  //         this.tabsMenuList.forEach((item, index) => {
+  //         tabsMenuList.value.forEach((item, index) => {
   //           if (item.path !== tabPath) return;
-  //           const nextTab = this.tabsMenuList[index + 1] || this.tabsMenuList[index - 1];
+  //           const nextTab = tabsMenuList.value[index + 1] || tabsMenuList.value[index - 1];
   //           if (!nextTab) return;
   //           router.push(nextTab.path);
   //         });

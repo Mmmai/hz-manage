@@ -16,6 +16,21 @@ INIT_MENU =  [
       "parentid_id": ''
     },
     {
+      "label": "门户收藏夹",
+      "icon": "ep:star",
+      "name": "favorites",
+      "status": 1,
+      "path": "/favorites",
+      "is_menu": 1,
+      "sort": 2,
+      "has_info": 0,
+      "info_view_name": '',
+      "is_iframe": 0,
+      "iframe_url": '',
+      "description": '',
+      "parentid_id": ''
+    },    
+    {
       "label": "可视化大屏",
       "icon": "ep:trend-charts",
       "name": "iframe",

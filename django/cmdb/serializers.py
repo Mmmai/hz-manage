@@ -1203,8 +1203,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                     })
                 logger.info(f'Unique constraint for fields {", ".join(constraint_fields)} validated successfully')
             else:
-                logger.info(f'Unique constraint for fields {", ".join(
-                    constraint_fields)} skipped due to null values or constraint settings')
+                logger.info(f'Unique constraint for fields {", ".join(constraint_fields)} skipped due to null values or constraint settings')
         logger.info(f'All unique constraints validated successfully')
 
     def validate(self, attrs):

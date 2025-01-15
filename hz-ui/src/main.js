@@ -22,14 +22,15 @@ import "@/styles/comm.scss";
 import Antd from 'ant-design-vue';
 // import 'ant-design-vue/dist/reset.css';
 
-
+//main.js
+import '@imengyu/vue3-context-menu/lib/vue3-context-menu.css'
 
 // 设置中文
-import locale  from "element-plus/es/locale/lang/zh-cn";
+import locale from "element-plus/es/locale/lang/zh-cn";
 const pinia = createPinia();
 pinia.use(piniaPluginPersistedstate)
 const app = createApp(App)
-app.component("iconfont-svg",iconfontSvg)
+app.component("iconfont-svg", iconfontSvg)
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component)
 }
@@ -42,5 +43,5 @@ app.use(Antd)
 // 自定义指令
 myCommand(app)
 app.component(VueCountdown.name, VueCountdown);
-app.use(ElementPlus,{locale })
+app.use(ElementPlus, { locale })
 app.mount('#app')

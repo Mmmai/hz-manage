@@ -1,25 +1,67 @@
 <template>
-  <el-tabs
-    v-model="nowTab"
-    type="card"
-    class="demo-tabs"
-    @tab-click="tabClick"
-    @tab-remove="tabRemove"
-  >
-    <el-tab-pane
-      v-for="item in tabsMenuList"
-      :key="item.name"
-      :label="item.title"
-      :name="item.path"
-      :closable="item.name !== 'home'"
-    >
-      {{ item.content }}
-    </el-tab-pane>
-  </el-tabs>
+  <div class="tabs-box">
+    <div class="tabs-menu">
+      <el-tabs
+        v-model="nowTab"
+        type="card"
+        @tab-click="tabClick"
+        @tab-remove="tabRemove"
+      >
+        <el-tab-pane
+          v-for="(item, index) in tabsMenuList"
+          :key="item.name"
+          :label="item.title"
+          :name="item.path"
+          :closable="item.name !== 'home'"
+        >
+        </el-tab-pane>
+      </el-tabs>
+      <el-dropdown trigger="click" placement="bottom-start">
+        <div class="more-button">
+          <el-icon :size="20"><ArrowDown /></el-icon>
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item @click="refresh">
+              <el-icon><Refresh /></el-icon>刷新
+            </el-dropdown-item>
+            <el-dropdown-item divided @click="closeCurrentTab">
+              <el-icon><Remove /></el-icon>关闭当前
+            </el-dropdown-item>
+            <el-dropdown-item
+              @click="tabsStore.closeTabsOnSide(route.fullPath, 'left')"
+            >
+              <el-icon><DArrowLeft /></el-icon>关闭左侧
+            </el-dropdown-item>
+            <el-dropdown-item
+              @click="tabsStore.closeTabsOnSide(route.fullPath, 'right')"
+            >
+              <el-icon><DArrowRight /></el-icon>关闭右侧
+            </el-dropdown-item>
+            <el-dropdown-item
+              divided
+              @click="tabsStore.closeMultipleTab(route.fullPath)"
+            >
+              <el-icon><CircleClose /></el-icon>关闭其它
+            </el-dropdown-item>
+            <el-dropdown-item @click="closeAllTab">
+              <el-icon><FolderDelete /></el-icon>关闭所有
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+    </div>
+  </div>
 </template>
 <script lang="ts" setup>
 import { ref, computed, getCurrentInstance, onMounted, watch } from "vue";
 import { ElTree } from "element-plus";
+import {
+  ContextMenu,
+  ContextMenuGroup,
+  ContextMenuSeparator,
+  ContextMenuItem,
+} from "@imengyu/vue3-context-menu";
 
 import type Node from "element-plus/es/components/tree/src/model/node";
 const { proxy } = getCurrentInstance();
@@ -30,6 +72,7 @@ const router = useRouter();
 const nowTab = ref(route.fullPath);
 
 import useTabsStore from "@/store/tabs";
+import { ArrowDown, Refresh } from "@element-plus/icons-vue";
 
 const tabsStore = useTabsStore();
 // console.log(route)
@@ -108,9 +151,44 @@ const tabClick = (tabItem: TabsPaneContext) => {
 
 // Remove Tab
 const tabRemove = (fullPath: TabPaneName) => {
-  // console.log(fullPath)
-
   tabsStore.removeTabs(fullPath as string, fullPath == route.path);
+};
+
+// 右键菜单
+const contextMenuX = ref(0);
+const contextMenuY = ref(0);
+const showContextMenu = ref(false);
+//For component
+const optionsComponent = ref({
+  zIndex: 3,
+  minWidth: 80,
+  x: 0,
+  y: 0,
+});
+// 右键显示
+const handleContextMenu = (index, event) => {
+  showContextMenu.value = true;
+  optionsComponent.value.x = event.clientX;
+  optionsComponent.value.y = event.clientY;
+};
+const closeCurrentTab = () => {
+  tabsStore.removeTabs(nowTab.value, true);
+};
+
+const closeOtherTabs = () => {
+  const tabsList = [...tabsStore.tabsMenuList];
+  tabsStore.setTabs(
+    tabsList.filter((tab) => tab.path === nowTab.value || tab.path === "/home")
+  );
+  showContextMenu.value = false;
+};
+const closeAllTab = () => {
+  tabsStore.closeMultipleTab();
+  router.push("/home");
+};
+// 刷新
+const refresh = () => {
+  window.location.reload();
 };
 </script>
 
@@ -127,4 +205,5 @@ const tabRemove = (fullPath: TabPaneName) => {
     margin: 0;
   }
 }
+@import "./tabs.scss";
 </style>
