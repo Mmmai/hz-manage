@@ -1997,13 +1997,15 @@ const getModelRefCiData = async (visible, params) => {
     page_size: 5000,
   });
   let tmpArr = [];
+
   res.data.results.forEach((item) => {
     tmpArr.push({ value: item.id, label: item.instance_name });
   });
-  modelRefOptions.value[params.name] = [
-    { value: null, label: "无" },
-    ...tmpArr,
-  ];
+  // modelRefOptions.value[params.name] = [
+  //   { value: null, label: "无" },
+  //   ...tmpArr,
+  // ];
+  modelRefOptions.value[params.name] = tmpArr;
 };
 const modelRefDataById = computed(() => {
   let tmpObj = new Object();

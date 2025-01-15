@@ -15,17 +15,13 @@ class CMDBConfig(AppConfig):
     def ready(self):
         """应用启动时初始化内置模型和验证规则"""
         import sys
-        if 'runserver' in sys.argv or any('celery' in arg for arg in sys.argv):
+        if 'runserver' in sys.argv or any('celery' in arg for arg in sys.argv) or 'uwsgi' in sys.modules:
             # 清除缓存
             invalidate_all()
             cache.delete('zabbix_token')
-
             from .utils.zabbix import ZabbixTokenManager
-
             token_manager = ZabbixTokenManager()
             token_manager.initialize()
             logger.info(f"ZabbixTokenManager initialized")
-
             password_handler.load_keys()
-
         from .signals import create_field_meta_for_instances
