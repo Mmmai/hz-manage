@@ -1206,12 +1206,8 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                                            f'{field_names} with values {field_values_str} already exists'})
                 logger.info(f'Unique constraint for fields {", ".join(constraint_fields)} validated successfully')
             else:
-<<<<<<< HEAD
-                logger.info(f'Unique constraint for fields {", ".join(constraint_fields)} skipped due to null values or constraint settings')
-=======
                 logger.info(f'Unique constraint for fields {", ".join(constraint_fields)} '
                             'skipped due to null values or constraint settings')
->>>>>>> hz-manager/cmdb
         logger.info(f'All unique constraints validated successfully')
 
     def validate(self, attrs):
