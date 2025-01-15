@@ -1,3 +1,5 @@
+import shutil
+import uuid
 import ansible_runner
 import logging
 import os
@@ -9,33 +11,47 @@ logger = logging.getLogger(__name__)
 class AnsibleAPI:
     def __init__(self):
         self.private_data_dir = '/tmp/ansible_runner'
-        for subdir in ['inventory', 'project', 'artifacts']:
-            path = os.path.join(self.private_data_dir, subdir)
-            os.makedirs(path, exist_ok=True)
+        os.makedirs(self.private_data_dir, exist_ok=True)
 
     def run_playbook(self, playbook_path, inventory_dict, extra_vars=None):
         """运行playbook并获取结果"""
         try:
+            # 为每个任务创建唯一的临时目录，避免多个任务创建时inventory被覆盖导致无法匹配IP
+            task_dir = os.path.join(self.private_data_dir, str(uuid.uuid4()))
+            os.makedirs(task_dir, exist_ok=True)
+            for subdir in ['env', 'inventory', 'project', 'artifacts']:
+                path = os.path.join(task_dir, subdir)
+                os.makedirs(path, exist_ok=True)
 
             result = ansible_runner.run(
-                private_data_dir=self.private_data_dir,
+                private_data_dir=task_dir,
                 playbook=playbook_path,
                 inventory=inventory_dict,
                 extravars=extra_vars,
-                quiet=True
+                quiet=False
             )
-            # for attrs in dir(result):
-            #     print(f'{attrs}: {getattr(result, attrs)}')
-            return result
+            # 立刻解析结果，避免在调用方等待时临时目录被清理
+            events = list(result.events)
+            status = {
+                'rc': result.rc,
+                'status': result.status,
+                'events': events
+            }
+            return status
+
         except Exception as e:
             logger.error(f"Ansible playbook execution failed: {str(e)}")
             return None
+        finally:
+            # 清理临时目录
+            if os.path.exists(task_dir):
+                shutil.rmtree(task_dir)
 
-    def install_zabbix_agent(self, host_ip, ssh_user='root', ssh_port=22, ssh_pass='thinker'):
+    def install_zabbix_agent(self, host_ip, ssh_user, ssh_port, ssh_pass):
         """安装Zabbix客户端"""
         playbook_path = '/opt/zabbix_agent/main.yaml'
         inventory_dict = {
-            'zabbix_agent': {
+            'all': {
                 'hosts': {
                     host_ip: {
                         'ansible_ssh_user': ssh_user,
@@ -56,11 +72,11 @@ class AnsibleAPI:
         result = self.run_playbook(playbook_path, inventory_dict, extra_vars)
         if result:
             installation_status = {
-                'status': 'success',  # success, failed, unreachable
+                'status': 'success',
                 'message': '',
                 'task_details': []
             }
-            for event in result.events:
+            for event in result.get('events'):
                 if event.get('event') in ['runner_on_failed', 'runner_on_unreachable']:
                     event_data = event.get('event_data', {})
                     task_name = event_data.get('task', 'unknown')
@@ -87,6 +103,7 @@ class AnsibleAPI:
                 logger.error(f'Installation for {host_ip} failed with status: {installation_status["status"]}'
                              f' and message: {installation_status["message"]}'
                              f' and task details: {installation_status["task_details"]}')
+            logger.info(f'Parsed installation result for {host_ip}: {installation_status}')
             return installation_status
         logger.error(f'Installation for {host_ip} failed, no result found')
         return {

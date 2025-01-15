@@ -128,7 +128,8 @@ class ModelsSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f"Failed to create model and initial groups: {str(e)}")
 
     def update(self, instance, validated_data):
-        if not validated_data.get('model_group') or not ModelGroups.objects.filter(id=validated_data['model_group'].id).exists():
+        if not validated_data.get('model_group') or not ModelGroups.objects.filter(
+                id=validated_data['model_group'].id).exists():
             validated_data['model_group'] = ModelGroups.get_default_model_group()
         return super().update(instance, validated_data)
 
@@ -402,7 +403,8 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
-        if not validated_data.get('model_field_group') or not ModelFieldGroups.objects.filter(id=validated_data['model_field_group'].id).exists():
+        if not validated_data.get('model_field_group') or not ModelFieldGroups.objects.filter(
+                id=validated_data['model_field_group'].id).exists():
             validated_data['model_field_group'] = ModelFieldGroups.get_default_field_group(validated_data['model'])
         return super().create(validated_data)
 
@@ -554,7 +556,8 @@ class ModelFieldMetaSerializer(serializers.ModelSerializer):
         elif field_config.type in (FieldType.STRING, FieldType.TEXT):
             return str(value) if value is not None else None
         # elif field_config.type in (FieldType.DATE, FieldType.DATETIME):
-        #     return value.isoformat() if isinstance(value, (datetime, date)) else str(value) if value is not None else None
+        # return value.isoformat() if isinstance(value, (datetime, date)) else
+        # str(value) if value is not None else None
         elif field_config.type == FieldType.JSON:
             try:
                 if isinstance(value, str):
@@ -701,7 +704,7 @@ class ModelFieldMetaNestedSerializer(ModelFieldMetaSerializer):
         elif instance.model_fields.type == FieldType.PASSWORD:
             try:
                 data['data'] = password_handler.decrypt(data['data'])
-            except:
+            except BaseException:
                 data['data'] = None
         return data
 
@@ -713,7 +716,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ModelInstance
-        fields = ['id', 'model', 'instance_name',  'create_time', 'update_time',
+        fields = ['id', 'model', 'instance_name', 'create_time', 'update_time',
                   'create_user', 'update_user', 'fields', 'field_values', 'instance_group']
         extra_kwargs = {
             'model': {'required': False},
@@ -984,7 +987,8 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 except Exception as e:
                     raise serializers.ValidationError(f"Error generating instance_name: {str(e)}")
 
-            if not value and not is_create and ('instance_name' not in request.data or not request.data['instance_name']):
+            if not value and not is_create and (
+                    'instance_name' not in request.data or not request.data['instance_name']):
                 try:
                     db_fields = ModelFieldMeta.objects.filter(
                         model_instance=self.instance
@@ -1198,12 +1202,16 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 if duplicate_ids:
                     field_names = ", ".join(field_values.keys())
                     field_values_str = ", ".join(f"{k}={v}" for k, v in field_values.items())
-                    raise ValidationError({
-                        'unique_constraint': f'Unique constraint violation: {field_names} with values {field_values_str} already exists'
-                    })
+                    raise ValidationError({'unique_constraint': f'Unique constraint violation: '
+                                           f'{field_names} with values {field_values_str} already exists'})
                 logger.info(f'Unique constraint for fields {", ".join(constraint_fields)} validated successfully')
             else:
+<<<<<<< HEAD
                 logger.info(f'Unique constraint for fields {", ".join(constraint_fields)} skipped due to null values or constraint settings')
+=======
+                logger.info(f'Unique constraint for fields {", ".join(constraint_fields)} '
+                            'skipped due to null values or constraint settings')
+>>>>>>> hz-manager/cmdb
         logger.info(f'All unique constraints validated successfully')
 
     def validate(self, attrs):

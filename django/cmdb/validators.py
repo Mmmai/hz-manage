@@ -157,10 +157,14 @@ class FieldValidator:
 
     @staticmethod
     def validate_phone(value, field_config):
+<<<<<<< HEAD
         print(FieldValidator.PHONE_PATTERN)
         print(value)
         if value == None:
             return value
+=======
+
+>>>>>>> hz-manager/cmdb
         if not re.match(FieldValidator.PHONE_PATTERN, value):
             raise ValueError("Invalid phone number format")
 
@@ -245,7 +249,7 @@ class FieldValidator:
         if field_config.type in [FieldType.PASSWORD, FieldType.MODEL_REF]:
             return value
 
-        if not value and value != 0 and value:
+        if not value and value != 0:
             if field_config.default:
                 return field_config.default
             if field_config.required and not hasattr(field_config, 'create_field_flag'):
