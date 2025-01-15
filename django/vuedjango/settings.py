@@ -12,17 +12,6 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 
 import os
 from pathlib import Path
-from djongo.operations import DatabaseOperations
-
-# Disable conditional_expression_supported_in_where_clause
-# BASE_DIR = Path(__file__).resolve().parent.parent
-
-DatabaseOperations.conditional_expression_supported_in_where_clause = (
-    lambda *args, **kwargs: False
-)
-# LOG_DIR = os.path.join(BASE_DIR, 'logs')
-# if not os.path.exists(LOG_DIR):
-#     os.makedirs(LOG_DIR)
 
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -95,12 +84,6 @@ WSGI_APPLICATION = 'vuedjango.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-#     }
-# }
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
@@ -117,26 +100,6 @@ DATABASES = {
             'PASSWORD': 'thinker',
             'HOST': '127.0.0.1',
             'PORT': '3306',
-        # 'ENGINE': 'djongo',
-        # 'NAME': 'cmdb',
-        # 'ENFORCE_SCHEMA': False,
-        # 'CLIENT': {
-        #     'host': 'localhost',
-        #     'port': 27017,
-        #     'username': 'cmdb',
-        #     'password': 'thinker',
-        #     'authSource': 'admin',
-        #     'authMechanism': 'SCRAM-SHA-1',
-        # },
-        # 'LOGGING': {
-        #     'version': 1,
-        #     'loggers': {
-        #         'djongo': {
-        #             'level': 'DEBUG',
-        #             'propagate': False,
-        #         }
-        #     },
-        # },
     },
 }
 # 多数据库配置
@@ -160,8 +123,6 @@ CACHEOPS = {
     'cmdb.modelfields': {'ops': 'all', 'timeout': 60*60},
     'cmdb.modelfieldmeta': {'ops': 'all', 'timeout': 60*60},
     'cmdb.validationrules': {'ops': 'all', 'timeout': 60*60},
-    # 'cmdb.validationrules': {'get': 'fetch', 'timeout': 60*60},
-
 }
 
 CACHEOPS_ENABLED = True
@@ -204,6 +165,15 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Shanghai'
+
+# Zabbix配置
+ZABBIX_CONFIG = {
+    'url': os.environ.get('ZABBIX_URL', ''),
+    'server': os.environ.get('ZABBIX_SERVER'),
+    'username': os.environ.get('ZABBIX_USERNAME', 'Admin'),
+    'password': os.environ.get('ZABBIX_PASSWORD', 'zabbix'),
+    'interval': int(os.environ.get('ZABBIX_INTERVAL', 0))  # 自动注销时间，维护token用，单位秒，0表示不自动注销
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
@@ -266,8 +236,7 @@ REST_FRAMEWORK = {
 }
 
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
-if not os.path.exists(LOG_DIR):
-    os.makedirs(LOG_DIR)
+os.makedirs(LOG_DIR, exist_ok=True)
 
 
 LOGGING = {
@@ -298,6 +267,12 @@ LOGGING = {
             'handlers': ['console', 'file'],
             'level': 'INFO',
             'propagate': True,
+        },
+        'celery': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'celery.log'),
+            'formatter': 'verbose'
         },
         '': {
             'handlers': ['console', 'file'],

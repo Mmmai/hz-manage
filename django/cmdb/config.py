@@ -160,7 +160,7 @@ BUILT_IN_MODELS = {
     },
     'hosts': {
         'verbose_name': '主机',
-        'description': '主机资源管理', 
+        'description': '主机资源管理',
         'model_group': 'host',
         'icon': 'clarity:host-line',
         'fields': [
@@ -176,7 +176,7 @@ BUILT_IN_MODELS = {
             },
             {
                 'name': 'mgmt_ip',
-                'type': 'string', 
+                'type': 'string',
                 'verbose_name': 'BMC IP',
                 'required': False,
                 'editable': True,
@@ -274,7 +274,7 @@ BUILT_IN_MODELS = {
                 'editable': True,
                 'order': 15
             },
-            
+
             # 设备详情字段
             {
                 'name': 'hostname',
@@ -473,7 +473,7 @@ BUILT_IN_MODELS = {
                 'editable': True,
                 'order': 38
             },
-            
+
             # 自动发现字段
             {
                 'name': 'cpu_info',
@@ -757,7 +757,7 @@ BUILT_IN_VALIDATION_RULES = {
         'rule': r'^1[3-9]\d{9}$',
         'editable': False,
         'description': '验证中国大陆手机号格式'
-    }, 
+    },
     'url': {
         'verbose_name': 'URL校验',
         'field_type': 'string',
@@ -804,7 +804,7 @@ BUILT_IN_VALIDATION_RULES = {
         'type': 'boolean',
         'rule': '',
         'editable': False,
-        'description': '验证布尔值格式' 
+        'description': '验证布尔值格式'
     },
     'host_architecture': {
         'verbose_name': '主机架构',
@@ -829,7 +829,7 @@ BUILT_IN_VALIDATION_RULES = {
     },
     'firewall_vendor': {
         'verbose_name': '防火墙厂商',
-        'field_type': 'enum', 
+        'field_type': 'enum',
         'type': 'enum',
         "rule": "{\"huawei\": \"华为\", \"h3c\": \"新华三\", \"hillstone\": \"山石网科\", \"venustech\": \"启明星辰\", \"other\": \"其他\"}",
         'description': '防火墙厂商列表'

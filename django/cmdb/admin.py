@@ -21,7 +21,7 @@ from django.apps import apps
 # Register models
 admin.site.register(ModelGroups)
 admin.site.register(Models)
-admin.site.register(ModelFieldGroups) 
+admin.site.register(ModelFieldGroups)
 admin.site.register(ValidationRules)
 admin.site.register(ModelFields)
 admin.site.register(ModelFieldOrder)
