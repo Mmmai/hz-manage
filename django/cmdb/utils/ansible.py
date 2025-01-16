@@ -62,7 +62,7 @@ class AnsibleAPI:
                 }
             }
         }
-        server = getattr(settings, 'ZABBIX_SERVER', {}).get('server')
+        server = getattr(settings, 'ZABBIX_CONFIG', {}).get('server')
         extra_vars = {
             'hostIp': host_ip,
             'serverIp': server,
