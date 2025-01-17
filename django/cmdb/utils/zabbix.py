@@ -85,6 +85,7 @@ class ZabbixTokenManager:
 
 class ZabbixAPI:
     _default_group_id = None
+    _default_template_id = None
 
     def __init__(self):
         self.url = getattr(settings, 'ZABBIX_CONFIG', {}).get('url')
@@ -148,7 +149,7 @@ class ZabbixAPI:
                 ],
                 "templates": [
                     {
-                        "templateid": "10001"
+                        "templateid": self.default_template_id
                     }
                 ]
             },
@@ -245,6 +246,33 @@ class ZabbixAPI:
         }
         result = self._call("host.delete", data["params"])
         return result["result"]
+
+    def get_default_template(self, template_name):
+        target = template_name or 'Template OS Linux V3.1'
+        data = {
+            "jsonrpc": "2.0",
+            "method": "template.get",
+            "params": {
+                "output": "extend",
+                "filter": {
+                    "host": [target]
+                }
+            },
+            "id": 1,
+            "auth": self.auth
+        }
+        result = self._call("template.get", data["params"])
+        if result.get("result"):
+            return result["result"][0]["templateid"]
+        else:
+            logger.error(f"Template not found: {target}")
+            return None
+
+    @property
+    def default_template_id(self):
+        if self._default_template_id is None:
+            self._default_template_id = self.get_default_template(None) or "10001"
+        return self._default_template_id
 
     def create_hostgroup(self, group_name):
         """创建主机组"""
