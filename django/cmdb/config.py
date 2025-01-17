@@ -941,7 +941,7 @@ BUILT_IN_VALIDATION_RULES = {
         'verbose_name': 'U位',
         'field_type': 'string',
         'type': 'regex',
-        'rule': '[0-9]{1,2}-[0-9]{1,2}',
+        'rule': '^[0-9]{1,2}-[0-9]{1,2}$',
         'editable': False,
         'description': 'U位校验',
     }
