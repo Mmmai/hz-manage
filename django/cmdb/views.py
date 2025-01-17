@@ -15,7 +15,7 @@ from rest_framework.renderers import BaseRenderer, JSONRenderer
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.pagination import PageNumberPagination
-from cacheops import cached_as
+from cacheops import cached_as, invalidate_model
 from django.core.cache import cache
 from django.http import HttpResponse
 from django.db import transaction
@@ -1229,6 +1229,8 @@ class PasswordManageViewSet(viewsets.ViewSet):
                         )
                     )
                 ModelFieldMeta.objects.bulk_update(to_update, ['data'])
+            invalidate_model(ModelFieldMeta)
+            invalidate_model(ModelInstance)
             return Response({
                 'status': 'success',
             }, status=status.HTTP_200_OK)
