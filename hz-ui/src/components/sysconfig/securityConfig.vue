@@ -115,6 +115,7 @@ const updateKey = async () => {
   }
   setTimeout(() => {
     loading.close();
+    window.location.reload();
   }, 2000);
 };
 const onSubmit = () => {
