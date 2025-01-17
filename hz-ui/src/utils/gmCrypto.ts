@@ -20,6 +20,12 @@ export function encrypt_sm4(key: string, mode: string, text: string): string {
 export function decrypt_sm4(key: string, mode: string, text: string): string {
   const encoder = new TextEncoder();
   const bytes = encoder.encode(key);
-  const decryptedText = smCrypto.sm4.decrypt(text, bytes, { mode });
-  return decryptedText
+  try {
+    const decryptedText = smCrypto.sm4.decrypt(text, bytes, { mode });
+    return decryptedText
+  } catch {
+    console.error("解密失败，，，")
+    return text
+  }
+
 }
