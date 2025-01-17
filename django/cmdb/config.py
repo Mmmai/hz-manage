@@ -378,7 +378,9 @@ BUILT_IN_MODELS = {
                 'verbose_name': 'U位',
                 'required': True,
                 'editable': True,
-                'order': 27
+                'order': 27,
+                'description': '填写样例：3-5',
+                'validation_rule': 'cabinet_position'
             },
             {
                 'name': 'device_purpose',
@@ -889,8 +891,7 @@ BUILT_IN_VALIDATION_RULES = {
         'type': 'regex',
         'rule': '^[a-zA-Z][a-zA-Z0-9-]{1,63}$',
         'editable': False,
-        'description': '主机名格式校验',
-        'validation_rule': 'hostname'
+        'description': '主机名格式校验'
     },
     'port_range': {
         'verbose_name': '端口范围',
@@ -936,4 +937,12 @@ BUILT_IN_VALIDATION_RULES = {
         'rule': "{\"planning\": \"规划中\", \"implementing\": \"实施中\", \"completed\": \"已完成\", \"closed\": \"已关闭\"}",
         'description': '项目状态'
     },
+    'cabinet_position': {
+        'verbose_name': 'U位',
+        'field_type': 'string',
+        'type': 'regex',
+        'rule': '^[0-9]{1,2}-[0-9]{1,2}$',
+        'editable': False,
+        'description': 'U位校验',
+    }
 }
