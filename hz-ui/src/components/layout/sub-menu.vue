@@ -8,7 +8,8 @@
         <component :is="pvar.menu.icon" />
       </el-icon> -->
       <el-icon>
-        <Icon :icon="pvar.menu.icon"></Icon>
+        <!-- <Icon :icon="pvar.menu.icon"></Icon> -->
+        <iconifyOffline :icon="pvar.menu.icon" />
       </el-icon>
       <!-- <span>{{ pvar.menu.icon }}</span> -->
       <span>{{ pvar.menu.label }}</span>
@@ -22,7 +23,8 @@
   </el-sub-menu>
   <el-menu-item :index="pvar.menu.name" v-else @click="goRouter(pvar.menu)">
     <el-icon>
-      <Icon :icon="pvar.menu.icon"></Icon>
+      <!-- <Icon :icon="pvar.menu.icon"></Icon> -->
+      <iconifyOffline :icon="pvar.menu.icon" />
     </el-icon>
 
     <template #title>{{ pvar.menu.label }}</template>

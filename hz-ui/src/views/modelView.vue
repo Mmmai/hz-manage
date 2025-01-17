@@ -86,7 +86,8 @@
             <el-space size="large">
               <el-icon :size="30">
                 <!-- <component :is="data.icon" /> -->
-                <Icon :icon="data.icon"></Icon>
+                <!-- <Icon :icon="data.icon"></Icon> -->
+                <iconifyOffline :icon="data.icon" />
               </el-icon>
               <el-space direction="vertical" size="small">
                 <el-text>
@@ -125,7 +126,10 @@
     >
       <el-form-item label="模型图标" prop="icon">
         <el-button @click="isShowIconSelect">
-          <el-icon><Icon :icon="modelForm.icon"></Icon></el-icon>
+          <el-icon>
+            <!-- <Icon :icon="modelForm.icon"></Icon> -->
+            <iconifyOffline :icon="modelForm.icon" />
+          </el-icon>
         </el-button>
         <iconSelectCom
           v-model:isShow="isShow"

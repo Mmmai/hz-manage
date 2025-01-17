@@ -3,10 +3,10 @@
     111
     <el-button v-permission="'other:edit'" @click="showPass">解密</el-button>
 
-
     <el-input v-model="testString"></el-input>
     <el-text>加密：{{ xmString }}</el-text>
     <el-text>解密：{{ jmString }}</el-text>
+    <iconifyOffline :icon="'ep:user'" />
   </div>
 
   <div class="table-box">

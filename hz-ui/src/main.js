@@ -16,6 +16,10 @@ import { createPinia } from 'pinia';
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
 import myCommand from "./utils/myCommand"
 import VueCountdown from '@chenfengyuan/vue-countdown';
+import iconifyOffline from './components/iconifyOffline.vue';
+// 加载图标
+// import epJson from '@iconify/json/json/ep.json'
+// import Iconify from '@iconify/icon'
 // 导入自定义样式
 import "@/styles/comm.scss";
 // 导入ant
@@ -30,6 +34,9 @@ import locale from "element-plus/es/locale/lang/zh-cn";
 const pinia = createPinia();
 pinia.use(piniaPluginPersistedstate)
 const app = createApp(App)
+
+app.component('iconifyOffline', iconifyOffline);
+
 app.component("iconfont-svg", iconfontSvg)
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component)

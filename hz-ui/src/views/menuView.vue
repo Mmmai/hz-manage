@@ -81,7 +81,9 @@
 
                 </el-icon> -->
                 <el-icon>
-                  <Icon :icon="scope.row.icon"></Icon>
+                  <!-- <Icon :icon="scope.row.icon"></Icon>
+                    -->
+                  <iconifyOffline :icon="scope.row.icon" />
                 </el-icon>
               </template>
               <template #default="scope" v-if="item.prop === 'buttons'">
@@ -209,8 +211,8 @@
             :icon="formInline.icon"
           ></el-button> -->
           <el-button @click="isShowIconSelect">
-            <Icon :icon="formInline.icon"></Icon
-          ></el-button>
+            <iconifyOffline :icon="formInline.icon" />
+          </el-button>
 
           <iconSelectCom
             v-model:isShow="isShow"

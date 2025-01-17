@@ -16,12 +16,15 @@
       >
         <div v-show="$store.state.isCollapse" class="top-icon">
           <!-- <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg> -->
-          <Icon icon="devicon:godot" width="32" height="32" style="margin-right: 5px;" />
-          <h5> HZ-MANAGE </h5>
+          <!-- <Icon icon="devicon:godot" width="32" height="32" style="margin-right: 5px;" /> -->
+          <iconifyOffline icon="devicon:godot" width="32" height="32" />
+
+          <h5>HZ-MANAGE</h5>
         </div>
         <div v-show="!$store.state.isCollapse" class="top-icon">
           <!-- <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg> -->
-           <Icon icon="devicon:godot"  />
+          <!-- <Icon icon="devicon:godot" /> -->
+          <iconifyOffline icon="devicon:godot" />
         </div>
         <submenu
           :menu="menu"

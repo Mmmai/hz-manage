@@ -25,7 +25,8 @@
           :class="currentIconName === name ? 'red' : ''"
           @click="selectIcon(name)"
         >
-          <Icon :icon="name" style="width: 1.2rem; height: 1.2rem"></Icon>
+          <!-- <Icon :icon="name" style="width: 1.2rem; height: 1.2rem"></Icon> -->
+          <iconifyOffline :icon="name" style="width: 1.2rem; height: 1.2rem" />
           <!-- {{ name }} -->
         </div>
       </div>
