@@ -2,7 +2,11 @@
   <div class="card">
     <el-form :model="formInline" class="demo-form-inline">
       <el-form-item label="密码密钥">
-        <span style="margin-right: 20px"> {{ gmConfig.key }}</span>
+        <span style="margin-right: 20px">
+          {{ gmConfig.key }}
+          <el-icon><CopyDocument v-copy="gmConfig.key" /></el-icon
+        ></span>
+
         <el-tooltip
           class="box-item"
           effect="dark"

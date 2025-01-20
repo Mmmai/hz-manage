@@ -1,12 +1,17 @@
 <template>
   <div class="main-box card" style="flex: 1; flex-direction: column">
-    111
-    <el-button v-permission="'other:edit'" @click="showPass">解密</el-button>
+    <VueDraggable
+      ref="el"
+      v-model="testList"
+      @end="onEnd"
+      style="width: 100%; overflow: auto"
+    >
+      <div v-for="(item, index) in testList" :key="index">
+        <el-card style="width: 40px">{{ item }}</el-card>
+      </div>
 
-    <el-input v-model="testString"></el-input>
-    <el-text>加密：{{ xmString }}</el-text>
-    <el-text>解密：{{ jmString }}</el-text>
-    <iconifyOffline :icon="'ep:user'" />
+      <!-- <el-icon><Close @click="toLeft(item)" /></el-icon> -->
+    </VueDraggable>
   </div>
 
   <div class="table-box">
@@ -26,7 +31,7 @@
       <div style="width: 100%; overflow: auto">
         <p
           :key="index"
-          v-for="(, index) in [
+          v-for="(item, index) in [
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
           ]"
         >
@@ -62,6 +67,7 @@
 
 <script lang="ts" setup>
 import iconSelectCom1 from "../components/iconSelectCom.vue";
+import { VueDraggable } from "vue-draggable-plus";
 
 import { CircleClose } from "@element-plus/icons-vue";
 import { Icon, listIcons } from "@iconify/vue";
@@ -88,6 +94,7 @@ watch(
     console.log(test.value);
   }
 );
+const testList = ref([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
 const options = [
   {
     value: 1,
@@ -187,4 +194,9 @@ onMounted(() => {
   console.log(jiamihou);
   console.log(decrypt_sm4(key, gmConfig.value.mode, jiamihou));
 });
+
+const onEnd = (e: DraggableEvent) => {
+  console.log("onEnd", e);
+  console.log(testList.value);
+};
 </script>
