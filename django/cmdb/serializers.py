@@ -411,7 +411,8 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
         if group_id:
             max_order = ModelFields.objects.filter(
                 model_field_group_id=group_id
-            ).aggregate(Max('order'))['order__max']
+            ).count()
+            logger.debug(f'Max order in group {group_id}: {max_order}')
             if value:
                 if not isinstance(value, int):
                     raise serializers.ValidationError({
@@ -421,13 +422,19 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError({
                         'order': 'Order must be greater than zero'
                     })
-                elif value > (int(max_order) if max_order else 1):
-                    logger.warning('Provided order value exceeds the maximum order in the group')
-                    return int(max_order) if max_order else 1
-            return 1 if not max_order else int(max_order) + 1
+                elif value > (ModelFields.objects.filter(model_field_group_id=group_id).count() + 1):
+                    target_order = ModelFields.objects.filter(model_field_group_id=group_id).count() + 1
+                    logger.warning(
+                        f'Provided order value exceeds the maximum order in the group, reset to {target_order}')
+                    return target_order
+                else:
+                    return value
+            else:
+                return int(max_order) + 1 if max_order else 1
 
     def update_field_order(self, instance, new_order, target_group=None):
         """更新字段排序"""
+        logger.debug(f'Updating field order for field {instance.name} to {new_order} in group {target_group}')
         with transaction.atomic():
             cur_group = instance.model_field_group_id
             cur_order = instance.order
@@ -467,16 +474,16 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
             return instance
 
     def create(self, validated_data):
-        if not validated_data.get('model_field_group') or not ModelFieldGroups.objects.filter(
-                id=validated_data['model_field_group'].id).exists():
+        if not validated_data.get('model_field_group') or \
+                not ModelFieldGroups.objects.filter(id=validated_data['model_field_group'].id).exists():
             validated_data['model_field_group'] = ModelFieldGroups.get_default_field_group(validated_data['model'])
 
         if 'order' not in validated_data or validated_data['order'] is None:
             model_field_group = validated_data.get('model_field_group')
-            max_order = ModelFields.objects.filter(model_field_group_id=model_field_group.id).\
-                aggregate(Max('order'))['order__max']
+            max_order = ModelFields.objects.filter(model_field_group_id=model_field_group.id).count()
             validated_data['order'] = 1 if not max_order else int(max_order) + 1
 
+        invalidate_model(ModelFields)
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
@@ -509,6 +516,7 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
                 new_order,
                 target_group.id if target_group else None
             )
+        invalidate_model(ModelFields)
         return super().update(instance, validated_data)
 
     def to_representation(self, instance):
