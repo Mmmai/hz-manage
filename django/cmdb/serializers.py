@@ -467,16 +467,16 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
             return instance
 
     def create(self, validated_data):
-        if 'order' not in validated_data or validated_data['order'] is None:
-            model = validated_data.get('model')
-            if model:
-                max_order = ModelFields.objects.filter(model=model).\
-                    aggregate(Max('order'))['order__max']
-                validated_data['order'] = 1 if not max_order else int(max_order) + 1
-
         if not validated_data.get('model_field_group') or not ModelFieldGroups.objects.filter(
                 id=validated_data['model_field_group'].id).exists():
             validated_data['model_field_group'] = ModelFieldGroups.get_default_field_group(validated_data['model'])
+
+        if 'order' not in validated_data or validated_data['order'] is None:
+            model_field_group = validated_data.get('model_field_group')
+            max_order = ModelFields.objects.filter(model_field_group_id=model_field_group.id).\
+                aggregate(Max('order'))['order__max']
+            validated_data['order'] = 1 if not max_order else int(max_order) + 1
+
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
