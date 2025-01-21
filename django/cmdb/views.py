@@ -22,6 +22,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q
 from django.db.models import Max, Case, When, Value, IntegerField
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 from .utils import password_handler, celery_manager
 from .excel import ExcelHandler
 from .constants import FieldMapping, limit_field_names
@@ -77,6 +78,7 @@ from .serializers import (
     RelationDefinitionSerializer,
     RelationsSerializer,
 )
+from .schemas import model_groups_schema
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +89,7 @@ class StandardResultsSetPagination(PageNumberPagination):
     max_page_size = 1000
 
 
+@model_groups_schema
 class ModelGroupsViewSet(viewsets.ModelViewSet):
     queryset = ModelGroups.objects.all().order_by('create_time')
     serializer_class = ModelGroupsSerializer
@@ -94,6 +97,33 @@ class ModelGroupsViewSet(viewsets.ModelViewSet):
     filterset_class = ModelGroupsFilter
     ordering_fields = ['name', 'built_in', 'editable', 'create_time', 'update_time']
     search_fields = ['name', 'description', 'create_user', 'update_user']
+
+    @extend_schema(
+        summary='创建模型分组',
+        description='为指定模型创建分组',
+        parameters=[
+            OpenApiParameter(
+                'model',
+                str,
+                OpenApiParameter.QUERY,
+                description='模型ID'
+            ),
+            OpenApiParameter(
+                'name',
+                str,
+                OpenApiParameter.QUERY,
+                description='分组名称'
+            )
+        ],
+        responses={201: ModelGroupsSerializer},
+        examples=[{
+            'name': '基础配置',
+            'description': '默认字段组',
+            'create_user': 'system'
+        }]
+    )
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
 
 
 class ModelsViewSet(viewsets.ModelViewSet):

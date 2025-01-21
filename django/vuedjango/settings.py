@@ -46,8 +46,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'django_filters',
     'import_export',
+    'drf_spectacular'
 ]
-
 
 
 MIDDLEWARE = [
@@ -93,21 +93,21 @@ DATABASES = {
         'HOST': '127.0.0.1',
         'PORT': '3306',
     },
-    'cmdb':{
-            'ENGINE': 'django.db.backends.mysql',
-            'NAME': 'cmdb',
-            'USER': 'root',
-            'PASSWORD': 'thinker',
-            'HOST': '127.0.0.1',
-            'PORT': '3306',
+    'cmdb': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'cmdb',
+        'USER': 'root',
+        'PASSWORD': 'thinker',
+        'HOST': '127.0.0.1',
+        'PORT': '3306',
     },
 }
 # 多数据库配置
 DATABASE_ROUTERS = ['vuedjango.db_router.database_router']
 DATABASE_APPS_MAPPING = {
-    'mlog':'default',
-    'mapi':'default',
-    'cmdb':'cmdb',
+    'mlog': 'default',
+    'mapi': 'default',
+    'cmdb': 'cmdb',
 }
 
 CACHEOPS_REDIS = {
@@ -119,10 +119,10 @@ CACHEOPS_REDIS = {
 }
 
 CACHEOPS = {
-    'cmdb.modelinstance': {'ops': 'all', 'timeout': 60*60},
-    'cmdb.modelfields': {'ops': 'all', 'timeout': 60*60},
-    'cmdb.modelfieldmeta': {'ops': 'all', 'timeout': 60*60},
-    'cmdb.validationrules': {'ops': 'all', 'timeout': 60*60},
+    'cmdb.modelinstance': {'ops': 'all', 'timeout': 60 * 60},
+    'cmdb.modelfields': {'ops': 'all', 'timeout': 60 * 60},
+    'cmdb.modelfieldmeta': {'ops': 'all', 'timeout': 60 * 60},
+    'cmdb.validationrules': {'ops': 'all', 'timeout': 60 * 60},
 }
 
 CACHEOPS_ENABLED = True
@@ -175,6 +175,42 @@ ZABBIX_CONFIG = {
     'interval': int(os.environ.get('ZABBIX_INTERVAL', 0))  # 自动注销时间，维护token用，单位秒，0表示不自动注销
 }
 
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'CMDB API',
+    'DESCRIPTION': 'CMDB系统API文档',
+    'VERSION': '1.0.0',
+    # UI设置
+    'SWAGGER_UI_SETTINGS': {
+        'persistAuthorization': True,
+        'displayOperationId': True,
+        'filter': True,
+        'deepLinking': True,
+    },
+    # 认证设置
+    'SECURITY': [
+        {'Bearer': []},
+    ],
+    # 分组设置
+    'TAGS': [
+        {'name': '模型分组', 'description': '模型分组相关接口'},
+        {'name': '模型管理', 'description': '模型相关接口'},
+        {'name': '字段分组', 'description': '字段分组相关接口'},
+        {'name': '字段校验规则', 'description': '字段校验规则相关接口'},
+        {'name': '字段管理', 'description': '字段相关接口'},
+        {'name': '字段偏好设置', 'description': '字段偏好设置相关接口'},
+        {'name': '字段元数据', 'description': '字段元数据相关接口'},
+        {'name': '实例唯一性校验', 'description': '实例唯一性校验相关接口'},
+        {'name': '模型实例', 'description': '模型实例相关接口'},
+        {'name': '实例分组', 'description': '实例分组相关接口'},
+        {'name': '实例分组关联', 'description': '实例分组关联相关接口'},
+    ],
+    # 扩展设置
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SCHEMA_PATH_PREFIX': '/api/v1',
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+
+}
+
 # Password validation
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
 
@@ -216,7 +252,10 @@ STATIC_URL = '/static/'
 # jwt全局认证
 REST_FRAMEWORK = {
     # jwt全局认证
-    'DEFAULT_AUTHENTICATION_CLASSES': ['mapi.extensions.jwt_authenticate.JWTQueryParamsAuthentication',],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+    # 'DEFAULT_AUTHENTICATION_CLASSES': ['mapi.extensions.jwt_authenticate.JWTQueryParamsAuthentication',],
     # 'DEFAULT_FILTER_BACKENDS': ('django_filters.rest_framework.DjangoFilterBackend',),
     'DEFAULT_PAGINATION_CLASS': 'mapi.extensions.pagination.StandardResultsSetPagination',
 
