@@ -8,6 +8,7 @@ const path = {
   cmdbCiModelGroup: "/api/v1/cmdb/model_groups/",
   cmdbCiModelField: "/api/v1/cmdb/model_fields/",
   cmdbCiModelFieldGroup: "/api/v1/cmdb/model_field_groups/",
+
   cmdbValidationRules: "/api/v1/cmdb/validation_rules/",
   cmdbCiModelUnique: "/api/v1/cmdb/unique_constraint/",
   cmdbCiModelInstance: "/api/v1/cmdb/model_instance/",

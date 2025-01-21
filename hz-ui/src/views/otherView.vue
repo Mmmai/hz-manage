@@ -4,9 +4,23 @@
       ref="el"
       v-model="testList"
       @end="onEnd"
+      group="xxxx"
       style="width: 100%; overflow: auto"
     >
       <div v-for="(item, index) in testList" :key="index">
+        <el-card style="width: 40px">{{ item }}</el-card>
+      </div>
+
+      <!-- <el-icon><Close @click="toLeft(item)" /></el-icon> -->
+    </VueDraggable>
+    <VueDraggable
+      group="xxxx"
+      ref="el"
+      v-model="testList2"
+      @end="onEnd"
+      style="width: 100%; overflow: auto"
+    >
+      <div v-for="(item, index) in testList2" :key="index">
         <el-card style="width: 40px">{{ item }}</el-card>
       </div>
 
@@ -94,7 +108,9 @@ watch(
     console.log(test.value);
   }
 );
-const testList = ref([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+const testList = ref([1, 2, 3, 4, 5, 6]);
+const testList2 = ref([7, 8, 9, 10, 11, 12]);
+
 const options = [
   {
     value: 1,

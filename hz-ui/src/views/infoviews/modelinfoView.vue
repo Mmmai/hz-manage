@@ -54,11 +54,8 @@
         @tab-click="handleClick"
       >
         <el-tab-pane label="模型字段" name="field">
-          <ciModelField
-            ref="ciModelFieldRef"
-            v-model:ciModelInfo="ciModelInfo"
-            @getModelField="setModelField"
-          />
+          <ciModelField ref="ciModelFieldRef" />
+          <!-- @getModelField="setModelField" -->
         </el-tab-pane>
         <el-tab-pane label="唯一校验" name="verification">
           <ciModelUnique
@@ -70,35 +67,6 @@
         <!-- <el-tab-pane label="Role" verbose_name="third">Role</el-tab-pane>
     <el-tab-pane label="Task" verbose_name="fourth">Task</el-tab-pane> -->
       </el-tabs>
-      <!-- 模型字段显示 -->
-      <!-- <el-input v-model="input" style="width: 240px" placeholder="Please input" /> -->
-      <!-- <div v-if="tabName === 'field'"> -->
-      <!-- <el-space wrap :size="30" alignment="flex-start">
-    <el-card shadow="hover" v-for="data, index in ciModelInfo.field" :key="index" class="modelCard">
-      <el-space size="large">
-        <el-icon :size="30">
-          <component :is="data.icon" />
-        </el-icon>
-        <el-space direction="vertical" size="small">
-          <el-text tag="b">
-            {{ data.verbose_name }}
-          </el-text>
-
-          <el-text>
-
-            {{ data.name }}
-          </el-text>
-
-        </el-space>
-      </el-space>
-    </el-card>
-
-  </el-space> -->
-
-      <!-- </div>
-      <div v-else-if="tabName === 'verification'">
-        
-      </div> -->
     </el-scrollbar>
   </div>
 
@@ -166,12 +134,16 @@ import {
   toRefs,
   onActivated,
   watch,
+  onUnmounted,
+  onBeforeMount,
+  computed,
 } from "vue";
 import iconSelectCom from "../../components/iconSelectCom.vue";
 import { useStore } from "vuex";
 import { useRouter, useRoute } from "vue-router";
 const route = useRoute();
-
+import useTabsStore from "@/store/tabs";
+const tabsStore = useTabsStore();
 import type { ComponentSize, FormInstance, FormRules } from "element-plus";
 import ciModelField from "../../components/cmdb/ciModelField.vue";
 import ciModelUnique from "../../components/cmdb/ciModelUnique.vue";
@@ -193,7 +165,11 @@ const getCiModelGroupList = async () => {
   grouplist.value = res.data.results;
   console.log(grouplist.value);
 };
-
+const ciModelInfo = ref({});
+const getModelInfo = async () => {
+  let res = await proxy.$api.getCiModel(route.query, route.query.id);
+  ciModelInfo.value = res.data.model;
+};
 // 子组件传递模型字段给父组件
 const modelFieldLists = ref([]);
 const setModelField = (params) => {
@@ -211,8 +187,7 @@ const handleClick = (tab: TabsPaneContext, event: Event) => {
   if (tab.props.name === "verification") {
     ciModelUniqueRef.value!.getTableData({ model: modelId.value });
   } else if (tab.props.name === "field") {
-    console.log(123);
-    ciModelFieldRef.value!.getModelField();
+    // ciModelFieldRef.value!.getModelField();
   }
 };
 const tabName = ref("field");
@@ -236,16 +211,11 @@ const isShowIconSelect = () => {
   isShow.value = true;
 };
 const iconName = ref("ElemeFilled");
-watch(
-  () => iconName.value,
-  (n) => {
-    console.log(n);
-  }
-);
-const ciModelInfo = ref({});
+
 const modelId = computed(() => {
   return ciModelInfo.value?.id;
 });
+
 // 获取CI模型属性
 // const getCiModelInfo = async (params, id) => {
 //   let res = await proxy.$api.getCiModel(params, id)
@@ -372,9 +342,6 @@ const resetForm = (formEl: FormInstance | undefined) => {
   formEl.resetFields();
 };
 
-import useTabsStore from "@/store/tabs";
-const tabsStore = useTabsStore();
-
 const deleteCiModel = (params) => {
   ElMessageBox.confirm("是否确认删除?", "删除组", {
     confirmButtonText: "确认删除",
@@ -454,9 +421,6 @@ const getModelField = async () => {
   ciModelFieldsRes.value = res.data.field_groups;
 };
 
-import { onUnmounted, onBeforeMount, computed } from "vue";
-import { nextTick } from "process";
-
 // watch(route,async(n,o)=>{
 //   console.log(n.fullPath,o.fullPath)
 //   if (n.name == "model_info"){
@@ -470,6 +434,7 @@ import { nextTick } from "process";
 onMounted(async () => {
   console.log("onMount");
   // await getCiModelInfo(route.query, route.query.id)
+  await getModelInfo();
   await ciModelFieldRef.value!.getModelField();
   await ciModelFieldRef.value!.getCiModelList();
   await ciModelFieldRef.value!.getRules();
