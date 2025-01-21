@@ -422,8 +422,8 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError({
                         'order': 'Order must be greater than zero'
                     })
-                elif value > (ModelFields.objects.filter(model_field_group_id=group_id).count() + 1):
-                    target_order = ModelFields.objects.filter(model_field_group_id=group_id).count() + 1
+                elif value > max_order + (1 if not instance else 0):
+                    target_order = max_order + (1 if not instance else 0)
                     logger.warning(
                         f'Provided order value exceeds the maximum order in the group, reset to {target_order}')
                     return target_order
@@ -448,7 +448,7 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
 
                 ModelFields.objects.filter(
                     model_field_group_id=target_group,
-                    order__gt=new_order
+                    order__gte=new_order
                 ).update(order=F('order') + 1)
 
                 instance.model_field_group_id = target_group
