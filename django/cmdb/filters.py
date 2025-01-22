@@ -310,6 +310,8 @@ class ModelInstanceGroupFilter(filters.FilterSet):
     model = filters.UUIDFilter(field_name='model')
     parent = filters.UUIDFilter(field_name='parent')
     level = filters.NumberFilter(field_name='level')
+    order = filters.NumberFilter(field_name='order')
+    path = filters.CharFilter(field_name='path', lookup_expr='icontains')
     built_in = filters.BooleanFilter(field_name='built_in')
     create_time_after = filters.DateTimeFilter(field_name='create_time', lookup_expr='gte')
     create_time_before = filters.DateTimeFilter(field_name='create_time', lookup_expr='lte')
@@ -323,6 +325,8 @@ class ModelInstanceGroupFilter(filters.FilterSet):
             'model',
             'parent',
             'level',
+            'order',
+            'path',
             'built_in',
             'create_time_after',
             'create_time_before',

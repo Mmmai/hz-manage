@@ -138,7 +138,7 @@ class ValidationRules(models.Model):
     @classmethod
     def get_enum_dict(cls, rule_id):
 
-        @cached_as(ValidationRules, timeout=60*60)
+        @cached_as(ValidationRules, timeout=60 * 60)
         def _get_enum_dict(rule_id):
             """获取枚举规则字典"""
             try:
@@ -279,11 +279,31 @@ class ModelInstanceGroup(models.Model):
     model = models.ForeignKey('Models', on_delete=models.CASCADE, null=False, blank=False)
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=False)
     level = models.IntegerField(default=1, null=False, blank=False)
+    path = models.CharField(max_length=200, null=True, blank=True)
+    order = models.IntegerField(blank=True, null=True, db_index=True)
     built_in = models.BooleanField(default=False, null=False, blank=False)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
+
+    def save(self, *args, **kwargs):
+        if not self.path:
+            self.path = self.get_path()
+        super().save(*args, **kwargs)
+
+    def get_path(self):
+        if self.parent:
+            return f'{self.parent.path}/{self.label}'
+        return self.label
+
+    def update_child_path(self):
+        """更新子分组的path"""
+        children = self.__class__.objects.filter(parent=self)
+        for child in children:
+            child.path = child.get_path()
+            child.save()
+            child.update_child_path()
 
     @classmethod
     def get_root_group(cls, model):
@@ -295,6 +315,8 @@ class ModelInstanceGroup(models.Model):
                 'label': '所有',
                 'built_in': True,
                 'level': 1,
+                'path': '所有',
+                'order': 1,
                 'create_user': 'system',
                 'update_user': 'system'
             }
@@ -312,6 +334,8 @@ class ModelInstanceGroup(models.Model):
             defaults={
                 'built_in': True,
                 'level': 2,
+                'path': '所有/空闲池',
+                'order': 1,
                 'create_user': 'system',
                 'update_user': 'system'
             }
