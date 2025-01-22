@@ -391,3 +391,18 @@ def delete_zabbix_host(sender, instance, **kwargs):
     logger.info(f'Scheduling delayed process for instance {instance.id}')
     transaction.on_commit(delayed_process)
     logger.info(f'Deleting Zabbix host for instance {instance.id} completed')
+
+
+@receiver(post_save, sender=ModelInstanceGroup)
+def handle_group_path(sender, instance, created, **kwargs):
+    """处理实例分组path更新"""
+    try:
+        if created:
+            instance.path = instance.get_path()
+            instance.save()
+        elif instance.path != instance.get_path():
+            instance.path = instance.get_path()
+            instance.save()
+            instance.update_child_path()
+    except Exception as e:
+        logger.error(f"Update group path error: {str(e)}")

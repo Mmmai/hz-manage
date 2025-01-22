@@ -813,7 +813,7 @@ class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
     serializer_class = ModelInstanceGroupSerializer
     pagination_class = StandardResultsSetPagination
     filterset_class = ModelInstanceGroupFilter
-    ordering_fields = ['label', 'create_time', 'update_time']
+    ordering_fields = ['label', 'order', 'path', 'create_time', 'update_time']
 
     def _build_model_groups_tree(self):
         """构建所有模型的分组树"""
@@ -824,7 +824,7 @@ class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
             root_groups = ModelInstanceGroup.objects.filter(
                 model=model,
                 parent=None
-            ).order_by('label')
+            ).order_by('order')
 
             if root_groups.exists():
                 result[str(model.id)] = {
@@ -902,6 +902,28 @@ class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
             raise PermissionDenied({
                 'detail': 'Cannot modify root group "所有"'
             })
+
+    def update(self, request, *args, **kwargs):
+        """禁止更新内置分组"""
+        instance = self.get_object()
+        self._check_root_group_operation(instance)
+
+        target_id = request.data.get('target_id')
+        position = request.data.get('position')
+
+        if target_id and position:
+            serializer = self.get_serializer(
+                instance,
+                data=request.data,
+                partial=True,
+                context={
+                    'target_id': target_id,
+                    'position': position
+                })
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+
+        return Response(serializer.data)
 
     def destroy(self, request, *args, **kwargs):
         """禁止删除内置分组"""
