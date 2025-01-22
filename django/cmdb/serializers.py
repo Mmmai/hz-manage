@@ -814,12 +814,16 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
 
     def get_instance_group(self, obj):
         """获取实例关联的分组列表"""
-        group_ids = ModelInstanceGroupRelation.objects.filter(
+        groups = ModelInstanceGroupRelation.objects.filter(
             instance=obj
-        ).values_list('group_id', flat=True)
-        if group_ids:
-            return [str(group_id) for group_id in group_ids]
-        return None
+        ).select_related('group').values_list('group_id', 'group__path')
+
+        return [
+            {
+                'group_id': group_id,
+                'group_path': group_path
+            } for group_id, group_path in groups
+        ] if groups else None
 
     def get_field_values(self, obj):
         """获取实例的字段值"""
@@ -1332,10 +1336,10 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ModelInstanceGroup
-        fields = ['id', 'label', 'path', 'children', 'count', 'built_in', 'level', 'model', 'parent']
+        fields = ['id', 'label', 'children', 'count', 'built_in', 'level', 'model', 'parent']
 
     def get_children(self, obj):
-        children = ModelInstanceGroup.objects.filter(parent=obj).order_by('order')
+        children = ModelInstanceGroup.objects.filter(parent=obj)
         return ModelInstanceGroupSerializer(children, many=True).data
 
     def get_count(self, obj):
@@ -1363,7 +1367,6 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
             'instance_count': self.get_count(instance),
             'built_in': instance.built_in,
             'level': instance.level,
-            'path': instance.path,
             'children': self.get_children(instance),
         }
 
@@ -1556,47 +1559,18 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
 
         return None
 
-    def update_group_order(self, instance, target_id, position):
-        with transaction.atomic():
-            target = ModelInstanceGroup.objects.get(id=target_id)
-            groups = ModelInstanceGroup.objects.filter(parent=instance.parent)
-
-            target_order = target.order + 1 if position == 'after' else target.order
-            if target_order < 0:
-                target_order = 1
-            elif target_order > groups.count():
-                target_order = groups.count()
-            if target_order > instance.order:
-                groups.filter(
-                    order__gt=instance.order,
-                    order__lte=target_order
-                ).update(order=F('order') - 1)
-                instance.order = target_order
-            else:
-                groups.filter(
-                    order__lt=instance.order,
-                    order__gte=target_order
-                ).update(order=F('order') + 1)
-                instance.order = target_order + 1
-
-            instance.save()
-            return instance
-
     def create(self, validated_data):
         """创建分组时设置正确的层级"""
         parent = validated_data.get('parent')
-        order = validated_data.get('order')
         if parent:
             validated_data['level'] = parent.level + 1
             if parent.built_in and parent.label == '空闲池':
+                # complete error information
                 raise ValidationError({
                     'Instance group': 'Cannot create group under idle pool'
                 })
         else:
-            raise ValidationError({
-                'Instance group': 'Parent group is required'
-            })
-        validated_data['order'] = ModelInstanceGroup.objects.filter(parent=parent).count() + 1
+            validated_data['level'] = 1
         with transaction.atomic():
             instance = super().create(validated_data)
             if parent and ModelInstanceGroupRelation.objects.filter(group=parent).exists():
@@ -1610,11 +1584,6 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         """更新分组"""
         try:
-            target_id = self.context.get('target_id')
-            position = self.context.get('position')
-            if target_id and position:
-                self.update_group_order(instance, target_id, position)
-
             with transaction.atomic():
                 groups_to_update = [instance]
                 # 如果更改了父分组
