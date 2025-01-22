@@ -387,18 +387,19 @@
     :before-close="ciDataHandleClose"
   >
     <template #header>
-      <el-descriptions title="实例信息">
+      <el-descriptions title="实例信息" v-if="!commitActionAdd">
         <el-descriptions-item label="唯一标识">{{
           currentRow?.instance_name
         }}</el-descriptions-item>
-        <el-descriptions-item label="所属分组">{{
-          currentRow?.instance_name
-        }}</el-descriptions-item>
+        <el-descriptions-item label="所属分组">
+          <el-text
+            :key="igIndex"
+            v-for="(igItem, igIndex) in currentRow?.instance_group"
+            >{{ igItem.group_path }}</el-text
+          >
+        </el-descriptions-item>
       </el-descriptions>
-      <!-- <el-text tag="b"
-        >实例信息
-        <el-text tag="sub">{{ currentRow?.instance_name }}</el-text>
-      </el-text> -->
+      <el-text v-else tag="b">实例信息 </el-text>
     </template>
     <template #default>
       <el-tabs
@@ -1033,11 +1034,25 @@
             </el-collapse>
           </el-form>
         </el-tab-pane>
-        <el-tab-pane label="监控信息" name="monitor" disabled>111</el-tab-pane>
-        <el-tab-pane label="关联关系" name="relations" disabled
+        <el-tab-pane
+          label="监控信息"
+          name="monitor"
+          disabled
+          v-if="!commitActionAdd"
+          >111</el-tab-pane
+        >
+        <el-tab-pane
+          label="关联关系"
+          name="relations"
+          disabled
+          v-if="!commitActionAdd"
           >222</el-tab-pane
         >
-        <el-tab-pane label="变更记录" name="changelog" disabled
+        <el-tab-pane
+          label="变更记录"
+          name="changelog"
+          disabled
+          v-if="!commitActionAdd"
           >Role</el-tab-pane
         >
       </el-tabs>
@@ -1060,9 +1075,10 @@
               v-permission="`${route.name?.replace('_info', '')}:delete`"
               type="danger"
               @click="ciDataDelete"
-              v-if="currentRow.instance_group?.indexOf(treeIdleId) !== -1"
+              v-if="isDelete(currentRow?.instance_group)"
               >删除</el-button
             >
+            <!-- v-if="currentRow.instance_group?.indexOf(treeIdleId) !== -1" -->
             <el-tooltip
               v-permission="`${route.name?.replace('_info', '')}:delete`"
               content="无法删除非空闲池的主机"
@@ -2006,7 +2022,10 @@ const reloadWind = () => {
 // console.log(allModelFieldInfo.value)
 // watch(() => hasConfigField.value, (n,) => {
 // }, { deep: true })
-
+const isDelete = (params) => {
+  let tempArr = params.map((item) => item.id === treeIdleId.value);
+  return tempArr.length >> 0;
+};
 // 枚举类的字段下拉框
 // 获取所有枚举类的字典
 const validationRulesObj = ref({});
