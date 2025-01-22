@@ -845,8 +845,10 @@ const exportDataSelect = () => {
   exportData({ rowid: mulSelectArr.value });
 };
 // 导出模板
-const exportTemplate = () => {
-  exportData({ template: 111 });
+const exportTemplate = async () => {
+  // exportData({ template: 111 });
+  let res = await proxy.$api.portalTemplateExport();
+  console.log(res);
 };
 
 // 查询功能

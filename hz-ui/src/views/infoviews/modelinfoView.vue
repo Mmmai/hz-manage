@@ -5,7 +5,8 @@
         <el-col :span="20">
           <el-space :size="30" style="width: 40%">
             <el-button size="large" circle disabled style="margin: 10px">
-              <Icon :icon="ciModelInfo.icon"></Icon>
+              <!-- <Icon :icon="ciModelInfo.icon"></Icon> -->
+              <iconifyOffline :icon="ciModelInfo?.icon" />
             </el-button>
 
             <!-- </div> -->
@@ -19,6 +20,13 @@
             <el-text
               >名称:&nbsp;&nbsp;
               <el-text tag="b">{{ ciModelInfo.verbose_name }}</el-text>
+            </el-text>
+
+            <el-text
+              >实例数:&nbsp;&nbsp;
+              <el-link type="primary" tag="b" disabled href="/#/cmdb/cidata">{{
+                ciModelInfo.instance_count
+              }}</el-link>
             </el-text>
           </el-space>
         </el-col>
@@ -147,7 +155,6 @@ const tabsStore = useTabsStore();
 import type { ComponentSize, FormInstance, FormRules } from "element-plus";
 import ciModelField from "../../components/cmdb/ciModelField.vue";
 import ciModelUnique from "../../components/cmdb/ciModelUnique.vue";
-import { Icon } from "@iconify/vue";
 
 const ciModelUniqueRef = ref("");
 const ciModelFieldRef = ref("");

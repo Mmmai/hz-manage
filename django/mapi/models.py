@@ -89,33 +89,6 @@ class Menu(models.Model):
     
     def __str__(self):
         return self.name
-    # # 菜单创建时，自动创建
-    # def save(self, *args, **kwargs):
-    #     print(123)
-    #     print(self.pk)
-    #     print(456)
-
-    #     if self.pk is None: 
-    #         print('我是新增')
-    #         super().save(*args, **kwargs)
-    #         # 同步新增管理员的权限
-    #         if not self.is_menu:
-    #             return
-    #         role_obj = Role.objects.get(role="管理员")
-    #         # 定义需要添加的按钮
-    #         buttons = [
-    #             Button(name='查看', action='view',menu=self),
-    #             Button(name='添加', action='add',menu=self),
-    #             Button(name='删除', action='delete',menu=self),
-    #             Button(name='修改', action='edit',menu=self)
-    #         ]
-    #         for button in buttons:
-    #             button.save()
-    #             Permission.objects.create(menu=self, button=button,role=role_obj)
-    #             print(f"创建按钮<{button.name}>及授予管理员权限!")
-    #     else:
-    #         super().save(*args, **kwargs)
-
 
     class Meta:
         db_table = "tb_menu"
@@ -168,20 +141,18 @@ class Permission(models.Model):
 class Portal(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(verbose_name='名称',max_length=32,null=False,unique=True)
-    describe = models.CharField(verbose_name='描述',max_length=256,null=True,blank=True,default="")
-    username = models.CharField(verbose_name='用户名',max_length=32,null=True,blank=True,default="")
-    password = models.CharField(verbose_name='密码',max_length=32,null=True,blank=True,default="")
     url = models.CharField(max_length=256, verbose_name="链接地址",null=False,default="")
     # token = models.CharField(max_length=128,null=True,blank=True)
-
     status = models.BooleanField(verbose_name="状态",default=True)
-    update_time = models.DateTimeField(auto_now=True)
-    create_time = models.DateTimeField(auto_now_add=True)
+    username = models.CharField(verbose_name='用户名',max_length=32,null=True,blank=True,default="")
+    password = models.CharField(verbose_name='密码',max_length=32,null=True,blank=True,default="")
     target = models.BooleanField(verbose_name="跳转方式",default=True)
     group = models.ForeignKey('Pgroup',on_delete=models.CASCADE,verbose_name="分组",db_column='group')
     # owner = models.ForeignKey('Userinfo',on_delete=models.CASCADE,db_column='owner')
-    sort = models.IntegerField(null=True,blank=True,default=0,verbose_name="排序")
-
+    describe = models.CharField(verbose_name='描述',max_length=256,null=True,blank=True,default="")
+    sort = models.IntegerField(blank=True, null=True, db_index=True)
+    update_time = models.DateTimeField(auto_now=True)
+    create_time = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = (('name'),)

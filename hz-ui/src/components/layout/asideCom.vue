@@ -19,7 +19,8 @@
           <!-- <Icon icon="devicon:godot" width="32" height="32" style="margin-right: 5px;" /> -->
           <iconifyOffline icon="devicon:godot" width="32" height="32" />
 
-          <h5>HZ-MANAGE</h5>
+          <!-- <h5>HZ-MANAGE</h5> -->
+          <h4 style="margin-left: 10px">智维</h4>
         </div>
         <div v-show="!$store.state.isCollapse" class="top-icon">
           <!-- <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg> -->

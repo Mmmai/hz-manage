@@ -25,7 +25,7 @@ from django.shortcuts import get_object_or_404
 import json
 from django.conf import settings
 from mapi.extensions.pagination import StandardResultsSetPagination
-
+from .export import exportHandler
 def getRolePermissionList(role_ids):
     allPermissionList = []
     for role_id in role_ids:
@@ -362,7 +362,26 @@ class PortalViewSet(ModelViewSet):
             get_object_or_404(Portal, id=int(pk)).delete()
 
         return Response(data='delete success', status=status.HTTP_204_NO_CONTENT)
-
+    @action(methods=['post'], detail=False)
+    def export_template(self, request, *args, **kwargs):
+        # request.data.body('pks', None)
+        # 获取Pg字段和列表
+        model_fields = Portal._meta.fields
+        colList = [["名称","链接地址","状态","分组","用户名","密码"],[1,2,3,4,5,6]]
+        # for i in model_fields:
+        #     # print(type(i))
+        #     # print(i.verbose_name)
+        #     if i.name in ["id","update_time","create_time"]:
+        #         continue
+        #     colList.append(i.verbose_name)
+        excel_handler = exportHandler()
+        wb = excel_handler.get_template(colList=colList)
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        # 设置文件的名称，让浏览器提示用户保存文件
+        response['Content-Disposition'] = 'attachment; filename="portal_template.xlsx"'
+        wb.save(response)
+        return response
+        # return Response(data='delete success', status=status.HTTP_200_OK)
 
 
 class PgroupViewSet(ModelViewSet):
@@ -398,8 +417,6 @@ class PgroupViewSet(ModelViewSet):
             get_object_or_404(Pgroup, id=int(pk)).delete()
 
         return Response(data='delete success', status=status.HTTP_204_NO_CONTENT)
-
-
 
 class dataSourceViewSet(ModelViewSet):
     queryset = Datasource.objects.all()

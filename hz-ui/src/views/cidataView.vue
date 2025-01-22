@@ -36,7 +36,7 @@
       :allow-drop="allowDrop"
       :allow-drag="allowDrag"
       :data="treeData"
-      :draggable="false"
+      :draggable="true"
       default-expand-all
       node-key="id"
       @node-drag-start="handleDragStart"
@@ -95,35 +95,38 @@
                 <DownOutlined @click.stop />
                 <template #overlay>
                   <a-menu>
-                    <div v-permission="`${route.name?.replace('_info', '')}:add`"
+                    <div
+                      v-permission="`${route.name?.replace('_info', '')}:add`"
                     >
-                    <a-menu-item
-                      key="0"
-                      v-if="data.level === 1 ? false : true"
-                      @click="appendBroNode(node, data)"
+                      <a-menu-item
+                        key="0"
+                        v-if="data.level === 1 ? false : true"
+                        @click="appendBroNode(node, data)"
+                      >
+                        添加同级节点
+                      </a-menu-item>
+
+                      <a-menu-item
+                        key="1"
+                        v-if="canAddChildNone(data)"
+                        @click="appendChildNode(node, data)"
+                      >
+                        添加子节点
+                      </a-menu-item>
+                    </div>
+                    <div
+                      v-permission="
+                        `${route.name?.replace('_info', '')}:delete`
+                      "
                     >
-                      添加同级节点
-                    </a-menu-item>
-                   
-                    
-                    <a-menu-item
-                      key="1"
-                      v-if="canAddChildNone(data)"
-                      @click="appendChildNode(node, data)"
-                    >
-                      添加子节点
-                    </a-menu-item>
-                  </div>
-                  <div v-permission="`${route.name?.replace('_info', '')}:delete`">
-                    <a-menu-item
-                      key="2"
-                      v-if="canDeleteNode(data)"
-                      @click="deleteNode(node)"
-                    >
-                      删除节点
-                    </a-menu-item>
-                  </div>
-      
+                      <a-menu-item
+                        key="2"
+                        v-if="canDeleteNode(data)"
+                        @click="deleteNode(node)"
+                      >
+                        删除节点
+                      </a-menu-item>
+                    </div>
                   </a-menu>
                 </template>
               </a-dropdown>
@@ -524,21 +527,28 @@ const handleDragEnd = async (
   // console.log('111---:',dragBeforeNode.value)
   if (dropNode.data.id === draggingNode.data.id) return;
   // return
-  let params = {};
-  if (dropType === "inner") {
-    params = { id: draggingNode.data.id, parent: dropNode.data.id };
-  } else {
-    params = { id: draggingNode.data.id, parent: dropNode.parent.data.id };
-  }
-  let res = await proxy.$api.updateCiModelTree(params);
+  // let params = {};
+  // if (dropType === "inner") {
+  //   params = { id: draggingNode.data.id, parent: dropNode.data.id };
+  // } else {
+  //   params = { id: draggingNode.data.id, parent: dropNode.parent.data.id };
+  // }
+  // console.log(draggingNode);
+  // console.log(dropNode);
+  // return;
+  let res = await proxy.$api.updateCiModelTree({
+    id: draggingNode.data.id,
+    target_id: dropNode.data.id,
+    position: dropType,
+  });
   if (res.status == "200") {
-    ElMessage({ type: "success", message: "更新成功" });
+    ElMessage({ type: "success", message: "更新排序成功" });
     // 重置表单
     getCiModelTree();
   } else {
     ElMessage({
       showClose: true,
-      message: "更新失败:" + JSON.stringify(res.data),
+      message: "更新排序失败:" + JSON.stringify(res.data),
       type: "error",
     });
   }
@@ -559,17 +569,22 @@ const allowDrop = (draggingNode: Node, dropNode: Node, type: AllowDropType) => {
   if (dropNode.data.built_in) {
     return false;
   } else {
-    // 当拖拽节点变化后的总层数大于5时，就不能进入这个节点的，以及它的前后
-    let _tempLevel = maxLevel.value - draggingNode.data.level;
-
-    if (_tempLevel + dropNode.data.level >= maxLevel.value) {
-      if (type === "inner") {
-        return false;
-      } else {
-        return true;
-      }
+    if (type !== "inner") {
+      return true;
+    } else {
+      return false;
     }
-    return true;
+    // 当拖拽节点变化后的总层数大于5时，就不能进入这个节点的，以及它的前后
+    // let _tempLevel = maxLevel.value - draggingNode.data.level;
+
+    // if (_tempLevel + dropNode.data.level >= maxLevel.value) {
+    //   if (type === "inner") {
+    //     return false;
+    //   } else {
+    //     return true;
+    //   }
+    // }
+    // return true;
   }
 };
 const allowDrag = (draggingNode: Node) => {

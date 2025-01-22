@@ -2,7 +2,7 @@
   <div>
     <el-collapse v-model="activeArr">
       <el-collapse-item
-        :name="fieldGroup.verbose_name"
+        :name="fieldGroup.name"
         v-for="(fieldGroup, index) in ciModelFieldsList"
         :key="index"
       >
@@ -58,6 +58,8 @@
         <div>
           <!-- <el-space wrap :size="10" alignment="flex-start"> -->
           <VueDraggable
+            :force-fallback="true"
+            :scroll-sensitivity="200"
             ref="el"
             group="modelField"
             v-model="fieldGroup.fields"
@@ -603,7 +605,7 @@ const getModelField = async () => {
   let res = await proxy.$api.getCiModel(route.query, route.query.id);
   modelInfo.value = res.data.model;
   ciModelFieldsList.value = res.data.field_groups;
-  activeArr.value = res.data.field_groups.map((item) => item.verbose_name);
+  activeArr.value = res.data.field_groups.map((item) => item.name);
   // let tempArr = [];
   // ciModelFieldsList.value.forEach((item, index) => {
   //   activeArr.value.push(item.verbose_name);
