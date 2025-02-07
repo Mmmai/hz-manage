@@ -56,7 +56,21 @@
           </div>
         </template>
         <div>
-          <el-space wrap :size="10" alignment="flex-start">
+          <!-- <el-space wrap :size="10" alignment="flex-start"> -->
+          <VueDraggable
+            ref="el"
+            group="modelField"
+            v-model="fieldGroup.fields"
+            @end="onEnd($event, fieldGroup)"
+            @add="onAdd($event, fieldGroup)"
+            style="
+              width: 100%;
+              flex-wrap: wrap;
+              display: flex;
+              gap: 10px;
+              justify-items: flex-start;
+            "
+          >
             <div v-for="(data, index) in fieldGroup.fields" :key="index">
               <el-tooltip effect="light" content="点击编辑字段" placement="top">
                 <el-card
@@ -103,7 +117,9 @@
                 <el-text type="primary">+ 添加字段</el-text>
               </el-card>
             </div>
-          </el-space>
+          </VueDraggable>
+
+          <!-- </el-space> -->
         </div>
       </el-collapse-item>
     </el-collapse>
@@ -388,6 +404,8 @@ import {
 } from "vue";
 // import { Delete, Filter,CirclePlus } from '@element-plus/icons-vue'
 const { proxy } = getCurrentInstance();
+import { VueDraggable } from "vue-draggable-plus";
+
 import { useRoute, useRouter } from "vue-router";
 import { ElMessageBox, ElMessage } from "element-plus";
 import type { ComponentSize, FormInstance, FormRules } from "element-plus";
@@ -404,7 +422,7 @@ import { useStore } from "vuex";
 const store = useStore();
 
 const route = useRoute();
-const emits = defineEmits(["getModelField"]);
+// const emits = defineEmits(["getModelField"]);
 // const router = useRouter();
 const modelInfo = defineModel("ciModelInfo");
 const ciModelFieldsList = ref([]);
@@ -585,15 +603,15 @@ const getModelField = async () => {
   let res = await proxy.$api.getCiModel(route.query, route.query.id);
   modelInfo.value = res.data.model;
   ciModelFieldsList.value = res.data.field_groups;
-
-  let tempArr = [];
-  ciModelFieldsList.value.forEach((item, index) => {
-    activeArr.value.push(item.verbose_name);
-    item.fields?.forEach((item2) => {
-      tempArr.push(item2);
-    });
-  });
-  emits("getModelField", tempArr);
+  activeArr.value = res.data.field_groups.map((item) => item.verbose_name);
+  // let tempArr = [];
+  // ciModelFieldsList.value.forEach((item, index) => {
+  //   activeArr.value.push(item.verbose_name);
+  //   item.fields?.forEach((item2) => {
+  //     tempArr.push(item2);
+  //   });
+  // });
+  // emits("getModelField", tempArr);
 };
 const fieldOptions = ref([]);
 const disableNameList = ref([]);
@@ -1088,6 +1106,57 @@ const resetForm = (formEl: FormInstance | undefined) => {
 
   formEl.resetFields();
   // console.log(modelFieldForm);
+};
+// 拖拽结束
+const onEnd = async (e, group) => {
+  if (e.oldIndex == e.newIndex) return;
+  // 跨组，则获取groupid
+  if (e.pullMode) {
+    //
+    console.log("跨组移动，在onAdd中触发");
+    return;
+  }
+  // 触发更新
+  let res = await proxy.$api.updateCiModelField({
+    id: e.data.id,
+    order: e.newIndex + 1,
+  });
+  if (res.status == "200") {
+    ElMessage({ type: "success", message: "更新排序成功" });
+    // 重置表单
+    // 刷新页面
+    // location.reload();
+    // 获取数据源列表
+  } else {
+    ElMessage({
+      showClose: true,
+      message: "更新排序失败:" + JSON.stringify(res.data),
+      type: "error",
+    });
+  }
+  getModelField();
+};
+const onAdd = async (e, group) => {
+  // 触发更新
+  let res = await proxy.$api.updateCiModelField({
+    id: e.data.id,
+    order: e.newIndex + 1,
+    model_field_group: group.id,
+  });
+  if (res.status == "200") {
+    ElMessage({ type: "success", message: "更新排序成功" });
+    // 重置表单
+    // 刷新页面
+    // location.reload();
+    // 获取数据源列表
+  } else {
+    ElMessage({
+      showClose: true,
+      message: "更新排序失败:" + JSON.stringify(res.data),
+      type: "error",
+    });
+  }
+  getModelField();
 };
 </script>
 <style lang="less" scoped>

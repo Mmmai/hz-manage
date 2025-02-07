@@ -4,13 +4,13 @@
       class="upload-demo"
       drag
       action
-      multiple
       ref="refUpload"
       :headers="headers"
       :http-request="uploadFile"
       :file-list="fileList"
       :before-upload="beforeUpload"
-      :limit="10"
+      :limit="maxFiles"
+      @on-change="handleChange"
       show-file-list
     >
       <el-icon class="el-icon--upload"><upload-filled /></el-icon>
@@ -99,7 +99,9 @@ const uploadDia = defineModel("isShowUpload");
 const fileList = ref([]);
 const refUpload = ref(null);
 const fileType = ["xlsx"];
+const maxFiles = ref(10);
 const uploadRes = ref({});
+// const refUpload = ref(null)
 const uploadMission = ref({});
 const headers = reactive({
   "Content-Type": "multipart/form-data",
@@ -138,7 +140,7 @@ const uploadFile = async (item) => {
     uploadMission.value[item.file.uid] = res.data;
     uploadResStatusList.value[item.file.uid] = true;
     if (timer === null) {
-      timer = setInterval(getUploadRes, 1000);
+      timer = setInterval(getUploadRes, 2000);
     }
   } else {
     uploadResStatusList.value[item.file.uid] = false;
@@ -149,6 +151,16 @@ const uploadFile = async (item) => {
     });
   }
 };
+const handleChange = () => {};
+// 超出限制时执行的方法
+// const handleExceed = (files) => {
+//   // console.log(files);
+//   refUpload.value!.clearFiles();
+//   // const file = files[0] as UploadRawFile;
+//   // file.uid = genFileId();
+//   refUpload.value!.handleStart(files);
+// };
+
 const beforeUpload = (file) => {
   let fileName = file.name;
   if (file.type != "" || file.type != null || file.type != undefined) {
@@ -176,10 +188,7 @@ const beforeUpload = (file) => {
         return false;
       }
       // console.log(fileList.value.length);
-      // if (fileList.value.length > 3) {
-      //   fileList.value.splice(fileList.value.length - 1, 1);
-      //   console.log(fileList.value);
-      // }
+
       return true;
     } else {
       ElMessage({
@@ -195,12 +204,10 @@ const beforeUpload = (file) => {
 // 导出导入失败的数据
 const downloadImportErrorRecord = async (params) => {
   let res = await proxy.$api.downloadErrorRecords({ error_file_key: params });
-  console.log(res);
 };
 // 导出
 const downloadTemplate = async () => {
   let res = await proxy.$api.downloadImportTemplate({ model: props.ciModelId });
   // let res = await proxy.$commFunc.downloadFile({ model: props.ciModelId });
-  console.log(res);
 };
 </script>

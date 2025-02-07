@@ -113,7 +113,7 @@ html {
 }
 
 // 文本...显示
-.text-class {
+.text_class {
   white-space: nowrap;
   /*强制单行显示*/
   text-overflow: ellipsis;
@@ -126,7 +126,7 @@ html {
   vertical-align: top;
   width: 200px;
 }
-.text-class:hover {
+.text_class:hover {
   overflow: visible;
   white-space: pre-wrap;
   text-overflow: clip;

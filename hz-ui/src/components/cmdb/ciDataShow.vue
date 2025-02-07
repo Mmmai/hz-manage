@@ -221,6 +221,16 @@
         sortable
         min-width="120"
       >
+        <!-- 新增管理口跳转 -->
+        <template #default="scope" v-if="data.name === 'mgmt_ip'">
+          <el-link
+            :href="`https://${scope.row[data.name]}`"
+            type="primary"
+            target="_blank"
+          >
+            {{ scope.row[data.name] }}</el-link
+          >
+        </template>
         <!-- 列表显示布尔值按钮，以及模型关联、枚举类的label值 -->
         <template
           #default="scope"
@@ -249,24 +259,32 @@
           #default="scope"
           v-if="modelFieldType.enum.indexOf(data.name) != -1"
         >
-          <div class="text-class">{{ scope.row[data.name]?.label }}</div>
+          <div class="text_class">{{ scope.row[data.name]?.label }}</div>
         </template>
         <template
           #default="scope"
           v-if="modelFieldType.password.indexOf(data.name) != -1"
         >
-          <div v-if="showAllPass" class="text-class">
+          <div v-if="showAllPass" class="text_class">
             {{ decrypt_sm4(gmConfig.key, gmConfig.mode, scope.row[data.name]) }}
           </div>
-          <div v-else class="text-class">******</div>
+          <div v-else>
+            <el-text v-if="scope.row[data.name]?.length >> 0">******</el-text>
+            <el-text v-else></el-text>
+          </div>
         </template>
         <template
           #default="scope"
           v-if="modelFieldType.model_ref.indexOf(data.name) != -1"
         >
-          <div class="text-class">
+          <div
+            :class="{ text_class: scope.row[data.name]?.instance_name >> 0 }"
+          >
             {{ scope.row[data.name]?.instance_name }}
           </div>
+          <!-- <div>
+            {{ scope.row[data.name]?.instance_name }}
+          </div> -->
         </template>
       </el-table-column>
       <el-table-column fixed="right" width="150" label="操作">
@@ -447,12 +465,23 @@
                     </el-space>
                   </template>
                   <div v-if="!isEdit">
-                    <span
-                      class="text-class"
-                      v-if="ciDataForm[fitem.name] != null"
-                      :class="{ requiredClass: fitem.required }"
-                      >{{ ciDataForm[fitem.name] }}</span
-                    >
+                    <div v-if="ciDataForm[fitem.name] != null">
+                      <el-link
+                        v-if="fitem.name === 'mgmt_ip'"
+                        :href="`https://${ciDataForm[fitem.name]}`"
+                        type="primary"
+                        target="_blank"
+                      >
+                        {{ ciDataForm[fitem.name] }}
+                      </el-link>
+                      <span
+                        v-else
+                        class="text_class"
+                        :class="{ requiredClass: fitem.required }"
+                        >{{ ciDataForm[fitem.name] }}</span
+                      >
+                    </div>
+
                     <span v-else>--</span>
                   </div>
                   <!-- <el-input v-model="ciDataForm[fitem.name]" style="width: 240px" v-else-if=""></el-input> -->
@@ -492,7 +521,7 @@
                   </template>
                   <div v-if="!isEdit">
                     <span
-                      class="text-class"
+                      class="text_class"
                       v-if="ciDataForm[fitem.name] != null"
                       :class="{ requiredClass: fitem.required }"
                       >{{ ciDataForm[fitem.name] }}</span
@@ -530,7 +559,7 @@
                   </template>
                   <div v-if="!isEdit">
                     <span
-                      class="text-class"
+                      class="text_class"
                       v-if="ciDataForm[fitem.name] != null"
                       :class="{ requiredClass: fitem.required }"
                       >{{ ciDataForm[fitem.name] }}</span
@@ -606,7 +635,7 @@
                   </template>
                   <div v-if="!isEdit">
                     <span
-                      class="text-class"
+                      class="text_class"
                       v-if="ciDataForm[fitem.name] != null"
                       :class="{ requiredClass: fitem.required }"
                       >{{ ciDataForm[fitem.name] }}</span
@@ -643,7 +672,7 @@
                     </el-space>
                   </template>
                   <div v-if="!isEdit">
-                    <div v-if="ciDataForm[fitem.name] != null">
+                    <div v-if="ciDataForm[fitem.name]?.length >> 0">
                       <span v-if="showAllPass">
                         {{
                           decrypt_sm4(
@@ -778,7 +807,7 @@
                   </template>
                   <div v-if="!isEdit">
                     <span
-                      class="text-class"
+                      class="text_class"
                       v-if="ciDataForm[fitem.name] != null"
                       :class="{ requiredClass: fitem.required }"
                       >{{ ciDataForm[fitem.name] }}</span
@@ -933,7 +962,7 @@
                   </template>
                   <div v-if="!isEdit">
                     <span
-                      class="text-class"
+                      class="text_class"
                       v-if="ciDataForm[fitem.name] != null"
                       :class="{ requiredClass: fitem.required }"
                       >{{ currentRow[fitem.name].name }}</span
@@ -2235,6 +2264,7 @@ const editCiData = (params, edit = false) => {
             ciDataForm[item] = params[item];
           }
         } else {
+          // console.log(params[item]);
           ciDataForm[item] = params[item];
         }
       } // isDisabled.value = params.built_in

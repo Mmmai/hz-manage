@@ -25,13 +25,13 @@
                 <component
                   :is="Component"
                   :key="route.path"
-                  v-if="$route.name !== 'model'"
+                  v-if="!['model', 'iframe'].includes($route.name)"
                 />
               </keep-alive>
             </template>
           </router-view>
-          <!-- <iframe-view v-show="route.meta.is_iframe"></iframe-view> -->
-          <router-view v-if="$route.name === 'model'"></router-view>
+          <iframe-view v-show="route.meta.is_iframe"></iframe-view>
+          <router-view v-if="['model'].includes($route.name)"></router-view>
           <!-- </el-scrollbar> -->
         </el-main>
         <el-footer class="efooter">

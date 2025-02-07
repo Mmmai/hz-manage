@@ -393,19 +393,97 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
             return data_new
 
     def validate_order(self, value):
-        # 如果没有提供order值,自动计算下一个序号
-        if not value:
-            model = self.initial_data.get('model')
-            if model:
-                max_order = ModelFields.objects.filter(model=model).aggregate(
-                    Max('order'))['order__max']
-                return 1 if not max_order else int(max_order) + 1
-        return value
+        group_id = self.initial_data.get('model_field_group')
+        instance = getattr(self, 'instance', None)
+        model = self.initial_data.get('model')
+
+        if not group_id:
+            if instance:
+                group_id = instance.model_field_group_id
+            else:
+                default_group = ModelFieldGroups.objects.filter(
+                    model=model,
+                    name='basic'
+                ).first()
+                if default_group:
+                    group_id = default_group.id
+
+        if group_id:
+            max_order = ModelFields.objects.filter(
+                model_field_group_id=group_id
+            ).count()
+            logger.debug(f'Max order in group {group_id}: {max_order}')
+            if value:
+                if not isinstance(value, int):
+                    raise serializers.ValidationError({
+                        'order': 'Order must be an integer'
+                    })
+                elif value <= 0:
+                    raise serializers.ValidationError({
+                        'order': 'Order must be greater than zero'
+                    })
+                elif value > max_order + (1 if not instance else 0):
+                    target_order = max_order + (1 if not instance else 0)
+                    logger.warning(
+                        f'Provided order value exceeds the maximum order in the group, reset to {target_order}')
+                    return target_order
+                else:
+                    return value
+            else:
+                return int(max_order) + 1 if max_order else 1
+
+    def update_field_order(self, instance, new_order, target_group=None):
+        """更新字段排序"""
+        logger.debug(f'Updating field order for field {instance.name} to {new_order} in group {target_group}')
+        with transaction.atomic():
+            cur_group = instance.model_field_group_id
+            cur_order = instance.order
+
+            # 跨组
+            if target_group and str(cur_group) != str(target_group):
+                ModelFields.objects.filter(
+                    model_field_group_id=cur_group,
+                    order__gt=cur_order
+                ).update(order=F('order') - 1)
+
+                ModelFields.objects.filter(
+                    model_field_group_id=target_group,
+                    order__gte=new_order
+                ).update(order=F('order') + 1)
+
+                instance.model_field_group_id = target_group
+            # 同组
+            else:
+                if new_order > cur_order:
+                    # 向下移动
+                    ModelFields.objects.filter(
+                        model_field_group_id=cur_group,
+                        order__gt=cur_order,
+                        order__lte=new_order
+                    ).update(order=F('order') - 1)
+                else:
+                    # 向上移动
+                    ModelFields.objects.filter(
+                        model_field_group_id=cur_group,
+                        order__gte=new_order,
+                        order__lt=cur_order
+                    ).update(order=F('order') + 1)
+
+            instance.order = new_order
+            instance.save()
+            return instance
 
     def create(self, validated_data):
-        if not validated_data.get('model_field_group') or not ModelFieldGroups.objects.filter(
-                id=validated_data['model_field_group'].id).exists():
+        if not validated_data.get('model_field_group') or \
+                not ModelFieldGroups.objects.filter(id=validated_data['model_field_group'].id).exists():
             validated_data['model_field_group'] = ModelFieldGroups.get_default_field_group(validated_data['model'])
+
+        if 'order' not in validated_data or validated_data['order'] is None:
+            model_field_group = validated_data.get('model_field_group')
+            max_order = ModelFields.objects.filter(model_field_group_id=model_field_group.id).count()
+            validated_data['order'] = 1 if not max_order else int(max_order) + 1
+
+        invalidate_model(ModelFields)
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
@@ -430,6 +508,15 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
                 instance.model
             )
 
+        new_order = validated_data.pop('order', None)
+        target_group = validated_data.pop('model_field_group', None)
+        if new_order is not None:
+            self.update_field_order(
+                instance,
+                new_order,
+                target_group.id if target_group else None
+            )
+        invalidate_model(ModelFields)
         return super().update(instance, validated_data)
 
     def to_representation(self, instance):
@@ -727,12 +814,16 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
 
     def get_instance_group(self, obj):
         """获取实例关联的分组列表"""
-        group_ids = ModelInstanceGroupRelation.objects.filter(
+        groups = ModelInstanceGroupRelation.objects.filter(
             instance=obj
-        ).values_list('group_id', flat=True)
-        if group_ids:
-            return [str(group_id) for group_id in group_ids]
-        return None
+        ).select_related('group').values_list('group_id', 'group__path')
+
+        return [
+            {
+                'group_id': group_id,
+                'group_path': group_path
+            } for group_id, group_path in groups
+        ] if groups else None
 
     def get_field_values(self, obj):
         """获取实例的字段值"""
