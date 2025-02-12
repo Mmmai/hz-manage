@@ -1,7 +1,7 @@
-import { fileURLToPath, URL } from 'node:url'
+import { fileURLToPath, URL } from "node:url";
 
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
+import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
 import Icons from "unplugin-icons/vite";
 import IconsResolver from "unplugin-icons/resolver";
 import Components from "unplugin-vue-components/vite";
@@ -9,7 +9,7 @@ import Components from "unplugin-vue-components/vite";
 export default defineConfig({
   plugins: [
     Components({
-      resolvers: [IconsResolver({prefix: 'icon',})],
+      resolvers: [IconsResolver({ prefix: "icon" })],
     }),
     Icons(),
     vue({
@@ -20,25 +20,25 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
-    }
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
   },
   server: {
     proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:8000',
+      "/api": {
+        target: "http://192.168.137.2:8000",
         // target: 'http://teligen-ui:8000',
 
         changeOrigin: true,
         // rewrite: path => path.replace(/^\/api/, '')
-      }
-    }
+      },
+    },
   },
-  css:{
+  css: {
     preprocessorOptions: {
       scss: {
-      additionalData: `@use "src/styles/globalVar.scss" as *;`
-      }
-    }
-    }
-})
+        additionalData: `@use "src/styles/globalVar.scss" as *;`,
+      },
+    },
+  },
+});

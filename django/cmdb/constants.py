@@ -6,7 +6,7 @@ class FieldType(str, Enum):
     TEXT = 'text'
     BOOLEAN = 'boolean'
     ENUM = 'enum'
-    CASCADE_ENUM = 'cascade_enum'
+    # CASCADE_ENUM = 'cascade_enum'
     JSON = 'json'
     INTEGER = 'integer'
     FLOAT = 'float'
@@ -21,7 +21,7 @@ class ValidationType(str, Enum):
     RANGE = 'range'
     LENGTH = 'length'
     ENUM = 'enum'
-    CASCADE_ENUM = 'cascade_enum'
+    # CASCADE_ENUM = 'cascade_enum'
     IP = 'ip'
     IPV4 = 'ipv4'
     IPV6 = 'ipv6'
@@ -68,7 +68,7 @@ class FieldMapping:
         FieldType.TEXT: '文本',
         FieldType.BOOLEAN: '布尔值',
         FieldType.ENUM: '枚举',
-        FieldType.CASCADE_ENUM: '级联枚举',
+        # FieldType.CASCADE_ENUM: '级联枚举',
         FieldType.JSON: 'JSON',
         FieldType.INTEGER: '整数',
         FieldType.FLOAT: '浮点数',
@@ -82,7 +82,7 @@ class FieldMapping:
         FieldType.TEXT: '@',
         FieldType.BOOLEAN: 'General',
         FieldType.ENUM: '@',
-        FieldType.CASCADE_ENUM: '@',
+        # FieldType.CASCADE_ENUM: '@',
         FieldType.JSON: '@',
         FieldType.INTEGER: '0',
         FieldType.FLOAT: '0.00',
@@ -195,13 +195,13 @@ class FieldMapping:
                 'example': ''
             }
         ],
-        FieldType.CASCADE_ENUM: [
-            {
-                'type': ValidationType.CASCADE_ENUM,
-                'description': '级联枚举值',
-                'example': ''
-            }
-        ],
+        # FieldType.CASCADE_ENUM: [
+        #     {
+        #         'type': ValidationType.CASCADE_ENUM,
+        #         'description': '级联枚举值',
+        #         'example': ''
+        #     }
+        # ],
         FieldType.PASSWORD: [
             {
                 'type': ValidationType.PASSWORD,
