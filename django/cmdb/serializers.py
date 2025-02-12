@@ -20,6 +20,8 @@ from cacheops import invalidate_model, invalidate_obj
 from .utils import password_handler
 from .validators import FieldValidator
 from .constants import FieldMapping, ValidationType, FieldType, limit_field_names
+from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.types import OpenApiTypes
 from .models import (
     ModelGroups,
     Models,
@@ -77,10 +79,7 @@ class ModelsSerializer(serializers.ModelSerializer):
         model = Models
         fields = '__all__'
 
-    # def __init__(self, *args, **kwargs):
-    #     super().__init__(*args, **kwargs)
-    #     self.Meta.fields = list(self.Meta.fields) + ['instance_count']
-
+    @extend_schema_field(OpenApiTypes.INT)
     def get_instance_count(self, obj):
         """获取模型关联的实例总数"""
         try:
@@ -812,6 +811,13 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
             'update_user': {'required': False}
         }
 
+    @extend_schema_field({
+        'type': 'array',
+        'properties': {
+            'group_id': {'type': 'string', 'format': 'uuid'},
+            'group_path': {'type': 'string'}
+        }
+    })
     def get_instance_group(self, obj):
         """获取实例关联的分组列表"""
         groups = ModelInstanceGroupRelation.objects.filter(
@@ -825,6 +831,12 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
             } for group_id, group_path in groups
         ] if groups else None
 
+    @extend_schema_field({
+        'type': 'object',
+        'additionalProperties': {
+            'type': 'string'
+        }
+    })
     def get_field_values(self, obj):
         """获取实例的字段值"""
         queryset = ModelFieldMeta.objects.filter(
@@ -1338,10 +1350,18 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
         model = ModelInstanceGroup
         fields = ['id', 'label', 'children', 'count', 'built_in', 'level', 'model', 'parent']
 
+    @extend_schema_field({
+        'type': 'array',
+        'items': {
+            'type': 'array',
+            'items': {'type': 'object'}
+        }
+    })
     def get_children(self, obj):
         children = ModelInstanceGroup.objects.filter(parent=obj)
         return ModelInstanceGroupSerializer(children, many=True).data
 
+    @extend_schema_field(OpenApiTypes.INT)
     def get_count(self, obj):
         """带缓存的计数方法"""
         cache_key = f'group_count_{obj.id}'

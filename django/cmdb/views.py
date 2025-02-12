@@ -8,6 +8,7 @@ from celery import shared_task
 from functools import reduce
 from django.conf import settings
 from rest_framework import viewsets
+from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.metadata import BaseMetadata
@@ -33,7 +34,6 @@ from .filters import (
     ModelFieldGroupsFilter,
     ValidationRulesFilter,
     ModelFieldsFilter,
-    ModelFieldOrderFilter,
     ModelFieldPreferenceFilter,
     UniqueConstraintFilter,
     ModelInstanceFilter,
@@ -50,7 +50,6 @@ from .models import (
     ModelFieldGroups,
     ValidationRules,
     ModelFields,
-    ModelFieldOrder,
     ModelFieldPreference,
     UniqueConstraint,
     ModelInstance,
@@ -66,7 +65,6 @@ from .serializers import (
     ModelFieldGroupsSerializer,
     ValidationRulesSerializer,
     ModelFieldsSerializer,
-    ModelFieldOrderSerializer,
     ModelFieldPreferenceSerializer,
     UniqueConstraintSerializer,
     ModelInstanceSerializer,
@@ -78,7 +76,21 @@ from .serializers import (
     RelationDefinitionSerializer,
     RelationsSerializer,
 )
-from .schemas import model_groups_schema
+from .schemas import (
+    model_groups_schema,
+    models_schema,
+    model_field_groups_schema,
+    validation_rules_schema,
+    model_fields_schema,
+    model_field_preference_schema,
+    unique_constraint_schema,
+    model_instance_schema,
+    model_ref_schema,
+    model_field_meta_schema,
+    model_instance_group_schema,
+    model_instance_group_relation_schema,
+    password_manage_schema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -98,34 +110,8 @@ class ModelGroupsViewSet(viewsets.ModelViewSet):
     ordering_fields = ['name', 'built_in', 'editable', 'create_time', 'update_time']
     search_fields = ['name', 'description', 'create_user', 'update_user']
 
-    @extend_schema(
-        summary='创建模型分组',
-        description='为指定模型创建分组',
-        parameters=[
-            OpenApiParameter(
-                'model',
-                str,
-                OpenApiParameter.QUERY,
-                description='模型ID'
-            ),
-            OpenApiParameter(
-                'name',
-                str,
-                OpenApiParameter.QUERY,
-                description='分组名称'
-            )
-        ],
-        responses={201: ModelGroupsSerializer},
-        examples=[{
-            'name': '基础配置',
-            'description': '默认字段组',
-            'create_user': 'system'
-        }]
-    )
-    def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
 
-
+@models_schema
 class ModelsViewSet(viewsets.ModelViewSet):
     queryset = Models.objects.all().order_by('-create_time')
     serializer_class = ModelsSerializer
@@ -192,6 +178,7 @@ class ModelsViewSet(viewsets.ModelViewSet):
         })
 
 
+@model_field_groups_schema
 class ModelFieldGroupsViewSet(viewsets.ModelViewSet):
     queryset = ModelFieldGroups.objects.all().order_by('-create_time')
     serializer_class = ModelFieldGroupsSerializer
@@ -231,6 +218,7 @@ class ModelFieldGroupsViewSet(viewsets.ModelViewSet):
         logger.info(f"Field group deleted successfully: {instance.name}")
 
 
+@validation_rules_schema
 class ValidationRulesViewSet(viewsets.ModelViewSet):
     queryset = ValidationRules.objects.all()
     serializer_class = ValidationRulesSerializer
@@ -276,6 +264,7 @@ class ModelFieldsMetadata(BaseMetadata):
         return metadata
 
 
+@model_fields_schema
 class ModelFieldsViewSet(viewsets.ModelViewSet):
     metadata_class = ModelFieldsMetadata
     queryset = ModelFields.objects.all().order_by('-create_time')
@@ -318,13 +307,7 @@ class ModelFieldsViewSet(viewsets.ModelViewSet):
         return Response(self.metadata_class().determine_metadata(request, self))
 
 
-class ModelFieldOrderViewSet(viewsets.ModelViewSet):
-    queryset = ModelFieldOrder.objects.all().order_by('-create_time')
-    serializer_class = ModelFieldOrderSerializer
-    pagination_class = StandardResultsSetPagination
-    ordering_fields = ['model', 'field', 'order', 'create_time', 'update_time']
-
-
+@model_field_preference_schema
 class ModelFieldPreferenceViewSet(viewsets.ModelViewSet):
     queryset = ModelFieldPreference.objects.all().order_by('-create_time')
     serializer_class = ModelFieldPreferenceSerializer
@@ -366,6 +349,7 @@ class ModelFieldPreferenceViewSet(viewsets.ModelViewSet):
             return super().list(request, *args, **kwargs)
 
 
+@unique_constraint_schema
 class UniqueConstraintViewSet(viewsets.ModelViewSet):
     queryset = UniqueConstraint.objects.all().order_by('-create_time')
     serializer_class = UniqueConstraintSerializer
@@ -396,6 +380,7 @@ class BinaryFileRenderer(BaseRenderer):
         return data.get('file_content') if isinstance(data, dict) else data
 
 
+@model_instance_schema
 class ModelInstanceViewSet(viewsets.ModelViewSet):
     queryset = ModelInstance.objects.all().order_by('-create_time').prefetch_related('field_values__model_fields')
     serializer_class = ModelInstanceSerializer
@@ -821,6 +806,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             raise ValidationError(f'Error deleting instances: {str(e)}')
 
 
+@model_ref_schema
 class ModelInstanceBasicViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ModelInstanceBasicViewSerializer
     queryset = ModelInstance.objects.all().order_by('-create_time')
@@ -830,6 +816,7 @@ class ModelInstanceBasicViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['name', 'create_time', 'update_time']
 
 
+@model_field_meta_schema
 class ModelFieldMetaViewSet(viewsets.ModelViewSet):
     queryset = ModelFieldMeta.objects.all().order_by('-create_time')
     serializer_class = ModelFieldMetaSerializer
@@ -838,10 +825,12 @@ class ModelFieldMetaViewSet(viewsets.ModelViewSet):
     ordering_fields = ['create_time', 'update_time']
 
 
+@model_instance_group_schema
 class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
     queryset = ModelInstanceGroup.objects.all().order_by('create_time')
     serializer_class = ModelInstanceGroupSerializer
-    pagination_class = StandardResultsSetPagination
+    # pagination_class = StandardResultsSetPagination
+    pagination_class = None
     filterset_class = ModelInstanceGroupFilter
     ordering_fields = ['label', 'order', 'path', 'create_time', 'update_time']
 
@@ -1213,9 +1202,10 @@ class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
             )
 
 
+@model_instance_group_relation_schema
 class ModelInstanceGroupRelationViewSet(viewsets.ModelViewSet):
     queryset = ModelInstanceGroupRelation.objects.all().order_by('-create_time')
-    serializer_class = ModelInstanceGroupRelationSerializer
+    # serializer_class = ModelInstanceGroupRelationSerializer
     pagination_class = StandardResultsSetPagination
     filterset_class = ModelInstanceGroupRelationFilter
     ordering_fields = ['create_time', 'update_time']
@@ -1247,16 +1237,17 @@ class ModelInstanceGroupRelationViewSet(viewsets.ModelViewSet):
             raise ValidationError(str(e))
 
 
-class RelationDefinitionViewSet(viewsets.ModelViewSet):
-    queryset = RelationDefinition.objects.all().order_by('-create_time')
-    serializer_class = RelationDefinitionSerializer
+# class RelationDefinitionViewSet(viewsets.ModelViewSet):
+#     queryset = RelationDefinition.objects.all().order_by('-create_time')
+#     serializer_class = RelationDefinitionSerializer
 
 
-class RelationsViewSet(viewsets.ModelViewSet):
-    queryset = Relations.objects.all().order_by('-create_time')
-    serializer_class = RelationsSerializer
+# class RelationsViewSet(viewsets.ModelViewSet):
+#     queryset = Relations.objects.all().order_by('-create_time')
+#     serializer_class = RelationsSerializer
 
 
+@password_manage_schema
 class PasswordManageViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'])
@@ -1288,7 +1279,7 @@ class PasswordManageViewSet(viewsets.ViewSet):
             }, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Error re-encrypting password: {traceback.format_exc()}")
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'status': 'fail', 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'])
     def reset_passwords(self, request):
@@ -1304,4 +1295,4 @@ class PasswordManageViewSet(viewsets.ViewSet):
             }, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Error resetting passwords: {str(e)}")
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'status': 'fail', 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)

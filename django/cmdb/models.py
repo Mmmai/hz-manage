@@ -170,7 +170,6 @@ class ModelFields(models.Model):
     required = models.BooleanField(null=False, blank=False)
     editable = models.BooleanField(default=True, null=False, blank=False)
     default = models.TextField(blank=True, null=True)
-    # 考虑删除后保留 暂未修改
     validation_rule = models.ForeignKey('ValidationRules', on_delete=models.SET_NULL, null=True, blank=True)
     description = models.TextField(blank=True, null=True)
     order = models.IntegerField(blank=True, null=True, db_index=True)

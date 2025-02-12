@@ -46,7 +46,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'django_filters',
     'import_export',
-    'drf_spectacular'
+    'drf_spectacular',
+    'drf_spectacular_sidecar'
 ]
 
 
@@ -175,40 +176,91 @@ ZABBIX_CONFIG = {
     'interval': int(os.environ.get('ZABBIX_INTERVAL', 0))  # 自动注销时间，维护token用，单位秒，0表示不自动注销
 }
 
+
 SPECTACULAR_SETTINGS = {
     'TITLE': 'CMDB API',
     'DESCRIPTION': 'CMDB系统API文档',
     'VERSION': '1.0.0',
     # UI设置
+    'SWAGGER_UI_DIST': 'SIDECAR',
+    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+    'REDOC_DIST': 'SIDECAR',
     'SWAGGER_UI_SETTINGS': {
+        # 将所有模型折叠 (不再显示“Schemas”部分)
+        'defaultModelsExpandDepth': -1,
+        # 折叠具体操作下的请求/响应示例
+        'defaultModelExpandDepth': 0,
+
         'persistAuthorization': True,
-        'displayOperationId': True,
-        'filter': True,
-        'deepLinking': True,
     },
-    # 认证设置
+    # 配置安全认证
     'SECURITY': [
-        {'Bearer': []},
+        {
+            'ApiKeyAuth': []
+        }
     ],
-    # 分组设置
+
+    # 配置认证组件
+    'COMPONENT_SPLIT_REQUEST': True,
+    'AUTHENTICATION_SCHEMES': {
+        'ApiKeyAuth': {
+            'type': 'apiKey',
+            'in': 'query',
+            'name': 'token',
+            'description': 'JWT Token 认证（在 URL 参数中携带 token）'
+        }
+    },
+
+    # 默认所有接口都需要认证
+    'DEFAULT_AUTH_REQUIRED': True,
+
+    # 全局分页参数
+    'PAGINATION_PARAMETERS': {
+        'page': {
+            'description': '页码(从1开始)',
+            'required': False,
+            'default': 1,
+        },
+        'page_size': {
+            'description': '每页数量(默认10,最大100)',
+            'required': False,
+            'default': 10,
+        }
+    },
     'TAGS': [
-        {'name': '模型分组', 'description': '模型分组相关接口'},
+        {
+            'name': '通用说明',
+            'description': (
+                '大部分list接口都支持分页，参数：\n'
+                '- page 页码, 默认为1\n'
+                '- page_size 每页数量, 默认为10\n\n'
+                '部分接口由于响应的结果数量少, 这两个参数将在部分API文档中隐藏'
+            )
+        },
+        {'name': '模型分组管理', 'description': '模型分组相关接口'},
         {'name': '模型管理', 'description': '模型相关接口'},
-        {'name': '字段分组', 'description': '字段分组相关接口'},
-        {'name': '字段校验规则', 'description': '字段校验规则相关接口'},
+        {'name': '字段分组管理', 'description': '字段分组相关接口'},
+        {'name': '字段校验规则管理', 'description': '字段校验规则相关接口'},
         {'name': '字段管理', 'description': '字段相关接口'},
-        {'name': '字段偏好设置', 'description': '字段偏好设置相关接口'},
-        {'name': '字段元数据', 'description': '字段元数据相关接口'},
-        {'name': '实例唯一性校验', 'description': '实例唯一性校验相关接口'},
-        {'name': '模型实例', 'description': '模型实例相关接口'},
-        {'name': '实例分组', 'description': '实例分组相关接口'},
-        {'name': '实例分组关联', 'description': '实例分组关联相关接口'},
+        {'name': '字段展示管理', 'description': '字段展示设置相关接口'},
+        {'name': '字段元数据管理', 'description': '字段元数据相关接口'},
+        {'name': '实例唯一性约束管理', 'description': '实例唯一性约束相关接口'},
+        {'name': '实例管理', 'description': '实例相关接口'},
+        {'name': '模型引用管理', 'description': '模型引用相关接口'},
+        {'name': '实例分组管理', 'description': '实例分组相关接口'},
+        {'name': '实例分组关联管理', 'description': '实例分组关联相关接口'},
+        {'name': '密码及密钥管理', 'description': '密码及密钥相关接口'},
     ],
     # 扩展设置
     'COMPONENT_SPLIT_REQUEST': True,
     'SCHEMA_PATH_PREFIX': '/api/v1',
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-
+    'PREPROCESSING_HOOKS': [
+        'vuedjango.drf_spectacular_hooks.preprocessing_filter_spec',
+    ],
+    'POSTPROCESSING_HOOKS': [
+        'vuedjango.drf_spectacular_hooks.remove_params',
+    ],
 }
 
 # Password validation
@@ -253,9 +305,9 @@ STATIC_URL = '/static/'
 REST_FRAMEWORK = {
     # jwt全局认证
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
+        'rest_framework.permissions.IsAuthenticated',
     ],
-    # 'DEFAULT_AUTHENTICATION_CLASSES': ['mapi.extensions.jwt_authenticate.JWTQueryParamsAuthentication',],
+    'DEFAULT_AUTHENTICATION_CLASSES': ['mapi.extensions.jwt_authenticate.JWTQueryParamsAuthentication',],
     # 'DEFAULT_FILTER_BACKENDS': ('django_filters.rest_framework.DjangoFilterBackend',),
     'DEFAULT_PAGINATION_CLASS': 'mapi.extensions.pagination.StandardResultsSetPagination',
 
@@ -271,6 +323,7 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.FormParser',
         'rest_framework.parsers.MultiPartParser',
     ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 
 }
 
