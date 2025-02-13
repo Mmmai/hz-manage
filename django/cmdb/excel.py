@@ -249,7 +249,7 @@ class ExcelHandler:
         # 写入实例数据
         for row, instance in enumerate(instances, 2):
             # 写入name
-            data_sheet[f'A{row}'] = instance.name
+            data_sheet[f'A{row}'] = instance.instance_name
 
             field_values = {}
             for field_meta in instance.field_values.all():
@@ -271,7 +271,7 @@ class ExcelHandler:
                         model=ref_model,
                         id=value
                     ).first()
-                    value = ref_instance.name if ref_instance else None
+                    value = ref_instance.instance_name if ref_instance else None
                 elif field_meta.model_fields.type == FieldType.PASSWORD:
                     logger.info(f"Decrypting password {value} for field {field_meta.model_fields.name}")
                     value = password_handler.decrypt_to_plain(value)
