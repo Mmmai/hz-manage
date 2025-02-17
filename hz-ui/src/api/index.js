@@ -166,6 +166,9 @@ const api = {
   portalDataExport() {
     commonFunc.downloadFile(path.portal + 'export_portal/')
   },
+  importPortalData(params, headers, timeout) {
+    return axios.request({ url: path.portal + 'import_portal/', method: 'post', data: params, headers: headers, timeout: timeout })
+  },
   // 
   // dataSource
   dataSourceGet(params) {
