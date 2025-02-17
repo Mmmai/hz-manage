@@ -305,9 +305,9 @@ STATIC_URL = '/static/'
 # jwt全局认证
 REST_FRAMEWORK = {
     # jwt全局认证
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
+    # 'DEFAULT_PERMISSION_CLASSES': [
+    #     'rest_framework.permissions.IsAuthenticated',
+    # ],
     'DEFAULT_AUTHENTICATION_CLASSES': ['mapi.extensions.jwt_authenticate.JWTQueryParamsAuthentication',],
     # 'DEFAULT_FILTER_BACKENDS': ('django_filters.rest_framework.DjangoFilterBackend',),
     'DEFAULT_PAGINATION_CLASS': 'mapi.extensions.pagination.StandardResultsSetPagination',
