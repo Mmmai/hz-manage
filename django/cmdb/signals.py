@@ -404,5 +404,6 @@ def handle_group_path(sender, instance, created, **kwargs):
             instance.path = instance.get_path()
             instance.save()
             instance.update_child_path()
+
     except Exception as e:
         logger.error(f"Update group path error: {str(e)}")
