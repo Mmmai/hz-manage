@@ -38,7 +38,7 @@ def getRolePermissionList(role_ids):
 class LoginView(APIView):
     """用户登录"""
     authentication_classes = [] # 取消全局认证
-
+    
     def post(self,request,*args,**kwargs):
         user = request.data.get('username')
         pwd = request.data.get('password')
@@ -367,7 +367,7 @@ class PortalViewSet(ModelViewSet):
         # request.data.body('pks', None)
         # 获取Pg字段和列表
         model_fields = Portal._meta.fields
-        colList = [["名称","链接地址","状态","分组","用户名","密码"],[1,2,3,4,5,6]]
+        colList = [["名称","链接地址","状态","分组","用户名","密码"]]
         # for i in model_fields:
         #     # print(type(i))
         #     # print(i.verbose_name)
@@ -379,6 +379,32 @@ class PortalViewSet(ModelViewSet):
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         # 设置文件的名称，让浏览器提示用户保存文件
         response['Content-Disposition'] = 'attachment; filename="portal_template.xlsx"'
+        wb.save(response)
+        return response
+        # return Response(data='delete success', status=status.HTTP_200_OK)
+    @action(methods=['post'], detail=False)
+    def export_portal(self, request, *args, **kwargs):
+        # request.data.body('pks', None)
+        # 获取Pg字段和列表
+        model_fields = Portal._meta.fields
+
+        colList = [["名称","链接地址","状态","分组","用户名","密码"]]
+
+        # for i in model_fields:
+        #     # print(type(i))
+        #     # print(i.verbose_name)
+        #     if i.name in ["id","update_time","create_time"]:
+        #         continue
+        #     colList.append(i.verbose_name)
+        portalObj = Portal.objects.all()
+        for i in portalObj:
+            pgroupObj = Pgroup.objects.get(id=i.group)
+            colList.append([i.name,i.url,i.status,pgroupObj.group,i.username,i.password])
+        excel_handler = exportHandler()
+        wb = excel_handler.get_portal(colList=colList)
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        # 设置文件的名称，让浏览器提示用户保存文件
+        response['Content-Disposition'] = 'attachment; filename="portal_data.xlsx"'
         wb.save(response)
         return response
         # return Response(data='delete success', status=status.HTTP_200_OK)

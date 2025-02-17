@@ -2148,15 +2148,20 @@ const setFormItemRule = (rule) => {
 };
 // 初始化表单数据
 const initCiDataForm = () => {
-  // let initObj = {}
+  for (const [ckey, cvalue] of Object.entries(ciDataForm)) {
+    // console.log(key + ': ' + value);
+    if (ckey !== "instance_name") {
+      delete ciDataForm[ckey];
+    }
+  } // let initObj = new Object();
   modelInfo.value.field_groups.forEach((item) => {
     item.fields.forEach((item2) => {
       // console.log(item2)
       ciDataForm[item2.name] = item2.default;
     });
   });
-  // ciDataForm = initObj
-  // ciDataForm.name = null
+  // ciDataForm = initObj;
+  ciDataForm.instance_name = null;
 };
 
 // 获取模型实例字段和模型信息

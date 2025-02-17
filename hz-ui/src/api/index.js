@@ -163,6 +163,9 @@ const api = {
   portalTemplateExport() {
     commonFunc.downloadFile(path.portal + 'export_template/')
   },
+  portalDataExport() {
+    commonFunc.downloadFile(path.portal + 'export_portal/')
+  },
   // 
   // dataSource
   dataSourceGet(params) {

@@ -44,16 +44,6 @@
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item @click="exportData">全部导出</el-dropdown-item>
-              <el-dropdown-item
-                @click="exportDataSelect"
-                v-if="multipleSelect.length === 0"
-                disabled
-                >批量导出</el-dropdown-item
-              >
-              <el-dropdown-item @click="exportDataSelect" v-else
-                >批量导出</el-dropdown-item
-              >
-
               <el-dropdown-item>批量导入</el-dropdown-item>
               <el-dropdown-item @click="exportTemplate"
                 >模版下载</el-dropdown-item
@@ -832,11 +822,13 @@ onMounted(async () => {
 
 // 导出功能
 // 默认导出
-const exportData = async (params = null) => {
-  let res = await proxy.$api.exportXls(params);
-
+const exportData = async () => {
+  let res = await proxy.$api.portalDataExport();
   console.log(res);
-  proxy.$commonFunc.downloadFunc(res);
+  // let res = await proxy.$api.exportXls(params);
+
+  // console.log(res);
+  // proxy.$commonFunc.downloadFunc(res);
 };
 // 勾选导出
 const exportDataSelect = () => {

@@ -193,6 +193,8 @@ SPECTACULAR_SETTINGS = {
 
         'persistAuthorization': True,
     },
+    # 默认认证
+    'SERVE_AUTHENTICATION': [],
     # 配置安全认证
     'SECURITY': [
         {
@@ -304,9 +306,9 @@ STATIC_URL = '/static/'
 # jwt全局认证
 REST_FRAMEWORK = {
     # jwt全局认证
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
+    # 'DEFAULT_PERMISSION_CLASSES': [
+    #     'rest_framework.permissions.IsAuthenticated',
+    # ],
     'DEFAULT_AUTHENTICATION_CLASSES': ['mapi.extensions.jwt_authenticate.JWTQueryParamsAuthentication',],
     # 'DEFAULT_FILTER_BACKENDS': ('django_filters.rest_framework.DjangoFilterBackend',),
     'DEFAULT_PAGINATION_CLASS': 'mapi.extensions.pagination.StandardResultsSetPagination',
