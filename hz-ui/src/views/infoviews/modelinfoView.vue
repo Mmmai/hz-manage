@@ -172,16 +172,27 @@ const getCiModelGroupList = async () => {
   grouplist.value = res.data.results;
   console.log(grouplist.value);
 };
+const ciModel = ref({});
 const ciModelInfo = ref({});
 const getModelInfo = async () => {
   let res = await proxy.$api.getCiModel(route.query, route.query.id);
   ciModelInfo.value = res.data.model;
+  ciModel.value = res.data;
 };
 // 子组件传递模型字段给父组件
-const modelFieldLists = ref([]);
-const setModelField = (params) => {
-  modelFieldLists.value = params;
-};
+// const modelFieldLists = ref([]);
+const modelFieldLists = computed(() => {
+  let tempArr = new Array();
+  ciModel.value.field_groups?.forEach((item) => {
+    item.fields.forEach((item2) => {
+      tempArr.push(item2);
+    });
+  });
+  return tempArr;
+});
+// const setModelField = (params) => {
+//   modelFieldLists.value = params;
+// };
 
 const handleClick = (tab: TabsPaneContext, event: Event) => {
   // console.log(tab)

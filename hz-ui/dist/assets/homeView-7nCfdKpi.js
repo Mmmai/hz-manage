@@ -1,1 +1,0 @@
-import{_ as e,o as c,f as o}from"./index-_vkwOwvB.js";const a={},s={class:"card backgroupImage"};function t(r,_){return c(),o("div",s)}const d=e(a,[["render",t],["__scopeId","data-v-e883a6f8"]]);export{d as default};

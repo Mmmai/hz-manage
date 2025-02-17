@@ -51,7 +51,7 @@ const iconViewbox = ref("0 0 24 24");
 // 根据图标名称查找图标数据
 const fetchIconData = (iconStr) => {
   if (iconStr === "" || iconStr == undefined) return;
-  console.log(iconStr);
+  // console.log(iconStr);
   // 分割字符串
   let [_iconPrefix, iconName] = iconStr.split(":");
   let iconPrefix = _iconPrefix.replace("-", "_");

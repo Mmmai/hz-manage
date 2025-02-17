@@ -596,8 +596,10 @@ const nowKey = ref("");
 // 动态标签获取
 const getLabelValue = async (key) => {
   nowKey.value = key;
+  console.log(nowKey.value);
   labelObject[key].labelValue = "";
   let labelFilterObject = labelObject[key];
+  console.log(labelObject);
   if (labelFilterObject.labelName == "") {
     return;
   } else {
@@ -605,7 +607,7 @@ const getLabelValue = async (key) => {
       url: formInline.dataSourceUrl,
       label: labelFilterObject.labelName,
     });
-    //console.log(res)
+    console.log(res);
 
     labelObject[key].initLabelValueList = res.data.data;
     // labelObject[key].labelValueList = res.data.data
@@ -665,7 +667,8 @@ const loading = ref(false);
 const remoteSearch = debounce((query) => {
   loading.value = true;
   if (query === "" || query === undefined || query instanceof Object) {
-    // console.log(111)
+    console.log(labelObject);
+    console.log(nowKey.value);
     labelObject[nowKey.value].labelValueList =
       labelObject[nowKey.value].initLabelValueList;
     loading.value = false;
