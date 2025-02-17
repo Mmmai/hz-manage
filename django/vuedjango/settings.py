@@ -193,6 +193,7 @@ SPECTACULAR_SETTINGS = {
 
         'persistAuthorization': True,
     },
+    'SERVE_AUTHENTICATION': [],
     # 配置安全认证
     'SECURITY': [
         {
