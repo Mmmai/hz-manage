@@ -192,31 +192,6 @@ SPECTACULAR_SETTINGS = {
         'defaultModelExpandDepth': 0,
 
         'persistAuthorization': True,
-
-        'requestInterceptor': """
-            request => {
-                const token = localStorage.getItem('token');
-                if (token) {
-                    // 从查询参数中移除已有的 token
-                    const url = new URL(request.url);
-                    url.searchParams.delete('token');
-                    // 添加新的 token
-                    url.searchParams.append('token', token);
-                    request.url = url.toString();
-                }
-                return request;
-            }
-        """,
-        'onComplete': """
-            () => {
-                // 监听 localStorage 变化
-                window.addEventListener('storage', (e) => {
-                    if (e.key === 'token') {
-                        location.reload();
-                    }
-                });
-            }
-        """
     },
     'SERVE_AUTHENTICATION': [],
     # 配置安全认证

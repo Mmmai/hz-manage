@@ -54,6 +54,22 @@ def create_field_meta_for_instances(sender, instance, created, **kwargs):
                 )
 
 
+def get_model_group(name, model, verbose_name=None, description=None):
+    group, created = ModelFieldGroups.objects.get_or_create(
+        name=name,
+        model=model,
+        defaults={
+            'verbose_name': verbose_name,
+            'built_in': True,
+            'editable': False,
+            'description': description,
+            'create_user': 'system',
+            'update_user': 'system'
+        }
+    )
+    return group
+
+
 def _create_model_and_fields(model_name, model_config, model_group=None):
     """创建内置模型和相关字段"""
     from .models import (
@@ -92,6 +108,10 @@ def _create_model_and_fields(model_name, model_config, model_group=None):
                     logger.error(f"Model validation failed: {model_serializer.errors}")
                     raise ValueError(f"Invalid model data for {model_name}")
 
+            group = None
+            if model_name == 'hosts':
+                group = get_model_group('auto_discover', model, '自动发现', '自动发现的配置信息')
+
             # 创建字段
             for field_config in model_config.get('fields', []):
                 field_name = field_config['name']
@@ -123,6 +143,7 @@ def _create_model_and_fields(model_name, model_config, model_group=None):
                         'default': field_config.get('default', None),
                         'built_in': True,
                         'ref_model': ref_model.id if ref_model else None,
+                        'model_field_group': group.id if group and field_config.get('group') else None,
                         'create_user': 'system',
                         'update_user': 'system'
                     }

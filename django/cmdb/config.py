@@ -37,7 +37,7 @@ BUILT_IN_MODELS = {
                 'name': 'contact',
                 'type': 'string',
                 'verbose_name': '联系人',
-                'required': True,
+                'required': False,
                 'editable': True,
                 'order': 3
             },
@@ -45,7 +45,7 @@ BUILT_IN_MODELS = {
                 'name': 'phone',
                 'type': 'string',
                 'verbose_name': '联系电话',
-                'required': True,
+                'required': False,
                 'editable': True,
                 'order': 4,
                 'validation_rule': 'phone'
@@ -199,7 +199,7 @@ BUILT_IN_MODELS = {
                 'ref_model': 'projects',
                 'required': False,
                 'editable': True,
-                'order': 6
+                'order': 4
             },
             {
                 'name': 'operator',
@@ -207,7 +207,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '运维负责人',
                 'required': False,
                 'editable': True,
-                'order': 7
+                'order': 5
             },
             {
                 'name': 'operator_backup',
@@ -215,7 +215,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '备用负责人',
                 'required': False,
                 'editable': True,
-                'order': 8
+                'order': 6
             },
             {
                 'name': 'asset_id',
@@ -223,7 +223,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '资产编号',
                 'required': False,
                 'editable': True,
-                'order': 9
+                'order': 7
             },
             {
                 'name': 'serial_number',
@@ -231,7 +231,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '序列号',
                 'required': False,
                 'editable': True,
-                'order': 10
+                'order': 8
             },
             {
                 'name': 'mgmt_user',
@@ -239,7 +239,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '管理用户',
                 'required': False,
                 'editable': True,
-                'order': 11
+                'order': 9
             },
             {
                 'name': 'mgmt_password',
@@ -247,7 +247,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '管理密码',
                 'required': False,
                 'editable': True,
-                'order': 12
+                'order': 10
             },
             {
                 'name': 'root_password',
@@ -255,7 +255,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': 'ROOT密码',
                 'required': True,
                 'editable': True,
-                'order': 13
+                'order': 11
             },
             {
                 'name': 'device_status',
@@ -263,7 +263,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '设备状态',
                 'required': True,
                 'editable': True,
-                'order': 14,
+                'order': 12,
                 'validation_rule': 'device_status'
             },
             {
@@ -272,52 +272,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '备注信息',
                 'required': False,
                 'editable': True,
-                'order': 15
-            },
-
-            # 设备详情字段
-            {
-                'name': 'hostname',
-                'type': 'string',
-                'verbose_name': '主机名',
-                'required': False,
-                'editable': True,
-                'order': 16,
-                'validation_rule': 'hostname'
-            },
-            {
-                'name': 'os_type',
-                'type': 'enum',
-                'verbose_name': '操作系统类型',
-                'default': 'linux',
-                'required': False,
-                'editable': True,
-                'order': 17,
-                'validation_rule': 'os_type'
-            },
-            {
-                'name': 'os_name',
-                'type': 'string',
-                'verbose_name': '操作系统名称',
-                'required': False,
-                'editable': True,
-                'order': 18
-            },
-            {
-                'name': 'os_version',
-                'type': 'string',
-                'verbose_name': '操作系统版本',
-                'required': False,
-                'editable': True,
-                'order': 19
-            },
-            {
-                'name': 'os_bit',
-                'type': 'string',
-                'verbose_name': '系统位数',
-                'required': False,
-                'editable': True,
-                'order': 20
+                'order': 13
             },
             {
                 'name': 'warranty_term',
@@ -325,7 +280,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '质保期限',
                 'required': False,
                 'editable': True,
-                'order': 21
+                'order': 14
             },
             {
                 'name': 'province_name',
@@ -333,7 +288,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '省份',
                 'required': False,
                 'editable': True,
-                'order': 22,
+                'order': 15,
                 'validation_rule': 'province'
             },
             {
@@ -342,7 +297,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '城市',
                 'required': False,
                 'editable': True,
-                'order': 23,
+                'order': 16,
                 'validation_rule': 'city'
             },
             {
@@ -351,7 +306,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '运营商',
                 'required': False,
                 'editable': True,
-                'order': 24,
+                'order': 17,
                 'validation_rule': 'isp'
             },
             {
@@ -361,7 +316,7 @@ BUILT_IN_MODELS = {
                 'ref_model': 'rooms',
                 'required': True,
                 'editable': True,
-                'order': 25
+                'order': 18
             },
             {
                 'name': 'cabinet',
@@ -370,7 +325,7 @@ BUILT_IN_MODELS = {
                 'ref_model': 'cabinets',
                 'required': True,
                 'editable': True,
-                'order': 26
+                'order': 19
             },
             {
                 'name': 'cabinet_position',
@@ -378,7 +333,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': 'U位',
                 'required': True,
                 'editable': True,
-                'order': 27,
+                'order': 20,
                 'description': '填写样例：3-5',
                 'validation_rule': 'cabinet_position'
             },
@@ -388,7 +343,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '设备用途',
                 'required': False,
                 'editable': True,
-                'order': 28
+                'order': 21
             },
             {
                 'name': 'device_config',
@@ -396,7 +351,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '设备配置',
                 'required': False,
                 'editable': True,
-                'order': 29
+                'order': 22
             },
             {
                 'name': 'online_time',
@@ -404,7 +359,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '上线时间',
                 'required': False,
                 'editable': True,
-                'order': 30,
+                'order': 23,
                 'validation_rule': 'datetime'
             },
             {
@@ -413,7 +368,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '对外配置',
                 'required': False,
                 'editable': True,
-                'order': 31
+                'order': 24
             },
             {
                 'name': 'public_model',
@@ -421,7 +376,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '对外型号',
                 'required': False,
                 'editable': True,
-                'order': 32
+                'order': 25
             },
             {
                 'name': 'is_special',
@@ -429,7 +384,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '专用设备',
                 'required': False,
                 'editable': True,
-                'order': 33,
+                'order': 26,
                 'validation_rule': 'boolean'
             },
             {
@@ -438,7 +393,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '质保到期时间',
                 'required': False,
                 'editable': True,
-                'order': 34,
+                'order': 27,
                 'validation_rule': 'datetime'
             },
             {
@@ -447,7 +402,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '录入时间',
                 'required': False,
                 'editable': True,
-                'order': 35,
+                'order': 28,
                 'validation_rule': 'datetime'
             },
             {
@@ -456,7 +411,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '录入方式',
                 'required': False,
                 'editable': True,
-                'order': 36,
+                'order': 29,
                 'validation_rule': 'import_from'
             },
             {
@@ -465,7 +420,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '设备名称',
                 'required': False,
                 'editable': True,
-                'order': 37
+                'order': 30
             },
             {
                 'name': 'device_model',
@@ -473,18 +428,67 @@ BUILT_IN_MODELS = {
                 'verbose_name': '设备型号',
                 'required': False,
                 'editable': True,
-                'order': 38
+                'order': 31
             },
 
-            # 自动发现字段
+            # 自动发现分组字段
+            {
+                'name': 'hostname',
+                'type': 'string',
+                'verbose_name': '主机名',
+                'required': False,
+                'editable': True,
+                'order': 1,
+                'validation_rule': 'hostname',
+                'group': 'auto_discover'
+            },
+            {
+                'name': 'os_type',
+                'type': 'enum',
+                'verbose_name': '操作系统类型',
+                'default': 'linux',
+                'required': False,
+                'editable': True,
+                'order': 2,
+                'validation_rule': 'os_type',
+                'group': 'auto_discover'
+            },
+            {
+                'name': 'os_name',
+                'type': 'string',
+                'verbose_name': '操作系统名称',
+                'required': False,
+                'editable': True,
+                'order': 3,
+                'group': 'auto_discover'
+            },
+            {
+                'name': 'os_version',
+                'type': 'string',
+                'verbose_name': '操作系统版本',
+                'required': False,
+                'editable': True,
+                'order': 4,
+                'group': 'auto_discover'
+            },
+            {
+                'name': 'os_bit',
+                'type': 'string',
+                'verbose_name': '系统位数',
+                'required': False,
+                'editable': True,
+                'order': 5,
+                'group': 'auto_discover'
+            },
             {
                 'name': 'cpu_info',
                 'type': 'json',
                 'verbose_name': 'CPU信息',
                 'required': False,
                 'editable': True,
-                'order': 39,
-                'validation_rule': 'json'
+                'order': 6,
+                'validation_rule': 'json',
+                'group': 'auto_discover'
             },
             {
                 'name': 'memory_info',
@@ -492,8 +496,9 @@ BUILT_IN_MODELS = {
                 'verbose_name': '内存信息',
                 'required': False,
                 'editable': True,
-                'order': 40,
-                'validation_rule': 'json'
+                'order': 7,
+                'validation_rule': 'json',
+                'group': 'auto_discover'
             },
             {
                 'name': 'disk_info',
@@ -501,8 +506,9 @@ BUILT_IN_MODELS = {
                 'verbose_name': '磁盘信息',
                 'required': False,
                 'editable': True,
-                'order': 41,
-                'validation_rule': 'json'
+                'order': 8,
+                'validation_rule': 'json',
+                'group': 'auto_discover'
             },
             {
                 'name': 'disk_size',
@@ -510,7 +516,8 @@ BUILT_IN_MODELS = {
                 'verbose_name': '磁盘总大小',
                 'required': False,
                 'editable': True,
-                'order': 42
+                'order': 9,
+                'group': 'auto_discover'
             }
         ]
     },
