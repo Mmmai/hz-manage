@@ -175,7 +175,7 @@ import type Node from "element-plus/es/components/tree/src/model/node";
 import useCiStore from "@/store/cmdb/ci";
 const showTree = ref(true);
 const ciStore = useCiStore();
-const modelInfo = ref("");
+// const modelInfo = ref("");
 // const currentIconName = defineModel('iconName')
 // const emit = defineEmits(["toChildGetCiData"])
 const loading = ref(false);
@@ -239,7 +239,7 @@ const getCiModelList = async () => {
   modelist.value = res.data.results;
   ciStore.setModelList(modelist.value);
   // 设置默认为host
-  modelInfo.value = modelist.value.find((item) => item.name === "hosts");
+  // modelInfo.value = modelist.value.find((item) => item.name === "hosts");
   ciModelId.value = modelist.value.find((item) => item.name === "hosts").id;
 };
 
@@ -256,6 +256,9 @@ const ciDataShowRef = ref("");
 // 切换模型时
 const changeModel = async () => {
   currentNodeId.value = 1;
+  // modelInfo
+  // ciModelId.value = ;
+  console.log(ciModelId.value);
   await getCiModelTree();
   // modelInfo.value = modelInfoObj.value[ciModelId.value]
   // console.log(modelInfo.value)
@@ -331,7 +334,7 @@ const appendChildNode = (node, data) => {
       label: "新建子目录",
       level: data.level + 1,
       parent: data.id,
-      model: modelInfo.value.id,
+      model: ciModelId.value,
     },
     node
   );
@@ -350,7 +353,7 @@ const appendBroNode = (node, data) => {
       label: "新建目录",
       level: data.level,
       parent: node.parent.data.id,
-      model: modelInfo.value.id,
+      model: ciModelId.value,
     },
     node
   );

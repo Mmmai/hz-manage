@@ -503,6 +503,7 @@
                           <span
                             v-else
                             class="text_class"
+                            style="width: 100%"
                             :class="{ requiredClass: fitem.required }"
                             >{{ ciDataForm[fitem.name] }}</span
                           >
@@ -586,6 +587,7 @@
                       <div v-if="!isEdit">
                         <span
                           class="text_class"
+                          style="width: 100%"
                           v-if="ciDataForm[fitem.name] != null"
                           :class="{ requiredClass: fitem.required }"
                           >{{ ciDataForm[fitem.name] }}</span
@@ -1007,7 +1009,7 @@
                           class="text_class"
                           v-if="ciDataForm[fitem.name] != null"
                           :class="{ requiredClass: fitem.required }"
-                          >{{ currentRow[fitem.name].name }}</span
+                          >{{ currentRow[fitem.name].instance_name }}</span
                         >
                         <span v-else>--</span>
                       </div>
@@ -2326,6 +2328,7 @@ const editCiData = (params, edit = false) => {
   commitActionAdd.value = false;
   isEdit.value = edit;
   currentRow.value = params;
+  // console.log(currentRow.value);
   // getModelRefCiData(true,params.)
   nextTick(() => {
     Object.keys(params).forEach(
