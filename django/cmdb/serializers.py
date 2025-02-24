@@ -11,6 +11,8 @@ from rest_framework.pagination import PageNumberPagination
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
+from django.db.models.signals import post_save
+from django.db import DEFAULT_DB_ALIAS
 import operator
 from functools import reduce
 from django.db.models import Max, F, Q, Count
@@ -1186,6 +1188,13 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                             update_user=user
                         )
                         field_metas.append(meta)
+
+                post_save.send(
+                    sender=ModelInstance,
+                    instance=instance,
+                    created=False,
+                    using=DEFAULT_DB_ALIAS
+                )
                 return field_metas
         except Exception as e:
             logger.error(f"Error in bulk update: {str(e)}")
