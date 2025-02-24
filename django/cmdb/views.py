@@ -404,7 +404,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
         )\
             .select_related('model')
         query_params = self.request.query_params
-        logger.info(f"Query parameters: {query_params}")
+        logger.debug(f"Query parameters: {query_params}")
 
         if not query_params:
             return queryset
@@ -414,7 +414,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
 
         if model_id:
             queryset = queryset.filter(model_id=model_id)
-            logger.info(f"Filtered by model ID: {model_id}")
+            logger.debug(f"Filtered by model ID: {model_id}")
 
         for field_name, field_value in query_params.items():
             # keyword for other query params will be ignored
@@ -426,7 +426,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
                     model=model_id if model_id else queryset.first().model_id,
                     name=field_name
                 )
-                logger.info(f"Processing field: {field.name}")
+                logger.debug(f"Processing field: {field.name}")
 
                 meta_query = ModelFieldMeta.objects.filter(model_fields=field)
                 all_instance_ids = set(meta_query.values_list('model_instance_id', flat=True))
@@ -484,7 +484,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
                 # 获取匹配的实例ID
                 matching_ids = all_instance_ids - exclude_ids
                 matching_ids_list.append(matching_ids)
-                logger.info(f"Found matching IDs for {field_name}: {matching_ids}")
+                logger.debug(f"Found matching IDs for {field_name}: {matching_ids}")
 
             except ModelFields.DoesNotExist:
                 logger.warning(f"Field not found: {field_name}")
@@ -496,18 +496,15 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
         # 取交集并过滤queryset
         if matching_ids_list:
             final_ids = reduce(lambda x, y: x & y, matching_ids_list)
-            logger.info(f"Final matching IDs: {final_ids}")
+            logger.debug(f"Final matching IDs: {final_ids}")
 
             if final_ids:
                 queryset = queryset.filter(id__in=final_ids)
-                logger.info("Final query generated successfully")
+                logger.debug("Final query generated successfully")
             else:
                 # 当没有匹配的 ID 时，返回空查询集
                 queryset = queryset.none()
-                logger.info("No matching results found, returning empty queryset")
-
-            # queryset = queryset.filter(id__in=final_ids)
-            # logger.info(f"Final query: {queryset.query}")
+                logger.debug("No matching results found, returning empty queryset")
 
         return queryset
 
@@ -867,7 +864,7 @@ class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
                 return queryset
             if model_id:
                 queryset = queryset.filter(model_id=model_id)
-                logger.info(f"Filtering groups by model: {model_id}")
+                logger.debug(f"Filtering groups by model: {model_id}")
 
             # 只返回顶层节点，子节点通过序列化器递归获取
             queryset = queryset.filter(parent=None)
@@ -907,13 +904,13 @@ class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
     def _get_all_child_groups(self, group):
         """递归获取所有子组"""
         children = list(ModelInstanceGroup.objects.filter(parent=group))
-        logger.info(f'Found {len(children)} children for group {group}')
+        logger.debug(f'Found {len(children)} children for group {group}')
         all_children = children.copy()
         if len(children) == 0:
             return list()
         for child in children:
             all_children.extend(self._get_all_child_groups(child))
-        logger.info(f'Groups: {all_children}')
+        logger.debug(f'Groups: {all_children}')
         return all_children
 
     def _check_root_group_operation(self, group):
@@ -989,12 +986,12 @@ class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
                         if not other_relations.exists():
                             instances_to_move.add(instance_id)
 
-                logger.info(f"Found {len(instances_to_move)} instances to move to unassigned pool")
+                logger.debug(f"Found {len(instances_to_move)} instances to move to unassigned pool")
 
                 deleted_relations = ModelInstanceGroupRelation.objects.filter(
                     group_id__in=group_ids
                 ).delete()[0]
-                logger.info(f"Deleted {deleted_relations} group relations")
+                logger.debug(f"Deleted {deleted_relations} group relations")
 
                 # 将实例移动到空闲池
                 if instances_to_move:
@@ -1007,11 +1004,11 @@ class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
                         for instance_id in instances_to_move
                     ]
                     ModelInstanceGroupRelation.objects.bulk_create(relations_to_create)
-                    logger.info(f"Created {len(relations_to_create)} relations in unassigned pool")
+                    logger.debug(f"Created {len(relations_to_create)} relations in unassigned pool")
 
                 for child in child_groups:
                     child.delete()
-                    logger.info(f"Deleted child group: {child.label}")
+                    logger.debug(f"Deleted child group: {child.label}")
 
                 instance.delete()
                 logger.info(f"Deleted group: {instance.label}")
@@ -1224,10 +1221,11 @@ class ModelInstanceGroupRelationViewSet(viewsets.ModelViewSet):
         logger.info(f"Creating or updating instance group relations")
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        logger.info(f"Data validated. Saving relations...")
+        logger.debug(f"Data validated. Saving relations...")
 
         try:
             relations = serializer.save()
+            logger.info(f"Successfully created or updated {len(relations)} instance group relations.")
             return Response(
                 ModelInstanceGroupRelationSerializer(
                     relations,
@@ -1236,6 +1234,7 @@ class ModelInstanceGroupRelationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_201_CREATED
             )
         except Exception as e:
+            logger.error(f"Error creating or updating instance group relations: {str(e)}")
             raise ValidationError(str(e))
 
 
