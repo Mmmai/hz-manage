@@ -545,7 +545,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
         logger.info(f'Updating {len(instances)} instances with fields: {fields_data}')
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        logger.info(f'Serializer data: {serializer.data}')
+        logger.debug(f'Serializer data: {serializer.data}')
         logger.info(f'Instances updated successfully')
 
         return Response({

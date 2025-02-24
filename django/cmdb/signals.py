@@ -307,10 +307,8 @@ def initialize_cmdb(sender, **kwargs):
 @receiver(post_save, sender=ModelInstance)
 def sync_zabbix_host(sender, instance, created, **kwargs):
     """同步Zabbix主机"""
-    logger.info(f"Syncing Zabbix host for instance {instance.id}")
 
     def delayed_process():
-        logger.info(f'Delayed process started for instance {instance.id}')
         try:
             model = Models.objects.get(id=instance.model_id)
             if model.name != 'hosts':
@@ -323,7 +321,7 @@ def sync_zabbix_host(sender, instance, created, **kwargs):
             ).select_related('model_fields')
 
             for field in field_values:
-                logger.info(f"Field: {field.model_fields.name}, Value: {field.data}")
+                logger.debug(f"Field: {field.model_fields.name}, Value: {field.data}")
                 if field.model_fields.name == 'ip':
                     host_info[field.model_fields.name] = field.data
                 elif field.model_fields.name == 'root_password':
@@ -332,6 +330,8 @@ def sync_zabbix_host(sender, instance, created, **kwargs):
             if not host_info.get('ip'):
                 logger.warning(f"Missing required host information for instance {instance.id}")
                 return
+
+            logger.info(f"Syncing Zabbix host for IP: {host_info.get('ip')} instance: {instance.id}")
 
             # 异步创建Zabbix主机
             setup_host_monitoring.delay(
@@ -344,7 +344,6 @@ def sync_zabbix_host(sender, instance, created, **kwargs):
         except Exception as e:
             logger.error(f"Failed to sync Zabbix host: {str(e)}")
 
-    logger.info(f'Scheduling delayed process for instance {instance.id}')
     transaction.on_commit(delayed_process)
     logger.info(f'Syncing Zabbix host for instance {instance.id} completed')
 
