@@ -765,6 +765,8 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         groups = ModelInstanceGroupRelation.objects.filter(instance=instance).values_list('group', flat=True)
         groups = ModelInstanceGroup.objects.filter(id__in=groups)
+        if '空闲池' not in groups.values_list('label', flat=True):
+            raise PermissionDenied({'detail': '实例不在空闲池中，无法删除，请先移动到空闲池'})
         ModelInstanceGroup.clear_groups_cache(groups)
         instance.delete()
 
