@@ -1609,7 +1609,7 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
                     order__lt=instance.order,
                     order__gte=target_order
                 ).update(order=F('order') + 1)
-                instance.order = target_order + 1
+                instance.order = target_order
 
             instance.save()
             return instance
