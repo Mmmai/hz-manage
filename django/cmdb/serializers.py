@@ -702,6 +702,11 @@ class ModelFieldMetaSerializer(serializers.ModelSerializer):
             if field_config.default is not None:
                 data['data'] = self._convert_to_storage_value(field_config.default, field_config)
                 value = data.get('data')
+            elif field_config.required:
+                raise serializers.ValidationError({
+                    'detail': f'Field {field_config.name} is required',
+                    'field': field_config.name
+                })
             else:
                 return data
         try:
@@ -955,7 +960,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 model_fields = ModelFields.objects.filter(
                     model=validated_data['model']
                 ).select_related('validation_rule')
-
+                required_fields = model_fields.filter(required=True).values_list('name', flat=True)
                 field_serializers = []
                 for field in model_fields:
                     value = fields_data.get(field.name)

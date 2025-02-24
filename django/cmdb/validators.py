@@ -249,10 +249,6 @@ class FieldValidator:
                 raise ValueError(f"Field {field_config.name} is required")
             return value
 
-        # 无验证规则
-        if not field_config.type:
-            raise ValueError(f"Field type is required for field: {field_config.name}")
-
         if not field_config.validation_rule and field_config.type in (FieldType.STRING, FieldType.TEXT):
             # 字符串和文本类型如果没有验证规则则直接返回
             logger.info(f'No validation rule for field: {field_config.name}')

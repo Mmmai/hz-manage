@@ -8,7 +8,7 @@ from django.core.cache import cache
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIRequestFactory
-from .models import ModelInstance, ZabbixSyncHost
+from .models import ModelFields, ModelInstance, ZabbixSyncHost
 from .serializers import ModelInstanceSerializer
 from .excel import ExcelHandler
 from .utils.zabbix import ZabbixAPI
