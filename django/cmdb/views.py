@@ -574,7 +574,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             ).select_related(
                 'validation_rule',
                 'model_field_group'
-            ).order_by('order')
+            ).order_by('model_field_group__create_time', 'order')
 
             # 生成Excel模板
             excel_handler = ExcelHandler()
