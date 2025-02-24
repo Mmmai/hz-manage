@@ -44,6 +44,8 @@
           <el-divider />
 
           <VueDraggable
+            :force-fallback="true"
+            :scroll-sensitivity="200"
             ref="el"
             v-model="hasConfigFieldList"
             @start="onStart"

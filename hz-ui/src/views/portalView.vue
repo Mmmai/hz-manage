@@ -44,17 +44,9 @@
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item @click="exportData">全部导出</el-dropdown-item>
-              <el-dropdown-item
-                @click="exportDataSelect"
-                v-if="multipleSelect.length === 0"
-                disabled
-                >批量导出</el-dropdown-item
+              <el-dropdown-item @click="importData = true"
+                >批量导入</el-dropdown-item
               >
-              <el-dropdown-item @click="exportDataSelect" v-else
-                >批量导出</el-dropdown-item
-              >
-
-              <el-dropdown-item>批量导入</el-dropdown-item>
               <el-dropdown-item @click="exportTemplate"
                 >模版下载</el-dropdown-item
               >
@@ -393,6 +385,38 @@
       <!-- </div> -->
     </el-form>
   </el-dialog>
+  <el-dialog v-model="importData" title="导入" width="800">
+    <el-upload
+      class="upload-demo"
+      drag
+      action
+      ref="refUpload"
+      :headers="headers"
+      :http-request="uploadFile"
+      :file-list="fileList"
+      :before-upload="beforeUpload"
+      :limit="maxFiles"
+      show-file-list
+    >
+      <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+      <div class="el-upload__text">拖拽文件到此或者 <em>点击上传文件</em></div>
+      <template #tip>
+        <el-row justify="space-between" align="middle">
+          <el-col :span="18">
+            <div>只支持从此系统下载的模板导入，请按右侧按钮下载模板!</div>
+          </el-col>
+          <el-col :span="3">
+            <!-- <el-button link type="primary" @click="rmFileList()"
+              >清除文件列表</el-button
+            > -->
+            <el-button link type="primary" @click="exportTemplate()"
+              >点击下载模板</el-button
+            >
+          </el-col>
+        </el-row>
+      </template>
+    </el-upload>
+  </el-dialog>
 </template>
 
 <script setup>
@@ -642,10 +666,7 @@ const tableDataCol = ref([
     prop: "url",
     label: "链接地址",
   },
-  {
-    prop: "describe",
-    label: "描述",
-  },
+
   {
     prop: "target",
     label: "跳转方式",
@@ -665,6 +686,10 @@ const tableDataCol = ref([
   {
     prop: "password",
     label: "密码",
+  },
+  {
+    prop: "describe",
+    label: "描述",
   },
 ]);
 const portalAction = ref("add");
@@ -832,11 +857,13 @@ onMounted(async () => {
 
 // 导出功能
 // 默认导出
-const exportData = async (params = null) => {
-  let res = await proxy.$api.exportXls(params);
-
+const exportData = async () => {
+  let res = await proxy.$api.portalDataExport();
   console.log(res);
-  proxy.$commonFunc.downloadFunc(res);
+  // let res = await proxy.$api.exportXls(params);
+
+  // console.log(res);
+  // proxy.$commonFunc.downloadFunc(res);
 };
 // 勾选导出
 const exportDataSelect = () => {
@@ -845,8 +872,10 @@ const exportDataSelect = () => {
   exportData({ rowid: mulSelectArr.value });
 };
 // 导出模板
-const exportTemplate = () => {
-  exportData({ template: 111 });
+const exportTemplate = async () => {
+  // exportData({ template: 111 });
+  let res = await proxy.$api.portalTemplateExport();
+  console.log(res);
 };
 
 // 查询功能
@@ -869,6 +898,7 @@ const updatePartolStatus = async (param) => {
     status: param.status,
     id: param.id,
   });
+  x;
   if (res.status == 200) {
     ElMessage({
       type: "success",
@@ -882,6 +912,80 @@ const updatePartolStatus = async (param) => {
       showClose: true,
       message: "更新失败:" + JSON.stringify(res.data),
       type: "error",
+    });
+  }
+};
+
+// 数据导入
+const importData = ref(false);
+const fileList = ref([]);
+const refUpload = ref(null);
+const fileType = ["xlsx"];
+const maxFiles = ref(10);
+const beforeUpload = (file) => {
+  let fileName = file.name;
+  if (file.type != "" || file.type != null || file.type != undefined) {
+    //截取文件的后缀，判断文件类型
+    const fileExt = file.name.replace(/.+\./, "").toLowerCase();
+    //计算文件的大小
+    const isLt5M = file.size / 1024 / 1024 < 5; //这里做文件大小限制
+    //如果大于50M
+    if (!isLt5M) {
+      ElMessage.error("上传文件大小不能超过 5MB!");
+      return false;
+    }
+    //如果文件类型不在允许上传的范围内
+    if (fileType.includes(fileExt)) {
+      let found = fileList.value.find(
+        (item) =>
+          item.name == fileName && item.lastModified == file.lastModified
+      );
+      if (found) {
+        ElMessage({
+          type: "error",
+          message: "该文件已上传！",
+          showClose: true,
+        });
+        return false;
+      }
+      // console.log(fileList.value.length);
+
+      return true;
+    } else {
+      ElMessage({
+        message: `不能上传${fileExt}类型的文件`,
+        type: "error",
+        showClose: true,
+      });
+      return false;
+    }
+  }
+};
+const headers = reactive({
+  "Content-Type": "multipart/form-data",
+});
+const uploadFile = async (item) => {
+  let formDatas = new FormData();
+  formDatas.append("file", item.file);
+  //上传文件
+  let res = await proxy.$api.importPortalData(
+    formDatas,
+    headers,
+    2 * 60 * 1000
+  );
+  console.log(res);
+  if (res.status == 200) {
+    ElMessage({
+      message: `导入成功: ${JSON.stringify(res.data)}`,
+      type: "success",
+      showClose: true,
+    });
+    getPgroupData();
+  } else {
+    ElMessage({
+      message: `导入异常: ${JSON.stringify(res.data)}`,
+      type: "error",
+      showClose: true,
     });
   }
 };

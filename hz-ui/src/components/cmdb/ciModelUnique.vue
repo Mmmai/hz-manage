@@ -105,7 +105,7 @@
               :label="data.verbose_name"
               :value="data.name"
               :key="index"
-              v-for="(data, index) in modelFieldLists"
+              v-for="(data, index) in props.modelFieldLists"
             />
           </el-select>
         </el-form-item>
@@ -162,10 +162,11 @@ const store = useStore();
 const tableData = ref([]);
 const props = defineProps(["modelId", "modelFieldLists"]);
 const addData = () => {
-  console.log(props.modelFieldLists);
+  // console.log(props.modelFieldLists);
   dialogVisible.value = true;
   isAdd.value = true;
 };
+// console.log(props.modelFieldLists);
 const modelFieldNameObj = computed(() => {
   let tmpObj = {};
   props.modelFieldLists.forEach((item) => {
@@ -184,7 +185,7 @@ const dialogVisible = ref(false);
 const handleClose = () => {
   dialogVisible.value = false;
   resetForm(formRef.value);
-  console.log(formInline);
+  // console.log(formInline);
 };
 const isAdd = ref(true);
 // const addData = () => {
@@ -207,10 +208,10 @@ const editRow = (row) => {
 
 const resetForm = (formEl) => {
   if (!formEl) return;
-  console.log(formInline);
+  // console.log(formInline);
   formEl.resetFields();
   nowRow.value = {};
-  console.log(formInline);
+  // console.log(formInline);
 };
 
 const submitAction = async (formEl) => {
@@ -247,7 +248,7 @@ const submitAction = async (formEl) => {
           update_user: store.state.username,
           ...formInline,
         });
-        console.log(res);
+        // console.log(res);
         // console.log(123)
         if (res.status == "200") {
           ElMessage({ type: "success", message: "更新成功" });
@@ -327,10 +328,12 @@ const showName = computed(() => {
   let tmpObj = {};
   tableData.value.forEach((item) => {
     let nameArr = item.fields.map((item2) => modelFieldNameObj.value[item2]);
+    // console.log(modelFieldNameObj.value);
     tmpObj[item.fields?.join("+")] = nameArr.join("+");
   });
   return tmpObj;
 });
+// console.log(showName);
 
 const getTableData = async (params) => {
   let res = await proxy.$api.getCiModelUnique(params);

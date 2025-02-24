@@ -3,6 +3,8 @@ import path from './path'
 import userApis from './user';
 import cmdbApis from './cmdb';
 import lokiApis from './loki'
+import commonFunc from '../utils/common'
+
 const api = {
   ...userApis,
   ...cmdbApis,
@@ -157,6 +159,15 @@ const api = {
       method: 'delete',
       data: data
     })
+  },
+  portalTemplateExport() {
+    commonFunc.downloadFile(path.portal + 'export_template/')
+  },
+  portalDataExport() {
+    commonFunc.downloadFile(path.portal + 'export_portal/')
+  },
+  importPortalData(params, headers, timeout) {
+    return axios.request({ url: path.portal + 'import_portal/', method: 'post', data: params, headers: headers, timeout: timeout })
   },
   // 
   // dataSource

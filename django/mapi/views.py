@@ -5,6 +5,7 @@ from rest_framework.viewsets import ModelViewSet
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.renderers import JSONRenderer
 from .sers import *
+import tempfile
 from rest_framework.views import APIView
 from rest_framework.response import Response
 # from .models import UserInfo,Role,Menu,Portal,Pgroup,Datasource,LogModule
@@ -25,7 +26,7 @@ from django.shortcuts import get_object_or_404
 import json
 from django.conf import settings
 from mapi.extensions.pagination import StandardResultsSetPagination
-
+from .export import exportHandler
 def getRolePermissionList(role_ids):
     allPermissionList = []
     for role_id in role_ids:
@@ -38,7 +39,7 @@ def getRolePermissionList(role_ids):
 class LoginView(APIView):
     """用户登录"""
     authentication_classes = [] # 取消全局认证
-
+    
     def post(self,request,*args,**kwargs):
         user = request.data.get('username')
         pwd = request.data.get('password')
@@ -362,9 +363,70 @@ class PortalViewSet(ModelViewSet):
             get_object_or_404(Portal, id=int(pk)).delete()
 
         return Response(data='delete success', status=status.HTTP_204_NO_CONTENT)
+    @action(methods=['post'], detail=False)
+    def export_template(self, request, *args, **kwargs):
+        # request.data.body('pks', None)
+        # 获取Pg字段和列表
+        model_fields = Portal._meta.fields
+        colList = [["名称","链接地址","状态","分组","用户名","密码","描述"]]
+        # for i in model_fields:
+        #     # print(type(i))
+        #     # print(i.verbose_name)
+        #     if i.name in ["id","update_time","create_time"]:
+        #         continue
+        #     colList.append(i.verbose_name)
+        excel_handler = exportHandler()
+        wb = excel_handler.get_template(colList=colList)
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        # 设置文件的名称，让浏览器提示用户保存文件
+        response['Content-Disposition'] = 'attachment; filename="portal_template.xlsx"'
+        wb.save(response)
+        return response
+        # return Response(data='delete success', status=status.HTTP_200_OK)
+    @action(methods=['post'], detail=False)
+    def export_portal(self, request, *args, **kwargs):
+        # request.data.body('pks', None)
+        # 获取Pg字段和列表
+        model_fields = Portal._meta.fields
+
+        colList = [["名称","链接地址","状态","分组","用户名","密码","描述"]]
+
+        # for i in model_fields:
+        #     # print(type(i))
+        #     # print(i.verbose_name)
+        #     if i.name in ["id","update_time","create_time"]:
+        #         continue
+        #     colList.append(i.verbose_name)
+        portalObj = Portal.objects.all()
+        for i in portalObj:
+            # pgroupObj = Pgroup.objects.get(id=str(i.group))
+            colList.append([i.name,i.url,i.status,i.group.group,i.username,i.password,i.describe])
+        excel_handler = exportHandler()
+        wb = excel_handler.get_portal(colList=colList)
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        # 设置文件的名称，让浏览器提示用户保存文件
+        response['Content-Disposition'] = 'attachment; filename="portal_data.xlsx"'
+        wb.save(response)
+        return response
+        # return Response(data='delete success', status=status.HTTP_200_OK)
+    @action(methods=['post'], detail=False)
+    def import_portal(self,request, *args, **kwargs):
+        portal_file = request.FILES.get('file')
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp:
+            for chunk in portal_file.chunks():
+                temp.write(chunk)
+            temp_path = temp.name
+        excel_handler = exportHandler()
+        allRow = excel_handler.load_data(temp_path)
+        # print(allRow)
+        for row in allRow:
+            name,url,p_status,group,username,password,describe = row
+            pgroupObj,is_create = Pgroup.objects.get_or_create(group=group)
+            Portal.objects.update_or_create(name=name,
+                                           defaults={"url":url,"group":pgroupObj,"status":p_status,"username":username,"password":password,"describe":describe})
 
 
-
+        return Response(data={"count":len(allRow)}, status=status.HTTP_200_OK)
 class PgroupViewSet(ModelViewSet):
     queryset = Pgroup.objects.all()
     serializer_class = PgroupModelSerializer
@@ -398,8 +460,6 @@ class PgroupViewSet(ModelViewSet):
             get_object_or_404(Pgroup, id=int(pk)).delete()
 
         return Response(data='delete success', status=status.HTTP_204_NO_CONTENT)
-
-
 
 class dataSourceViewSet(ModelViewSet):
     queryset = Datasource.objects.all()

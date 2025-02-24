@@ -387,7 +387,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
     pagination_class = StandardResultsSetPagination
     filterset_class = ModelInstanceFilter
     ordering_fields = ['create_time', 'update_time']
-    search_fields = ['model', 'name', 'create_user', 'update_user']
+    search_fields = ['model', 'instance_name', 'create_user', 'update_user']
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
