@@ -89,6 +89,7 @@ class ZabbixAPI:
 
     def __init__(self):
         self.url = getattr(settings, 'ZABBIX_CONFIG', {}).get('url')
+        self.template = getattr(settings, 'ZABBIX_CONFIG', {}).get('template')
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json-rpc"})
         self.token_manager = ZabbixTokenManager()
@@ -271,7 +272,8 @@ class ZabbixAPI:
     @property
     def default_template_id(self):
         if self._default_template_id is None:
-            self._default_template_id = self.get_default_template(None) or "10001"
+            tn = self.template
+            self._default_template_id = self.get_default_template(tn) or "10001"
         return self._default_template_id
 
     def create_hostgroup(self, group_name):

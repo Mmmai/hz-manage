@@ -170,7 +170,9 @@ CELERY_TIMEZONE = 'Asia/Shanghai'
 # Zabbix配置
 ZABBIX_CONFIG = {
     'url': os.environ.get('ZABBIX_URL', ''),
+    'version': os.environ.get('ZABBIX_VERSION', '6.0'),
     'server': os.environ.get('ZABBIX_SERVER'),
+    'template': os.environ.get('ZABBIX_DEFAULT_TEMPLATE'),
     'username': os.environ.get('ZABBIX_USERNAME', 'Admin'),
     'password': os.environ.get('ZABBIX_PASSWORD', 'zabbix'),
     'interval': int(os.environ.get('ZABBIX_INTERVAL', 0))  # 自动注销时间，维护token用，单位秒，0表示不自动注销
