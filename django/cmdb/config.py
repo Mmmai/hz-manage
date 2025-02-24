@@ -472,12 +472,22 @@ BUILT_IN_MODELS = {
                 'group': 'auto_discover'
             },
             {
+                'name': 'os_arch',
+                'type': 'enum',
+                'verbose_name': '系统架构',
+                'required': False,
+                'editable': True,
+                'order': 5,
+                'validation_rule': 'host_architecture',
+                'group': 'auto_discover'
+            },
+            {
                 'name': 'os_bit',
                 'type': 'string',
                 'verbose_name': '系统位数',
                 'required': False,
                 'editable': True,
-                'order': 5,
+                'order': 6,
                 'group': 'auto_discover'
             },
             {
@@ -486,7 +496,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': 'CPU信息',
                 'required': False,
                 'editable': True,
-                'order': 6,
+                'order': 7,
                 'validation_rule': 'json',
                 'group': 'auto_discover'
             },
@@ -496,7 +506,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '内存信息',
                 'required': False,
                 'editable': True,
-                'order': 7,
+                'order': 8,
                 'validation_rule': 'json',
                 'group': 'auto_discover'
             },
@@ -506,7 +516,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '磁盘信息',
                 'required': False,
                 'editable': True,
-                'order': 8,
+                'order': 9,
                 'validation_rule': 'json',
                 'group': 'auto_discover'
             },
@@ -516,7 +526,7 @@ BUILT_IN_MODELS = {
                 'verbose_name': '磁盘总大小',
                 'required': False,
                 'editable': True,
-                'order': 9,
+                'order': 10,
                 'group': 'auto_discover'
             }
         ]

@@ -55,6 +55,8 @@ class DateTimeFormats:
         '%d%m%Y%H%M%S',       # ddmmyyyyHHMMSS
         '%d/%m/%Y %H:%M:%S',  # dd/mm/yyyy HH:MM:SS
         '%d-%m-%Y %H:%M:%S',  # dd-mm-yyyy HH:MM:SS
+        '%Y-%m-%dT%H:%M:%S',  # YYYY-mm-ddTHH:MM:SS
+        '%Y/%m/%dT%H:%M:%S',  # YYYY/mm/ddTHH:MM:SS
     ]
 
 

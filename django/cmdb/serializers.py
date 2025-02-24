@@ -11,6 +11,8 @@ from rest_framework.pagination import PageNumberPagination
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
+from django.db.models.signals import post_save
+from django.db import DEFAULT_DB_ALIAS
 import operator
 from functools import reduce
 from django.db.models import Max, F, Q, Count
@@ -1186,6 +1188,13 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                             update_user=user
                         )
                         field_metas.append(meta)
+
+                post_save.send(
+                    sender=ModelInstance,
+                    instance=instance,
+                    created=False,
+                    using=DEFAULT_DB_ALIAS
+                )
                 return field_metas
         except Exception as e:
             logger.error(f"Error in bulk update: {str(e)}")
@@ -1358,7 +1367,7 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
         }
     })
     def get_children(self, obj):
-        children = ModelInstanceGroup.objects.filter(parent=obj)
+        children = ModelInstanceGroup.objects.filter(parent=obj).order_by('order')
         return ModelInstanceGroupSerializer(children, many=True).data
 
     @extend_schema_field(OpenApiTypes.INT)
@@ -1579,18 +1588,48 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
 
         return None
 
+    def update_group_order(self, instance, target_id, position):
+        with transaction.atomic():
+            target = ModelInstanceGroup.objects.get(id=target_id)
+            groups = ModelInstanceGroup.objects.filter(parent=instance.parent)
+
+            target_order = target.order + 1 if position == 'after' else target.order
+            if target_order < 0:
+                target_order = 1
+            elif target_order > groups.count():
+                target_order = groups.count()
+            if target_order > instance.order:
+                groups.filter(
+                    order__gt=instance.order,
+                    order__lte=target_order
+                ).update(order=F('order') - 1)
+                instance.order = target_order
+            else:
+                groups.filter(
+                    order__lt=instance.order,
+                    order__gte=target_order
+                ).update(order=F('order') + 1)
+                instance.order = target_order + 1
+
+            instance.save()
+            return instance
+
     def create(self, validated_data):
         """创建分组时设置正确的层级"""
         parent = validated_data.get('parent')
+        order = validated_data.get('order')
+
         if parent:
             validated_data['level'] = parent.level + 1
+            validated_data['order'] = ModelInstanceGroup.objects.filter(parent=parent).count() + 1
             if parent.built_in and parent.label == '空闲池':
-                # complete error information
                 raise ValidationError({
                     'Instance group': 'Cannot create group under idle pool'
                 })
         else:
-            validated_data['level'] = 1
+            raise ValidationError({
+                'Instance group': 'Parent group is required'
+            })
         with transaction.atomic():
             instance = super().create(validated_data)
             if parent and ModelInstanceGroupRelation.objects.filter(group=parent).exists():
@@ -1604,6 +1643,10 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         """更新分组"""
         try:
+            target_id = self.context.get('target_id')
+            position = self.context.get('position')
+            if target_id and position:
+                self.update_group_order(instance, target_id, position)
             with transaction.atomic():
                 groups_to_update = [instance]
                 # 如果更改了父分组

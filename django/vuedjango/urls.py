@@ -29,7 +29,7 @@ urlpatterns = [
     path('api/v1/log/', include('mlog.urls')),
     path('api/v1/cmdb/', include('cmdb.urls')),
     # OpenAPI schema
-    path('schema/', SpectacularAPIView.as_view(api_version='v1'), name='schema'),
+    path('api/schema/', SpectacularAPIView.as_view(api_version='v1'), name='schema'),
     # Swagger UI
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     # ReDoc UI

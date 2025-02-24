@@ -58,7 +58,7 @@ class ExcelHandler:
         if len(enum_data) > 0:
             dv = DataValidation(
                 type='list',
-                formula1=f'=枚举类型可选值!${val_col_letter}$3:${val_col_letter}${len(enum_data)+2}',
+                formula1=f'=枚举类型可选值!${val_col_letter}$3:${val_col_letter}${len(enum_data) + 2}',
                 allow_blank=not field.required,
                 showErrorMessage=True,
                 errorTitle='输入错误',
@@ -302,6 +302,11 @@ class ExcelHandler:
         except Exception as e:
             raise serializers.ValidationError(f"Invalid file format: {str(e)}")
 
+    def get_cell_value(self, cell):
+        if cell.value in ('#N/A', '#REF!', '#VALUE!', '#DIV/0!', '#NUM!', '#NAME?', '#NULL!'):
+            return None
+        return cell.value
+
     def load_data(self, file_path):
         """从Excel导入实例数据"""
         results = {
@@ -318,7 +323,7 @@ class ExcelHandler:
         }
         try:
             # 加载Excel文件
-            wb = load_workbook(file_path)
+            wb = load_workbook(file_path, data_only=True)
             self.validate_template(wb)
 
             data_sheet = wb['配置数据']
