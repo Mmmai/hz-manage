@@ -106,9 +106,9 @@ class PasswordHandler:
             if not stored_value:
                 return ""
             # 先解密 Fernet
-            logger.info(f"Decrypting: {stored_value}")
+            logger.debug(f"Decrypting: {stored_value}")
             sm4_hex = self.decrypt(stored_value)
-            logger.info(f"SM4 hex: {sm4_hex}")
+            logger.debug(f"SM4 hex: {sm4_hex}")
             # 再解密 SM4
             plain_text = self.sm4_decryptor.crypt_ecb(
                 bytes.fromhex(sm4_hex)

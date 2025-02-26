@@ -76,10 +76,10 @@ class FieldValidator:
         if field_config.validation_rule.type == ValidationType.RANGE:
             map_status = False
             try:
-                logger.info(f'Validating float value: {value}')
+                logger.debug(f'Validating float value: {value}')
                 min_val, max_val = map(float, field_config.validation_rule.rule.split(','))
                 map_status = True
-                logger.info(f'Range: {min_val} - {max_val}')
+                logger.debug(f'Range: {min_val} - {max_val}')
                 if value < min_val or value > max_val:
                     raise ValueError(f"Value must be between {min_val} and {max_val}")
             except ValueError:
@@ -122,7 +122,7 @@ class FieldValidator:
     @staticmethod
     def validate_ip(value, field_config):
         """IP地址验证(支持v4和v6)"""
-        logger.info(f'Validating IP address: {value}')
+        logger.debug(f'Validating IP address: {value}')
         if not re.match(FieldValidator.IPV4_PATTERN, value) and not re.match(FieldValidator.IPV6_PATTERN, value):
             raise ValueError("Invalid IP address format")
 
@@ -236,7 +236,7 @@ class FieldValidator:
     @classmethod
     def validate(cls, value, field_config):
         """验证入口"""
-        logger.info(f'Accepting value: {value} for field: {field_config.name}')
+        logger.debug(f'Accepting value: {value} for field: {field_config.name}')
         # 特殊类型字段跳过验证
         if field_config.type in [FieldType.PASSWORD, FieldType.MODEL_REF]:
             return value
@@ -249,33 +249,29 @@ class FieldValidator:
                 raise ValueError(f"Field {field_config.name} is required")
             return value
 
-        # 无验证规则
-        if not field_config.type:
-            raise ValueError(f"Field type is required for field: {field_config.name}")
-
         if not field_config.validation_rule and field_config.type in (FieldType.STRING, FieldType.TEXT):
             # 字符串和文本类型如果没有验证规则则直接返回
-            logger.info(f'No validation rule for field: {field_config.name}')
+            logger.debug(f'No validation rule for field: {field_config.name}')
             return value
         elif not field_config.validation_rule and field_config.type in FieldType:
             # 没有验证规则的其他类型字段使用基础校验规则对值进行校验
-            logger.info(f'No validation rule for field: {field_config.name}')
+            logger.debug(f'No validation rule for field: {field_config.name}')
             validator = getattr(cls, f'validate_{field_config.type}', None)
         elif field_config.type in (FieldType.INTEGER, FieldType.FLOAT, FieldType.BOOLEAN, FieldType.DATE, FieldType.DATETIME):
             # 整数和浮点数类型优先使用对应校验类型进行验证，此后如果有自定义验证规则再使用自定义规则二次验证
-            logger.info(f'Using base validation for field: {field_config.name}')
+            logger.debug(f'Using base validation for field: {field_config.name}')
             validator = getattr(cls, f'validate_{field_config.type}', None)
-            logger.info(f'Validator method: {validator}')
+            logger.debug(f'Validator method: {validator}')
         elif field_config.validation_rule and field_config.validation_rule.type == ValidationType.REGEX:
             # 使用自定义正则表达式校验
-            logger.info(f'Using custom regex validation for field: {field_config.name}')
+            logger.debug(f'Using custom regex validation for field: {field_config.name}')
             validator = getattr(cls, 'validate_custom_regex', None)
         else:
             # 优先使用对应校验类型进行验证，此后如果有自定义验证规则再使用自定义规则二次验证
-            logger.info(f'Using custom validation for field: {field_config.name}')
+            logger.debug(f'Using custom validation for field: {field_config.name}')
             validator = getattr(cls, f'validate_{field_config.validation_rule.type}', None)
-            logger.info('Looking for validator method: %s', f'validate_{field_config.validation_rule.type}')
-        logger.info(f'Validator method: {validator}')
+            logger.debug('Looking for validator method: %s', f'validate_{field_config.validation_rule.type}')
+        logger.debug(f'Validator method: {validator}')
         if validator:
             value = validator(value, field_config)
         return value
