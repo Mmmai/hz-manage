@@ -333,7 +333,6 @@ REST_FRAMEWORK = {
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
 os.makedirs(LOG_DIR, exist_ok=True)
 
-
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -376,10 +375,3 @@ LOGGING = {
         },
     },
 }
-
-
-# 国密SM4加密
-SM4_KEY = "287e2ffac32611ef"
-
-
-# FILTERS_DEFAULT_LOOKUP_EXPR = 'contains'
