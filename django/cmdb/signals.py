@@ -2,6 +2,7 @@ from django.dispatch import receiver
 from django.db.models.signals import post_save, post_delete, pre_save, pre_delete, post_migrate
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.core.cache import cache
+from cacheops import invalidate_model
 from django.db import transaction
 from django.db.utils import OperationalError
 from .config import BUILT_IN_MODELS, BUILT_IN_VALIDATION_RULES
@@ -207,6 +208,7 @@ def _initialize_validation_rules():
     from .models import ValidationRules
     from .serializers import ValidationRulesSerializer
 
+    invalidate_model(ValidationRules)
     for name, rule_config in BUILT_IN_VALIDATION_RULES.items():
         try:
             with transaction.atomic():
