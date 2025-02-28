@@ -1,4 +1,4 @@
-from django.dispatch import receiver
+from django.dispatch import receiver, Signal
 from django.db.models.signals import post_save, post_delete, pre_save, pre_delete, post_migrate
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.core.cache import cache
@@ -7,7 +7,9 @@ from django.db import transaction
 from django.db.utils import OperationalError
 from .config import BUILT_IN_MODELS, BUILT_IN_VALIDATION_RULES
 from .tasks import setup_host_monitoring
-from .utils import password_handler, zabbix
+from .utils import password_handler
+from .utils.zabbix import ZabbixAPI
+from .message import instance_group_relation_updated
 from .models import (
     ModelGroups,
     Models,
@@ -329,6 +331,14 @@ def sync_zabbix_host(sender, instance, created, **kwargs):
                 elif field.model_fields.name == 'root_password':
                     host_info[field.model_fields.name] = password_handler.decrypt_to_plain(field.data)
 
+            groups = []
+            instance_group_relations = ModelInstanceGroupRelation.objects.filter(
+                instance=instance
+            ).select_related('group')
+            for relation in instance_group_relations:
+                if relation.group.path not in ['所有', '所有/空闲池']:
+                    groups.append(relation.group.path.replace('所有/', ''))
+
             if not host_info.get('ip'):
                 logger.warning(f"Missing required host information for instance {instance.id}")
                 return
@@ -340,7 +350,8 @@ def sync_zabbix_host(sender, instance, created, **kwargs):
                 instance_id=str(instance.id),
                 instance_name=instance.instance_name,
                 ip=host_info['ip'],
-                password=host_info['root_password']
+                password=host_info['root_password'],
+                groups=groups
             )
 
         except Exception as e:
@@ -531,3 +542,15 @@ def handle_group_deletion(sender, instance, **kwargs):
 
     except Exception as e:
         logger.error(f"Error handling group deletion: {str(e)}")
+
+
+@receiver(instance_group_relation_updated)
+def sync_zabbix_hostgroup_relation(sender, hosts, groups, **kwargs):
+    """同步实例分组关联到Zabbix"""
+    try:
+        # 同步主机组关联
+        zapi = ZabbixAPI()
+        result = zapi.replace_host_hostgroup(hosts, [g.replace('所有/', '') for g in groups])
+        logger.info(f'Successfully synced instance group relation to Zabbix: {result}')
+    except Exception as e:
+        logger.error(f"Error syncing instance groups to Zabbix: {str(e)}")

@@ -115,7 +115,7 @@ class ZabbixAPI:
             "jsonrpc": "2.0",
             "method": "host.get",
             "params": {
-                "output": ["hostid", "host"],
+                "output": ["hostid"],
                 "filter": {
                     "host": host
                 }
@@ -126,7 +126,7 @@ class ZabbixAPI:
         result = self._call("host.get", data["params"])
         return result["result"]
 
-    def host_create(self, host, name, ip):
+    def host_create(self, host, name, ip, groups=None):
         data = {
             "jsonrpc": "2.0",
             "method": "host.create",
@@ -144,6 +144,10 @@ class ZabbixAPI:
                     }
                 ],
                 "groups": [
+                    {
+                        "groupid": group_id
+                    } for group_id in groups
+                ] if groups else [
                     {
                         "groupid": self.default_group_id
                     }
@@ -358,6 +362,28 @@ class ZabbixAPI:
         if groupid:
             return self.update_hostgroup(groupid, new_name)
         return self.get_or_create_hostgroup(new_name)
+
+    def replace_host_hostgroup(self, hosts, groups):
+        """替换主机组"""
+        logger.info(f'Replace host group: {groups} -> {hosts}')
+        groupids = [self.get_or_create_hostgroup(g) for g in groups]
+        hostids = [self.host_get(h)[0]["hostid"] for h in hosts]
+        data = {
+            "jsonrpc": "2.0",
+            "method": "host.massupdate",
+            "params": {
+                "hosts": [{'hostid': hostid} for hostid in hostids],
+                "groups": [{"groupid": groupid} for groupid in groupids]
+            },
+            "id": 1,
+            "auth": self.auth
+        }
+        result = self._call("host.massupdate", data["params"])
+        if result.get("result"):
+            return result["result"]
+        else:
+            logger.error(f"Failed to replace host group: {result}")
+            return None
 
     @property
     def default_group_id(self):

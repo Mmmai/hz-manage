@@ -152,7 +152,7 @@ def process_import_data(self, excel_data, model_id, request):
 
 
 @shared_task
-def setup_host_monitoring(instance_id, instance_name, ip, password, delete=False):
+def setup_host_monitoring(instance_id, instance_name, ip, password, groups=None, delete=False):
     try:
 
         # 删除主机监控
@@ -208,11 +208,15 @@ def setup_host_monitoring(instance_id, instance_name, ip, password, delete=False
                 return {'detail': f"Host monitoring already exists for {ip}, skipping creation"}
             # 主机ip不存在则创建主机并设置监控
             else:
-                result = zabbix_api.host_create(host=ip, name=instance_name, ip=ip)
+                groupids = [zabbix_api.get_or_create_hostgroup(g) for g in groups]
+                result = zabbix_api.host_create(host=ip, name=instance_name, ip=ip, groups=groupids)
                 host_id = result.get('hostids', [None])[0] if result.get('hostids') else None
                 if host_id and host_id.isdigit():
                     ZabbixSyncHost.objects.create(instance_id=instance_id,
-                                                  host_id=int(host_id), name=instance_name, ip=ip)
+                                                  host_id=int(host_id),
+                                                  name=instance_name,
+                                                  ip=ip
+                                                  )
                     logger.info(f"Zabbix host monitoring setup for {ip}")
                 if ANSIBLE_AVAILABLE:
                     chain(
