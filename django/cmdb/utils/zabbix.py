@@ -294,6 +294,71 @@ class ZabbixAPI:
             logger.error(f"Failed to create hostgroup: {result}")
         return result
 
+    def get_hostgroup(self, group_name):
+        """获取主机组"""
+        data = {
+            "jsonrpc": "2.0",
+            "method": "hostgroup.get",
+            "params": {
+                "filter": {
+                    "name": group_name
+                }
+            },
+            "id": 1,
+            "auth": self.auth
+        }
+        result = self._call("hostgroup.get", data["params"])
+        if result.get("result"):
+            return result["result"][0]["groupid"]
+        return None
+
+    def get_or_create_hostgroup(self, group_name):
+        """获取或创建主机组"""
+        group = self.get_hostgroup(group_name)
+        if group:
+            return group
+        return self.create_hostgroup(group_name)
+
+    def update_hostgroup(self, groupid, group_name):
+        """更新主机组"""
+        data = {
+            "jsonrpc": "2.0",
+            "method": "hostgroup.update",
+            "params": {
+                "groupid": groupid,
+                "name": group_name
+            },
+            "id": 1,
+            "auth": self.auth
+        }
+        result = self._call("hostgroup.update", data["params"])
+        return result["result"]
+
+    def delete_hostgroup(self, group_name):
+        """删除主机组"""
+        group_id = self.get_hostgroup(group_name)
+        if group_id:
+            data = {
+                "jsonrpc": "2.0",
+                "method": "hostgroup.delete",
+                "params": {
+                    "groupid": group_id,
+                },
+                "id": 1,
+                "auth": self.auth
+            }
+            result = self._call("hostgroup.delete", data["params"])
+            return result["result"]
+        logger.error(f"Hostgroup not found: {group_name}")
+        return None
+
+    def rename_hostgroup(self, old_name, new_name):
+        """重命名主机组"""
+        groupid = self.get_hostgroup(old_name)
+        if groupid:
+            return self.update_hostgroup(groupid, new_name)
+        return self.get_or_create_hostgroup(new_name)
+
     @property
     def default_group_id(self):
         """获取空闲池组ID"""

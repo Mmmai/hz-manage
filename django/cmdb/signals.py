@@ -7,7 +7,7 @@ from django.db import transaction
 from django.db.utils import OperationalError
 from .config import BUILT_IN_MODELS, BUILT_IN_VALIDATION_RULES
 from .tasks import setup_host_monitoring
-from .utils import password_handler
+from .utils import password_handler, zabbix
 from .models import (
     ModelGroups,
     Models,
@@ -418,15 +418,116 @@ def delete_zabbix_host(sender, instance, **kwargs):
 
 @receiver(post_save, sender=ModelInstanceGroup)
 def handle_group_path(sender, instance, created, **kwargs):
-    """处理实例分组path更新"""
+    """
+    处理实例分组path更新和Zabbix主机组同步
+    使用递归方式处理所有子节点
+    """
+    # 检查是否需要跳过信号处理
+    if getattr(instance, '_skip_signal', False):
+        return
+
     try:
-        if created:
-            instance.path = instance.get_path()
+        zapi = zabbix.ZabbixAPI()
+        new_path = instance.get_path()
+
+        # 如果路径发生变化，更新当前节点
+        if instance.path != new_path:
+            old_path = instance.path
+            instance.path = new_path
+            # 使用skip_signal避免无限递归
+            instance._skip_signal = True
             instance.save()
-        elif instance.path != instance.get_path():
-            instance.path = instance.get_path()
-            instance.save()
-            instance.update_child_path()
+            # 同步Zabbix主机组
+            if new_path != '所有' and instance.model.name == 'hosts':
+                if not old_path:
+                    # 新建主机组
+                    children_count = ModelInstanceGroup.objects.filter(parent=instance.parent).count()
+                    logger.info(f'Creating hostgroup: {new_path.replace("所有/", "")}')
+                    if instance.parent and children_count == 1:
+                        logger.info(f'Delete parent hostgroup '
+                                    f'{instance.parent.path.replace("所有/", "")} since it has got children')
+                        zapi.delete_hostgroup(instance.parent.path.replace('所有/', ''))
+                    zapi.get_or_create_hostgroup(new_path.replace('所有/', ''))
+                else:
+                    # 重命名主机组
+                    logger.info(f'Renaming hostgroup: {old_path.replace("所有/", "")} -> {new_path.replace("所有/", "")}')
+                    zapi.rename_hostgroup(
+                        old_path.replace('所有/', ''),
+                        new_path.replace('所有/', '')
+                    )
+
+            # 在路径变化时递归处理所有子节点
+            children = ModelInstanceGroup.objects.filter(parent=instance)
+            for child in children:
+                # 子节点的更新会触发各自的post_save信号
+                child._skip_signal = False
+                child.save()
 
     except Exception as e:
         logger.error(f"Update group path error: {str(e)}")
+
+
+@receiver(pre_delete, sender=ModelInstanceGroup)
+def prepare_delete_instance_group(sender, instance, **kwargs):
+    """准备删除实例分组"""
+    try:
+        if instance.model.name != 'hosts':
+            return
+
+        # 缓存删除信息，用于post_delete处理
+        cache_key = f'delete_instance_group_{instance.id}'
+        delete_info = {
+            'parent_id': str(instance.parent.id) if instance.parent else None,
+            'path': instance.path,
+            'parent_path': instance.parent.path if instance.parent else None
+        }
+        cache.set(cache_key, delete_info, timeout=60)
+        logger.debug(f'Cached group deletion info: {delete_info}')
+
+    except Exception as e:
+        logger.error(f"Failed to prepare delete instance group: {str(e)}")
+
+
+@receiver(post_delete, sender=ModelInstanceGroup)
+def handle_group_deletion(sender, instance, **kwargs):
+    """处理实例分组删除后的操作"""
+    try:
+        if instance.model.name != 'hosts':
+            return
+
+        cache_key = f'delete_instance_group_{instance.id}'
+        delete_info = cache.get(cache_key)
+        if not delete_info:
+            logger.warning(f"Missing deletion info for group {instance.id}")
+            return
+
+        zapi = zabbix.ZabbixAPI()
+
+        # 删除Zabbix中对应的主机组
+        if instance.path != '所有':
+            group_name = instance.path.replace('所有/', '')
+            try:
+                zapi.delete_hostgroup(group_name)
+                logger.info(f'Deleted Zabbix hostgroup: {group_name}')
+            except Exception as e:
+                logger.error(f"Failed to delete Zabbix hostgroup: {str(e)}")
+
+        # 如果父节点存在且没有其他子节点，则创建父节点的主机组
+        if delete_info['parent_id']:
+            remaining_children = ModelInstanceGroup.objects.filter(
+                parent_id=delete_info['parent_id']
+            ).count()
+
+            if remaining_children == 0 and delete_info['parent_path'] != '所有':
+                parent_group_name = delete_info['parent_path'].replace('所有/', '')
+                try:
+                    zapi.get_or_create_hostgroup(parent_group_name)
+                    logger.info(f'Recreated parent Zabbix hostgroup: {parent_group_name}')
+                except Exception as e:
+                    logger.error(f"Failed to recreate parent Zabbix hostgroup: {str(e)}")
+
+        # 清理缓存
+        cache.delete(cache_key)
+
+    except Exception as e:
+        logger.error(f"Error handling group deletion: {str(e)}")
