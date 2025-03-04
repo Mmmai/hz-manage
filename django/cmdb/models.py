@@ -287,8 +287,7 @@ class ModelInstanceGroup(models.Model):
     update_user = models.CharField(max_length=20, null=False, blank=False)
 
     def save(self, *args, **kwargs):
-        if not self.path:
-            self.path = self.get_path()
+        self._skip_signal = kwargs.pop('skip_signal', getattr(self, '_skip_signal', False))
         super().save(*args, **kwargs)
 
     def get_path(self):
@@ -296,6 +295,7 @@ class ModelInstanceGroup(models.Model):
             return f'{self.parent.path}/{self.label}'
         return self.label
 
+    # 弃用该函数，统一由post_save信号触发更新
     def update_child_path(self):
         """更新子分组的path"""
         children = self.__class__.objects.filter(parent=self)

@@ -22,6 +22,7 @@ from cacheops import invalidate_model, invalidate_obj
 from .utils import password_handler
 from .validators import FieldValidator
 from .constants import FieldMapping, ValidationType, FieldType, limit_field_names
+from .message import instance_group_relation_updated
 from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.types import OpenApiTypes
 from .models import (
@@ -1803,7 +1804,7 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
             g for g in groups
             if ModelInstanceGroup.objects.filter(parent=g).exists()
         ]
-        logger.info(f'Non-leaf groups: {non_leaf_groups}')
+        logger.debug(f'Non-leaf groups: {non_leaf_groups}')
         if non_leaf_groups:
             raise serializers.ValidationError(
                 f"Non-leaf group exists: {', '.join(g.label for g in non_leaf_groups)}"
@@ -1812,7 +1813,7 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
         # 验证是否同时包含空闲池和其他分组
         has_unassigned_pool = groups.filter(label='空闲池').exists()
         has_other = groups.exclude(label='空闲池').exists()
-        logger.info(f'Has free pool: {has_unassigned_pool}, has other: {has_other}')
+        logger.debug(f'Has free pool: {has_unassigned_pool}, has other: {has_other}')
         if has_unassigned_pool and has_other:
             raise serializers.ValidationError('Cannot assign instance to both idle pool and other groups')
 
@@ -1828,13 +1829,19 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
         has_unassigned_pool = validated_data['has_unassigned_pool']
         created_relations = []
         groups_to_clear = set()
+        hosts = []
+        hostgroups = []
         logger.info(f'Creating group relations for instances {instances} and groups {groups}')
-
         try:
             with transaction.atomic():
                 for instance_id in instances:
                     logger.info(f'Processing instance {instance_id}')
                     instance = ModelInstance.objects.get(id=instance_id)
+                    if instance.model.name == 'hosts':
+                        hosts.append(ModelFieldMeta.objects.filter(
+                            model_instance=instance,
+                            model_fields__name='ip'
+                        ).first().data)
                     existing_query = ModelInstanceGroupRelation.objects.filter(
                         instance=instance
                     ).select_related('group')
@@ -1852,6 +1859,7 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
                             create_user='system',
                             update_user='system'
                         )
+                        hostgroups.append(group.path)
                         created_relations.append(relation)
                     invalidate_obj(instance)
 
@@ -1860,6 +1868,12 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
                     relation.group for relation in created_relations
                 )
                 ModelInstanceGroup.clear_groups_cache(groups_to_clear)
+                if hostgroups and hosts:
+                    instance_group_relation_updated.send(
+                        sender=ModelInstanceGroupRelation,
+                        hosts=hosts,
+                        groups=set(hostgroups)
+                    )
                 return created_relations
         except Exception as e:
             logger.error(f'Error creating group relations: {traceback.format_exc()}')
