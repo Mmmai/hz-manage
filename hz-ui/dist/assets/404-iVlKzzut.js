@@ -1,0 +1,1 @@
+import{f as t,a as s,u as r,o as n}from"./index-DbTZdHLp.js";const _={__name:"404",setup(u){const o=s();console.log(o.getRoutes());const e=r();return console.log(e.state.routerInfo),(a,c)=>(n(),t("h1",null,"404 Not Found"))}};export{_ as default};

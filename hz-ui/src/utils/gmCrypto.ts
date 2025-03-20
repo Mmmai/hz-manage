@@ -18,6 +18,7 @@ export function encrypt_sm4(key: string, mode: string, text: string): string {
 }
 // AES解密函数
 export function decrypt_sm4(key: string, mode: string, text: string): string {
+  if (text === undefined) return text
   const encoder = new TextEncoder();
   const bytes = encoder.encode(key);
   try {

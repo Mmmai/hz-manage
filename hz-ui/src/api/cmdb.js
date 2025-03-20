@@ -112,6 +112,10 @@ export default {
   getCiModelInstance(params) {
     return axios.request({ url: path.cmdbCiModelInstance, method: 'get', params: params })
   },
+  // 获取模型所有实例id，用户选择全部时的请求
+  getCiModelInstanceAll(params) {
+    return axios.request({ url: path.cmdbCiModelInstance, method: 'get', params: params })
+  },
   deleteCiModelInstance(params) {
     return axios.delete(path.cmdbCiModelInstance + params)
   },

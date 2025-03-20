@@ -22,33 +22,33 @@
         >
         <!-- <el-button @click="isShowUpload = true">导入</el-button> -->
         <el-button
-          :disabled="!(multipleSelect.length >>> 0)"
+          :disabled="!(multipleSelectId.length >>> 0)"
           @click="ciDataToTree = true"
           v-permission="`${route.name?.replace('_info', '')}:edit`"
           >转移</el-button
         >
 
         <el-button
-          :disabled="!(multipleSelect.length >>> 0)"
+          :disabled="!(multipleSelectId.length >>> 0)"
           @click="multipleUpdate"
           v-permission="`${route.name?.replace('_info', '')}:edit`"
           >批量更新</el-button
         >
-        <!-- <el-button :disabled="!(multipleSelect.length >>> 0)">导出</el-button> -->
+        <!-- <el-button :disabled="!(multipleSelectId.length  >>> 0)">导出</el-button> -->
         <!-- <a-dropdown-button :trigger="['click']" ref="aDropdownRef">
           更多操作
           <template #overlay>
             <a-menu>
               <a-menu-item
                 key="0"
-                :disabled="!(multipleSelect.length >>> 0)"
+                :disabled="!(multipleSelectId.length  >>> 0)"
                 @click="exportSelect(false)"
               >
                 导出勾选(显示字段)
               </a-menu-item>
               <a-menu-item
                 key="1"
-                :disabled="!(multipleSelect.length >>> 0)"
+                :disabled="!(multipleSelectId.length  >>> 0)"
                 @click="exportSelect(true)"
               >
                 导出勾选(所有字段)
@@ -63,21 +63,28 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
+              <el-dropdown-item
+                v-permission="`${route.name?.replace('_info', '')}:update`"
+                @click="updateCiDataAll()"
+              >
+                更新所有
+              </el-dropdown-item>
               <div v-permission="`${route.name?.replace('_info', '')}:delete`">
                 <el-dropdown-item
-                  :disabled="!(multipleSelect.length >>> 0)"
+                  :disabled="!(multipleSelectId.length >>> 0)"
                   @click="bulkDelete()"
+                  divided
                   >批量删除</el-dropdown-item
                 >
               </div>
               <div v-permission="`${route.name?.replace('_info', '')}:export`">
                 <el-dropdown-item
-                  :disabled="!(multipleSelect.length >>> 0)"
+                  :disabled="!(multipleSelectId.length >>> 0)"
                   @click="exportSelect(false)"
                   >导出勾选(显示字段)</el-dropdown-item
                 >
                 <el-dropdown-item
-                  :disabled="!(multipleSelect.length >>> 0)"
+                  :disabled="!(multipleSelectId.length >>> 0)"
                   @click="exportSelect(true)"
                   >导出勾选(所有字段)</el-dropdown-item
                 >
@@ -202,7 +209,8 @@
         :selectable="selectable"
         width="55"
         :reserve-selection="true"
-      />
+      >
+      </el-table-column>
       <el-table-column
         prop="instance_name"
         label="名称"
@@ -339,7 +347,14 @@
             content="点击查看二维码"
             placement="top"
           >
-            <span style="margin-left: 12px">
+            <el-button
+              v-permission="`${route.name?.replace('_info', '')}:view`"
+              link
+              type="primary"
+              :icon="Grid"
+              @click="showqCode(scope.row)"
+            ></el-button>
+            <!-- <span style="margin-left: 12px">
               <el-popover
                 placement="bottom"
                 title="实例二维码"
@@ -351,7 +366,7 @@
                 </template>
                 <a-qrcode :value="JSON.stringify(scope.row)" :size="200" />
               </el-popover>
-            </span>
+            </span> -->
           </el-tooltip>
 
           <!-- <el-tooltip class="box-item" effect="dark" content="扫描二维码" placement="top">
@@ -373,7 +388,14 @@
       @current-change="handleCurrentChange"
       style="margin-top: 5px; justify-content: flex-end"
     >
-      <el-text>已选择 {{ multipleSelect.length }} 条</el-text>
+      <div style="display: flex; justify-content: space-between; width: 100%">
+        <!-- <div style="display: flex; justify-content: space-between">
+          <el-button @click="selectAll()">全选</el-button>
+          <el-button @click="clearMultipleSelect">取消全选</el-button>
+        </div> -->
+
+        <el-text>已选择 {{ multipleSelectId.length }} 条</el-text>
+      </div>
     </el-pagination>
   </div>
 
@@ -1482,15 +1504,20 @@
     @reloadTable="reloadWind"
     ref="ciDataTableColRef"
   />
-  <ciDataShowPass v-model:showAllPassDia="showAllPassDia" />
   <!-- 全局密码显示 -->
+  <ciDataShowPass v-model:showAllPassDia="showAllPassDia" />
+  <!-- 二维码 -->
+  <ciDataqCode
+    :qCodeContext="qCodeContext"
+    v-model:showqCodeDia="showqCodeDia"
+  />
 </template>
 
 <script lang="ts" setup>
 import ciDataUpload from "./ciDataUpload.vue";
 import ciDataTableCol from "./ciDataTableCol.vue";
 import ciDataShowPass from "./ciDataShowPass.vue";
-
+import ciDataqCode from "./ciDataqCode.vue";
 import {
   Check,
   Delete,
@@ -1662,6 +1689,7 @@ const allModelFieldNameArr = computed(() => {
   return allModelField.value.map((item) => item.name);
 });
 const isShowUpload = ref(false);
+
 const bulkDelete = async () => {
   let res = await proxy.$api.bulkDeleteCiModelInstance({
     instances: multipleSelectId.value,
@@ -1759,10 +1787,17 @@ const setMultipleUpdateParam = (val, item) => {
   }
 };
 const multipleUpdate = () => {
+  isUpdateAll.value = false;
   multipleDia.value = true;
-  console.log(multipleForm);
+  // console.log(multipleForm);
 };
-
+// 更新所有
+const isUpdateAll = ref(false);
+const updateCiDataAll = () => {
+  isUpdateAll.value = true;
+  multipleDia.value = true;
+  // ciDataTableRef.value!.toggleAllSelection();
+};
 const setUpdateFormItemRule = (params) => {
   // let regexp =
   if (params === undefined) return;
@@ -1861,11 +1896,23 @@ const saveCommit = () => {
     if (valid) {
       // 批量更新的方法
       // return;
-      let res = await proxy.$api.multipleUpdateCiModelInstance({
-        update_user: store.state.username,
-        instances: multipleSelectId.value,
-        fields: multipleCommitParam.value,
-      });
+      let res = undefined;
+      if (isUpdateAll.value) {
+        // 条件下的全量更新
+        res = await proxy.$api.allUpdateCiModelInstance({
+          update_user: store.state.username,
+          fields: multipleCommitParam.value,
+          model: props.ciModelId,
+          model_instance_group: props.currentNodeId,
+          conditions: filterParam.value,
+        });
+      } else {
+        res = await proxy.$api.multipleUpdateCiModelInstance({
+          update_user: store.state.username,
+          instances: multipleSelectId.value,
+          fields: multipleCommitParam.value,
+        });
+      }
 
       // 发起更新请求
       if (res.status == "200") {
@@ -1957,28 +2004,87 @@ const updateCiData = async (params) => {
     });
   }
 };
-const selectable = () => true;
+const selectable = (row) => {
+  return true;
+};
 
 // 表格勾选
 const ciDataTableRef = ref(null);
 const get_row_key = (row) => {
   return row.id;
 };
-const multipleSelect = ref([]);
-const multipleSelectId = computed(() => {
-  let tempArr = [];
-  multipleSelect.value?.forEach((item) => {
-    tempArr.push(item.id);
-  });
-  return tempArr;
-});
+const multipleSelectId = ref([]);
+// const multipleSelectId = computed(() => {
+//   let tempArr = [];
+//   multipleSelectId.value?.forEach((item) => {
+//     tempArr.push(item.id);
+//   });
+//   return tempArr;
+// });
 const handleSelectionChange = (val) => {
-  multipleSelect.value = val;
-};
+  multipleSelectId.value = val.map((item) => item.id);
 
+  // console.log(val);
+  // console.log(multipleSelectId.value);
+};
+// const selectRow = (selections, row) => {
+//   const isExist = multipleSelectId.value.some((item) => item === row.id);
+//   if (selections.includes(row)) {
+//     !isExist && multipleSelectId.value.push(row.id);
+//   } else {
+//     multipleSelectId.value = multipleSelectId.value.filter(
+//       (item) => item !== row.id
+//     );
+//   }
+// };
+// const handleSelectAll = (selection) => {
+//   if (selection.length === 0) {
+//     // 取消全选：移除当前页所有项
+//     multipleSelectId.value = multipleSelectId.value.filter(
+//       (item) => !ciDataList.value.some((row) => row.id === item)
+//     );
+//   } else {
+//     // 全选当前页：合并选中项（去重）
+//     const newSelections = selection.filter(
+//       (row) => !multipleSelectId.value.some((item) => item === row.id)
+//     );
+//     // multipleSelectId.value.push(...newSelections);
+//     newSelections.forEach((item) => {
+//       multipleSelectId.value.push(item.id);
+//     });
+//   }
+// };
+// const isSelectAll = ref(false);
+// const selectAll = async () => {
+//   isSelectAll.value = true;
+//   // 后端获取所有id
+//   let res = await proxy.$api.getCiModelInstanceAll({
+//     model: props.ciModelId,
+//     model_instance_group: props.currentNodeId,
+//     page: 1,
+//     page_size: 50000,
+//     ...filterParam.value,
+//   });
+//   multipleSelectId.value = res.data.results.map((item) => item.id);
+//   // console.log(multipleSelectId.value);
+//   // multipleSelectId.value = res.data.results.reduce((acc, obj) => {
+//   //   let keys = Object.keys(obj);
+//   //   keys.forEach((key) => {
+//   //     if (!acc.includes(key)) {
+//   //       acc.push(key);
+//   //     }
+//   //   });
+//   //   return acc;
+//   // }, []);
+//   // 获取所有实例的id
+
+//   // multipleSelectId.value = [{ id: "70596c7f-7905-4560-9d19-a9f247ca6853" }];
+//   ciDataTableRef.value!.toggleAllSelection();
+// };
 const clearMultipleSelect = () => {
-  multipleSelect.value = [];
+  multipleSelectId.value = [];
   ciDataTableRef.value!.clearSelection();
+  // isSelectAll.value = false;
 };
 // 穿梭框排序
 
@@ -2297,6 +2403,17 @@ const getCiData = async (params) => {
     });
   });
   ciDataList.value = tmpList;
+  // nextTick(() => {
+  //   if (isSelectAll.value) {
+  //     console.log(123);
+  //     ciDataList.value.forEach((row) => {
+  //       if (multipleSelectId.value.includes(row.id)) {
+  //         ciDataTableRef.value!.toggleRowSelection(row);
+  //       } else {
+  //       }
+  //     });
+  //   }
+  // });
   setLoading(false);
 };
 // const loadingInstance = ElLoading.service(options)
@@ -2344,6 +2461,17 @@ const editCiData = (params, edit = false) => {
           } else {
             ciDataForm[item] = params[item];
           }
+        } else if (modelFieldType.value.password.indexOf(item) !== -1) {
+          console.log("password");
+          if (!showAllPass.value) {
+            ciDataForm[item] = params[item];
+          } else {
+            ciDataForm[item] = decrypt_sm4(
+              gmConfig.value.key,
+              gmConfig.value.mode,
+              params[item]
+            );
+          }
         } else {
           // console.log(params[item]);
           ciDataForm[item] = params[item];
@@ -2374,6 +2502,15 @@ const cpCiData = (params) => {
         } else if (modelFieldType.value.enum.indexOf(item) !== -1) {
           ciDataForm[item] = params[item].value;
         } else if (modelFieldType.value.password.indexOf(item) !== -1) {
+          if (!showAllPass.value) {
+            ciDataForm[item] = params[item];
+          } else {
+            ciDataForm[item] = decrypt_sm4(
+              gmConfig.value.key,
+              gmConfig.value.mode,
+              params[item]
+            );
+          }
         } else {
           ciDataForm[item] = params[item];
         }
@@ -2669,6 +2806,14 @@ defineExpose({
   updateFilterParam,
   reloadCiDataFilter,
 });
+
+// 二维码
+const showqCodeDia = ref(false);
+const qCodeContext = ref("");
+const showqCode = (params) => {
+  showqCodeDia.value = true;
+  qCodeContext.value = params;
+};
 </script>
 <style scoped lang="scss">
 :deep(.el-transfer-panel__item).el-checkbox {

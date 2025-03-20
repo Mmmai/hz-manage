@@ -65,7 +65,7 @@ class Models(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50, unique=True, db_index=True, null=False, blank=False)
     verbose_name = models.CharField(max_length=50, null=False, blank=False)
-    instance_name_template = models.CharField(max_length=200, null=True, blank=True)
+    instance_name_template = models.JSONField(max_length=200, null=True, blank=True)
     model_group = models.ForeignKey('ModelGroups', on_delete=models.SET_NULL, null=True, blank=True)
     description = models.TextField(blank=True, null=True)
     built_in = models.BooleanField(default=False, null=False, blank=False)

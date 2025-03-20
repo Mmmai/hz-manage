@@ -21,7 +21,12 @@
 
           <!-- <h5>HZ-MANAGE</h5> -->
           <!-- <h4 style="margin-left: 10px">智维</h4> -->
-          <el-text size="large" style="margin-left: 5px" tag="b">智维</el-text>
+          <el-text size="large" style="margin-left: 5px" tag="b"
+            >智维
+            <el-text size="small" style="margin-left: 5px" tag="sub">{{
+              appVersion
+            }}</el-text>
+          </el-text>
         </div>
         <div v-show="!$store.state.isCollapse" class="top-icon">
           <!-- <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg> -->
@@ -49,7 +54,7 @@ const currentColor = "#fff";
 
 import useTabsStore from "@/store/tabs";
 const tabsStore = useTabsStore();
-
+const appVersion = import.meta.env.APP_VERSION;
 const currentMenu = computed(() => tabsStore.currentMenu);
 watch(
   () => currentMenu.value,
