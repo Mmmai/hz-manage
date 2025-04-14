@@ -1,0 +1,18 @@
+# filepath: audit/constants.py
+
+AUDIT_ACTION_CREATE = 'create'
+AUDIT_ACTION_UPDATE = 'update'
+AUDIT_ACTION_DELETE = 'delete'
+
+AUDIT_LOG_MODEL_NAME = 'AuditLog'
+AUDIT_LOG_VERBOSE_NAME = '审计日志'
+AUDIT_LOG_DESCRIPTION = '记录增删改操作的详细信息'
+
+AUDIT_USER_FIELD = 'user'
+AUDIT_INSTANCE_FIELD = 'instance'
+AUDIT_ACTION_FIELD = 'action'
+AUDIT_TIMESTAMP_FIELD = 'timestamp'
+
+AUDIT_REVERT_ACTION = 'revert'
+AUDIT_REVERT_SUCCESS_MESSAGE = '撤销操作成功'
+AUDIT_REVERT_FAILURE_MESSAGE = '撤销操作失败'
