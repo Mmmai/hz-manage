@@ -47,7 +47,8 @@ INSTALLED_APPS = [
     'django_filters',
     'import_export',
     'drf_spectacular',
-    'drf_spectacular_sidecar'
+    'drf_spectacular_sidecar',
+    'channels'
 ]
 
 
@@ -80,7 +81,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'vuedjango.wsgi.application'
-
+#websocket相关配置
+ASGI_APPLICATION = 'vuedjango.asgi.application'
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}
 
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases

@@ -15,6 +15,19 @@
         {{ `任务ID是：${taskId}` }}
         <div>{{ taskRes }}</div>
       </el-tab-pane>
+      <el-tab-pane label="WebSocket测试" name="weSocketTest">
+        <el-input v-model="command" style="width: 240px"></el-input>
+        <el-button @click="openWs">执行</el-button>
+        <el-button type="danger" @click="closeWs">终止</el-button>
+        <div>
+          <!-- <el-text v-for="(item, index) in outputLines" :key="index">{{
+            item
+          }}</el-text> -->
+          <p style="" v-for="(item, index) in outputLines" :key="index">
+            {{ item }}
+          </p>
+        </div>
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -80,7 +93,38 @@ onUnmounted(() => {
   if (eventSource.value) {
     eventSource.value.close();
   }
+  if (socket.value) {
+    socket.value.close();
+  }
 });
+
+// websocket
+const command = ref("");
+const socket = ref(null);
+const outputLines = ref([]);
+const openWs = () => {
+  outputLines.value = [];
+  socket.value = new WebSocket("/ws/test/");
+
+  socket.value.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type === "output") {
+      console.log(data);
+      outputLines.value.push(data.message + "\r\n");
+    } else if (data.type === "complete") {
+      console.log(data);
+
+      outputLines.value.push(`执行完成，返回码: ${data.returncode}`);
+      socket.value.close();
+    }
+  };
+  socket.value.onopen = () => {
+    socket.value.send(JSON.stringify({ command: command.value }));
+  };
+};
+const closeWs = () => {
+  socket.value.close();
+};
 </script>
 <style scoped lang="scss">
 </style>
