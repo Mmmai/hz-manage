@@ -112,11 +112,17 @@ const currentMenIndex = ref("name");
 </script>
 
 <style scoped>
+/* .el-sub-menu__title {
+  color: #fff !important;
+} */
 .el-menu {
   /* border-right: 1px; */
-  color: var(--el-text-color-regular);
+  /* color: var(--el-text-color-regular); */
+  /* background-color: var(--el-color-primary-light-5) !important; */
 }
-
+.el-aside {
+  /* background-color: var(--el-color-primary-light-5) !important; */
+}
 h3 {
   line-height: 40px;
   text-align: center;

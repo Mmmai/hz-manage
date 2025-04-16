@@ -27,12 +27,13 @@ class LogFlowMissionViewSet(ModelViewSet):
     queryset = LogFlowMission.objects.all()
     # serializer_class = LogFlowMissionModelSerializer
     filterset_class = LogFlowMissionFilter
+    ordering_fields = ['create_time',]
     def get_serializer_class(self):
         if self.action == 'list':
             return LogFlowMissionModelSerializer
         else:
             return LogFlowMissionModelSerializerAll
-
+    
 class LogFlowViewSet(APIView):
     # queryset = LogFlow.objects.all()
     # # queryset = LogFlow.steps.through.objects.order_by('id').all()

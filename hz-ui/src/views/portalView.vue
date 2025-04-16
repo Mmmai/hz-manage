@@ -703,6 +703,8 @@ const tableDataTotal = ref(0);
 //   return tableData.value.length <= tablePageConfig.size ? true : false;
 // });
 const allTableDataConfig = reactive({
+  page: 1,
+  page_size: 2000,
   owner: store.state.userinfo.user_id,
 });
 const sourceTableData = ref([]);

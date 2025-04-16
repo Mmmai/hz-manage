@@ -132,6 +132,12 @@ export default {
   multipleUpdateCiModelInstance(params) {
     return axios.request({ url: path.cmdbCiModelInstance + '/bulk_update_fields/', method: 'patch', data: params })
   },
+  syncHosts() {
+    return axios.request({ url: path.cmdbCiModelInstance + '/sync_hosts/', method: 'post' })
+  },
+  updateInstanceName() {
+    return axios.request({ url: path.cmdbCiModelInstance + '/update_instance_name_by_template/', method: 'post' })
+  },
   // ci数据显示列
   getCiModelCol(params) {
     return axios.request({ url: path.cmdbCiDataCol, method: 'get', params: params })

@@ -12,7 +12,9 @@ urlpatterns = [
     path('test',views.test),
     path('logFlow/',views.LogFlowViewSet.as_view()),
     path('logFlow/<str:pk>/',views.LogFlowViewSet.as_view()),
-    path('logFlow/stepQuery',lokiapi.lokiStepQuery)
+    path('logFlow/stepQuery',lokiapi.lokiStepQuery),
+    # 流程查询的任务sse接口
+    path('logFlowMission/get_lokiAnalysis_status/<str:task_id>/', lokiapi.get_lokiAnalysis_status, name='get_lokiAnalysis_status'),
 
 
 

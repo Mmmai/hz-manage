@@ -31,7 +31,7 @@ class LogFlowMissionModelSerializer(serializers.ModelSerializer):
     class Meta:
         # 表名
         model = LogFlowMission
-        fields = ('mission_id','user_id','username','flow_id','flow_name','task_id','dataSource_id','dataSource_name','create_time','status')
+        fields = ('mission_id','user_id','username','flow_id','flow_name','search_key','dataSource_id','dataSource_name','create_time','status')
 class LogFlowMissionModelSerializerAll(serializers.ModelSerializer):
     status = serializers.CharField(source='get_status_display')
     dataSource_name = serializers.CharField(source='dataSource_id.source_name')

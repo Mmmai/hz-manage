@@ -9,30 +9,68 @@
     "
   >
     <!-- 日志检索表单 -->
-    <div class="card" style="flex: 0.3">
-      <el-form
-        :inline="true"
-        :model="formInline"
-        class="demo-form-inline"
-        ref="formRef"
-      >
-        <el-form-item label="数据源">
-          <el-select
-            v-model="formInline.dataSourceUrl"
-            placeholder="Select"
-            size="large"
-            style="width: 180px"
-          >
-            <el-option
-              v-for="(dv, di) in dataSourceOptions"
-              :key="di"
-              :label="dv.label"
-              :value="dv.value"
-              :disabled="dv.disabled"
-            />
-          </el-select>
-        </el-form-item>
-        <div>
+
+    <el-form :inline="true" :model="formInline" ref="formRef">
+      <div class="card">
+        <el-row justify="space-between">
+          <el-col :span="6">
+            <el-form-item
+              label="数据源"
+              style="margin-bottom: 0px"
+              :rules="[{ required: true }]"
+            >
+              <el-select
+                v-model="formInline.dataSourceUrl"
+                placeholder="Select"
+                size="default"
+                style="width: 180px"
+              >
+                <el-option
+                  v-for="(dv, di) in dataSourceOptions"
+                  :key="di"
+                  :label="dv.label"
+                  :value="dv.value"
+                  :disabled="dv.disabled"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="14" style="white-space: nowrap">
+            <div style="display: flex">
+              <el-form-item
+                label="时间范围"
+                prop="dateValue"
+                :rules="[{ required: true }]"
+                style="margin-bottom: 0px"
+              >
+                <el-date-picker
+                  v-model="formInline.dateValue"
+                  type="datetimerange"
+                  :shortcuts="shortcuts"
+                  range-separator="To"
+                  start-placeholder="Start date"
+                  end-placeholder="End date"
+                  value-format="x"
+                  @visible-change="getShortCuts()"
+                />
+              </el-form-item>
+
+              <el-button
+                type="primary"
+                size="default"
+                :loading="onSubmitIsLoading"
+                @click="onSubmit"
+                >检索</el-button
+              >
+              <el-button type="primary" size="default" @click="reloadFilter"
+                >重置</el-button
+              >
+            </div>
+          </el-col>
+        </el-row>
+      </div>
+      <div class="card" style="flex: 0.3">
+        <el-space>
           <el-form-item label="过滤器" prop="labelValue">
             <div v-for="(value, key, index) in labelObject" :key="index">
               <el-select
@@ -41,7 +79,7 @@
                 clearable
                 placeholder="标签"
                 style="width: 120px"
-                @click="getLabels"
+                @visible-change="getLabels"
                 @change="clearLabelValue(key)"
               >
                 <el-option
@@ -89,7 +127,7 @@
                 "
                 style="width: 240px"
                 remote
-                @click="getLabelValue(key)"
+                @visible-change="getLabelValue(key, $event)"
                 :remote-method="remoteSearch"
               >
                 <el-option
@@ -120,9 +158,9 @@
 
             <!-- <el-icon @click="addFilter"><CirclePlus /></el-icon> -->
           </el-form-item>
-        </div>
-        <el-row justify="space-between">
-          <el-col :span="12">
+        </el-space>
+        <el-row>
+          <el-col :span="4">
             <el-form-item label="条数">
               <el-input-number
                 v-model="formInline.limit"
@@ -132,7 +170,8 @@
                 width="20"
               />
             </el-form-item>
-
+          </el-col>
+          <el-col :span="10">
             <el-form-item label="关键字">
               <el-select
                 v-model="formInline.matchKeyMethod"
@@ -165,36 +204,9 @@
               />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
-            <el-form-item
-              label="时间范围"
-              prop="dateValue"
-              :rules="[{ required: true }]"
-            >
-              <el-date-picker
-                v-model="formInline.dateValue"
-                type="datetimerange"
-                :shortcuts="shortcuts"
-                range-separator="To"
-                start-placeholder="Start date"
-                end-placeholder="End date"
-                value-format="x"
-                @visible-change="getShortCuts()"
-              />
-            </el-form-item>
-            <el-form-item>
-              <el-button
-                type="primary"
-                :loading="onSubmitIsLoading"
-                @click="onSubmit"
-                >检索</el-button
-              >
-              <el-button type="primary" @click="reloadFilter">重置</el-button>
-            </el-form-item>
-          </el-col>
         </el-row>
-      </el-form>
-    </div>
+      </div>
+    </el-form>
     <!-- <el-divider /> -->
     <!-- 文件导出 -->
     <div class="card">
@@ -289,10 +301,21 @@
                 >日志内容</el-text
               >
               <!-- <el-input v-model="search" size="small" placeholder="Type to search" /> -->
+              <!-- <el-switch
+                v-model="showError"
+                class="ml-2"
+                inline-prompt
+                v-show="isDownload"
+                style="
+                  --el-switch-on-color: #13ce66;
+                  --el-switch-off-color: #ff4949;
+                "
+                active-text="只看错误"
+              /> -->
               <el-button
                 type="primary"
                 plain
-                v-if="isDownload"
+                v-show="isDownload"
                 @click="downloadResLog(resultLogs?.queryResult)"
                 >下载日志</el-button
               >
@@ -375,6 +398,7 @@ const formInline = reactive({
   dateValue: [],
 });
 //
+const showError = ref(false);
 const labelList = ref([]);
 const matchOptions = [
   {
@@ -430,7 +454,7 @@ const logLevelOption = ref([]);
 const onSubmit = async () => {
   onSubmitIsLoading.value = true;
   proxy.$refs.formRef.validate(async (valid) => {
-    console.log(valid);
+    // console.log(valid);
     if (valid) {
       console.log(formInline);
       let res = await proxy.$api.lokiQuery(formInline);
@@ -444,11 +468,15 @@ const onSubmit = async () => {
       // }
       // console.log(res.data.queryLogLevel.length)
       // 动态获取返回的level列表
-      if (res.data.queryLogLevel.length >= 1) {
-        res.data.queryLogLevel.forEach((item) => {
-          logLevelOption.value.push({ text: item, value: item });
-        });
-      }
+      // if (res.data.queryLogLevel.length >= 1) {
+      //   res.data.queryLogLevel.forEach((item) => {
+      //     logLevelOption.value.push({ text: item, value: item });
+      //   });
+      // }
+      logLevelOption.value = res.data.queryLogLevel.map((item) => ({
+        text: item,
+        value: item,
+      }));
       console.log(logLevelOption.value);
 
       if (logData.value.length >>> 1) {
@@ -586,7 +614,8 @@ watch(
   { deep: true }
 );
 
-const getLabels = async () => {
+const getLabels = async (isOpen) => {
+  if (!isOpen) return;
   let res = await proxy.$api.lokiLabelGet({ url: formInline.dataSourceUrl });
   console.log(res);
   labelList.value = res.data.data;
@@ -594,7 +623,8 @@ const getLabels = async () => {
 };
 const nowKey = ref("");
 // 动态标签获取
-const getLabelValue = async (key) => {
+const getLabelValue = async (key, isOpen) => {
+  if (!isOpen) return;
   nowKey.value = key;
   console.log(nowKey.value);
   labelObject[key].labelValue = "";

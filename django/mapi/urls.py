@@ -3,6 +3,7 @@ from django.conf.urls import url
 from . import views
 from . import importExport
 from rest_framework.routers import DefaultRouter
+from . import test
 # urlpatterns = [
 #     path('test',views.test),
 #     path('user',views.user)
@@ -19,7 +20,10 @@ urlpatterns = [
 
   path('export/', importExport.PortalExport.as_view()),
   # path('test/', views.sysConfig.as_view()),
-
+  # 测试
+  path('sse/', test.sse_stream, name='sse_stream'),
+  path('test_celery/', test.test_celery, name='trigger_task'),
+  path('check_task/<str:task_id>/', test.check_task, name='check_task_status'),
 
   # path('order/',views.orderMethod.as_view() )
   # path('loki/labels',lokiapi.lokiLabels),

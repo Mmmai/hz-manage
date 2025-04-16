@@ -69,6 +69,18 @@
               >
                 更新所有
               </el-dropdown-item>
+              <el-dropdown-item
+                v-permission="`${route.name?.replace('_info', '')}:add`"
+                @click="updateInstanceName()"
+              >
+                更新唯一标识
+              </el-dropdown-item>
+              <el-dropdown-item
+                v-permission="`${route.name?.replace('_info', '')}:add`"
+                @click="syncToZabbix()"
+              >
+                触发同步
+              </el-dropdown-item>
               <div v-permission="`${route.name?.replace('_info', '')}:delete`">
                 <el-dropdown-item
                   :disabled="!(multipleSelectId.length >>> 0)"
@@ -1797,6 +1809,24 @@ const updateCiDataAll = () => {
   isUpdateAll.value = true;
   multipleDia.value = true;
   // ciDataTableRef.value!.toggleAllSelection();
+};
+const updateInstanceName = async () => {
+  let res = await proxy.$api.updateInstanceName();
+  console.log(res);
+  ElNotification({
+    title: "Success",
+    message: "触发唯一标识更新~",
+    type: "success",
+  });
+};
+const syncToZabbix = async () => {
+  let res = await proxy.$api.syncHosts();
+  console.log(res);
+  ElNotification({
+    title: "Success",
+    message: "触发主机同步~",
+    type: "success",
+  });
 };
 const setUpdateFormItemRule = (params) => {
   // let regexp =
