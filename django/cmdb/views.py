@@ -1352,6 +1352,15 @@ class ZabbixSyncHostViewSet(viewsets.ViewSet):
     filterset_class = ZabbixSyncHostFilter
     ordering_fields = ['host_id', 'ip', 'name', 'agent_installed', 'interface_available', 'create_time', 'update_time']
 
+    def list(self, request):
+        queryset = self.queryset
+
+        filterset = self.filterset_class(request.query_params, queryset=queryset)
+        if filterset.is_valid():
+            queryset = filterset.qs
+
+        return Response(queryset.values(), status=status.HTTP_200_OK)
+
     @action(detail=False, methods=['post'])
     def update_zabbix_availability(self, request):
         """手动触发 Zabbix 接口可用性更新"""
