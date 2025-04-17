@@ -27,7 +27,7 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter
 from .utils import password_handler, celery_manager
 from .excel import ExcelHandler
 from .constants import FieldMapping, limit_field_names
-from .tasks import process_import_data
+from .tasks import process_import_data, sync_zabbix_host_task, update_instance_names_for_model_template_change, update_zabbix_interface_availability
 from .filters import (
     ModelGroupsFilter,
     ModelsFilter,
@@ -43,6 +43,7 @@ from .filters import (
     ModelInstanceGroupRelationFilter,
     RelationDefinitionFilter,
     RelationsFilter,
+    ZabbixSyncHostFilter,
 )
 from .models import (
     ModelGroups,
@@ -58,6 +59,7 @@ from .models import (
     ModelInstanceGroupRelation,
     RelationDefinition,
     Relations,
+    ZabbixSyncHost,
 )
 from .serializers import (
     ModelGroupsSerializer,
@@ -75,6 +77,7 @@ from .serializers import (
     BulkInstanceGroupRelationSerializer,
     RelationDefinitionSerializer,
     RelationsSerializer,
+    ZabbixSyncHostSerializer
 )
 from .schemas import (
     model_groups_schema,
@@ -176,6 +179,48 @@ class ModelsViewSet(viewsets.ModelViewSet):
             'model': ModelsSerializer(model).data,
             'field_groups': field_groups_data
         })
+
+    @action(detail=True, methods=['post'])
+    def rename_instances(self, request, pk=None):
+        model = self.get_object()
+
+        if not model:
+            return Response(
+                {"detail": "Model not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not model.instance_name_template:
+            return Response(
+                {"detail": "No instance name template set for this model."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 触发异步任务
+        task = update_instance_names_for_model_template_change.delay(
+            str(model.id),
+            [],
+            list(model.instance_name_template)
+        )
+
+        cache_key = f"rename_task_{task.id}"
+        result_dict = {
+            'status': 'pending'
+        }
+        cache.set(cache_key, result_dict, timeout=600)
+        return Response({
+            "cache_key": cache_key
+        }, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=False, methods=['get'])
+    def rename_status(self, request):
+        cache_key = request.query_params.get('cache_key')
+        if not cache_key:
+            raise ValidationError({'detail': 'Missing cache key'})
+        result = cache.get(cache_key)
+        if not result:
+            raise ValidationError({'detail': 'Cache key not found'})
+        return Response(result, status=status.HTTP_200_OK)
 
 
 @model_field_groups_schema
@@ -1297,3 +1342,47 @@ class PasswordManageViewSet(viewsets.ViewSet):
         except Exception as e:
             logger.error(f"Error resetting passwords: {str(e)}")
             return Response({'status': 'fail', 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ZabbixSyncHostViewSet(viewsets.ViewSet):
+
+    queryset = ZabbixSyncHost.objects.all().order_by('create_time')
+    serializer_class = ZabbixSyncHostSerializer
+    pagination_class = StandardResultsSetPagination
+    filterset_class = ZabbixSyncHostFilter
+    ordering_fields = ['host_id', 'ip', 'name', 'agent_installed', 'interface_available', 'create_time', 'update_time']
+
+    @action(detail=False, methods=['post'])
+    def update_zabbix_availability(self, request):
+        """手动触发 Zabbix 接口可用性更新"""
+        try:
+            result = update_zabbix_interface_availability.delay()
+
+            return Response({
+                'status': 'success',
+                'task_id': result.id
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error triggering Zabbix interface availability update: {str(e)}")
+            return Response(
+                {'status': 'fail', 'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['post'])
+    def sync_zabbix_host(self, request):
+        try:
+            # 触发异步任务
+            task = sync_zabbix_host_task.delay()
+
+            return Response({
+                'status': 'success',
+                'task_id': task.id
+            }, status=status.HTTP_202_ACCEPTED)
+
+        except Exception as e:
+            logger.error(f"Failed to trigger sync task: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': f'Failed to trigger sync task: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

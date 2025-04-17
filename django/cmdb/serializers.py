@@ -40,6 +40,7 @@ from .models import (
     ModelFieldMeta,
     RelationDefinition,
     Relations,
+    ZabbixSyncHost
 )
 import logging
 logger = logging.getLogger(__name__)
@@ -134,6 +135,16 @@ class ModelsSerializer(serializers.ModelSerializer):
                 id=validated_data['model_group'].id).exists():
             validated_data['model_group'] = ModelGroups.get_default_model_group()
         return super().update(instance, validated_data)
+
+    def validate_instance_name_template(self, value):
+        valid_fields = ModelFields.objects.filter(model=self.instance).values_list('id', flat=True)
+        valid_fields = [str(field_id) for field_id in valid_fields]
+        for field_id in value:
+            if field_id not in valid_fields:
+                raise serializers.ValidationError({
+                    'instance_name_template': f"Field with ID '{field_id}' does not exist in model '{self.instance.name}'"
+                })
+        return value
 
 
 class ModelFieldGroupsSerializer(serializers.ModelSerializer):
@@ -567,7 +578,7 @@ class UniqueConstraintSerializer(serializers.ModelSerializer):
     def validate(self, data):
         """自定义验证方法"""
         model = data.get('model')
-        fields = data.get('fields', [])
+        field_ids = data.get('fields', [])
 
         existing = UniqueConstraint.objects.filter(model=model)
 
@@ -579,18 +590,30 @@ class UniqueConstraintSerializer(serializers.ModelSerializer):
                 'detail': 'Built-in unique constraint cannot be modified'
             })
 
-        for field in fields:
-            if field not in ModelFields.objects.filter(model=model).values_list('name', flat=True):
-                raise serializers.ValidationError({
-                    'fields': f'Field {field} does not exist in model {model.name}'
-                })
+        # 验证所有字段ID是否存在
+        valid_field_ids = set(ModelFields.objects.filter(
+            model=model,
+            id__in=field_ids
+        ).values_list('id', flat=True))
+
+        # 找出不存在的字段ID
+        invalid_field_ids = set(str(id) for id in field_ids) - set(str(id) for id in valid_field_ids)
+        if invalid_field_ids:
+            raise serializers.ValidationError({
+                'fields': f'Field IDs {", ".join(invalid_field_ids)} do not exist in model {model.name}'
+            })
+
+        # 获取字段名用于错误消息
+        field_names = ModelFields.objects.filter(
+            id__in=field_ids
+        ).values_list('name', flat=True)
 
         # 在应用层检查数组长度和内容
         for constraint in existing:
-            if (len(constraint.fields) == len(fields) and
-                    set(constraint.fields) == set(fields)):
+            if (len(constraint.fields) == len(field_ids) and
+                    set(constraint.fields) == set(str(id) for id in field_ids)):
                 raise serializers.ValidationError({
-                    'fields': f'模型 {model.name} 已存在字段组合 {", ".join(fields)} 的唯一性校验规则'
+                    'fields': f'Unique constraint with fields {", ".join(field_names)} already exists'
                 })
 
         return data
@@ -1041,103 +1064,6 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
             logger.error(f"Error creating model instance: {str(e)}")
             raise serializers.ValidationError(str(e))
 
-    def _format_name_with_validation(self, template, fields_data):
-        """格式化并验证名称模板"""
-        # 检查必填字段
-        if template:
-            required_fields = [
-                field.strip('{}')
-                for field in re.findall(r'\{([^}]+)\}', template)
-            ]
-        else:
-            raise serializers.ValidationError("Instance name template is required")
-
-        empty_fields = [
-            field for field in required_fields
-            if field not in fields_data or
-            fields_data[field] is None or
-            fields_data[field] == '' or
-            fields_data[field] == []
-        ]
-
-        if empty_fields:
-            raise serializers.ValidationError(
-                f"Required fields are missing: {', '.join(empty_fields)}"
-            )
-
-        return template.format(**fields_data)
-
-    def validate_instance_name(self, value):
-        """验证实例名称"""
-        request = self.context.get('request')
-        from_excel = self.context.get('from_excel', False)
-        if not request:
-            return value
-
-        if not from_excel:
-            is_create = request.method == 'POST'
-            if 'model' in request.data:
-                model = Models.objects.filter(id=request.data['model']).first()
-            else:
-                model = self.instance.model if self.instance else None
-            fields_data = request.data.get('fields', {})
-            logger.info(f'Fields data: {fields_data}')
-
-            # 创建时如果未提供name则生成
-            if not value and is_create:
-                if not model or not model.instance_name_template:
-                    raise serializers.ValidationError("Neither instance_name nor instance_name_template provided")
-
-                try:
-                    value = self._format_name_with_validation(
-                        model.instance_name_template,
-                        fields_data
-                    )
-                except KeyError as e:
-                    raise serializers.ValidationError(f"Key not found in fields data: {str(e)}")
-                except Exception as e:
-                    raise serializers.ValidationError(f"Error generating instance_name: {str(e)}")
-
-            if not value and not is_create and (
-                    'instance_name' not in request.data or not request.data['instance_name']):
-                try:
-                    db_fields = ModelFieldMeta.objects.filter(
-                        model_instance=self.instance
-                    ).select_related('model_fields').values(
-                        'model_fields__name', 'data'
-                    )
-                    db_fields = {
-                        item['model_fields__name']: item['data']
-                        for item in db_fields
-                    }
-                    merged_fields = db_fields.copy()
-                    merged_fields.update(fields_data)
-                    logger.info(f'Merged fields: {merged_fields}')
-                    value = self._format_name_with_validation(
-                        self.instance.model.instance_name_template,
-                        merged_fields
-                    )
-                except KeyError as e:
-                    raise serializers.ValidationError(f"Key not found in fields data: {str(e)}")
-                except Exception as e:
-                    raise serializers.ValidationError(f"Error generating instance_name: {str(e)}")
-
-            # 验证唯一性
-            if value:
-                name_exists_query = ModelInstance.objects.filter(
-                    model=model,
-                    instance_name=value
-                )
-                if not is_create:
-                    name_exists_query = name_exists_query.exclude(id=self.instance.id)
-
-                if name_exists_query.exists():
-                    raise serializers.ValidationError(f"Instance_name {value} already exists in model {model.name}")
-
-            return value
-        else:
-            return value
-
     def _validate_field_value(self, field, value):
         """验证单个字段值"""
         field_meta_data = {
@@ -1288,8 +1214,9 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
             field_values = {}
             has_null = False
             # 收集所有约束字段的值
-            for field_name in constraint_fields:
-                field_config = ModelFields.objects.filter(name=field_name, model=model).first()
+            for field_id in constraint_fields:
+                field_config = ModelFields.objects.get(id=field_id)
+                field_name = field_config.name
                 if field_name in fields_data:
                     # 使用提交的新值
                     field_values[field_name] = fields_data[field_name]
@@ -1334,8 +1261,96 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
         model = attrs.get('model')
         if not model:
             model = instance.model
+        instance_name = attrs.get('instance_name')
         group = attrs.get('group')
         fields_data = attrs.get('fields', {})
+
+        request = self.context.get('request', None)
+        from_excel = self.context.get('from_excel', False)
+
+        # 校验instance_name
+        if not from_excel and request:
+            is_create = request.method == 'POST'
+            if not model:
+                model = self.instance.model if self.instance else None
+
+            if not instance_name:
+                # 如果没有提供instance_name，则尝试生成
+                if not model or not model.instance_name_template:
+                    if is_create:
+                        # 仅在创建时抛出异常
+                        raise ValidationError({
+                            "instance_name": "Neither instance_name nor instance_name_template provided"
+                        })
+                else:
+                    try:
+                        # 获取所有需要的字段值
+                        all_field_values = {}
+
+                        # 对于更新，先获取数据库中的值
+                        if not is_create and self.instance:
+                            db_fields = ModelFieldMeta.objects.filter(
+                                model_instance=self.instance
+                            ).select_related('model_fields').values(
+                                'model_fields__name', 'data'
+                            )
+                            all_field_values = {
+                                item['model_fields__name']: item['data']
+                                for item in db_fields
+                            }
+
+                        # 用新提供的值更新
+                        all_field_values.update(fields_data)
+
+                        # 从工具函数生成名称
+                        from .utils.name_generator import generate_instance_name
+                        generated_name = generate_instance_name(
+                            all_field_values,
+                            model.instance_name_template
+                        )
+
+                        if not generated_name:
+                            fields_str = ', '.join(model.instance_name_template)
+                            raise serializers.ValidationError({
+                                "instance_name": f"Cannot generate instance name: all template fields [{fields_str}] are empty"
+                            })
+
+                        # 验证唯一性
+                        name_exists_query = ModelInstance.objects.filter(
+                            model=model,
+                            instance_name=generated_name
+                        )
+                        # 更新时排除当前实例
+                        if not is_create and self.instance:
+                            name_exists_query = name_exists_query.exclude(id=self.instance.id)
+
+                        if name_exists_query.exists():
+                            raise serializers.ValidationError({
+                                "instance_name": f"Generated instance_name {generated_name} already exists in model {model.name}"
+                            })
+
+                        # 设置生成的名称
+                        attrs['instance_name'] = generated_name
+
+                    except Exception as e:
+                        raise serializers.ValidationError({
+                            "instance_name": f"Error generating instance_name: {str(e)}"
+                        })
+
+            # 已经提供instance_name的情况下，验证其唯一性
+            elif instance_name:
+                name_exists_query = ModelInstance.objects.filter(
+                    model=model,
+                    instance_name=instance_name
+                )
+
+                if not is_create and self.instance:
+                    name_exists_query = name_exists_query.exclude(id=self.instance.id)
+
+                if name_exists_query.exists():
+                    raise serializers.ValidationError({
+                        "instance_name": f"Provided instance_name {instance_name} already exists in model {model.name}"
+                    })
 
         if group and ModelInstanceGroup.objects.filter(parent=group).exists():
             raise ValidationError({
@@ -1889,4 +1904,11 @@ class RelationDefinitionSerializer(serializers.ModelSerializer):
 class RelationsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Relations
+        fields = '__all__'
+
+
+class ZabbixSyncHostSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = ZabbixSyncHost
         fields = '__all__'
