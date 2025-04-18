@@ -37,15 +37,19 @@ python .\manage.py runserver
 
 #windows
 
-cd django 
+cd django
 
-celery -A vuedjnago worker -l info -P eventlet
+celery -A vuedjango worker -l info -P eventlet
 
 #linux
 
 cd django
 
-celery -A vuedjnago worker -l info
+celery -A vuedjango worker -l info
+
+#ws 
+
+uvicorn vuedjango.asgi:application --host 0.0.0.0 --port 8001
 
 # 前端部署
 
