@@ -213,6 +213,31 @@ class ZabbixAPI:
         logger.info(f"Host updated: {result}")
         return result["result"]
 
+    def host_sync(self, hostid, name=None, groups=None):
+        data = {
+            "jsonrpc": "2.0",
+            "method": "host.update",
+            "params": {
+                "hostid": hostid
+            },
+            "id": 1,
+            "auth": self.auth
+        }
+        if name:
+            data["params"]["name"] = name
+        if groups:
+            data["params"]["groups"] = [
+                {
+                    "groupid": group_id
+                } for group_id in groups
+            ]
+        result = self._call("host.update", data["params"])
+        if result.get("result"):
+            return result["result"]
+        else:
+            logger.error(f"Failed to sync host: {result}")
+            return None
+
     def host_enable(self, host):
         data = {
             "jsonrpc": "2.0",
@@ -316,6 +341,22 @@ class ZabbixAPI:
             return result["result"][0]["groupid"]
         return None
 
+    def get_hostgroups(self):
+        """获取所有主机组"""
+        data = {
+            "jsonrpc": "2.0",
+            "method": "hostgroup.get",
+            "params": {
+                "output": ["groupid", "name"]
+            },
+            "id": 1,
+            "auth": self.auth
+        }
+        result = self._call("hostgroup.get", data["params"])
+        if result.get("result"):
+            return result["result"]
+        return None
+
     def get_or_create_hostgroup(self, group_name):
         """获取或创建主机组"""
         group = self.get_hostgroup(group_name)
@@ -413,3 +454,18 @@ class ZabbixAPI:
                 raise
 
         return self._default_group_id
+
+    def get_hosts_interface_availability(self, host_ids):
+        """获取主机接口可用性状态"""
+        data = {
+            "jsonrpc": "2.0",
+            "method": "host.get",
+            "params": {
+                "output": ["hostid", "name", "status"],
+                "selectInterfaces": ["interfaceid", "ip", "type", "available"],
+                "hostids": host_ids
+            },
+            "auth": self.auth,
+            "id": 1
+        }
+        return self._call('host.get', data["params"]) or []

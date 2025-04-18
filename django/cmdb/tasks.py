@@ -8,10 +8,11 @@ from django.core.cache import cache
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIRequestFactory
-from .models import ModelFields, ModelInstance, ZabbixSyncHost
+from .models import ModelInstanceGroupRelation, Models, ModelFields, ModelInstance, ModelFieldMeta, ZabbixSyncHost
 from .serializers import ModelInstanceSerializer
 from .excel import ExcelHandler
 from .utils.zabbix import ZabbixAPI
+from .utils.name_generator import generate_instance_name
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +152,123 @@ def process_import_data(self, excel_data, model_id, request):
         cache.set(cache_key, results, timeout=600)
 
 
+@shared_task(bind=True)
+def update_instance_names_for_model_template_change(self, model_id, old_template, new_template):
+    logger.info(f"Starting update of instance_name for model {model_id}")
+    cache_key = f'rename_task_{self.request.id}'
+    logger.info(f"Cache key for task {self.request.id}: {cache_key}")
+    result_dict = {
+        'status': 'processing',
+        'progress': 0,
+        'total': 0,
+        'updated': 0,
+        'skipped': 0,
+        'failed': 0,
+        'conflict': 0,
+        'conflict_details': [],
+    }
+    try:
+        model = Models.objects.get(id=model_id)
+
+        # 只处理使用模板的实例
+        instances = ModelInstance.objects.filter(
+            model=model,
+            using_template=True
+        )
+
+        result_dict['total'] = instances.count()
+        cache.set(cache_key, result_dict, timeout=600)
+
+        if not instances.exists():
+            logger.info(f"No instances using template for model {model.name}")
+            result_dict['status'] = 'completed'
+            result_dict['progress'] = 100
+            cache.set(cache_key, result_dict, timeout=600)
+            return
+
+        logger.info(f"Found {instances.count()} instances to update for model {model.name}")
+
+        # 收集所有需要更改的实例和新名称，在提交事务前进行唯一性检查
+        name_updates = []
+        name_conflicts = []
+
+        template_fields = ModelFields.objects.filter(id__in=new_template).values_list('id', 'name')
+        template_fields = {str(f[0]): f[1] for f in template_fields}
+        template_fields = [template_fields[str(id)] for id in new_template]
+
+        # 计算所有新名称并检查冲突
+        for instance in instances:
+            percent = (result_dict['updated'] + result_dict['skipped'] +
+                       result_dict['conflict'] + result_dict['failed']) * 100 // result_dict['total']
+            result_dict['progress'] = percent
+            cache.set(cache_key, result_dict, timeout=600)
+
+            # 获取实例的所有字段值
+            field_values = {}
+            field_metas = ModelFieldMeta.objects.filter(
+                model_instance=instance,
+                model_fields__id__in=new_template
+            ).select_related('model_fields')
+
+            for meta in field_metas:
+                field_values[meta.model_fields.name] = meta.data
+
+            # 生成新名称
+            new_name = generate_instance_name(field_values, new_template, template_fields)
+
+            # 如果无法生成名称，跳过
+            if not new_name:
+                logger.warning(f"Cannot generate name for instance {instance.id} - missing values for template fields")
+                result_dict['skipped'] += 1
+                continue
+
+            # 检查这个新名称是否已存在或和本次更新中的其他实例冲突
+            if ModelInstance.objects.filter(
+                model=model,
+                instance_name=new_name
+            ).exclude(id=instance.id).exists() or new_name in [update[1] for update in name_updates]:
+                name_conflicts.append((instance.id, new_name))
+                result_dict['conflict'] += 1
+                continue
+
+            # 名称有变化且无冲突
+            if new_name != instance.instance_name:
+                try:
+                    instance = ModelInstance.objects.get(id=instance.id)
+                    instance.instance_name = new_name
+                    instance.save(update_fields=['instance_name', 'update_time'])
+                    result_dict['updated'] += 1
+                except Exception as e:
+                    logger.error(f"Error updating instance {instance.id}: {str(e)}")
+                    result_dict['failed'] += 1
+            else:
+                result_dict['skipped'] += 1
+
+        # 如果有冲突，记录日志但继续处理无冲突的部分
+        if name_conflicts:
+            conflict_details = ", ".join([f"{instance_id}:{name}" for instance_id, name in name_conflicts])
+            result_dict['conflict_details'] = name_conflicts
+            logger.warning(f"Name conflicts detected for {len(name_conflicts)} instances: {conflict_details}")
+
+        logger.info(f"Successfully updated {result_dict['updated']} instances for model {model.name}")
+
+        result_dict['progress'] = 100
+        result_dict['status'] = 'completed'
+        cache.set(cache_key, result_dict, timeout=600)
+
+        if name_conflicts and not name_updates:
+            logger.error(f"All instances for model {model.name} have name conflicts after template change")
+
+        return result_dict
+
+    except Models.DoesNotExist:
+        logger.error(f"Model {model_id} does not exist")
+        return None
+    except Exception as e:
+        logger.error(f"Error updating instance names for model {model_id}: {str(e)}")
+        return None
+
+
 @shared_task
 def setup_host_monitoring(instance_id, instance_name, ip, password, groups=None, delete=False):
     try:
@@ -244,3 +362,255 @@ def install_zabbix_agent(host_ip, password):
     except Exception as e:
         logger.error(f"Error installing Zabbix agent: {str(e)}")
         return result
+
+
+@shared_task(bind=True)
+def update_zabbix_interface_availability(self):
+    """定时获取 Zabbix 主机接口可用性状态并更新数据库"""
+    logger.info("Starting Zabbix interface availability update")
+
+    try:
+        zabbix_api = ZabbixAPI()
+
+        # 获取已同步的 Zabbix 主机
+        sync_hosts = ZabbixSyncHost.objects.all()
+        host_ids = [str(host.host_id) for host in sync_hosts]
+
+        if not host_ids:
+            logger.info("No synchronized Zabbix hosts found")
+            return {"status": "success", "count": 0, "message": "No synchronized hosts"}
+
+        # 获取主机接口可用性
+        try:
+            hosts_data = zabbix_api.get_hosts_interface_availability(host_ids)
+            hosts_data = hosts_data.get('result', [])
+            if not hosts_data:
+                logger.info("No host interface availability data found")
+                return {"status": "success", "count": 0, "message": "No host interface availability data"}
+            logger.info(f"Retrieved {len(hosts_data)} hosts data from Zabbix")
+        except Exception as e:
+            logger.error(f"Error getting host interface availability: {str(e)}")
+            return {"status": "error", "message": f"API error: {str(e)}"}
+
+        # 更新数据库
+        updated_count = 0
+        for host_data in hosts_data:
+            zabbix_hostid = host_data.get('hostid')
+
+            # 获取接口状态（1=可用，2=不可用）
+            interfaces = host_data.get('interfaces', [])
+            # 优先获取 IP 类型接口的状态
+            interface_available = None
+            for interface in interfaces:
+                if interface.get('type') == '1':  # 1 = agent
+                    interface_available = interface.get('available')
+                    break
+
+            if interface_available is None and interfaces:
+                # 如果没有找到 agent 接口，使用第一个接口的状态
+                interface_available = interfaces[0].get('available')
+
+            if interface_available is None:
+                continue
+
+            try:
+                # 更新 ZabbixSyncHost 表中的状态
+                host_obj = ZabbixSyncHost.objects.filter(host_id=zabbix_hostid).first()
+                if host_obj:
+                    host_obj.interface_available = interface_available
+                    host_obj.save(update_fields=['interface_available', 'update_time'])
+                    updated_count += 1
+            except Exception as e:
+                logger.error(f"Error updating host {zabbix_hostid}: {str(e)}")
+
+        logger.info(f"Successfully updated {updated_count} hosts interface availability")
+        return {
+            "status": "success",
+            "count": updated_count,
+            "message": f"Updated {updated_count}/{len(hosts_data)} hosts"
+        }
+
+    except Exception as e:
+        logger.error(f"Error in Zabbix interface availability update task: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+
+@shared_task
+def sync_zabbix_host_task():
+    logger.info(f"Beginning Zabbix host synchronization")
+
+    try:
+        zabbix_api = ZabbixAPI()
+
+        model = Models.objects.get(name='hosts')
+        instances_query = ModelInstance.objects.filter(model=model)
+
+        instances = instances_query.all()
+        if not instances:
+            logger.info(f"No instances found for model {model.name}")
+            return {"status": "warning", "message": f"No instances found for model {model.name}"}
+
+        valid_instance_ids = set(instance.id for instance in instances)
+
+        # 获取Zabbix中的主机组
+        hostgroups = zabbix_api.get_hostgroups()
+        hostgroup_map = {hg['name']: hg['groupid'] for hg in hostgroups}
+
+        # 处理结果统计
+        result = {
+            "total": len(instances),
+            "created": 0,
+            "updated": 0,
+            "skipped": 0,
+            "deleted": 0,
+            "errors": []
+        }
+
+        # 获取所有已同步的主机记录
+        all_zabbix_hosts = ZabbixSyncHost.objects.all().select_related('instance')
+
+        # 清理无效的同步记录（实例已不存在）
+        for zabbix_host in all_zabbix_hosts:
+            if zabbix_host.instance_id not in valid_instance_ids:
+                try:
+                    logger.info(
+                        f"Deleting invalid Zabbix host: {zabbix_host.host_id} (Instance: {zabbix_host.instance_id})")
+                    if zabbix_api.host_delete(zabbix_host.host_id):
+                        zabbix_host.delete()
+                        result["deleted"] += 1
+                        logger.info(f"Successfully deleted Zabbix host {zabbix_host.host_id}")
+                    else:
+                        result["errors"].append({
+                            "host_id": zabbix_host.host_id,
+                            "error": f"Failed to delete Zabbix host {zabbix_host.host_id}"
+                        })
+                except Exception as e:
+                    logger.error(f"Error deleting Zabbix host {zabbix_host.host_id}: {str(e)}")
+                    result["errors"].append({
+                        "host_id": zabbix_host.host_id,
+                        "error": f"Error deleting: {str(e)}"
+                    })
+
+        valid_zabbix_hosts = [zh for zh in all_zabbix_hosts if zh.instance_id in valid_instance_ids]
+        instance_to_zabbix = {zh.instance.id: zh for zh in valid_zabbix_hosts}
+
+        # 处理每个实例
+        for instance in instances:
+            try:
+                # 获取实例的分组信息
+                instance_groups = ModelInstanceGroupRelation.objects.filter(
+                    instance=instance
+                ).select_related('group')
+
+                # 从分组中排除"所有"和"空闲池"内置分组
+                group_names = []
+                for relation in instance_groups:
+                    group = relation.group
+                    group_names.append(group.path.replace('所有/', ''))
+
+                # 确保至少有一个分组
+                if not group_names:
+                    group_names = ['空闲池']
+
+                # 为Zabbix准备主机组ID
+                group_ids = []
+                for group_name in group_names:
+                    if group_name in hostgroup_map:
+                        group_ids.append(hostgroup_map[group_name])
+                    else:
+                        # 如果主机组不存在，则创建
+                        new_group_id = zabbix_api.create_hostgroup(group_name)
+                        if new_group_id:
+                            hostgroup_map[group_name] = new_group_id
+                            group_ids.append(new_group_id)
+
+                # 检查是否已有Zabbix同步记录
+                zabbix_host = instance_to_zabbix.get(instance.id)
+
+                # 获取主机IP地址
+                ip_field_meta = ModelFieldMeta.objects.filter(
+                    model_instance=instance,
+                    model_fields__name='ip'
+                ).first()
+
+                ip_address = ip_field_meta.data
+
+                if zabbix_host:
+                    # 更新现有主机
+                    if zabbix_api.host_sync(zabbix_host.host_id, instance.instance_name, group_ids):
+                        # 更新成功，更新本地记录
+                        zabbix_host.name = instance.instance_name
+                        zabbix_host.ip = ip_address
+                        zabbix_host.save(update_fields=['name', 'ip', 'update_time'])
+                        result["updated"] += 1
+                        logger.info(f"Updated zabbix host: {zabbix_host.host_id} ({instance.instance_name})")
+                    else:
+                        result["errors"].append({
+                            "instance_id": str(instance.id),
+                            "error": f"Failed to update Zabbix host {zabbix_host.host_id}"
+                        })
+                else:
+                    # 创建新主机
+                    interfaces = [{
+                        "type": 1,
+                        "main": 1,
+                        "useip": 1,
+                        "ip": ip_address,
+                        "dns": "",
+                        "port": "10050"
+                    }]
+
+                    host_data = {
+                        'host': ip_address,
+                        'name': instance.instance_name,
+                        'interfaces': interfaces,
+                        'groups': [{'groupid': gid} for gid in group_ids]
+                    }
+
+                    # 创建主机
+                    host_id = zabbix_api.create_host(host_data)
+                    if host_id:
+                        # 创建成功，保存同步记录
+                        ZabbixSyncHost.objects.create(
+                            instance=instance,
+                            host_id=host_id,
+                            ip=ip_address,
+                            name=instance.instance_name,
+                            agent_installed=False,
+                            interface_available=0
+                        )
+                        result["created"] += 1
+                        logger.info(f"已创建Zabbix主机 {host_id} ({instance.instance_name})")
+                    else:
+                        result["errors"].append({
+                            "instance_id": str(instance.id),
+                            "error": f"创建Zabbix主机失败"
+                        })
+
+            except Exception as e:
+                logger.error(f"Failed to sync Zabbix host for instance {instance.id}: {str(e)}")
+                result["errors"].append({
+                    "instance_id": str(instance.id),
+                    "error": str(e)
+                })
+
+        # 生成最终结果
+        status_message = "success"
+        if result["errors"]:
+            status_message = "partial_success" if (result["created"] + result["updated"]) > 0 else "error"
+
+        logger.info(f"Sync status: {status_message}")
+        logger.info(f"Total: {result['total']}, Created: {result['created']}, Updated: {result['updated']}, "
+                    f"Skipped: {result['skipped']}, Errors: {len(result['errors'])}")
+        return {
+            "status": status_message,
+            "total": result["total"],
+            "created": result["created"],
+            "updated": result["updated"],
+            "skipped": result["skipped"],
+            "errors": result["errors"]
+        }
+
+    except Exception as e:
+        logger.error(f"Error during Zabbix host synchronization: {str(e)}")
+        return {"status": "error", "message": str(e)}

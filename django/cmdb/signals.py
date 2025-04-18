@@ -183,22 +183,29 @@ def _create_model_and_fields(model_name, model_config, model_group=None):
 
             # 为每个内置模型添加一个默认的唯一性校验规则：使用ip字段校验
             # 只给hosts 和 network设备添加
-            if model_name in ['hosts', 'switches', 'firewalls', 'dwdm'] and \
-                    not UniqueConstraint.objects.filter(model=model, fields=['ip']).exists():
-                unique_constraint_data = {
-                    'model': model.id,
-                    'fields': ['ip'],
-                    'built_in': True,
-                    'create_user': 'system',
-                    'update_user': 'system'
-                }
-
-                unique_constraint_serializer = UniqueConstraintSerializer(data=unique_constraint_data)
-                if unique_constraint_serializer.is_valid(raise_exception=True):
-                    unique_constraint_serializer.save()
-                    logger.info(f"Created unique constraint for model {model_name}")
-                else:
-                    logger.error(f"Unique constraint validation failed: {unique_constraint_serializer.errors}")
+            if model_name in ['hosts', 'switches', 'firewalls', 'dwdm']:
+                field_ip = ModelFields.objects.filter(
+                    model=model,
+                    name='ip'
+                ).first()
+                if not UniqueConstraint.objects.filter(
+                    model=model,
+                    fields=[str(field_ip.id)]
+                ).exists() and field_ip:
+                    # 创建唯一性约束
+                    unique_constraint_data = {
+                        'model': model.id,
+                        'fields': [str(field_ip.id)],
+                        'built_in': True,
+                        'create_user': 'system',
+                        'update_user': 'system'
+                    }
+                    unique_constraint_serializer = UniqueConstraintSerializer(data=unique_constraint_data)
+                    if unique_constraint_serializer.is_valid(raise_exception=True):
+                        unique_constraint_serializer.save()
+                        logger.info(f"Created unique constraint for model {model_name}")
+                    else:
+                        logger.error(f"Unique constraint validation failed: {unique_constraint_serializer.errors}")
 
     except Exception as e:
         logger.error(f"Error creating model and fields for {model_name}: {str(e)}")
@@ -306,6 +313,45 @@ def initialize_cmdb(sender, **kwargs):
         logger.warning("Database not ready, skipping initialization")
     except Exception as e:
         logger.error(f"Error during CMDB initialization: {traceback.format_exc()}")
+
+
+@receiver(post_save, sender=ModelFieldMeta)
+def update_instance_name_on_field_change(sender, instance, created, **kwargs):
+    """当字段值更新时，自动更新实例名称"""
+    model_instance = instance.model_instance
+    model = model_instance.model
+
+    if not model.instance_name_template:
+        return
+
+    # 如果修改的字段不在模板中，无需更新名称
+    if instance.model_fields.name not in model.instance_name_template:
+        return
+
+    try:
+        # 生成新名称
+        new_name = model_instance.generate_name()
+
+        # 如果无法生成有效名称或名称未变，则不更新
+        if not new_name or new_name == model_instance.instance_name:
+            return
+
+        # 检查名称唯一性
+        if ModelInstance.objects.filter(
+            model=model,
+            instance_name=new_name
+        ).exclude(id=model_instance.id).exists():
+            logger.warning(
+                f"Duplicate instance name detected: {new_name} for model {model.name}"
+            )
+            return
+
+        # 更新名称
+        model_instance.instance_name = new_name
+        model_instance.save(update_fields=['instance_name', 'update_time'])
+        logger.info(f"Updated instance name to {new_name} for instance {model_instance.id}")
+    except Exception as e:
+        logger.error(f"Error generating instance name: {str(e)}")
 
 
 @receiver(post_save, sender=ModelInstance)
@@ -438,7 +484,7 @@ def handle_group_path(sender, instance, created, **kwargs):
         return
 
     try:
-        zapi = zabbix.ZabbixAPI()
+        zapi = ZabbixAPI()
         new_path = instance.get_path()
 
         # 如果路径发生变化，更新当前节点
@@ -512,7 +558,7 @@ def handle_group_deletion(sender, instance, **kwargs):
             logger.warning(f"Missing deletion info for group {instance.id}")
             return
 
-        zapi = zabbix.ZabbixAPI()
+        zapi = ZabbixAPI()
 
         # 删除Zabbix中对应的主机组
         if instance.path != '所有':
@@ -554,3 +600,39 @@ def sync_zabbix_hostgroup_relation(sender, hosts, groups, **kwargs):
         logger.info(f'Successfully synced instance group relation to Zabbix: {result}')
     except Exception as e:
         logger.error(f"Error syncing instance groups to Zabbix: {str(e)}")
+
+
+@receiver(pre_delete, sender=ModelFields)
+def check_field_dependencies(sender, instance, **kwargs):
+    """删除字段前检查其依赖关系"""
+    try:
+        model = instance.model
+        field_id_str = str(instance.id)
+
+        # 检查字段是否在instance_name_template中使用
+        if model.instance_name_template and field_id_str in model.instance_name_template:
+            logger.warning(f"Attempt to delete field {instance.name} that is used in instance_name_template")
+            raise PermissionDenied({
+                'detail': f'Field {instance.name} is used in instance name template and cannot be deleted'
+            })
+
+        # 检查字段是否在unique_constraints中使用
+        constraints = UniqueConstraint.objects.filter(model=model)
+
+        for constraint in constraints:
+            if field_id_str in constraint.fields:
+                logger.warning(
+                    f"Attempt to delete field {instance.name} that is used in unique constraint")
+                raise PermissionDenied({
+                    'detail': f'Field {instance.name} is used in unique constraint and cannot be deleted'
+                })
+
+        logger.info(f"Field {instance.name} dependency check passed, proceeding with deletion")
+
+    except PermissionDenied:
+        raise
+    except Exception as e:
+        logger.error(f"Error checking field dependencies before delete: {str(e)}")
+        raise PermissionDenied({
+            'detail': f'Error checking field dependencies: {str(e)}'
+        })

@@ -65,7 +65,7 @@ class Models(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50, unique=True, db_index=True, null=False, blank=False)
     verbose_name = models.CharField(max_length=50, null=False, blank=False)
-    instance_name_template = models.JSONField(max_length=200, null=True, blank=True)
+    instance_name_template = models.JSONField(default=list, blank=True, null=True)
     model_group = models.ForeignKey('ModelGroups', on_delete=models.SET_NULL, null=True, blank=True)
     description = models.TextField(blank=True, null=True)
     built_in = models.BooleanField(default=False, null=False, blank=False)
@@ -74,6 +74,36 @@ class Models(models.Model):
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
+
+    def save(self, *args, **kwargs):
+        # 保存模型
+        super().save(*args, **kwargs)
+
+        if self.instance_name_template:
+            self.sync_unique_constraint()
+
+    def sync_unique_constraint(self):
+        constraint = UniqueConstraint.objects.filter(
+            model=self,
+            built_in=True,
+            description='自动生成的实例名称唯一性约束'
+        ).first()
+
+        if constraint:
+            # 更新现有约束
+            constraint.fields = self.instance_name_template
+            constraint.save()
+        else:
+            # 创建新约束
+            UniqueConstraint.objects.create(
+                model=self,
+                fields=self.instance_name_template,
+                built_in=True,
+                validate_null=False,
+                description='自动生成的实例名称唯一性约束',
+                create_user='system',
+                update_user='system'
+            )
 
 
 class ModelFieldGroups(models.Model):
@@ -242,10 +272,29 @@ class ModelInstance(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True)
     instance_name = models.CharField(max_length=100, db_index=True, null=True, blank=True)
+    using_template = models.BooleanField(default=True, null=False, blank=False)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
+
+    def generate_name(self, field_values=None):
+        """根据模型模板生成实例名称"""
+        if not self.model.instance_name_template:
+            return None
+
+        # 如果没有提供字段值，则从数据库获取
+        if field_values is None:
+            field_values = {}
+            field_metas = ModelFieldMeta.objects.filter(
+                model_instance=self
+            ).select_related('model_fields')
+
+            for meta in field_metas:
+                field_values[meta.model_fields.name] = meta.data
+
+        from .utils.name_generator import generate_instance_name
+        return generate_instance_name(field_values, self.model.instance_name_template)
 
 
 class ModelFieldMeta(models.Model):
@@ -426,5 +475,6 @@ class ZabbixSyncHost(models.Model):
     ip = models.CharField(max_length=50, null=False, blank=False)
     name = models.CharField(max_length=50, null=False, blank=False)
     agent_installed = models.BooleanField(default=False)
+    interface_available = models.IntegerField(default=0)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')

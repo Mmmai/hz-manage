@@ -13,7 +13,8 @@ from .models import (
     ModelInstanceGroup,
     ModelInstanceGroupRelation,
     RelationDefinition,
-    Relations
+    Relations,
+    ZabbixSyncHost
 )
 
 
@@ -392,6 +393,32 @@ class RelationsFilter(filters.FilterSet):
             'source_instance',
             'target_instance',
             'relation',
+            'create_time_after',
+            'create_time_before',
+            'update_time_after',
+            'update_time_before',
+        ]
+
+
+class ZabbixSyncHostFilter(filters.FilterSet):
+    ip = filters.CharFilter(field_name='ip', lookup_expr='icontains')
+    host_id = filters.CharFilter(field_name='hostid', lookup_expr='exact')
+    name = filters.CharFilter(field_name='name', lookup_expr='icontains')
+    agent_installed = filters.BooleanFilter(field_name='agent_installed')
+    interface_available = filters.NumberFilter(field_name='interface_available')
+    create_time_after = filters.DateTimeFilter(field_name='create_time', lookup_expr='gte')
+    create_time_before = filters.DateTimeFilter(field_name='create_time', lookup_expr='lte')
+    update_time_after = filters.DateTimeFilter(field_name='update_time', lookup_expr='gte')
+    update_time_before = filters.DateTimeFilter(field_name='update_time', lookup_expr='lte')
+
+    class Meta:
+        model = ZabbixSyncHost
+        fields = [
+            'ip',
+            'host_id',
+            'name',
+            'agent_installed',
+            'interface_available',
             'create_time_after',
             'create_time_before',
             'update_time_after',

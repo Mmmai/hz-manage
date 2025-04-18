@@ -12,7 +12,7 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 
 import os
 from pathlib import Path
-
+from celery.schedules import crontab
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -166,6 +166,15 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Shanghai'
+
+# Celery定时任务
+CELERY_BEAT_SCHEDULE = {
+    # 每5分钟更新一次 Zabbix 接口可用性
+    'update_zabbix_interface_availability': {
+        'task': 'cmdb.tasks.update_zabbix_interface_availability',
+        'schedule': crontab(minute='*/5'),
+    },
+}
 
 # Zabbix配置
 ZABBIX_CONFIG = {
