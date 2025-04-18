@@ -19,13 +19,14 @@
         <el-input v-model="command" style="width: 240px"></el-input>
         <el-button @click="openWs">执行</el-button>
         <el-button type="danger" @click="closeWs">终止</el-button>
-        <div>
+        <div v-for="(item, index) in outputLines" :key="index">
           <!-- <el-text v-for="(item, index) in outputLines" :key="index">{{
             item
           }}</el-text> -->
-          <p style="" v-for="(item, index) in outputLines" :key="index">
+          <!-- <p style="" v-for="(item, index) in outputLines" :key="index">
             {{ item }}
-          </p>
+          </p> -->
+          <div v-html="item"></div>
         </div>
       </el-tab-pane>
     </el-tabs>
@@ -97,6 +98,8 @@ onUnmounted(() => {
     socket.value.close();
   }
 });
+import { AnsiUp } from "ansi_up";
+const ansiUp = new AnsiUp();
 
 // websocket
 const command = ref("");
@@ -104,13 +107,13 @@ const socket = ref(null);
 const outputLines = ref([]);
 const openWs = () => {
   outputLines.value = [];
-  socket.value = new WebSocket("/ws/test/");
+  socket.value = new WebSocket("/ws/ansible/");
 
   socket.value.onmessage = (event) => {
     const data = JSON.parse(event.data);
     if (data.type === "output") {
-      console.log(data);
-      outputLines.value.push(data.message + "\r\n");
+      console.log(ansiUp.ansi_to_html(data.message + "\r\n"));
+      outputLines.value.push(ansiUp.ansi_to_html(data.message + "\r\n"));
     } else if (data.type === "complete") {
       console.log(data);
 
@@ -119,7 +122,15 @@ const openWs = () => {
     }
   };
   socket.value.onopen = () => {
-    socket.value.send(JSON.stringify({ command: command.value }));
+    socket.value.send(
+      JSON.stringify({
+        module_args: command.value,
+        module_name: "shell",
+        inventory: ["192.168.163.160", "192.168.163.162"],
+        username: "root",
+        password: "thinker",
+      })
+    );
   };
 };
 const closeWs = () => {
