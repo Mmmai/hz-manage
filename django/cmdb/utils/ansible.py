@@ -16,12 +16,22 @@ class AnsibleAPI:
     def run_playbook(self, playbook_path, inventory_dict, extra_vars=None):
         """运行playbook并获取结果"""
         try:
+
             # 为每个任务创建唯一的临时目录，避免多个任务创建时inventory被覆盖导致无法匹配IP
             task_dir = os.path.join(self.private_data_dir, str(uuid.uuid4()))
             os.makedirs(task_dir, exist_ok=True)
             for subdir in ['env', 'inventory', 'project', 'artifacts']:
                 path = os.path.join(task_dir, subdir)
                 os.makedirs(path, exist_ok=True)
+
+            if not os.path.exists(playbook_path):
+                logger.error(f"Playbook file not found: {playbook_path}")
+                return {
+                    'rc': 1,
+                    'status': 'failed',
+                    'events': [],
+                    'error': f"ERROR! the playbook: {playbook_path} could not be found"
+                }
 
             result = ansible_runner.run(
                 private_data_dir=task_dir,
@@ -97,6 +107,11 @@ class AnsibleAPI:
                         'message': error_msg
                     })
                     break
+            if installation_status['status'] == 'success' and result.get('rc') != 0:
+                installation_status = {
+                    'status': 'failed',
+                    'message': f"Ansible execution failed with return code {result.get('rc')}"
+                }
             if installation_status['status'] == 'success':
                 logger.info(f'Installation for {host_ip} completed with status: {installation_status["status"]}')
             else:

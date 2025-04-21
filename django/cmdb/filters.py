@@ -405,7 +405,9 @@ class ZabbixSyncHostFilter(filters.FilterSet):
     host_id = filters.CharFilter(field_name='hostid', lookup_expr='exact')
     name = filters.CharFilter(field_name='name', lookup_expr='icontains')
     agent_installed = filters.BooleanFilter(field_name='agent_installed')
+    installation_error = filters.CharFilter(field_name='installation_error', lookup_expr='icontains')
     interface_available = filters.NumberFilter(field_name='interface_available')
+    interface_available__in = filters.BaseCSVFilter(field_name='interface_available', lookup_expr='in')
     create_time_after = filters.DateTimeFilter(field_name='create_time', lookup_expr='gte')
     create_time_before = filters.DateTimeFilter(field_name='create_time', lookup_expr='lte')
     update_time_after = filters.DateTimeFilter(field_name='update_time', lookup_expr='gte')
@@ -419,6 +421,7 @@ class ZabbixSyncHostFilter(filters.FilterSet):
             'name',
             'agent_installed',
             'interface_available',
+            'interface_available__in',
             'create_time_after',
             'create_time_before',
             'update_time_after',
