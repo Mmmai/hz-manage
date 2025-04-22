@@ -16,8 +16,8 @@ const path = {
   cmdbCiDataTree: "/api/v1/cmdb/model_instance_group/",
   cmdbCiDataTreeRelation: "/api/v1/cmdb/model_instance_group_relation/create_relations/",
   cmdbModelRef: "/api/v1/cmdb/model_ref/",
-  cmdbReEncrypt: "/api/v1/cmdb/password_manage/re_encrypt/"
-
+  cmdbReEncrypt: "/api/v1/cmdb/password_manage/re_encrypt/",
+  cmdbSyncZabbix: "/api/v1/cmdb/zabbix_sync_host/",
 }
 export default {
   // cmdb
@@ -53,6 +53,14 @@ export default {
   updateCiModel(params) {
     // return axios.put(path.role+params.id+'/',params)
     return axios.request({ url: path.cmdbCiModel + params.id + '/', method: 'patch', data: params })
+  },
+  // 模型唯一标识更新
+  updateInstanceName(params) {
+    return axios.request({ url: path.cmdbCiModel + params + '/rename_instances/', method: 'post' })
+  },
+  updateInstanceNameTask(params) {
+    return axios.request({ url: path.cmdbCiModel + '/rename_status/', method: 'get', params: params })
+
   },
   // 模型字段组
   getCiModelFieldGroup(params) {
@@ -135,9 +143,7 @@ export default {
   syncHosts() {
     return axios.request({ url: path.cmdbCiModelInstance + '/sync_hosts/', method: 'post' })
   },
-  updateInstanceName() {
-    return axios.request({ url: path.cmdbCiModelInstance + '/update_instance_name_by_template/', method: 'post' })
-  },
+
   // ci数据显示列
   getCiModelCol(params) {
     return axios.request({ url: path.cmdbCiDataCol, method: 'get', params: params })
@@ -198,7 +204,22 @@ export default {
     // return axios.request({url:path.cmdbCiModelInstance+'export_template/',method: 'get',params: params})
 
   },
+  // 重新加密
   reEncrypt(params, timeout = 60000) {
     return axios.request({ url: path.cmdbReEncrypt, method: 'post', data: params, timeout: timeout })
+  },
+  // zabbix主机同步状态
+  getZabbixSync(params) {
+    return axios.request({ url: path.cmdbSyncZabbix, params: params, method: 'get' })
+  },
+  syncZabbixHost(params) {
+    return axios.request({ url: path.cmdbSyncZabbix + 'sync_zabbix_host/', method: 'post', data: params })
+  },
+  updateZabbixAvailability(params) {
+    return axios.request({ url: path.cmdbSyncZabbix + 'update_zabbix_availability/', method: 'post', data: params })
+  },
+  installAgent(params) {
+    return axios.request({ url: path.cmdbSyncZabbix + 'install_agents/', method: 'post', data: params })
   }
+
 }

@@ -85,6 +85,7 @@ const modelFieldMap = computed(() => {
   props.modelFieldLists.forEach((item) => {
     tmpObj[item.id] = item;
   });
+
   return tmpObj;
 });
 const onEnd = () => {};
