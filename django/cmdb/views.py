@@ -1392,6 +1392,8 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
             ids = request.data.get('ids', [])
             all_failed = request.data.get('all', False)
 
+            force_flag = False
+
             if not ids and not all_failed:
                 return Response({
                     'status': 'failed',
@@ -1401,6 +1403,7 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
             if all_failed:
                 hosts = ZabbixSyncHost.objects.filter(agent_installed=False)
             else:
+                force_flag = True
                 hosts = ZabbixSyncHost.objects.filter(id__in=ids)
 
             if not hosts.exists():
@@ -1427,7 +1430,12 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
                     password = password_handler.decrypt_to_plain(password_meta.data)
 
                     # 触发安装任务
-                    setup_host_monitoring.delay(str(host.instance.id), host.name, host.ip, password)
+                    setup_host_monitoring.delay(
+                        str(host.instance.id),
+                        host.name,
+                        host.ip,
+                        password,
+                        force=force_flag)
                     logger.info(f"Triggered Zabbix agent installation for host {host.ip}")
 
                 except Exception as e:

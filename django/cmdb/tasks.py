@@ -270,7 +270,7 @@ def update_instance_names_for_model_template_change(self, model_id, old_template
 
 
 @shared_task
-def setup_host_monitoring(instance_id, instance_name, ip, password, groups=None, delete=False):
+def setup_host_monitoring(instance_id, instance_name, ip, password, groups=None, delete=False, force=False):
     try:
 
         # 删除主机监控
@@ -306,8 +306,8 @@ def setup_host_monitoring(instance_id, instance_name, ip, password, groups=None,
                 else:
                     raise ValidationError({'detail': f'Failed to update host: {result}'})
 
-            # 当IP地址发生变化或客户端安装状态为失败时触发ansible重新安装客户端
-            if ANSIBLE_AVAILABLE and (ip != ip_cur or not zabbix_host.first().agent_installed):
+            # IP地址发生变化/安装状态为失败/强制重装
+            if ANSIBLE_AVAILABLE and (ip != ip_cur or not zabbix_host.first().agent_installed or force):
                 chain(
                     install_zabbix_agent.s(ip, password)
                 ).apply_async()
