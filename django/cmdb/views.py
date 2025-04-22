@@ -27,7 +27,7 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter
 from .utils import password_handler, celery_manager
 from .excel import ExcelHandler
 from .constants import FieldMapping, limit_field_names
-from .tasks import process_import_data, sync_zabbix_host_task, update_instance_names_for_model_template_change, update_zabbix_interface_availability
+from .tasks import process_import_data, setup_host_monitoring, install_zabbix_agent, sync_zabbix_host_task, update_instance_names_for_model_template_change, update_zabbix_interface_availability
 from .filters import (
     ModelGroupsFilter,
     ModelsFilter,
@@ -1344,22 +1344,12 @@ class PasswordManageViewSet(viewsets.ViewSet):
             return Response({'status': 'fail', 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ZabbixSyncHostViewSet(viewsets.ViewSet):
-
+class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
     queryset = ZabbixSyncHost.objects.all().order_by('create_time')
     serializer_class = ZabbixSyncHostSerializer
     pagination_class = StandardResultsSetPagination
     filterset_class = ZabbixSyncHostFilter
     ordering_fields = ['host_id', 'ip', 'name', 'agent_installed', 'interface_available', 'create_time', 'update_time']
-
-    def list(self, request):
-        queryset = self.queryset
-
-        filterset = self.filterset_class(request.query_params, queryset=queryset)
-        if filterset.is_valid():
-            queryset = filterset.qs
-
-        return Response(queryset.values(), status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'])
     def update_zabbix_availability(self, request):
@@ -1395,3 +1385,60 @@ class ZabbixSyncHostViewSet(viewsets.ViewSet):
                 'status': 'error',
                 'message': f'Failed to trigger sync task: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'])
+    def install_agents(self, request):
+        try:
+            ids = request.data.get('ids', [])
+            all_failed = request.data.get('all', False)
+
+            if not ids and not all_failed:
+                return Response({
+                    'status': 'failed',
+                    'message': 'No IDs provided and all failed flag is not set.'
+                })
+
+            if all_failed:
+                hosts = ZabbixSyncHost.objects.filter(agent_installed=False)
+            else:
+                hosts = ZabbixSyncHost.objects.filter(id__in=ids)
+
+            if not hosts.exists():
+                return Response({
+                    'status': 'failed',
+                    'message': 'No hosts found matching the criteria.'
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            for host in hosts:
+                # 获取主机的密码
+                try:
+                    # 从实例中获取密码字段
+                    host_instance = host.instance
+                    password_meta = ModelFieldMeta.objects.filter(
+                        model_instance=host_instance,
+                        model_fields__name='root_password'
+                    ).first()
+
+                    if not password_meta or not password_meta.data:
+                        logger.warning(f"No password found for host {host.ip}")
+                        continue
+
+                    # 获取解密后的密码
+                    password = password_handler.decrypt_to_plain(password_meta.data)
+
+                    # 触发安装任务
+                    setup_host_monitoring.delay(str(host.instance.id), host.name, host.ip, password)
+                    logger.info(f"Triggered Zabbix agent installation for host {host.ip}")
+
+                except Exception as e:
+                    logger.error(f"Failed to trigger Zabbix agent installation for host {host.ip}: {str(e)}")
+                    continue
+
+            return Response(status=status.HTTP_202_ACCEPTED)
+
+        except Exception as e:
+            logger.error(f"Error triggering Zabbix agent installation: {str(e)}")
+            return Response(
+                {'status': 'failed', 'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

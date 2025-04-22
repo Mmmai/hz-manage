@@ -311,6 +311,8 @@ def setup_host_monitoring(instance_id, instance_name, ip, password, groups=None,
                 chain(
                     install_zabbix_agent.s(ip, password)
                 ).apply_async()
+                if zabbix_host.first().installation_error:
+                    zabbix_host.update(installation_error=None)
             else:
                 logger.debug(f"No changes detected for {ip}, skipping update")
                 return {'detail': f"No changes detected for {ip}, skipping update"}
@@ -353,15 +355,72 @@ def install_zabbix_agent(host_ip, password):
         logger.info(f'Installing Zabbix agent on {host_ip}')
         ansible_api = AnsibleAPI()
         result = ansible_api.install_zabbix_agent(host_ip, 'root', 22, password)
-        if result['status'] == 'success':
-            ZabbixSyncHost.objects.filter(ip=host_ip).update(agent_installed=True)
-            return result
+        agent_installed = result.get('status') == 'success'
+        error_message = None
+
+        if not result:
+            result = {
+                'status': 'failed',
+                'message': 'Installation result is empty.',
+                'task_details': []
+            }
+
+        if not agent_installed:
+            main_error = result.get('message', 'Unknown error')
+            task_details = result.get('task_details', [])
+
+            formatted_error = {
+                'main_error': main_error,
+                'details': []
+            }
+
+            if task_details:
+                for task in task_details:
+                    task_name = task.get('task', 'Unknown task')
+                    task_status = task.get('status', 'Unknown status')
+                    task_msg = task.get('message', '')
+
+                    # 避免重复的错误信息
+                    if task_msg and task_msg not in main_error:
+                        formatted_error['details'].append({
+                            'task': task_name,
+                            'status': task_status,
+                            'message': task_msg
+                        })
+
+            error_message = formatted_error
+
+        zabbix_host = ZabbixSyncHost.objects.filter(ip=host_ip).first()
+        if zabbix_host:
+            fields = ['agent_installed', 'update_time']
+            zabbix_host.agent_installed = agent_installed
+            if error_message:
+                zabbix_host.installation_error = error_message
+                fields.append('installation_error')
+            elif agent_installed:
+                zabbix_host.installation_error = None
+                fields.append('installation_error')
+            zabbix_host.save(update_fields=fields)
+            logger.info(f"Zabbix agent installation status updated for {host_ip}.")
         else:
-            ZabbixSyncHost.objects.filter(ip=host_ip).update(agent_installed=False)
-            raise ValidationError({'detail': f'Failed to install Zabbix agent for {host_ip}: {result["message"]}'})
+            logger.warning(f"No Zabbix host found for IP: {host_ip}.")
+
+        return {
+            'status': 'success' if agent_installed else 'failed',
+            'message': error_message if error_message else ''
+        }
+
     except Exception as e:
         logger.error(f"Error installing Zabbix agent: {str(e)}")
-        return result
+        zabbix_host = ZabbixSyncHost.objects.filter(ip=host_ip).first()
+        if zabbix_host:
+            zabbix_host.agent_installed = False
+            zabbix_host.installation_error = f'Error during installation: {str(e)}'
+            zabbix_host.save(update_fields=['agent_installed', 'installation_error'])
+        return {
+            'status': 'error',
+            'message': f'Error during installation: {str(e)}'
+        }
 
 
 @shared_task(bind=True)
@@ -580,11 +639,11 @@ def sync_zabbix_host_task():
                             interface_available=0
                         )
                         result["created"] += 1
-                        logger.info(f"已创建Zabbix主机 {host_id} ({instance.instance_name})")
+                        logger.info(f"Created zabbix host {host_id} ({instance.instance_name})")
                     else:
                         result["errors"].append({
                             "instance_id": str(instance.id),
-                            "error": f"创建Zabbix主机失败"
+                            "error": f"Failed to create zabbix host"
                         })
 
             except Exception as e:
