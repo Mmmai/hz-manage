@@ -1594,3 +1594,67 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
                 {'status': 'failed', 'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=False, methods=['get'])
+    def installation_status_sse(self, request):
+        """使用SSE实时获取Zabbix客户端安装状态"""
+        try:
+            ids = request.query_params.get('ids', [])
+            all_failed = request.query_params.get('all', False)
+
+            if not ids and not all_failed:
+                raise ValidationError('缺少sufficient params')
+
+            if all_failed:
+                ids = ZabbixSyncHost.objects.filter(agent_installed=False).values_list('id', flat=True)
+                ids = [str(id) for id in ids]
+
+            def event_stream():
+                last_status = {}
+
+                for _ in range(1200):
+                    current_status = {}
+
+                    hosts = ZabbixSyncHost.objects.filter(id__in=ids).values(
+                        'id', 'host_id', 'ip', 'name', 'agent_installed',
+                        'interface_available', 'installation_error', 'update_time'
+                    )
+
+                    all_completed = True
+
+                    for host in hosts:
+                        host_pk = str(host['id'])
+                        current_status[host_pk] = host
+
+                        if not host['agent_installed'] and not host['installation_error']:
+                            all_completed = False
+
+                    if current_status != last_status:
+                        last_status = current_status.copy()
+                        data = {
+                            'status': 'success',
+                            'hosts': list(current_status.values())
+                        }
+                        yield f"data: {data}\n\n"
+
+                    if all_completed:
+                        final_data = {
+                            'status': 'completed',
+                            'hosts': list(current_status.values())
+                        }
+                        yield f"data: {final_data}\n\n"
+                        break
+
+                    time.sleep(2)
+
+            response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
+            response['Cache-Control'] = 'no-cache'
+            response['X-Accel-Buffering'] = 'no'
+            return response
+
+        except Exception as e:
+            logger.error(f"Error in get installation status: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': f'Error in get installation status: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

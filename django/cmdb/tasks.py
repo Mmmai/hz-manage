@@ -311,8 +311,10 @@ def setup_host_monitoring(instance_id, instance_name, ip, password, groups=None,
                 chain(
                     install_zabbix_agent.s(ip, password)
                 ).apply_async()
-                if zabbix_host.first().installation_error:
-                    zabbix_host.update(installation_error=None)
+                zabbix_host.first().update(
+                    agent_installed=False,
+                    installation_error=None
+                )
             else:
                 logger.debug(f"No changes detected for {ip}, skipping update")
                 return {'detail': f"No changes detected for {ip}, skipping update"}
