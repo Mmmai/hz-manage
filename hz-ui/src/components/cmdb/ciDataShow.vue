@@ -68,18 +68,18 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item
+              <!-- <el-dropdown-item
                 v-permission="`${route.name?.replace('_info', '')}:update`"
                 @click="updateCiDataAll()"
               >
                 更新所有
-              </el-dropdown-item>
-              <el-dropdown-item
+              </el-dropdown-item> -->
+              <!-- <el-dropdown-item
                 v-permission="`${route.name?.replace('_info', '')}:add`"
                 @click="updateInstanceName()"
               >
                 更新唯一标识
-              </el-dropdown-item>
+              </el-dropdown-item> -->
               <el-dropdown-item
                 v-permission="`${route.name?.replace('_info', '')}:add`"
                 @click="syncToZabbix()"
@@ -1859,7 +1859,7 @@ const updateInstanceName = async () => {
   });
 };
 const syncToZabbix = async () => {
-  let res = await proxy.$api.syncHosts();
+  let res = await proxy.$api.syncZabbixHost();
   console.log(res);
   ElNotification({
     title: "Success",

@@ -99,11 +99,11 @@
             clearable
             filterable
             style="width: 240px"
-            :disabled="nowRow.built_in || !isAdd ? true : false"
+            :disabled="nowRow.built_in ? true : false"
           >
             <el-option
               :label="data.verbose_name"
-              :value="data.name"
+              :value="data.id"
               :key="index"
               v-for="(data, index) in props.modelFieldLists"
             />
@@ -174,7 +174,13 @@ const modelFieldNameObj = computed(() => {
   });
   return tmpObj;
 });
-
+const modelFieldIdObj = computed(() => {
+  let tmpObj = {};
+  props.modelFieldLists.forEach((item) => {
+    tmpObj[item.id] = item.verbose_name;
+  });
+  return tmpObj;
+});
 const formRef = ref("");
 const formInline = reactive({
   fields: [],
@@ -327,7 +333,7 @@ const deleteRow = (params) => {
 const showName = computed(() => {
   let tmpObj = {};
   tableData.value.forEach((item) => {
-    let nameArr = item.fields.map((item2) => modelFieldNameObj.value[item2]);
+    let nameArr = item.fields.map((item2) => modelFieldIdObj.value[item2]);
     // console.log(modelFieldNameObj.value);
     tmpObj[item.fields?.join("+")] = nameArr.join("+");
   });

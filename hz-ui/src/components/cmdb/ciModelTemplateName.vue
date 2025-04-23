@@ -31,7 +31,8 @@
     </el-checkbox-group>
     <el-divider>拖拽调整顺序</el-divider>
     <VueDraggable
-      :disabled="true"
+      :disabled="!isEdit"
+      v-model="checkboxLists"
       :force-fallback="true"
       :scroll-sensitivity="200"
       ref="el"
@@ -41,6 +42,7 @@
       <div v-for="(itemId, index) in checkboxLists" :key="index">
         <div class="listItem">
           <span>{{ modelFieldMap[itemId].verbose_name }}</span>
+          <!-- {{ itemId }} -->
         </div>
       </div>
     </VueDraggable>
@@ -48,8 +50,9 @@
 </template>
 
 <script lang="ts" setup>
-import { ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox, ElNotification } from "element-plus";
 import {
+  h,
   ref,
   computed,
   watch,
@@ -60,17 +63,15 @@ import {
   onActivated,
 } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
-
 const { proxy } = getCurrentInstance();
 import { useStore } from "vuex";
 const store = useStore();
 const props = defineProps(["modelId", "modelFieldLists", "ciModelInfo"]);
+// const emits = defineEmits(["getCiModel"]);
+
 const isEdit = ref(false);
 const checkboxLists = ref([]);
-const handleCheckAllChange = (val) => {
-  console.log(val);
-  console.log(checkboxLists.value);
-};
+const handleCheckAllChange = (val) => {};
 // const checkboxListsId = computed(() => {
 //   return checkboxLists.value.map((item) => item.id);
 // });
@@ -85,7 +86,6 @@ const modelFieldMap = computed(() => {
   props.modelFieldLists.forEach((item) => {
     tmpObj[item.id] = item;
   });
-
   return tmpObj;
 });
 const onEnd = () => {};
@@ -97,17 +97,45 @@ const cancelAction = () => {
   // 后端获取
   isEdit.value = false;
 };
+// 更新任务的task
+const taskPercentage = ref(0);
 const commit = async () => {
+  // console.log(checkboxLists.value);
   let res = await proxy.$api.updateCiModel({
     id: props.modelId,
     instance_name_template: checkboxLists.value,
   });
   if (res.status == "200") {
     ElMessage({ type: "success", message: "更新成功" });
+    // 询问是否自动更新实例名
+    ElMessageBox.confirm("更新成功，是否自动更新实例唯一标识?", "Warning", {
+      confirmButtonText: "确认",
+      cancelButtonText: "取消",
+      type: "warning",
+    })
+      .then(async () => {
+        let res = await proxy.$api.updateInstanceName(props.modelId);
+        console.log(res);
+        ElNotification({
+          title: "Success",
+          message: "更新任务提交成功",
+          type: "success",
+        });
+        ElMessage({
+          type: "success",
+          message: "Delete completed",
+        });
+      })
+      .catch(() => {
+        ElMessage({
+          type: "info",
+          message: "Delete canceled",
+        });
+      });
     // 重置表单
     isEdit.value = false;
     // 获取数据源列表
-    emits("getCiModel");
+    getModel();
   } else {
     ElMessage({
       showClose: true,
@@ -116,7 +144,6 @@ const commit = async () => {
     });
   }
 };
-// const emits = defineEmits(["getCiModel"]);
 const getModel = async () => {
   let res = await proxy.$api.getCiModel(null, props.modelId);
   // console.log(ciModelInfo.value);
