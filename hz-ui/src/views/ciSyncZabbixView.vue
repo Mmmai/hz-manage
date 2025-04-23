@@ -5,6 +5,12 @@
         <el-button
           v-permission="`${route.name?.replace('_info', '')}:add`"
           type="primary"
+          @click="syncToZabbix()"
+          >触发同步</el-button
+        >
+        <el-button
+          v-permission="`${route.name?.replace('_info', '')}:add`"
+          type="primary"
           @click="getZabbixStatus()"
           >可用性更新</el-button
         >
@@ -156,6 +162,8 @@ import { useStore } from "vuex";
 const store = useStore();
 const syncHosts = ref([]);
 import { useRoute } from "vue-router";
+import { ElMessageBox, ElMessage, ElNotification } from "element-plus";
+
 import { tr } from "element-plus/es/locale/index.mjs";
 import { Row } from "element-plus/es/components/table-v2/src/components/index.mjs";
 const route = useRoute();
@@ -408,6 +416,15 @@ const filterMethod = (filters: object) => {
 const getZabbixStatus = async () => {
   let res = await proxy.$api.updateZabbixAvailability();
   console.log(res);
+};
+const syncToZabbix = async () => {
+  let res = await proxy.$api.syncZabbixHost();
+  console.log(res);
+  ElNotification({
+    title: "Success",
+    message: "触发主机同步~",
+    type: "success",
+  });
 };
 // 安装agent
 const installAgent = async (params: object) => {
