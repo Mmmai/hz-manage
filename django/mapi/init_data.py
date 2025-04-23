@@ -80,6 +80,21 @@ INIT_MENU =  [
                   {"name":"显示密码","action":"showPassword"},
                   ]
     },
+        {
+      "label": "资源",
+      "icon": "clarity:repeat-line",
+      "name": "ciSyncZabbix",
+      "status": 1,
+      "path": "/ciSyncZabbix",
+      "is_menu": 1,
+      "sort": 0,
+      "has_info": 0,
+      "info_view_name": '',
+      "is_iframe": 0,
+      "iframe_url": '',
+      "description": "",
+      "parentid_id": "cmdb",
+    },
     {
       "label": "模型管理",
       "icon": "mdi:alpha-m-box-outline",

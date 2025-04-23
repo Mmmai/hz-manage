@@ -72,6 +72,15 @@
             ref="ciModelUniqueRef"
           />
         </el-tab-pane>
+        <el-tab-pane label="唯一标识命名" name="instance_name_temp">
+          <ciModelTemplate
+            :modelId="modelId"
+            :ciModelInfo="ciModelInfo"
+            :modelFieldLists="modelFieldLists"
+            ref="ciModelTemplateRef"
+            @getCiModel="getModelInfo"
+          />
+        </el-tab-pane>
         <!-- <el-tab-pane label="Role" verbose_name="third">Role</el-tab-pane>
     <el-tab-pane label="Task" verbose_name="fourth">Task</el-tab-pane> -->
       </el-tabs>
@@ -155,9 +164,11 @@ const tabsStore = useTabsStore();
 import type { ComponentSize, FormInstance, FormRules } from "element-plus";
 import ciModelField from "../../components/cmdb/ciModelField.vue";
 import ciModelUnique from "../../components/cmdb/ciModelUnique.vue";
+import ciModelTemplate from "../../components/cmdb/ciModelTemplateName.vue";
 
 const ciModelUniqueRef = ref("");
 const ciModelFieldRef = ref("");
+const ciModelTemplateRef = ref("");
 const router = useRouter();
 const store = useStore();
 const { proxy } = getCurrentInstance();
@@ -178,6 +189,7 @@ const getModelInfo = async () => {
   let res = await proxy.$api.getCiModel(route.query, route.query.id);
   ciModelInfo.value = res.data.model;
   ciModel.value = res.data;
+  console.log(ciModelInfo.value);
 };
 // 子组件传递模型字段给父组件
 // const modelFieldLists = ref([]);
@@ -206,6 +218,8 @@ const handleClick = (tab: TabsPaneContext, event: Event) => {
     ciModelUniqueRef.value!.getTableData({ model: modelId.value });
   } else if (tab.props.name === "field") {
     // ciModelFieldRef.value!.getModelField();
+  } else if (tab.props.name === "instance_name_temp") {
+    ciModelTemplateRef.value!.getModel();
   }
 };
 const tabName = ref("field");

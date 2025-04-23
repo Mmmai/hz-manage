@@ -5,7 +5,10 @@ from datetime import timezone,timedelta
 from .models import LogModule,LogFlow,LogFlowMission
 from django.forms.models import model_to_dict
 from mapi.models import UserInfo,Datasource
-
+from .tasks import lokiAnalysis
+from celery.result import AsyncResult
+from django.http import StreamingHttpResponse
+import time,json
 def lokiLabels(request):
     #print(1111)
     if request.method == 'GET':
@@ -267,7 +270,7 @@ def getLokiQuery(reqUrl=None,dateValue=[],limit=100,labelStr='',matchKeyMethod='
         print(e)
         return {"queryInfo":{"errorCount":0},"queryLogLevel":[],"queryResult":[],"status":False}
 
-def lokiStepQuery(request):
+def lokiStepQuery_bak(request):
     if request.method == 'POST':
         reqdata = json.loads(request.body)
         print(type(reqdata))
@@ -294,6 +297,7 @@ def lokiStepQuery(request):
             label_match = stepInfo["label_match"]
             label_str = "{%s%s\"%s\"}" %(label_name,label_match,label_value)
             # print(label_str)
+            # 查询loki
             res = getLokiQuery(reqUrl=reqUrl,dateValue=dataValue,limit=500,labelStr=label_str,matchKeyMethod='|~',matchKey=match_key)
             # print(res)
             allRes[i.step_id_id] = res
@@ -313,7 +317,7 @@ def lokiStepQuery(request):
                 flow_id = flowLogObj,
                 user_id = userObj,
                 dataSource_id = dataSourceObj,
-                status = 1,
+                status = 0,
                 mission_query = reqdata,
                 # results = json.loads(json.dumps(allRes))
                 results = result
@@ -324,3 +328,79 @@ def lokiStepQuery(request):
 
         # 通过stepid获取日志检索条件，传入时间和关键字，返回结果，并存储
 
+def lokiStepQuery(request):
+    if request.method == 'POST':
+        reqdata = json.loads(request.body)
+        flow_id = reqdata['flowId']
+        # mission_id = reqdata['missionId']
+        
+        match_key = reqdata['matchKey']
+        # missionObj = LogFlowMission.objects.filter(mission_id=mission_id).first()
+        # 获取数据源的url
+        dataSourceId = reqdata['dataSourceId']
+        dataSourceObj = Datasource.objects.filter(id=dataSourceId).first()
+        reqUrl = dataSourceObj.url
+        dataValue = reqdata["dateValue"]
+        username = reqdata["username"]
+        flowLogObj = LogFlow.objects.filter(id=flow_id).first()
+        userObj = UserInfo.objects.filter(username=username).first()
+        # 通过flowid获取stepid
+        # flowLogObj = LogFlow.objects.filter(id=flow_id).first()
+                # 记录入库
+        LogFlowMissionObj,created = LogFlowMission.objects.get_or_create(
+                # mission_id = mission_id,
+                search_key = match_key,
+                # task_id = ,
+                flow_id = flowLogObj,
+                user_id = userObj,
+                dataSource_id = dataSourceObj,
+                status = 0,
+                mission_query = reqdata,
+                results = {}
+                # flow_sort = flowSort
+
+            )
+        # print(LogFlowMissionObj.mission_id)
+        task = lokiAnalysis.delay(params={
+                                "reqUrl": reqUrl,
+                                "match_key": match_key,
+                                "flow_id": flow_id,
+                                "dataValue": dataValue,
+                                "limit": 500,
+                                "missionId": LogFlowMissionObj.mission_id
+                               })
+
+        LogFlowMissionObj.task_id = task.id
+        LogFlowMissionObj.save()
+        return JsonResponse({"missionId": LogFlowMissionObj.mission_id,"task_id":task.id,"result":"任务提交成功！"})
+
+        # 通过stepid获取日志检索条件，传入时间和关键字，返回结果，并存储
+
+def get_lokiAnalysis_status(request, task_id):
+    result = AsyncResult(task_id)
+    def event_stream():
+        is_finish = False
+        while not is_finish:
+            time.sleep(1)
+            if result.ready():
+                if result.successful():
+                    # 更新状态
+                    # result.missionObj.status = 
+                    is_finish = True
+                    res = {"is_finish": True}
+                    yield f"data: {json.dumps(res)}\n\n"
+
+                    # return JsonResponse({'status': 'SUCCESS', 'result': result.result.detail})
+                else:
+                    is_finish = True
+                    res = {"is_finish": True}
+                    yield f"data: {json.dumps(res)}\n\n"
+
+                    # return JsonResponse({'status': 'FAILURE', 'result': str(result.info)})
+            else:
+                # return JsonResponse({'status': 'PENDING'})
+                is_finish = False
+                res = {"is_finish": False}
+
+                yield f"data: {json.dumps(res)}\n\n"
+    return StreamingHttpResponse(event_stream(), content_type="text/event-stream")

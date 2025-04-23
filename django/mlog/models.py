@@ -50,19 +50,23 @@ class LogFlowModule(models.Model):
 
 class LogFlowMission(models.Model):
     mission_status_choice = (
+        (0,'Pending'),
         (1,'Success'),
         (2,'Failed'),
         (3,'Unknown')
     )
-    mission_id = models.CharField(max_length=254,primary_key=True)
+    # mission_id = models.CharField(max_length=254,primary_key=True)
+    mission_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    search_key = models.CharField(max_length=254)
     task_id = models.CharField(max_length=254)
     user_id = models.ForeignKey(UserInfo,on_delete=models.CASCADE)
     flow_id = models.ForeignKey(LogFlow,on_delete=models.CASCADE)
     dataSource_id = models.ForeignKey(Datasource,on_delete=models.CASCADE)
-    create_time = models.DateTimeField(auto_now_add=True)
     mission_query = models.JSONField()
     results = models.JSONField()
     status = models.IntegerField(choices=mission_status_choice,default=3)
+    create_time = models.DateTimeField(auto_now_add=True)
+    
     # flow_sort
     class Meta:
         db_table = 'tb_log_flow_missions'

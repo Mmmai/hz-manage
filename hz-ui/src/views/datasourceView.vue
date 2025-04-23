@@ -75,14 +75,20 @@
     ></component>
 
     <template #footer>
-      <div class="dialog-footer">
-        <el-button type="danger" @click="deleteAction" v-if="isAdd == false"
-          >删除</el-button
+      <div class="dialog-footer" v-if="!isAdd">
+        <el-button type="danger" @click="deleteAction">删除</el-button>
+        <el-button
+          type="success"
+          @click="testDataSource"
+          v-loading="testLoading"
+          >测试</el-button
         >
-        <el-button type="primary" @click="updateAction" v-if="isAdd == false"
-          >更新</el-button
-        >
-        <el-button type="primary" @click="submitAction" v-else>添加</el-button>
+
+        <el-button type="primary" @click="updateAction">更新</el-button>
+      </div>
+      <div class="dialog-footer" v-else>
+        <el-button type="success" @click="testDataSource">测试</el-button>
+        <el-button type="primary" @click="submitAction">添加</el-button>
       </div>
     </template>
   </el-dialog>
@@ -116,17 +122,20 @@ import {
   onMounted,
   defineAsyncComponent,
   computed,
+  nextTick,
 } from "vue";
 // import { Delete, Filter,CirclePlus } from '@element-plus/icons-vue'
-import lokiSource from "../components/datasource/lokiSource.vue";
+import lokiSource from "@/components/datasource/lokiSource.vue";
 import zabbixSource from "../components/datasource/zabbixSource.vue";
-import { debounce } from "lodash";
+import { debounce, method } from "lodash";
 import { ElMessageBox, ElMessage } from "element-plus";
 
 // const ComponentA = defineAsyncComponent(() => import("../components/datasource/lokiSource.vue"))
 const { proxy } = getCurrentInstance();
 import { useRoute } from "vue-router";
+import { RefSymbol } from "@vue/reactivity";
 const route = useRoute();
+const testLoading = ref(false);
 const getImgPath = (name: string): any => {
   return new URL(`/src/assets/images/${name}`, import.meta.url).href;
 };
@@ -215,6 +224,33 @@ const submitAction = async () => {
       type: "error",
     });
   }
+};
+const testDataSource = async () => {
+  testLoading.value = true;
+
+  let res = await proxy.$api.lokiLabelGet({ url: formLabelAlign.url });
+  console.log(res);
+  if (res.timeout) {
+    ElMessage({
+      message: `数据源异常，${res.message}`,
+      type: "error",
+    });
+  } else {
+    if (res.status == 200) {
+      ElMessage({
+        message: "数据源可用~",
+        type: "success",
+      });
+    } else {
+      ElMessage({
+        message: `数据源异常，${res.statusText}`,
+        type: "error",
+      });
+    }
+  }
+  nextTick(() => {
+    testLoading.value = false;
+  });
 };
 // 获取已添加的数据源
 const dataSourceList = ref([]);

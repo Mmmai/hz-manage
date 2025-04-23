@@ -137,7 +137,7 @@ const portalList = ref([]);
 
 // 获取门户列表
 const getPortal = async () => {
-  let res = await proxy.$api.portalGet();
+  let res = await proxy.$api.portalGet({ page: 1, page_size: 1000 });
   portalList.value = res.data.results;
   // showDataList.value = res.data
 };

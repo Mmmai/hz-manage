@@ -647,6 +647,7 @@ const searchForm = reactive({
   dateValue: [],
   username: currenUsername,
   flowName: "",
+  missionId: null,
 });
 const shortcuts = [
   {
@@ -720,13 +721,14 @@ const getDataSource = async () => {
     }
   });
 };
+const searchFormRef = ref("");
 // 检索弹窗关闭
 const searchClose = (done: () => void) => {
   console.log("in before search close");
   ElMessageBox.confirm("是否关闭?")
     .then(() => {
       // resetForm();
-      proxy.$refs.searchFormRef.resetFields();
+      searchFormRef.value!.resetFields();
 
       done();
     })
@@ -743,19 +745,34 @@ const cardClick = (conf) => {
   searchForm.missionId = proxy.$commonFunc.getUuid();
 };
 //
+import { ElNotification } from "element-plus";
+
 import { useRouter } from "vue-router";
 const router = useRouter();
 const searchSubmit = async () => {
-  proxy.$refs.searchFormRef.validate((valid) => {
+  console.log(searchForm);
+  searchFormRef.value!.validate(async (valid) => {
     if (valid) {
-      proxy.$refs.searchFormRef.resetFields();
+      let res = await proxy.$api.getFlowLokiLog(searchForm);
+      ElNotification({
+        title: "日志分析任务",
+        message: `任务已成功提交`,
+        type: "success",
+      });
+      console.log(res);
+      let taskId = res.data.task_id;
+      console.log(taskId);
       openSearch.value = false;
+      // 提交任务
+
       setTimeout(() => {
         router.push({
-          path: "/log/logFlowMission/" + searchForm.uuid,
-          query: searchForm,
+          path: "/log/logFlowMission/" + res.data.missionId,
+          query: { taskId: taskId },
         });
       });
+      searchFormRef.value!.resetFields();
+
       // resetForm();
     }
   });

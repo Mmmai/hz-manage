@@ -167,10 +167,10 @@ const beforeUpload = (file) => {
     //截取文件的后缀，判断文件类型
     const fileExt = file.name.replace(/.+\./, "").toLowerCase();
     //计算文件的大小
-    const isLt5M = file.size / 1024 / 1024 < 5; //这里做文件大小限制
+    const isLt5M = file.size / 1024 / 1024 < 100; //这里做文件大小限制
     //如果大于50M
     if (!isLt5M) {
-      ElMessage.error("上传文件大小不能超过 5MB!");
+      ElMessage.error("上传文件大小不能超过 100MB!");
       return false;
     }
     //如果文件类型不在允许上传的范围内

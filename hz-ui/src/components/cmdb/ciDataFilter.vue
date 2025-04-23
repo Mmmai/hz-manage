@@ -104,7 +104,7 @@
                   </el-select>
                   <div
                     v-if="
-                      item.match === 'null' || item.match === '!null'
+                      item.match === 'null' || item.match === 'not:null'
                         ? true
                         : false
                     "
@@ -272,11 +272,11 @@ const matchOptions = ref([
   { value: "not:", label: "不等于", description: "不等于" },
   { value: "like:", label: "模糊匹配", description: "模糊匹配" },
   { value: "not:like:", label: "反向模糊", description: "反向模糊匹配" },
-  { value: "in:", label: "包含", description: "包含以,分隔" },
-  { value: "not:in:", label: "不包含", description: "不包含以,分隔" },
+  { value: "in:", label: "在列表", description: "以,分隔" },
+  { value: "not:in:", label: "不在列表", description: "以,分隔" },
   { value: "regex:", label: "正则", description: "正则表达式" },
   { value: "null", label: "空", description: "正则表达式" },
-  { value: "!null", label: "非空", description: "正则表达式" },
+  { value: "not:null", label: "非空", description: "正则表达式" },
 ]);
 const filterLists = ref([]);
 const filterParamComputed = computed(() => {
@@ -285,7 +285,7 @@ const filterParamComputed = computed(() => {
   // console.log(filterParams.value);
   filterForm.filterParams.forEach((item) => {
     // 新增空和非空的匹配
-    if (item.match === "null" || item.match === "!null") {
+    if (item.match === "null" || item.match === "not:null") {
       tmpObj[item.name] = item.match;
       return;
     }

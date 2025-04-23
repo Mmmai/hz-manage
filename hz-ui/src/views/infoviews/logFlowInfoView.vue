@@ -1,201 +1,203 @@
 <template>
   <!-- 展示查询条件 -->
   <div class="card">
-    <el-scrollbar>
-      <el-descriptions class="margin-top" title="查询条件" :column="4" border>
-        <template #extra>
-          <el-tooltip content="切换流程是否换行显示" placement="top">
-            <el-button
-              type="primary"
-              @click="isWrap ? (isWrap = false) : (isWrap = true)"
-              >切换</el-button
-            >
-          </el-tooltip>
-          <el-tooltip content="返回任务列表" placement="top">
-            <el-button type="primary" @click="goToMission">
-              <el-icon><Back /></el-icon>
-            </el-button>
-          </el-tooltip>
+    <el-descriptions class="margin-top" title="查询条件" :column="4" border>
+      <template #extra>
+        <el-tooltip content="切换流程是否换行显示" placement="top">
+          <el-button
+            type="primary"
+            @click="isWrap ? (isWrap = false) : (isWrap = true)"
+            >切换</el-button
+          >
+        </el-tooltip>
+        <el-tooltip content="返回任务列表" placement="top">
+          <el-button type="primary" @click="goToMission">
+            <el-icon><Back /></el-icon>
+          </el-button>
+        </el-tooltip>
+      </template>
+      <el-descriptions-item>
+        <template #label>
+          <div class="cell-item">
+            <el-icon :style="iconStyle">
+              <user />
+            </el-icon>
+            查询用户
+          </div>
         </template>
-        <el-descriptions-item>
-          <template #label>
-            <div class="cell-item">
-              <el-icon :style="iconStyle">
-                <user />
-              </el-icon>
-              查询用户
-            </div>
-          </template>
-          {{ currenUsername }}
-        </el-descriptions-item>
-        <el-descriptions-item>
-          <template #label>
-            <div class="cell-item">
-              <el-icon :style="iconStyle">
-                <iphone />
-              </el-icon>
-              请求ID
-            </div>
-          </template>
-          {{ missionId }}
-        </el-descriptions-item>
-        <el-descriptions-item>
-          <template #label>
-            <div class="cell-item">
-              <el-icon :style="iconStyle">
-                <location />
-              </el-icon>
-              时间范围
-            </div>
-          </template>
-          {{ logDate[0] }} - {{ logDate[1] }}
-        </el-descriptions-item>
-        <el-descriptions-item>
-          <template #label>
-            <div class="cell-item">
-              <el-icon :style="iconStyle">
-                <tickets />
-              </el-icon>
-              任务状态
-            </div>
-          </template>
-          <el-tag :type="missionStatus.level">{{
-            missionStatus.status
-          }}</el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item>
-          <template #label>
-            <div class="cell-item">
-              <el-icon :style="iconStyle">
-                <tickets />
-              </el-icon>
-              数据源
-            </div>
-          </template>
-          {{ dataSourceName }}
-        </el-descriptions-item>
-        <el-descriptions-item>
-          <template #label>
-            <div class="cell-item">
-              <el-icon :style="iconStyle">
-                <tickets />
-              </el-icon>
-              业务流
-            </div>
-          </template>
-          {{ flowName }}
-        </el-descriptions-item>
-        <el-descriptions-item>
-          <template #label>
-            <div class="cell-item">
-              <el-icon :style="iconStyle">
-                <office-building />
-              </el-icon>
-              分析ID
-            </div>
-          </template>
-          {{ matchKey }}
-        </el-descriptions-item>
-      </el-descriptions>
-      <el-divider>
-        <!-- <el-icon><star-filled /></el-icon> -->
-        分析结果
-      </el-divider>
-      <!-- direction="vertical" -->
+        {{ currenUsername }}
+      </el-descriptions-item>
+      <el-descriptions-item>
+        <template #label>
+          <div class="cell-item">
+            <el-icon :style="iconStyle">
+              <iphone />
+            </el-icon>
+            请求ID
+          </div>
+        </template>
+        {{ missionId }}
+      </el-descriptions-item>
+      <el-descriptions-item>
+        <template #label>
+          <div class="cell-item">
+            <el-icon :style="iconStyle">
+              <location />
+            </el-icon>
+            时间范围
+          </div>
+        </template>
+        {{ logDate[0] }} - {{ logDate[1] }}
+      </el-descriptions-item>
+      <el-descriptions-item>
+        <template #label>
+          <div class="cell-item">
+            <el-icon :style="iconStyle">
+              <tickets />
+            </el-icon>
+            任务状态
+          </div>
+        </template>
+        <el-tag :type="missionStatus.level"
+          >{{ missionStatus.status }}
+          <el-icon class="is-loading" v-show="missionStatus.isLoading">
+            <Loading /> </el-icon
+        ></el-tag>
+      </el-descriptions-item>
+      <el-descriptions-item>
+        <template #label>
+          <div class="cell-item">
+            <el-icon :style="iconStyle">
+              <tickets />
+            </el-icon>
+            数据源
+          </div>
+        </template>
+        {{ dataSourceName }}
+      </el-descriptions-item>
+      <el-descriptions-item>
+        <template #label>
+          <div class="cell-item">
+            <el-icon :style="iconStyle">
+              <tickets />
+            </el-icon>
+            业务流
+          </div>
+        </template>
+        {{ flowName }}
+      </el-descriptions-item>
+      <el-descriptions-item>
+        <template #label>
+          <div class="cell-item">
+            <el-icon :style="iconStyle">
+              <office-building />
+            </el-icon>
+            分析ID
+          </div>
+        </template>
+        {{ matchKey }}
+      </el-descriptions-item>
+    </el-descriptions>
+    <el-divider>
+      <!-- <el-icon><star-filled /></el-icon> -->
+      分析结果
+    </el-divider>
+    <!-- direction="vertical" -->
 
-      <!-- <el-icon><Right /></el-icon> -->
-      <!-- :style="{ width: '100%', display: 'flex' }" -->
-
-      <el-space :wrap="isWrap" :size="10" v-loading="loading">
-        <div
-          v-for="(v, index) in flowSort"
-          :key="index"
-          :style="{
-            width: '100%',
-            heigth: '320px',
-            display: 'flex',
-            'align-items': 'center',
-          }"
-        >
-          <el-card class="result-card">
-            <template #header>
-              <span
-                >环节{{ index + 1 }}: {{ logModuleObj[v].module_name }}</span
-              >
-            </template>
-            <!-- {{ logModuleObj.k.module_name }}
+    <!-- <el-icon><Right /></el-icon> -->
+    <!-- :style="{ width: '100%', display: 'flex' }" -->
+    <div
+      style="position: absolute; top: 50%; left: 50%"
+      v-if="missionStatus.isLoading"
+      v-loading="missionStatus.isLoading"
+    ></div>
+    <el-space :wrap="isWrap" :size="10" v-else>
+      <div
+        v-for="(v, index) in flowSort"
+        :key="index"
+        :style="{
+          width: '100%',
+          heigth: '320px',
+          display: 'flex',
+          'align-items': 'center',
+        }"
+      >
+        <el-card class="result-card">
+          <template #header>
+            <span>环节{{ index + 1 }}: {{ logModuleObj[v].module_name }}</span>
+          </template>
+          <!-- {{ logModuleObj.k.module_name }}
               日志数量:{{ v.queryResult.length }},错误日志数:{{ v.queryInfo.errorCount }} -->
-            <!-- <div style="width: 500px;height: 100px;"> -->
+          <!-- <div style="width: 500px;height: 100px;"> -->
 
-            <el-space wrap :size="50">
-              <el-result
-                :icon="reqStatus(allDataObj[v])"
-                :title="resultTip(allDataObj[v])"
-              >
-              </el-result>
-              <el-space direction="vertical">
-                <el-statistic :value="allDataObj[v].queryResult.length">
-                  <template #title>
-                    <div style="display: inline-flex; align-items: center">
-                      匹配数
-                      <el-tooltip
-                        effect="dark"
-                        content="分析ID返回的日志条数"
-                        placement="top"
-                      >
-                        <el-icon style="margin-left: 4px" :size="12">
-                          <Warning />
-                        </el-icon>
-                      </el-tooltip>
-                    </div>
-                  </template>
-                </el-statistic>
-                <el-statistic :value="allDataObj[v].queryInfo.errorCount">
-                  <template #title>
-                    <div style="display: inline-flex; align-items: center">
-                      错误数
-                      <el-tooltip
-                        effect="dark"
-                        content="匹配到的日志中,日志等级为ERROR及以上的数量"
-                        placement="top"
-                      >
-                        <el-icon style="margin-left: 4px" :size="12">
-                          <Warning />
-                        </el-icon>
-                      </el-tooltip>
-                    </div>
-                  </template>
-                </el-statistic>
-              </el-space>
+          <el-space wrap :size="50">
+            <el-result
+              :icon="reqStatus(allDataObj[v])"
+              :title="resultTip(allDataObj[v])"
+            >
+            </el-result>
+            <el-space direction="vertical">
+              <el-statistic :value="allDataObj[v].queryResult.length">
+                <template #title>
+                  <div style="display: inline-flex; align-items: center">
+                    匹配数
+                    <el-tooltip
+                      effect="dark"
+                      content="分析ID返回的日志条数"
+                      placement="top"
+                    >
+                      <el-icon style="margin-left: 4px" :size="12">
+                        <Warning />
+                      </el-icon>
+                    </el-tooltip>
+                  </div>
+                </template>
+              </el-statistic>
+              <el-statistic :value="allDataObj[v].queryInfo.errorCount">
+                <template #title>
+                  <div style="display: inline-flex; align-items: center">
+                    错误数
+                    <el-tooltip
+                      effect="dark"
+                      content="匹配到的日志中,日志等级为ERROR及以上的数量"
+                      placement="top"
+                    >
+                      <el-icon style="margin-left: 4px" :size="12">
+                        <Warning />
+                      </el-icon>
+                    </el-tooltip>
+                  </div>
+                </template>
+              </el-statistic>
             </el-space>
-            <template #footer>
-              <el-space :style="{ width: '100%', justifyContent: 'flex-end' }">
-                <el-link
-                  type="primary"
-                  @click="downloadStepLog(v, allDataObj[v])"
-                  :disabled="
-                    allDataObj[v].queryResult.length === 0 ? true : false
-                  "
-                  >下载日志</el-link
-                >
-                <el-link
-                  type="primary"
-                  @click="showStepLog(v, allDataObj[v])"
-                  :disabled="
-                    allDataObj[v].queryResult.length === 0 ? true : false
-                  "
-                  >查看日志</el-link
-                >
-              </el-space>
-            </template>
-          </el-card>
-          <el-icon
-            v-if="Object.keys(allDataObj).length === index + 1 ? false : true"
-            ><Right
-          /></el-icon>
-        </div>
-      </el-space>
-    </el-scrollbar>
+          </el-space>
+          <template #footer>
+            <el-space :style="{ width: '100%', justifyContent: 'flex-end' }">
+              <el-link
+                type="primary"
+                @click="downloadStepLog(v, allDataObj[v])"
+                :disabled="
+                  allDataObj[v].queryResult.length === 0 ? true : false
+                "
+                >下载日志</el-link
+              >
+              <el-link
+                type="primary"
+                @click="showStepLog(v, allDataObj[v])"
+                :disabled="
+                  allDataObj[v].queryResult.length === 0 ? true : false
+                "
+                >查看日志</el-link
+              >
+            </el-space>
+          </template>
+        </el-card>
+        <el-icon
+          v-if="Object.keys(allDataObj).length === index + 1 ? false : true"
+          ><Right
+        /></el-icon>
+      </div>
+    </el-space>
 
     <!-- 点击查看详情，查看环节的详细日志 -->
   </div>
@@ -320,6 +322,7 @@ import {
   getCurrentInstance,
   onMounted,
   computed,
+  onUnmounted,
 } from "vue";
 // import { Delete, Edit, CirclePlus } from '@element-plus/icons-vue'
 const { proxy } = getCurrentInstance();
@@ -385,6 +388,7 @@ const missionId = ref("");
 const missionStatus = ref({
   level: "info",
   status: "运行中",
+  isLoading: true,
 });
 // 任务状态常量
 
@@ -411,16 +415,16 @@ const requestLokiLog = async (config) => {
     missionStatus.value.level = "danger";
     missionStatus.value.status = "异常";
     loading.value = false;
-    return false;
+    // return false;
   } else if (res.status == 200) {
     missionStatus.value.level = "success";
     missionStatus.value.status = "成功";
-    loading.value = false;
+    // loading.value = false;
   } else {
     loading.value = false;
     missionStatus.value.level = "danger";
     missionStatus.value.status = "异常";
-    return false;
+    // return false;
   }
   // loading.value = false
 
@@ -445,8 +449,8 @@ const iconStyle = computed(() => {
 const logModuleObj = ref({});
 const hasLogModuleOptions = computed(() => {
   let tempObj = [];
-  flowSort.value.forEach((item) => {
-    console.log(item);
+  flowSort.value?.forEach((item) => {
+    // console.log(item);
     if (
       allDataObj.value[item].status &&
       allDataObj.value[item].queryResult.length >>> 0
@@ -517,6 +521,26 @@ const expandChange = (row) => {
   });
   console.log(dataExpandInfo.value);
 };
+const eventSource = ref(null);
+const openSse = (params) => {
+  // let eventSource = null;    "/api/v1/logFlowMission/get_lokiAnalysis_status/"
+
+  eventSource.value = new EventSource(
+    `/api/v1/log/logFlowMission/get_lokiAnalysis_status/${params}/`
+  );
+  eventSource.value.onmessage = (event) => {
+    console.log(JSON.parse(event.data).is_finish);
+    if (JSON.parse(event.data).is_finish) {
+      closeSse();
+      fromDatabase();
+    }
+    // result.value.push(event.data);
+  };
+};
+const closeSse = () => {
+  console.log("SSE 关闭");
+  eventSource.value?.close();
+};
 // 通过历史数据获取结果
 const fromDatabase = async () => {
   // 截取路由的最后一个位置,拿到missionId
@@ -524,8 +548,8 @@ const fromDatabase = async () => {
     return item != "";
   });
   let id = _tempArr[_tempArr.length - 1];
-  console.log(route.query.mission_id);
-  let res = await proxy.$api.getLogFlowMission(route.query.mission_id);
+  // console.log(route.query.mission_id);
+  let res = await proxy.$api.getLogFlowMission(id);
   console.log(res);
   let config = res.data.mission_query;
   // missionStatus.value = config.status
@@ -533,18 +557,28 @@ const fromDatabase = async () => {
   if (res.data.status == "Success") {
     missionStatus.value.level = "success";
     missionStatus.value.status = "成功";
+    missionStatus.value.isLoading = false;
+    // loading.value = false;
   } else if (res.data.status == "Failed") {
     missionStatus.value.level = "danger";
     missionStatus.value.status = "失败";
+    missionStatus.value.isLoading = false;
+  } else if (res.data.status == "Pending") {
+    missionStatus.value.level = "info";
+    missionStatus.value.status = "运行中";
+    missionStatus.value.isLoading = true;
+    // 是Pending,则开启task的sse请求
+    openSse(res.data.task_id);
   } else {
     missionStatus.value.level = "info";
     missionStatus.value.status = "未知";
+    missionStatus.value.isLoading = false;
   }
   let sdate = proxy.$commonFunc.timestampToDate(config.dateValue[0]);
   let edate = proxy.$commonFunc.timestampToDate(config.dateValue[1]);
   logDate.value.push(sdate);
   logDate.value.push(edate);
-  matchKey.value = res.data.task_id;
+  matchKey.value = res.data.search_key;
   currenUsername.value = res.data.username;
   missionId.value = res.data.mission_id;
   dataSourceName.value = res.data.dataSource_name;
@@ -558,18 +592,21 @@ const fromDatabase = async () => {
   flowSort.value = res.data.results.sort;
   // allDataObj.value = JSON.parse('\''+res.data.results.replace(/True/g, "true").replace(/False/g, "false")+'\'')
   console.log(allDataObj.value);
-  loading.value = false;
 };
 onMounted(async () => {
   getLogModuleList();
   // if (Object.keys(route.query).length != 0) {
-  if (route.query.missionId) {
-    // console.log(route.query)
-    //
-    await requestLokiLog(route.query);
-  } else {
-    fromDatabase();
-  }
+  // if (route.query.missionId) {
+  //   // console.log(route.query)
+  //   //
+  //   await requestLokiLog(route.query);
+  // } else {
+  //   fromDatabase();
+  // }
+  fromDatabase();
+});
+onUnmounted(() => {
+  closeSse();
 });
 //
 const resultTip = (params) => {
@@ -599,10 +636,10 @@ const reqStatus = (params) => {
     ) {
       return "warning";
     } else {
-      return "danger";
+      return "error";
     }
   } else {
-    return "danger";
+    return "error";
   }
 };
 
