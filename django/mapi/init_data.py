@@ -81,7 +81,7 @@ INIT_MENU =  [
                   ]
     },
         {
-      "label": "资源",
+      "label": "资产同步",
       "icon": "clarity:repeat-line",
       "name": "ciSyncZabbix",
       "status": 1,

@@ -429,7 +429,7 @@ const syncToZabbix = async () => {
 const installAgent = async (params: object) => {
   let res = await proxy.$api.installAgent(params);
   console.log(res);
-  if (res.status == 202) {
+  if (res.status == 200) {
     ElMessage({
       type: "success",
       message: "触发成功",
