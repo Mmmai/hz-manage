@@ -1161,7 +1161,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
             try:
                 enum_data = json.loads(field_config.validation_rule.rule)
                 if value in enum_data:
-                    return enum_data.get(value)
+                    return enum_data
                 raise ValueError(f"Invalid enum key: {value}")
             except json.JSONDecodeError:
                 raise ValueError("Invalid enum configuration")
@@ -1217,9 +1217,12 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
             for field_id in constraint_fields:
                 field_config = ModelFields.objects.get(id=field_id)
                 field_name = field_config.name
-                if field_name in fields_data:
-                    # 使用提交的新值
-                    field_values[field_name] = fields_data[field_name]
+                if fields_data.get(field_name, None) is not None:
+                    if self.context.get('from_excel', False):
+                        field_values[field_name] = self._process_field_value_from_excel(
+                            field_config, fields_data[field_name])
+                    else:
+                        field_values[field_name] = fields_data[field_name]
                 elif instance:
                     # 获取现有实例的字段值
                     existing_value = ModelFieldMeta.objects.filter(

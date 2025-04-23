@@ -371,18 +371,23 @@ LOGGING = {
             'filename': os.path.join(LOG_DIR, 'cmdb.log'),
             'formatter': 'standard',
         },
+        'celery_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'celery.log'),
+            'formatter': 'standard',
+        },
     },
     'loggers': {
         'django': {
             'handlers': ['console', 'file'],
             'level': 'INFO',
-            'propagate': True,
+            'propagate': False,
         },
         'celery': {
+            'handlers': ['celery_file', 'console'],
             'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': os.path.join(LOG_DIR, 'celery.log'),
-            'formatter': 'verbose'
+            'propagate': False,
         },
         '': {
             'handlers': ['console', 'file'],

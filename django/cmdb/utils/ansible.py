@@ -110,7 +110,8 @@ class AnsibleAPI:
             if installation_status['status'] == 'success' and result.get('rc') != 0:
                 installation_status = {
                     'status': 'failed',
-                    'message': f"Ansible execution failed with return code {result.get('rc')}"
+                    'message': f"Ansible execution failed with return code {result.get('rc')}",
+                    'task_details': []
                 }
             if installation_status['status'] == 'success':
                 logger.info(f'Installation for {host_ip} completed with status: {installation_status["status"]}')

@@ -1,4 +1,5 @@
 import logging
+import time
 import uuid
 import traceback
 import re
@@ -18,7 +19,7 @@ from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 from cacheops import cached_as, invalidate_model
 from django.core.cache import cache
-from django.http import HttpResponse
+from django.http import HttpResponse, StreamingHttpResponse
 from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q
@@ -439,30 +440,31 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
         context['decrypt_password'] = self.request.query_params.get('decrypt_password', 'false').lower() == 'true'
         return context
 
-    @cached_as(ModelInstance, timeout=600)
-    def get_queryset(self):
-        queryset = ModelInstance.objects.all()\
-            .order_by('-create_time')\
-            .prefetch_related(
-                'field_values__model_fields',
-                'field_values__model_fields__validation_rule',
-        )\
-            .select_related('model')
-        query_params = self.request.query_params
-        logger.debug(f"Query parameters: {query_params}")
-
-        if not query_params:
-            return queryset
-
-        model_id = query_params.get('model')
+    def _apply_filters(self, queryset, model, filter_params):
+        model_id = model
         matching_ids_list = []
+        params = filter_params.copy()
 
         if model_id:
             queryset = queryset.filter(model_id=model_id)
             logger.debug(f"Filtered by model ID: {model_id}")
 
-        for field_name, field_value in query_params.items():
-            # keyword for other query params will be ignored
+        standard_fields = {}
+        for field_name in ModelInstanceFilter.Meta.fields:
+            if field_name in params:
+                field_value = params.pop(field_name)
+                if isinstance(field_value, list) and field_value:
+                    standard_fields[field_name] = field_value[0]
+                else:
+                    standard_fields[field_name] = field_value
+
+        if standard_fields:
+            filterset = ModelInstanceFilter(standard_fields, queryset=queryset)
+            queryset = filterset.qs
+            logger.info(f"Applied standard filters: {standard_fields}")
+
+        for field_name, field_value in filter_params.items():
+            # 忽略特殊参数
             if field_name in limit_field_names:
                 continue
 
@@ -477,6 +479,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
                 all_instance_ids = set(meta_query.values_list('model_instance_id', flat=True))
                 exclude_ids = set()
 
+                # 处理各种过滤条件逻辑（从现有的get_queryset复制过来的代码）
                 if isinstance(field_value, str):
                     if field_value.startswith('like:'):
                         value = field_value[5:]
@@ -553,6 +556,30 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
 
         return queryset
 
+    @cached_as(ModelInstance, timeout=600)
+    def get_queryset(self):
+        queryset = ModelInstance.objects.all()\
+            .order_by('-create_time')\
+            .prefetch_related(
+                'field_values__model_fields',
+                'field_values__model_fields__validation_rule',
+        ).select_related('model')
+
+        if self.action == 'retrieve' and self.kwargs.get('pk'):
+            return queryset
+
+        query_params = self.request.query_params
+
+        model_id = None
+        if 'model' in query_params:
+            model_id = query_params['model']
+        logger.debug(f"Query parameters: {query_params}")
+
+        if not query_params:
+            return queryset
+
+        return self._apply_filters(queryset, model_id, query_params)
+
     def get_all_child_groups(self, group):
         """递归获取所有子分组ID"""
         group_ids = [group.id]
@@ -564,12 +591,31 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['patch'])
     def bulk_update_fields(self, request):
         instance_ids = request.data.get('instances', [])
+        model_id = request.data.get('model')
         fields_data = request.data.get('fields', {})
         update_user = request.data.get('update_user')
+        filter_by_params = request.data.get('all', False)
+        params = request.data.get('params', {})
+        group_id = request.data.get('group')
 
-        instances = ModelInstance.objects.filter(id__in=instance_ids)
+        if filter_by_params and (group_id or params):
+            instances = ModelInstance.objects.all()
+            if params:
+                instances = self._apply_filters(instances, model_id, params)
+        elif instance_ids:
+            instances = ModelInstance.objects.filter(id__in=instance_ids)
+        else:
+            # 给定的查询参数不足
+            raise ValidationError("Insufficient query parameters provided.")
+
+        if group_id:
+            instance_in_group = ModelInstanceGroupRelation.objects.filter(
+                group=group_id
+            ).values_list('instance_id', flat=True)
+            instances = instances.filter(id__in=instance_in_group)
+
         if not instances.exists():
-            raise ValidationError("No instances found for the given IDs.")
+            raise ValidationError("No instances found with the provided criteria.")
 
         serializer = self.get_serializer(
             instance=instances.first(),
@@ -651,13 +697,33 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
     def export_data(self, request):
         """导出实例数据"""
         try:
-            # 获取模型ID和查询参数
-            model_id = request.data.get('model')
             instance_ids = request.data.get('instances', [])
+            model_id = request.data.get('model')
+            filter_by_params = request.data.get('all', False)
+            params = request.data.get('params', {})
+            group_id = request.data.get('group')
             restricted_fields = request.data.get('fields', [])
 
             if not model_id:
                 raise ValidationError({'detail': 'Model ID is required'})
+
+            instances = ModelInstance.objects.filter(model_id=model_id)
+
+            if filter_by_params and (group_id or params):
+                instances = ModelInstance.objects.all()
+                if params:
+                    instances = self._apply_filters(instances, model_id, params)
+            elif instance_ids:
+                instances = instances.filter(id__in=instance_ids)
+
+            if group_id:
+                instance_in_group = ModelInstanceGroupRelation.objects.filter(
+                    group=group_id
+                ).values_list('instance_id', flat=True)
+                instances = instances.filter(id__in=instance_in_group)
+
+            if not instances.exists():
+                raise ValidationError("No instances found with the provided criteria.")
 
             # 获取缓存的查询结果
             cached_queryset = self.get_queryset().filter(model_id=model_id)
@@ -781,6 +847,36 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             raise ValidationError({'detail': 'Cache key not found'})
         return Response(result, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['get'])
+    def import_status_sse(self, request):
+        cache_key = request.query_params.get('cache_key')
+        if not cache_key:
+            raise ValidationError({'detail': 'Missing cache key'})
+
+        def event_stream():
+            last = None
+
+            for _ in range(600):
+                result = cache.get(cache_key)
+                if not result:
+                    yield ValidationError({'detail': 'Cache key not found'})
+                    break
+
+                current = (result.get('progress'), result.get('status'))
+                if current != last:
+                    last = current
+                    yield f'data: {result}'
+
+                if result.get('status') in ['completed', 'failed']:
+                    break
+
+                time.sleep(1)
+
+        response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
+        response['Cache-Control'] = 'no-cache'
+        response['X-Accel-Buffering'] = 'no'
+        return response
+
     @action(detail=False, methods=['post'])
     def download_error_records(self, request):
         cache_key = request.data.get('error_file_key')
@@ -814,14 +910,55 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def bulk_delete(self, request):
+
         instance_ids = request.data.get('instances', [])
-        instances = ModelInstance.objects.filter(id__in=instance_ids)
+        model_id = request.data.get('model')
+        filter_by_params = request.data.get('all', False)
+        params = request.data.get('params', {})
+        group_id = request.data.get('group')
+
+        a = time.perf_counter()
+
+        instances = ModelInstance.objects.all()
+
+        b = time.perf_counter()
+
+        logger.info(f'Fetch all instances takes {b - a}s')
+
+        if group_id:
+            group = ModelInstanceGroup.objects.get(id=group_id)
+            if group and group.label != '空闲池' and group.path != '所有/空闲池':
+                raise ValidationError({'detail': 'Instances not in the unassigned group cannot be deleted'})
+            instance_in_group = ModelInstanceGroupRelation.objects.filter(
+                group=group_id
+            ).values_list('instance_id', flat=True)
+            instances = instances.filter(id__in=instance_in_group)
+
+        c = time.perf_counter()
+        logger.info(f'Filter by group takes {c - b}s')
+
+        if filter_by_params and (group_id or params):
+            if params:
+                instances = self._apply_filters(instances, model_id, params)
+        elif instance_ids:
+            instances = instances.filter(id__in=instance_ids)
+        else:
+            # 给定的查询参数不足
+            raise ValidationError("Insufficient query parameters provided.")
+
+        d = time.perf_counter()
+        logger.info(f'Filter by params takes {d - c}s')
+
+        if not instances.exists():
+            raise ValidationError("No instances found with the provided criteria.")
+
         try:
-            if not instances.exists():
-                raise ValidationError("No instances found for the given IDs.")
             model_id = instances.first().model_id
             if instances.filter(model_id=model_id).count() != instances.count():
                 raise ValidationError("Instances do not belong to the same model.")
+
+            e = time.perf_counter()
+            logger.info(f'Check model ID takes {e - d}s')
 
             valid_id = instances.values_list('id', flat=True)
             invalid_id = {}
@@ -833,15 +970,22 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             relations = ModelInstanceGroupRelation.objects.filter(instance__in=valid_id)
             group_invalid_ids = relations.exclude(group=unassigned_group).values_list('instance_id', flat=True)
             invalid_id = {instance_id: 'Instance is not in unassigned group' for instance_id in group_invalid_ids}
+            f = time.perf_counter()
+            logger.info(f'Check unassigned group takes {f - e}s')
 
             if ModelFields.objects.filter(ref_model_id=model_id).exists():
                 for instance in instances:
                     if ModelFieldMeta.objects.filter(data=str(instance.id)).exists():
                         invalid_id[instance.id] = 'Referenced by other model field meta'
-
+            g = time.perf_counter()
+            logger.info(f'Check unassigned group takes {g - f}s')
             valid_id = set(valid_id) - set(invalid_id.keys())
 
             ModelInstance.objects.filter(id__in=valid_id).delete()
+            h = time.perf_counter()
+            logger.info(f'Bulk delete operation takes {h - g}s')
+            logger.info(f'All operations take {h - a}s')
+
             return Response({
                 'success': len(valid_id),
                 'errors': list(invalid_id)
@@ -1392,6 +1536,8 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
             ids = request.data.get('ids', [])
             all_failed = request.data.get('all', False)
 
+            force_flag = False
+
             if not ids and not all_failed:
                 return Response({
                     'status': 'failed',
@@ -1401,6 +1547,7 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
             if all_failed:
                 hosts = ZabbixSyncHost.objects.filter(agent_installed=False)
             else:
+                force_flag = True
                 hosts = ZabbixSyncHost.objects.filter(id__in=ids)
 
             if not hosts.exists():
@@ -1427,14 +1574,19 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
                     password = password_handler.decrypt_to_plain(password_meta.data)
 
                     # 触发安装任务
-                    setup_host_monitoring.delay(str(host.instance.id), host.name, host.ip, password)
+                    setup_host_monitoring.delay(
+                        str(host.instance.id),
+                        host.name,
+                        host.ip,
+                        password,
+                        force=force_flag)
                     logger.info(f"Triggered Zabbix agent installation for host {host.ip}")
 
                 except Exception as e:
                     logger.error(f"Failed to trigger Zabbix agent installation for host {host.ip}: {str(e)}")
                     continue
 
-            return Response(status=status.HTTP_202_ACCEPTED)
+            return Response(status=status.HTTP_200_OK)
 
         except Exception as e:
             logger.error(f"Error triggering Zabbix agent installation: {str(e)}")
