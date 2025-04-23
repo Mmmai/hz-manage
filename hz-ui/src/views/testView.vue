@@ -53,12 +53,13 @@ const activeName = ref("sseTest");
 const eventSource = ref(null);
 const openSse = () => {
   eventSource.value = new EventSource(
-    "/api/v1/log/logFlowMission/get_lokiAnalysis_status/53467f14-557f-4472-8dd8-150fdd8b4684/"
+    "/api/v1/task_status/9416305c-bca2-4545-94ab-06decbf5e6a1/"
     // "/api/v1/sse"
   );
   eventSource.value.onmessage = (event) => {
+    console.log(event);
     console.log(typeof event.data);
-    console.log(event.data.is_finish);
+    console.log(event.data);
 
     result.value.push(event.data);
   };

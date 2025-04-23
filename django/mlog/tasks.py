@@ -70,7 +70,7 @@ def getLokiQuery(reqUrl=None,dateValue=[],limit=100,labelStr='',matchKeyMethod='
 def lokiAnalysis(params={}):
     # time.sleep(duration)  # 模拟耗时操作
     try:
-        time.sleep(5)
+        # time.sleep(5)
         # print(type(params))
         stime = time.time()
         missionId = params["missionId"]
@@ -103,5 +103,6 @@ def lokiAnalysis(params={}):
         missionObj.results = {}
         missionObj.status = 2
         missionObj.save()
+    finally:
         costTime = time.time() - stime
         return {"detail": f"任务[{missionId}]已完成，执行时间 {costTime} 秒。"}

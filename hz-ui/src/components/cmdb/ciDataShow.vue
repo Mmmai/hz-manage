@@ -22,14 +22,19 @@
         >
         <!-- <el-button @click="isShowUpload = true">导入</el-button> -->
         <el-button
-          :disabled="!(multipleSelectId.length >>> 0)"
+          :disabled="
+            (multipleSelectId.length >>> 0 || isSelectAll) &&
+            treeAllId !== currentNodeId
+              ? false
+              : true
+          "
           @click="ciDataToTree = true"
           v-permission="`${route.name?.replace('_info', '')}:edit`"
           >转移</el-button
         >
 
         <el-button
-          :disabled="!(multipleSelectId.length >>> 0)"
+          :disabled="!(multipleSelectId.length >>> 0 || isSelectAll)"
           @click="multipleUpdate"
           v-permission="`${route.name?.replace('_info', '')}:edit`"
           >批量更新</el-button
@@ -83,7 +88,7 @@
               </el-dropdown-item>
               <div v-permission="`${route.name?.replace('_info', '')}:delete`">
                 <el-dropdown-item
-                  :disabled="!(multipleSelectId.length >>> 0)"
+                  :disabled="!(multipleSelectId.length >>> 0 || isSelectAll)"
                   @click="bulkDelete()"
                   divided
                   >批量删除</el-dropdown-item
@@ -217,9 +222,11 @@
       :row-key="get_row_key"
     >
       <el-table-column
+        :header-cell-class-name="leftHeaderStyle"
         type="selection"
         :selectable="selectable"
-        width="55"
+        width="40"
+        :disable="isSelectAll"
         :reserve-selection="true"
       >
       </el-table-column>
@@ -401,12 +408,21 @@
       style="margin-top: 5px; justify-content: flex-end"
     >
       <div style="display: flex; justify-content: space-between; width: 100%">
-        <!-- <div style="display: flex; justify-content: space-between">
-          <el-button @click="selectAll()">全选</el-button>
-          <el-button @click="clearMultipleSelect">取消全选</el-button>
-        </div> -->
+        <div style="display: flex; justify-content: space-between">
+          <!-- <el-button @click="selectAll()">全选</el-button> -->
+          <!-- <el-button @click="clearMultipleSelect()">取消全选</el-button> -->
+          <el-checkbox
+            v-model="isSelectAll"
+            label="全选"
+            size="default"
+            @change="selectAll"
+          />
+        </div>
 
-        <el-text>已选择 {{ multipleSelectId.length }} 条</el-text>
+        <el-text
+          >已选择
+          {{ isSelectAll ? totalCount : multipleSelectId.length }} 条</el-text
+        >
       </div>
     </el-pagination>
   </div>
@@ -1702,10 +1718,30 @@ const allModelFieldNameArr = computed(() => {
 });
 const isShowUpload = ref(false);
 
+// 批量操作的参数
+const multipleParams = computed(() => {
+  if (isSelectAll.value) {
+    return { all: true, group: props.currentNodeId, params: filterParam };
+  } else {
+    return { group: props.currentNodeId, params: filterParam };
+  }
+});
+
 const bulkDelete = async () => {
-  let res = await proxy.$api.bulkDeleteCiModelInstance({
-    instances: multipleSelectId.value,
-  });
+  let res = null;
+  if (isSelectAll.value) {
+    // 条件下的全量更新
+    res = await proxy.$api.bulkDeleteCiModelInstance({
+      update_user: store.state.username,
+      ...multipleParams,
+    });
+  } else {
+    res = await proxy.$api.bulkDeleteCiModelInstance({
+      update_user: store.state.username,
+      instances: multipleSelectId.value,
+    });
+  }
+
   if (res.status == "200") {
     ElMessage({
       type: "success",
@@ -1721,7 +1757,7 @@ const bulkDelete = async () => {
   } else {
     ElMessage({
       type: "error",
-      message: "删除失败",
+      message: `删除失败:${res.data}`,
     });
   }
 };
@@ -1743,6 +1779,7 @@ const exportSelect = async (params) => {
 const exportAll = async () => {
   let res = await proxy.$api.exportCiData({
     model: props.ciModelId,
+    ...multipleParams,
   });
   console.log(res);
 };
@@ -1754,7 +1791,9 @@ const selectTreeNode = ref([]);
 const treeIdleId = computed(() => {
   return props.treeData[0].children[0].id;
 });
-
+const treeAllId = computed(() => {
+  return props.treeData[0].id;
+});
 const treeDataCommit = async () => {
   let _tmepArr = [];
   selectTreeNode.value?.forEach((item) => {
@@ -1799,14 +1838,14 @@ const setMultipleUpdateParam = (val, item) => {
   }
 };
 const multipleUpdate = () => {
-  isUpdateAll.value = false;
+  // isUpdateAll.value = false;
   multipleDia.value = true;
   // console.log(multipleForm);
 };
 // 更新所有
 const isUpdateAll = ref(false);
 const updateCiDataAll = () => {
-  isUpdateAll.value = true;
+  // isUpdateAll.value = true;
   multipleDia.value = true;
   // ciDataTableRef.value!.toggleAllSelection();
 };
@@ -1927,14 +1966,13 @@ const saveCommit = () => {
       // 批量更新的方法
       // return;
       let res = undefined;
-      if (isUpdateAll.value) {
+      if (isSelectAll.value) {
         // 条件下的全量更新
-        res = await proxy.$api.allUpdateCiModelInstance({
+        res = await proxy.$api.multipleUpdateCiModelInstance({
           update_user: store.state.username,
           fields: multipleCommitParam.value,
           model: props.ciModelId,
-          model_instance_group: props.currentNodeId,
-          conditions: filterParam.value,
+          ...multipleParams,
         });
       } else {
         res = await proxy.$api.multipleUpdateCiModelInstance({
@@ -2035,6 +2073,7 @@ const updateCiData = async (params) => {
   }
 };
 const selectable = (row) => {
+  if (isSelectAll.value) return false;
   return true;
 };
 
@@ -2057,6 +2096,7 @@ const handleSelectionChange = (val) => {
   // console.log(val);
   // console.log(multipleSelectId.value);
 };
+
 // const selectRow = (selections, row) => {
 //   const isExist = multipleSelectId.value.some((item) => item === row.id);
 //   if (selections.includes(row)) {
@@ -2067,6 +2107,7 @@ const handleSelectionChange = (val) => {
 //     );
 //   }
 // };
+
 // const handleSelectAll = (selection) => {
 //   if (selection.length === 0) {
 //     // 取消全选：移除当前页所有项
@@ -2084,7 +2125,19 @@ const handleSelectionChange = (val) => {
 //     });
 //   }
 // };
-// const isSelectAll = ref(false);
+const isSelectAll = ref(false);
+const selectAll = (event) => {
+  if (event) {
+    if (multipleSelectId.value.length === 0) {
+      ciDataTableRef.value!.toggleAllSelection();
+    }
+  } else {
+    multipleSelectId.value = [];
+    ciDataTableRef.value!.clearSelection();
+  }
+
+  console.log(multipleSelectId.value);
+};
 // const selectAll = async () => {
 //   isSelectAll.value = true;
 //   // 后端获取所有id
@@ -2112,6 +2165,7 @@ const handleSelectionChange = (val) => {
 //   ciDataTableRef.value!.toggleAllSelection();
 // };
 const clearMultipleSelect = () => {
+  // isSelectAll.value = false;
   multipleSelectId.value = [];
   ciDataTableRef.value!.clearSelection();
   // isSelectAll.value = false;
@@ -2444,7 +2498,10 @@ const getCiData = async (params) => {
   //     });
   //   }
   // });
-  setLoading(false);
+  nextTick(() => {
+    isSelectAll.value = false;
+    setLoading(false);
+  });
 };
 // const loadingInstance = ElLoading.service(options)
 
@@ -2844,6 +2901,13 @@ const showqCode = (params) => {
   showqCodeDia.value = true;
   qCodeContext.value = params;
 };
+
+// 表头样式
+const leftHeaderStyle = ({ row, column, rowIndex, columnIndex }) => {
+  if (rowIndex === 0 && columnIndex === 0 && isSelectAll.value) {
+    return "selectAllBtnDis";
+  }
+};
 </script>
 <style scoped lang="scss">
 :deep(.el-transfer-panel__item).el-checkbox {
@@ -2942,5 +3006,14 @@ const showqCode = (params) => {
   color: #6b778c;
   font-size: 32px;
   font-weight: 600;
+}
+// .selectAllBtnDis {
+//   :deep(.el-table__header-wrapper .el-checkbox) {
+//     visibility: hidden !important;
+//   }
+// }
+
+:deep(.selectAllBtnDis .cell) {
+  visibility: hidden;
 }
 </style>
