@@ -1,3 +1,4 @@
+import time
 from django.dispatch import receiver, Signal
 from django.db.models.signals import post_save, post_delete, pre_save, pre_delete, post_migrate
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -412,6 +413,7 @@ def prepare_delete_zabbix_host(sender, instance, **kwargs):
     """准备删除Zabbix主机"""
     logger.info(f"Preparing to delete Zabbix host for instance {instance.id}")
     try:
+        a = time.perf_counter()
         model = Models.objects.get(id=instance.model_id)
         if model.name != 'hosts':
             return
@@ -432,7 +434,8 @@ def prepare_delete_zabbix_host(sender, instance, **kwargs):
             'instance_name': instance.instance_name,
         })
         cache.set(cache_key, host_info, timeout=60)
-        logger.debug(f'Cached host information for instance {instance.id}: {host_info}')
+        b = time.perf_counter()
+        logger.debug(f'Cached host information for instance {instance.id}: {host_info} in {b - a}s')
     except Exception as e:
         logger.error(f"Failed to prepare delete Zabbix host: {str(e)}")
 
@@ -440,6 +443,7 @@ def prepare_delete_zabbix_host(sender, instance, **kwargs):
 @receiver(post_delete, sender=ModelInstance)
 def delete_zabbix_host(sender, instance, **kwargs):
     """删除Zabbix主机"""
+    a = time.perf_counter()
 
     def delayed_process():
         logger.debug(f'Delayed process started for instance {instance.id}')
@@ -470,7 +474,8 @@ def delete_zabbix_host(sender, instance, **kwargs):
 
     logger.debug(f'Scheduling delayed process for instance {instance.id}')
     transaction.on_commit(delayed_process)
-    logger.info(f'Deleting Zabbix host for instance {instance.id} completed')
+    b = time.perf_counter()
+    logger.info(f'Deleting Zabbix host for instance {instance.id} completed in {b - a}s')
 
 
 @receiver(post_save, sender=ModelInstanceGroup)
