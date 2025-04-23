@@ -144,6 +144,18 @@ class ModelsSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'instance_name_template': f"Field with ID '{field_id}' does not exist in model '{self.instance.name}'"
                 })
+
+        forbidden_types = ['password', 'json']
+        invalid_fields = ModelFields.objects.filter(
+            id__in=value,
+            type__in=forbidden_types
+        ).values('id', 'name', 'type')
+
+        if invalid_fields.exists():
+            invalid_list = [f"{field['name']} ({field['type']})" for field in invalid_fields]
+            raise ValidationError(
+                f"Invalid fields found: {', '.join(invalid_list)}"
+            )
         return value
 
 
