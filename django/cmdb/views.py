@@ -1554,7 +1554,7 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
                 return Response({
                     'status': 'failed',
                     'message': 'No hosts found matching the criteria.'
-                }, status=status.HTTP_404_NOT_FOUND)
+                }, status=status.HTTP_200_OK)
 
             for host in hosts:
                 # 获取主机的密码
