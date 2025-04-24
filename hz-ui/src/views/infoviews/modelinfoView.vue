@@ -78,9 +78,10 @@
             :ciModelInfo="ciModelInfo"
             :modelFieldLists="modelFieldLists"
             ref="ciModelTemplateRef"
-            @getCiModel="getModelInfo"
           />
         </el-tab-pane>
+        <!--             @getCiModel="getModelInfo"
+ -->
         <!-- <el-tab-pane label="Role" verbose_name="third">Role</el-tab-pane>
     <el-tab-pane label="Task" verbose_name="fourth">Task</el-tab-pane> -->
       </el-tabs>

@@ -1728,20 +1728,21 @@ const multipleParams = computed(() => {
 });
 
 const bulkDelete = async () => {
-  let res = null;
+  let params = new Object();
   if (isSelectAll.value) {
     // 条件下的全量更新
-    res = await proxy.$api.bulkDeleteCiModelInstance({
+    params = {
       update_user: store.state.username,
       ...multipleParams,
-    });
+    };
   } else {
-    res = await proxy.$api.bulkDeleteCiModelInstance({
+    params = {
       update_user: store.state.username,
       instances: multipleSelectId.value,
-    });
+    };
   }
-
+  let res = await proxy.$api.bulkDeleteCiModelInstance(params);
+  // console.log(res);
   if (res.status == "200") {
     ElMessage({
       type: "success",
@@ -1965,23 +1966,24 @@ const saveCommit = () => {
     if (valid) {
       // 批量更新的方法
       // return;
-      let res = undefined;
+      // let res = undefined;
+      let params = new Object();
       if (isSelectAll.value) {
         // 条件下的全量更新
-        res = await proxy.$api.multipleUpdateCiModelInstance({
+        params = {
           update_user: store.state.username,
           fields: multipleCommitParam.value,
           model: props.ciModelId,
           ...multipleParams,
-        });
+        };
       } else {
-        res = await proxy.$api.multipleUpdateCiModelInstance({
+        params = {
           update_user: store.state.username,
           instances: multipleSelectId.value,
           fields: multipleCommitParam.value,
-        });
+        };
       }
-
+      let res = await proxy.$api.multipleUpdateCiModelInstance(params);
       // 发起更新请求
       if (res.status == "200") {
         ElMessage({ type: "success", message: "更新成功" });

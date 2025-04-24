@@ -2,10 +2,16 @@
   <div class="card">
     <el-tabs v-model="activeName" class="demo-tabs">
       <el-tab-pane label="SSE测试" name="sseTest">
+        <el-input
+          v-model="sseUrl"
+          style="width: 480px"
+          placeholder="输入sse接口地址"
+        ></el-input>
         <el-button @click="openSse">开始</el-button>
         <el-button type="danger" @click="closeSse">终止</el-button>
-
-        {{ result }}
+        <p v-for="(item, index) in result" :key="index">
+          {{ item }}
+        </p>
       </el-tab-pane>
       <el-tab-pane label="celery测试" name="celery">
         <el-button @click="startTask">提交任务</el-button>
@@ -49,13 +55,16 @@ import { useStore } from "vuex";
 const store = useStore();
 const result = ref([]);
 const activeName = ref("sseTest");
-
+const sseUrl = ref<string>(null);
 const eventSource = ref(null);
 const openSse = () => {
-  eventSource.value = new EventSource(
-    "/api/v1/task_status/9416305c-bca2-4545-94ab-06decbf5e6a1/"
+  eventSource.value = new EventSource(sseUrl.value, {
+    headers: {
+      "Cache-Control": "no-cache",
+      "Content-Type": "text/event-steam",
+    },
     // "/api/v1/sse"
-  );
+  });
   eventSource.value.onmessage = (event) => {
     console.log(event);
     console.log(typeof event.data);
