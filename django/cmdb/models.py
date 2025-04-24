@@ -273,6 +273,11 @@ class ModelInstance(models.Model):
     model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True)
     instance_name = models.CharField(max_length=100, db_index=True, null=True, blank=True)
     using_template = models.BooleanField(default=True, null=False, blank=False)
+    input_mode = models.CharField(max_length=20, choices=[
+        ('manual', '手动录入'),
+        ('import', '表格导入'),
+        ('discover', '自动发现')
+    ], default='manual', db_index=True)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
     create_user = models.CharField(max_length=20, null=False, blank=False)

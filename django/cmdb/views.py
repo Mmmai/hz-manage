@@ -117,7 +117,7 @@ class ModelGroupsViewSet(viewsets.ModelViewSet):
 
 @models_schema
 class ModelsViewSet(viewsets.ModelViewSet):
-    queryset = Models.objects.all().order_by('-create_time')
+    queryset = Models.objects.all().order_by('create_time')
     serializer_class = ModelsSerializer
     pagination_class = StandardResultsSetPagination
     filterset_class = ModelsFilter
@@ -1629,7 +1629,7 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
                         if not host['agent_installed'] and not host['installation_error']:
                             all_completed = False
 
-                    if current_status != last_status:
+                    if current_status != last_status and current_status:
                         last_status = current_status.copy()
                         data = {
                             'status': 'success',

@@ -116,8 +116,8 @@ def _create_model_and_fields(model_name, model_config, model_group=None):
             if model_name == 'hosts':
                 group = get_model_group('auto_discover', model, '自动发现', '自动发现的配置信息')
 
-            # 创建字段
-            for field_config in model_config.get('fields', []):
+            group_order = {}
+            for index, field_config in enumerate(model_config.get('fields', [])):
                 field_name = field_config['name']
                 field = ModelFields.objects.filter(
                     model=model,
@@ -132,8 +132,11 @@ def _create_model_and_fields(model_name, model_config, model_group=None):
                         if not ref_model:
                             logger.error(f"Model reference {field_config['ref_model']} not found")
                             raise ValueError(f"Model reference {field_config['ref_model']} not found")
-                            continue
                     logger.debug(f'{type(validation_rule)}, validation_rule: {validation_rule}')
+
+                    group_name = field_config.get('group', 'default')
+                    group_order[group_name] = group_order.get(group_name, 0) + 1
+
                     field_data = {
                         'model': model.id,
                         'name': field_name,
@@ -142,7 +145,7 @@ def _create_model_and_fields(model_name, model_config, model_group=None):
                         'required': field_config.get('required', False),
                         'editable': field_config.get('editable', True),
                         'description': field_config.get('description', ''),
-                        'order': field_config.get('order'),
+                        'order': group_order[group_name],
                         'validation_rule': validation_rule.id if validation_rule else None,
                         'default': field_config.get('default', None),
                         'built_in': True,
@@ -184,7 +187,7 @@ def _create_model_and_fields(model_name, model_config, model_group=None):
 
             # 为每个内置模型添加一个默认的唯一性校验规则：使用ip字段校验
             # 只给hosts 和 network设备添加
-            if model_name in ['hosts', 'switches', 'firewalls', 'dwdm']:
+            if model_name in ['hosts', 'switches', 'firewalls', 'dwdm', 'virtual_machines']:
                 field_ip = ModelFields.objects.filter(
                     model=model,
                     name='ip'
