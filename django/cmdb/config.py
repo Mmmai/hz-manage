@@ -2279,5 +2279,12 @@ BUILT_IN_VALIDATION_RULES = {
         'type': 'enum',
         'rule': "{\"bare_fiber\": \"裸纤\", \"dedicated_line\": \"专线\"}",
         'description': '传输类型'
+    },
+    'middleware_vendor': {
+        'verbose_name': '中间件厂商',
+        'field_type': 'enum',
+        'type': 'enum',
+        'rule': "{\"tomcat\": \"Tomcat\", \"weblogic\": \"WebLogic\", \"kingdee\": \"金蝶\", \"nginx\": \"Nginx\", \"httpd\": \"Httpd\", \"tongweb\": \"东方通\"}",
+        'description': '中间件厂商列表'
     }
 }
