@@ -222,6 +222,7 @@ class ModelInstanceFilter(filters.FilterSet):
     model = filters.UUIDFilter(field_name='model')
     instance_name = filters.CharFilter(field_name='instance_name', lookup_expr='icontains')
     model_instance_group = filters.UUIDFilter(method='filter_model_instance_group')
+    input_type = filters.CharFilter(field_name='input_type', lookup_expr='icontains')
     create_time_after = filters.DateTimeFilter(field_name='create_time', lookup_expr='gte')
     create_time_before = filters.DateTimeFilter(field_name='create_time', lookup_expr='lte')
     update_time_after = filters.DateTimeFilter(field_name='update_time', lookup_expr='gte')

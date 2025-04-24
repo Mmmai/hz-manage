@@ -987,6 +987,11 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         fields_data = validated_data.pop('fields')
         instance_group_ids = self.context['request'].data.get('instance_group', [])
+        from_excel = self.context.get('from_excel', False)
+        if from_excel:
+            validated_data['input_mode'] = 'import'
+        else:
+            validated_data['input_mode'] = 'manual'
         if instance_group_ids and isinstance(instance_group_ids, str):
             instance_group_ids = [instance_group_ids]
         logger.info(f'Processing fields data: {fields_data}')
@@ -1015,6 +1020,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
 
                 logger.info(f'Trying to create model instance: {validated_data}')
                 instance = super().create(validated_data)
+
                 for serializer in field_serializers:
                     serializer.save(
                         model=instance.model,
