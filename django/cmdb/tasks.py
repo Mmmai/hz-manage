@@ -13,6 +13,7 @@ from .serializers import ModelInstanceSerializer
 from .excel import ExcelHandler
 from .utils.zabbix import ZabbixAPI
 from .utils.name_generator import generate_instance_name
+from .utils.assign_proxy import ProxyAssignment as pa
 
 logger = logging.getLogger(__name__)
 
@@ -295,10 +296,17 @@ def setup_host_monitoring(instance_id, instance_name, ip, password, groups=None,
         if zabbix_host.exists():
             ip_cur = zabbix_host.first().ip
             # 更新监控配置
+            proxy_id = None
             if ip != ip_cur or instance_name != zabbix_host.first().name:
+                proxy = pa.find_proxy_for_ip(ip)
+                if proxy:
+                    proxy_id = proxy.proxy_id
+                else:
+                    proxy_id = '0'
+
                 zabbix_api = ZabbixAPI()
                 result = zabbix_api.host_update(hostid=str(zabbix_host.first().host_id),
-                                                host=ip, name=instance_name, ip=ip)
+                                                host=ip, name=instance_name, ip=ip, proxy=proxy_id)
                 host_id = result.get('hostids', [None])[0] if result.get('hostids') else None
                 if host_id and host_id.isdigit():
                     ZabbixSyncHost.objects.filter(instance_id=instance_id).update(ip=ip, name=instance_name)
@@ -311,7 +319,7 @@ def setup_host_monitoring(instance_id, instance_name, ip, password, groups=None,
                 chain(
                     install_zabbix_agent.s(ip, password)
                 ).apply_async()
-                zabbix_host.first().update(
+                zabbix_host.update(
                     agent_installed=False,
                     installation_error=None
                 )

@@ -162,7 +162,8 @@ BUILT_IN_MODELS = {
                 'type': 'string',
                 'verbose_name': '甲方单位',
                 'required': True,
-                'editable': True
+                'editable': True,
+                'validation_rule': 'organization'
             },
             {
                 'name': 'supervisor_org',
@@ -469,20 +470,6 @@ BUILT_IN_MODELS = {
                 'name': 'device_model',
                 'type': 'string',
                 'verbose_name': '设备型号',
-                'required': False,
-                'editable': True
-            },
-            {
-                'name': 'operator',
-                'type': 'string',
-                'verbose_name': '运维负责人',
-                'required': False,
-                'editable': True
-            },
-            {
-                'name': 'operator_backup',
-                'type': 'string',
-                'verbose_name': '备用负责人',
                 'required': False,
                 'editable': True
             },

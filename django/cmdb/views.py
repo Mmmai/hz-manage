@@ -1556,6 +1556,8 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
                     'message': 'No hosts found matching the criteria.'
                 }, status=status.HTTP_200_OK)
 
+            hosts.update(agent_installed=False, installation_error=None)
+
             for host in hosts:
                 # 获取主机的密码
                 try:
@@ -1563,7 +1565,7 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
                     host_instance = host.instance
                     password_meta = ModelFieldMeta.objects.filter(
                         model_instance=host_instance,
-                        model_fields__name='root_password'
+                        model_fields__name='system_password'
                     ).first()
 
                     if not password_meta or not password_meta.data:

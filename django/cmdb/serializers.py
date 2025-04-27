@@ -131,8 +131,9 @@ class ModelsSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f"Failed to create model and initial groups: {str(e)}")
 
     def update(self, instance, validated_data):
-        if not validated_data.get('model_group') or not ModelGroups.objects.filter(
-                id=validated_data['model_group'].id).exists():
+        # 在实例本身没有分配到模型组且更新时未提供模型组时，分配到默认组
+        if not self.instance.model_group and (not validated_data.get('model_group') or not ModelGroups.objects.filter(
+                id=validated_data['model_group'].id).exists()):
             validated_data['model_group'] = ModelGroups.get_default_model_group()
         return super().update(instance, validated_data)
 
