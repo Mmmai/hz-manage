@@ -378,7 +378,7 @@ def sync_zabbix_host(sender, instance, created, **kwargs):
                 logger.debug(f"Field: {field.model_fields.name}, Value: {field.data}")
                 if field.model_fields.name == 'ip':
                     host_info[field.model_fields.name] = field.data
-                elif field.model_fields.name == 'root_password':
+                elif field.model_fields.name == 'system_password':
                     host_info[field.model_fields.name] = password_handler.decrypt_to_plain(field.data)
 
             groups = []
@@ -400,7 +400,7 @@ def sync_zabbix_host(sender, instance, created, **kwargs):
                 instance_id=str(instance.id),
                 instance_name=instance.instance_name,
                 ip=host_info['ip'],
-                password=host_info['root_password'],
+                password=host_info['system_password'],
                 groups=groups
             )
 
