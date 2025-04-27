@@ -10,6 +10,7 @@ export const useCiStore = defineStore(
     const filterParams = ref([]);
     const filterLists = ref([])
     const ciDataIdNameObj = ref({})
+    const ciLastModel = ref(null)
     // 函数
     const setFilterList = (params) => {
       console.log(params)
@@ -19,6 +20,10 @@ export const useCiStore = defineStore(
     const saveFilterParams = (params) => {
       console.log(params)
       multipleForm.filterParams = params
+    }
+    const setCiLastModel = (params) => {
+      // console.log(params)
+      ciLastModel.value = params
     }
     // const getModelRefData = async (model) => {
     //   let res = await proxy.$api.getModelRefCi({
@@ -40,7 +45,7 @@ export const useCiStore = defineStore(
     }
 
     return {
-      setFilterList, saveFilterParams, setModelList
+      setFilterList, saveFilterParams, setModelList, setCiLastModel, ciLastModel
     }
   },
   // 插件外参

@@ -26,6 +26,8 @@ urlpatterns = [
   path('test_celery/', test.test_celery, name='trigger_task'),
   path('check_task/<str:task_id>/', test.check_task, name='check_task_status'),
   path('task_status/<str:task_id>/', comm.get_task_status, name='get_task_status'),
+  path('import_status_sse/', comm.import_status_sse, name='get_import_status'),
+  path('agent_status_sse/', comm.installation_status_sse, name='get_agent_status'),
 
   # path('order/',views.orderMethod.as_view() )
   # path('loki/labels',lokiapi.lokiLabels),

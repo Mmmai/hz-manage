@@ -18,13 +18,13 @@
           v-permission="`${route.name?.replace('_info', '')}:add`"
           type="primary"
           :disabled="multipleSelection.length >>> 1 ? false : true"
-          @click="installAgent({ ids: multipleSelection })"
+          @click="installAction({ ids: multipleSelection })"
           >批量安装</el-button
         >
         <el-button
           v-permission="`${route.name?.replace('_info', '')}:add`"
           type="primary"
-          @click="installAgent({ all: true })"
+          @click="installAction({ all: true })"
           >触发失败重装</el-button
         >
       </div>
@@ -117,7 +117,7 @@
               link
               type="primary"
               :icon="Refresh"
-              @click="installAgent({ ids: [scope.row.id] })"
+              @click="installAction({ ids: [scope.row.id] })"
             ></el-button>
           </el-tooltip>
         </template>
@@ -155,6 +155,7 @@ import {
   onMounted,
   reactive,
   nextTick,
+  onUnmounted,
 } from "vue";
 const { proxy } = getCurrentInstance();
 import { useStore } from "vuex";
@@ -163,7 +164,7 @@ const syncHosts = ref([]);
 import { useRoute } from "vue-router";
 import { ElMessageBox, ElMessage, ElNotification } from "element-plus";
 
-import { tr } from "element-plus/es/locale/index.mjs";
+import { pa, tr } from "element-plus/es/locale/index.mjs";
 import { Row } from "element-plus/es/components/table-v2/src/components/index.mjs";
 const route = useRoute();
 const colValue = ref("name");
@@ -425,8 +426,24 @@ const syncToZabbix = async () => {
     type: "success",
   });
 };
+const eventSource = ref(null);
+const openSse = (sseUrl) => {
+  eventSource.value = new EventSource(sseUrl);
+  eventSource.value.onmessage = (event) => {
+    console.log(event);
+    // if (JSON.parse(event.data).status === "SUCCESS") {
+    //   eventSource.value.close();
+    // }
+    if (JSON.parse(event.data).status === "completed") {
+      closeSse();
+    }
+  };
+};
+const closeSse = () => {
+  eventSource.value.close();
+};
 // 安装agent
-const installAgent = async (params: object) => {
+const installAction = async (params: object) => {
   let res = await proxy.$api.installAgent(params);
   console.log(res);
   if (res.status == 200) {
@@ -434,6 +451,11 @@ const installAgent = async (params: object) => {
       type: "success",
       message: "触发成功",
     });
+    if (params.all) {
+      openSse(`/api/v1/agent_status_sse?all=true`);
+    } else {
+      openSse(`/api/v1/agent_status_sse?ids[]=${params.ids.join(",")}`);
+    }
   } else {
     ElMessage({
       type: "error",
@@ -441,6 +463,9 @@ const installAgent = async (params: object) => {
     });
   }
 };
+onUnmounted(() => {
+  closeSse();
+});
 </script>
 
 <style scoped></style>

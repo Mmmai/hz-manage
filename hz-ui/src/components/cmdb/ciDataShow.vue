@@ -21,13 +21,39 @@
           >添加</el-button
         >
         <!-- <el-button @click="isShowUpload = true">导入</el-button> -->
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="勾选实例且非<所有>分组才支持转移~"
+          placement="top"
+          v-if="
+            (multipleSelectId.length >>> 0 || isSelectAll) &&
+            treeAllId !== currentNodeId
+              ? false
+              : true
+          "
+        >
+          <el-button
+            :disabled="
+              (multipleSelectId.length >>> 0 || isSelectAll) &&
+              treeAllId !== currentNodeId
+                ? false
+                : true
+            "
+            @click="ciDataToTree = true"
+            v-permission="`${route.name?.replace('_info', '')}:edit`"
+            >转移</el-button
+          >
+        </el-tooltip>
         <el-button
+          v-else
           :disabled="
             (multipleSelectId.length >>> 0 || isSelectAll) &&
             treeAllId !== currentNodeId
               ? false
               : true
           "
+          content="勾选实例且非<所有>分组才支持转移~"
           @click="ciDataToTree = true"
           v-permission="`${route.name?.replace('_info', '')}:edit`"
           >转移</el-button
@@ -247,6 +273,7 @@
         show-overflow-tooltip
         sortable
         min-width="120"
+        max-width="220"
       >
         <!-- 新增管理口跳转 -->
         <template #default="scope" v-if="data.name === 'mgmt_ip'">

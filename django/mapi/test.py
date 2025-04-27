@@ -1,5 +1,5 @@
 from django.http import StreamingHttpResponse
-import json,time
+import json,time,uuid
 from channels.generic.websocket import AsyncWebsocketConsumer
 import asyncio
 from asgiref.sync import sync_to_async

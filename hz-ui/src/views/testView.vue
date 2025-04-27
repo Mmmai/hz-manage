@@ -58,19 +58,16 @@ const activeName = ref("sseTest");
 const sseUrl = ref<string>(null);
 const eventSource = ref(null);
 const openSse = () => {
-  eventSource.value = new EventSource(sseUrl.value, {
-    headers: {
-      "Cache-Control": "no-cache",
-      "Content-Type": "text/event-steam",
-    },
-    // "/api/v1/sse"
-  });
+  eventSource.value = new EventSource(sseUrl.value);
   eventSource.value.onmessage = (event) => {
     console.log(event);
     console.log(typeof event.data);
-    console.log(event.data);
+    console.log(event.data.status);
 
-    result.value.push(event.data);
+    result.value.push(JSON.parse(event.data));
+    if (JSON.parse(event.data).status === "SUCCESS") {
+      eventSource.value.close();
+    }
   };
 };
 const closeSse = () => {
