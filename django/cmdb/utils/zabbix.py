@@ -1,3 +1,5 @@
+from math import log
+from re import I
 from django.core.cache import cache
 from django.conf import settings
 import threading
@@ -126,7 +128,7 @@ class ZabbixAPI:
         result = self._call("host.get", data["params"])
         return result["result"]
 
-    def host_create(self, host, name, ip, groups=None):
+    def host_create(self, host, name, ip, groups=None, proxy_id=None):
         data = {
             "jsonrpc": "2.0",
             "method": "host.create",
@@ -161,6 +163,9 @@ class ZabbixAPI:
             "id": 1,
             "auth": self.auth
         }
+        if proxy_id:
+            data["params"]["proxy_hostid"] = proxy_id
+
         result = self._call("host.create", data["params"])
         logger.info(f"Host created: {result}")
         return result["result"]
@@ -171,21 +176,23 @@ class ZabbixAPI:
             "jsonrpc": "2.0",
             "method": "hostinterface.get",
             "params": {
-                "hostids": hostid,
-                "output": "extend"
+                "output": "extend",
+                "filter": {
+                    "hostid": hostid
+                }
             },
             "auth": self.auth,
             "id": 1
         }
         result = self._call("hostinterface.get", data["params"])
-        return result["result"]
+        if result.get('result'):
+            return result["result"]
+        return None
 
-    def host_update(self, hostid, host, name, ip):
-        """更新主机IP"""
+    def host_update(self, hostid, host, name, ip=None, proxy=None):
+        """更新主机可见名称/IP/代理"""
         # 获取现有接口
         interfaces = self.host_get_interfaces(hostid)
-        if not interfaces:
-            raise Exception("No interfaces found for host")
 
         data = {
             "jsonrpc": "2.0",
@@ -193,22 +200,32 @@ class ZabbixAPI:
             "params": {
                 "hostid": hostid,
                 "host": host,
-                "name": name,
-                "interfaces": [
-                    {
-                        "interfaceid": interfaces[0]["interfaceid"],
-                        "type": 1,
-                        "main": 1,
-                        "useip": 1,
-                        "ip": ip,
-                        "dns": "",
-                        "port": "10050"
-                    }
-                ]
+                "name": name
             },
             "id": 1,
             "auth": self.auth
         }
+
+        # ip变更
+        if ip:
+            data["params"]["interfaces"] = [
+                {
+                    "ip": ip,
+                    "dns": "",
+                    "port": "10050",
+                    "type": 1,
+                    "main": 1,
+                    "useip": 1
+                }
+            ]
+            if interfaces:
+                interface_id = [i["interfaceid"] for i in interfaces if i['type'] == '1']
+                data["params"]["interfaces"][0]["interfaceid"] = interface_id[0]
+
+        # 代理变更
+        if proxy is not None:
+            data["params"]["proxy_hostid"] = proxy
+
         result = self._call("host.update", data["params"])
         logger.info(f"Host updated: {result}")
         return result["result"]
@@ -276,6 +293,40 @@ class ZabbixAPI:
         }
         result = self._call("host.delete", data["params"])
         return result["result"]
+
+    def host_update_proxy(self, hostid, proxy_id):
+        """更新主机代理"""
+        data = {
+            "jsonrpc": "2.0",
+            "method": "host.update",
+            "params": {
+                "hostid": hostid,
+                "proxy_hostid": proxy_id
+            },
+            "id": 1,
+            "auth": self.auth
+        }
+        result = self._call("host.update", data["params"])
+        if result.get("result"):
+            return result["result"]
+        return None
+
+    def host_clear_proxy(self, hostid):
+        """清除主机代理"""
+        data = {
+            "jsonrpc": "2.0",
+            "method": "host.update",
+            "params": {
+                "hostid": hostid,
+                "proxy_hostid": "0"
+            },
+            "id": 1,
+            "auth": self.auth
+        }
+        result = self._call("host.update", data["params"])
+        if result.get("result"):
+            return result["result"]
+        return None
 
     def get_default_template(self, template_name):
         target = template_name or 'Template OS Linux V3.1'
@@ -469,3 +520,37 @@ class ZabbixAPI:
             "id": 1
         }
         return self._call('host.get', data["params"]) or []
+
+    def get_proxies(self):
+        """获取代理列表"""
+        data = {
+            "jsonrpc": "2.0",
+            "method": "proxy.get",
+            "params": {
+                "output": ["proxyid", "host", "status", "lastaccess", "description"]
+            },
+            "auth": self.auth,
+            "id": 1
+        }
+        result = self._call("proxy.get", data["params"])
+        if result.get("result"):
+            return result["result"]
+        return None
+
+    def get_proxy_by_name(self, proxy_name):
+        data = {
+            "jsonrpc": "2.0",
+            "method": "proxy.get",
+            "params": {
+                "output": ["proxyid", "host", "status", "lastaccess", "description"],
+                "filter": {
+                    "host": proxy_name
+                }
+            },
+            "auth": self.auth,
+            "id": 1
+        }
+        result = self._call("proxy.get", data["params"])
+        if result.get("result"):
+            return result["result"][0]
+        return None
