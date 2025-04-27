@@ -1563,7 +1563,7 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
                     host_instance = host.instance
                     password_meta = ModelFieldMeta.objects.filter(
                         model_instance=host_instance,
-                        model_fields__name='root_password'
+                        model_fields__name='system_password'
                     ).first()
 
                     if not password_meta or not password_meta.data:
