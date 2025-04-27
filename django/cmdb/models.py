@@ -481,6 +481,8 @@ class ZabbixProxy(models.Model):
     name = models.CharField(max_length=50, null=False, blank=False)
     ip = models.CharField(max_length=50, null=False, blank=False)
     port = models.IntegerField(null=False, blank=False)
+    user = models.CharField(default='root', max_length=50, null=False, blank=False)
+    password = models.CharField(max_length=50, null=False, blank=False)
     proxy_id = models.CharField(max_length=50, null=False, blank=False)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
@@ -515,7 +517,7 @@ class ProxyAssignRule(models.Model):
         # 使用优先级从高到低
         ('ip_exclude', 'IP排除式'),
         ('ip_list', 'IP列表'),
-        ('ip_acid', 'IP子网划分式'),
+        ('ip_cidr', 'IP子网划分式'),
         ('ip_range', 'IP范围'),
         ('ip_regex', 'IP正则式'),
     )

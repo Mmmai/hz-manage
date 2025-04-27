@@ -159,7 +159,7 @@ BUILT_IN_MODELS = {
             },
             {
                 'name': 'client_org',
-                'type': 'string',
+                'type': 'enum',
                 'verbose_name': '甲方单位',
                 'required': True,
                 'editable': True,
@@ -266,7 +266,7 @@ BUILT_IN_MODELS = {
             },
             {
                 'name': 'asset_owner',
-                'type': 'string',
+                'type': 'enum',
                 'verbose_name': '资产归属',
                 'required': True,
                 'editable': True,

@@ -30,9 +30,9 @@ class ProxyAssignment:
             if ProxyAssignment._match_rule(rule, ip_address):
                 return rule.proxy
 
-        # 检查IP子网规则（ACID）
-        acid_rules = active_rules.filter(type='ip_acid')
-        for rule in acid_rules:
+        # 检查IP子网规则（CIDR）
+        cidr_rules = active_rules.filter(type='ip_cidr')
+        for rule in cidr_rules:
             if ProxyAssignment._match_rule(rule, ip_address):
                 return rule.proxy
 
@@ -60,8 +60,8 @@ class ProxyAssignment:
             elif rule.type == 'ip_list':
                 return ProxyAssignment._match_ip_list(rule.rule, ip_address)
 
-            elif rule.type == 'ip_acid':
-                return ProxyAssignment._match_ip_acid(rule.rule, ip_address)
+            elif rule.type == 'ip_cidr':
+                return ProxyAssignment._match_ip_cidr(rule.rule, ip_address)
 
             elif rule.type == 'ip_range':
                 return ProxyAssignment._match_ip_range(rule.rule, ip_address)
@@ -87,7 +87,7 @@ class ProxyAssignment:
         return ip_address in ip_list
 
     @staticmethod
-    def _match_ip_acid(rule_value, ip_address):
+    def _match_ip_cidr(rule_value, ip_address):
         """匹配IP子网划分规则（CIDR）"""
         try:
             host_ip = ipaddress.ip_address(ip_address)

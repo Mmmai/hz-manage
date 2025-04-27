@@ -1,3 +1,4 @@
+from math import log
 from re import I
 from django.core.cache import cache
 from django.conf import settings
@@ -175,14 +176,18 @@ class ZabbixAPI:
             "jsonrpc": "2.0",
             "method": "hostinterface.get",
             "params": {
-                "hostids": hostid,
-                "output": "extend"
+                "output": "extend",
+                "filter": {
+                    "hostid": hostid
+                }
             },
             "auth": self.auth,
             "id": 1
         }
         result = self._call("hostinterface.get", data["params"])
-        return result["result"]
+        if result.get('result'):
+            return result["result"]
+        return None
 
     def host_update(self, hostid, host, name, ip=None, proxy=None):
         """更新主机可见名称/IP/代理"""
@@ -214,7 +219,7 @@ class ZabbixAPI:
                 }
             ]
             if interfaces:
-                interface_id = [i["interfaceid"] for i in interfaces if i['type'] == 1]
+                interface_id = [i["interfaceid"] for i in interfaces if i['type'] == '1']
                 data["params"]["interfaces"][0]["interfaceid"] = interface_id[0]
 
         # 代理变更
