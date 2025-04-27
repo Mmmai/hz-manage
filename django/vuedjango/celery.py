@@ -1,8 +1,9 @@
 from __future__ import absolute_import, unicode_literals
 import os
+import time
 from celery import Celery
 from celery.signals import setup_logging
-
+from datetime import timedelta
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'vuedjango.settings')
 
@@ -14,12 +15,14 @@ app.conf.update(
     worker_log_level='INFO',
 )
 
+
 @setup_logging.connect
 def config_loggers(*args, **kwargs):
     from logging.config import dictConfig
     from django.conf import settings
     dictConfig(settings.LOGGING)
-    
+
+
 app.config_from_object('django.conf:settings', namespace='CELERY')
 
 app.autodiscover_tasks()
