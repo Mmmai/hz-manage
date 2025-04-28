@@ -2,25 +2,48 @@
   <div class="card">
     <div class="table-header">
       <div class="header-button-lf">
-        <el-button
-          v-permission="`${route.name?.replace('_info', '')}:add`"
-          type="primary"
-          @click="syncToZabbix()"
-          >触发同步</el-button
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="触发主机信息同步到zabbix"
+          placement="top"
         >
-        <el-button
-          v-permission="`${route.name?.replace('_info', '')}:add`"
-          type="primary"
-          @click="getZabbixStatus()"
-          >可用性更新</el-button
+          <el-button
+            v-permission="`${route.name?.replace('_info', '')}:add`"
+            type="primary"
+            @click="syncToZabbix()"
+            >触发同步</el-button
+          >
+        </el-tooltip>
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="更新Zabbix接口可用性的状态信息"
+          placement="top"
         >
-        <el-button
-          v-permission="`${route.name?.replace('_info', '')}:add`"
-          type="primary"
-          :disabled="multipleSelection.length >>> 1 ? false : true"
-          @click="installAction({ ids: multipleSelection })"
-          >批量安装</el-button
+          <el-button
+            v-permission="`${route.name?.replace('_info', '')}:add`"
+            type="primary"
+            @click="getZabbixStatus()"
+            >可用性更新</el-button
+          >
+        </el-tooltip>
+
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="触发重装已勾选的主机"
+          placement="top"
         >
+          <el-button
+            v-permission="`${route.name?.replace('_info', '')}:add`"
+            type="primary"
+            :disabled="multipleSelection.length >>> 0 ? false : true"
+            @click="installAction({ ids: multipleSelection })"
+            >批量安装</el-button
+          >
+        </el-tooltip>
+
         <el-button
           v-permission="`${route.name?.replace('_info', '')}:add`"
           type="primary"
@@ -49,6 +72,7 @@
       </div>
     </div>
     <el-table
+      v-loading="isLoading"
       ref="multipleTableRef"
       :data="syncHosts"
       style="width: 100%"
@@ -169,53 +193,11 @@ import { Row } from "element-plus/es/components/table-v2/src/components/index.mj
 const route = useRoute();
 const colValue = ref("name");
 const filterValue = ref<string>("");
+const isLoading = ref(true);
 // const filterParam = computed(() => {
 //   return { [colValue.value]: filterValue.value };
 // });
 // watch
-// 正则测试
-const testRegex = ref(null);
-const testRegexRes = computed(() => {
-  // 用户输入的正则表达式
-  if (testRegex.value === null) return true;
-  var regexString = RegExp(formInline.rule);
-  if (regexString.test(testRegex.value)) {
-    return true;
-  } else {
-    return false;
-  }
-});
-const tmpFormData = ref([{ name: "", value: "" }]);
-const arrayJson = computed(() => {
-  let tempArr = {};
-  tmpFormData.value.forEach((item) => {
-    if (item.name !== "" && item.value !== "") {
-      tempArr[item.name] = item.value;
-    }
-  });
-  return tempArr;
-});
-// 重复
-const isUniq = computed(() => {
-  return (
-    proxy.$commonFunc.hasDuplicates(Object.keys(arrayJson.value)) ||
-    proxy.$commonFunc.hasDuplicates(Object.values(arrayJson.value))
-  );
-});
-watch(
-  () => arrayJson.value,
-  (n) => {
-    if (Object.keys(n).length === 0) return;
-    formInline.rule = JSON.stringify(arrayJson.value);
-  }
-);
-const addField = (index) => {
-  tmpFormData.value.splice(index + 1, 0, { name: "", value: "" });
-};
-const rmField = (index) => {
-  tmpFormData.value.splice(index, 1);
-  console.log(tmpFormData.value);
-};
 const colLists = ref([
   {
     value: "name",
@@ -354,10 +336,11 @@ const getZabbixSyncHost = async (params = null) => {
     ...sortParam.value,
     ...params,
   });
-  console.log(res);
+  // console.log(res);
   syncHosts.value = res.data.results;
   // syncHosts.value = res.data;
   totalCount.value = res.data.count;
+  isLoading.value = false;
 };
 
 onMounted(() => {
@@ -366,7 +349,7 @@ onMounted(() => {
 
 const multipleSelection = ref([]);
 const handleSelectionChange = (val) => {
-  multipleSelection.value = val;
+  multipleSelection.value = val.map((item) => item.id);
 };
 
 // 可用性tag标签
@@ -434,8 +417,12 @@ const openSse = (sseUrl) => {
     // if (JSON.parse(event.data).status === "SUCCESS") {
     //   eventSource.value.close();
     // }
+
     if (JSON.parse(event.data).status === "completed") {
       closeSse();
+      nextTick(() => {
+        getZabbixSyncHost();
+      });
     }
   };
 };
@@ -451,10 +438,11 @@ const installAction = async (params: object) => {
       type: "success",
       message: "触发成功",
     });
+    isLoading.value = true;
     if (params.all) {
-      openSse(`/api/v1/agent_status_sse?all=true`);
+      openSse(`/api/v1/agent_status_sse/?all=true`);
     } else {
-      openSse(`/api/v1/agent_status_sse?ids[]=${params.ids.join(",")}`);
+      openSse(`/api/v1/agent_status_sse/?ids=${JSON.stringify(params.ids)}`);
     }
   } else {
     ElMessage({

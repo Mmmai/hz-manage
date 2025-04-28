@@ -53,7 +53,11 @@ def import_status_sse(request):
 def installation_status_sse(request):
     """使用SSE实时获取Zabbix客户端安装状态"""
     try:
-        ids = request.GET.get('ids', [])
+        idsStr = request.GET.get('ids', [])
+        if isinstance(idsStr,str):
+            ids = json.loads(idsStr)
+        else:
+            ids = []
         all_failed = request.GET.get('all', False)
         if not ids and not all_failed:
             raise ValidationError('缺少sufficient params')
@@ -66,11 +70,12 @@ def installation_status_sse(request):
                 current_status = {}
                 hosts = ZabbixSyncHost.objects.filter(id__in=ids).values(
                     'id', 'host_id', 'ip', 'name', 'agent_installed',
-                    'interface_available', 'installation_error', 'update_time'
+                    'interface_available', 'installation_error'
                 )
                 all_completed = True
                 for host in hosts:
                     host_pk = str(host['id'])
+                    host["id"] = host_pk
                     current_status[host_pk] = host
                     if not host['agent_installed'] and not host['installation_error']:
                         all_completed = False
@@ -80,13 +85,13 @@ def installation_status_sse(request):
                         'status': 'success',
                         'hosts': list(current_status.values())
                     }
-                    yield f"data: {data}\n\n"
+                    yield f"data: {json.dumps(data,ensure_ascii=False)}\n\n"
                 if all_completed:
                     final_data = {
                         'status': 'completed',
                         'hosts': list(current_status.values())
                     }
-                    yield f"data: {final_data}\n\n"
+                    yield f"data: {json.dumps(final_data,ensure_ascii=False)}\n\n"
                     break
                 time.sleep(2)
         response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
