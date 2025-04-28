@@ -1,3 +1,6 @@
+from os import name
+from tabnanny import verbose
+from weakref import proxy
 from django.db import models
 from django.db.models import JSONField
 from django.db import transaction
@@ -468,6 +471,23 @@ class Relations(models.Model):
     update_user = models.CharField(max_length=20, null=False, blank=False)
 
 
+class ZabbixProxy(models.Model):
+    class Meta:
+        db_table = 'zabbix_proxy'
+        managed = True
+        app_label = 'cmdb'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=50, null=False, blank=False)
+    ip = models.CharField(max_length=50, null=False, blank=False)
+    port = models.IntegerField(null=False, blank=False)
+    user = models.CharField(default='root', max_length=50, null=False, blank=False)
+    password = models.CharField(max_length=50, null=False, blank=False)
+    proxy_id = models.CharField(max_length=50, null=False, blank=False)
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+
 class ZabbixSyncHost(models.Model):
     class Meta:
         db_table = 'zabbix_sync_host'
@@ -482,5 +502,32 @@ class ZabbixSyncHost(models.Model):
     agent_installed = models.BooleanField(default=False)
     installation_error = models.TextField(null=True, blank=True)
     interface_available = models.IntegerField(default=0)
+    proxy = models.ForeignKey('ZabbixProxy', on_delete=models.CASCADE, null=True, blank=True)
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+
+class ProxyAssignRule(models.Model):
+    class Meta:
+        db_table = 'proxy_assign_rule'
+        managed = True
+        app_label = 'cmdb'
+
+    RULE_TYPES = (
+        # 使用优先级从高到低
+        ('ip_exclude', 'IP排除式'),
+        ('ip_list', 'IP列表'),
+        ('ip_cidr', 'IP子网划分式'),
+        ('ip_range', 'IP范围'),
+        ('ip_regex', 'IP正则式'),
+    )
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=50, null=False, blank=False)
+    description = models.TextField(blank=True, null=True)
+    proxy = models.ForeignKey('ZabbixProxy', on_delete=models.CASCADE, null=False, blank=False)
+    type = models.CharField(max_length=50, choices=RULE_TYPES, null=False, blank=False)
+    rule = models.TextField()
+    active = models.BooleanField(default=True, null=False, blank=False)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')

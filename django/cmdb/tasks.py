@@ -8,11 +8,13 @@ from django.core.cache import cache
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIRequestFactory
-from .models import ModelInstanceGroupRelation, Models, ModelFields, ModelInstance, ModelFieldMeta, ZabbixSyncHost
+from celery.result import AsyncResult
+from .models import ModelInstanceGroupRelation, Models, ModelFields, ModelInstance, ModelFieldMeta, ZabbixProxy, ZabbixSyncHost
 from .serializers import ModelInstanceSerializer
 from .excel import ExcelHandler
 from .utils.zabbix import ZabbixAPI
 from .utils.name_generator import generate_instance_name
+from .utils.assign_proxy import ProxyAssignment as pa
 
 logger = logging.getLogger(__name__)
 
@@ -269,8 +271,9 @@ def update_instance_names_for_model_template_change(self, model_id, old_template
         return None
 
 
-@shared_task
-def setup_host_monitoring(instance_id, instance_name, ip, password, groups=None, delete=False, force=False):
+@shared_task(bind=True)
+def setup_host_monitoring(self, instance_id, instance_name, ip, password,
+                          groups=None, delete=False, force=False):
     try:
 
         # 删除主机监控
@@ -283,41 +286,57 @@ def setup_host_monitoring(instance_id, instance_name, ip, password, groups=None,
                 if result:
                     ZabbixSyncHost.objects.filter(instance_id=instance_id).delete()
                     logger.info(f"Zabbix host monitoring deleted for {ip}")
-                    return {'detail': f"Zabbix host monitoring deleted for {ip}"}
+                    return {'status': 'success', 'detail': f"Zabbix host monitoring deleted for {ip}"}
                 else:
                     raise ValidationError({'detail': f'Failed to delete host: {result}'})
             else:
                 logger.debug(f"Host monitoring does not exist for {ip}, skipping deletion")
-                return {'detail': f"Host monitoring does not exist for {ip}, skipping deletion"}
+                return {'status': 'skipped', 'detail': f"Host monitoring does not exist for {ip}, skipping deletion"}
+
+        proxy = pa.find_proxy_for_ip(ip)
+        logger.info(f"Proxy found for IP {ip}: {proxy}")
+        proxy_ip = None
+        if proxy:
+            proxy_id = proxy.proxy_id
+            proxy_ip = proxy.ip
+        else:
+            proxy_id = '0'
 
         zabbix_host = ZabbixSyncHost.objects.filter(instance_id=instance_id)
         # 更新主机监控
         if zabbix_host.exists():
             ip_cur = zabbix_host.first().ip
             # 更新监控配置
-            if ip != ip_cur or instance_name != zabbix_host.first().name:
+            if ip != ip_cur or instance_name != zabbix_host.first().name or \
+                    zabbix_host.first().proxy != proxy or force:
                 zabbix_api = ZabbixAPI()
                 result = zabbix_api.host_update(hostid=str(zabbix_host.first().host_id),
-                                                host=ip, name=instance_name, ip=ip)
+                                                host=ip, name=instance_name, ip=ip, proxy=proxy_id)
                 host_id = result.get('hostids', [None])[0] if result.get('hostids') else None
                 if host_id and host_id.isdigit():
-                    ZabbixSyncHost.objects.filter(instance_id=instance_id).update(ip=ip, name=instance_name)
+                    ZabbixSyncHost.objects.filter(
+                        instance_id=instance_id).update(
+                        ip=ip, name=instance_name, proxy=proxy)
                     logger.info(f"Zabbix host monitoring updated for {ip}")
+                    self.update_state(state='SUCCESS', meta={'status': 'updated'})
                 else:
+                    self.update_state(state='FAILURE', meta={'status': 'failed'})
                     raise ValidationError({'detail': f'Failed to update host: {result}'})
 
             # IP地址发生变化/安装状态为失败/强制重装
             if ANSIBLE_AVAILABLE and (ip != ip_cur or not zabbix_host.first().agent_installed or force):
-                chain(
-                    install_zabbix_agent.s(ip, password)
-                ).apply_async()
-                zabbix_host.first().update(
+
+                task = install_zabbix_agent.s(ip, password, proxy_ip=proxy_ip)
+                task_chain = chain(task)
+                chain_result = task_chain.apply_async()
+                zabbix_host.update(
                     agent_installed=False,
                     installation_error=None
                 )
+                return {'status': 'success', 'chain_task_id': chain_result.id}
             else:
                 logger.debug(f"No changes detected for {ip}, skipping update")
-                return {'detail': f"No changes detected for {ip}, skipping update"}
+                return {'status': 'skipped', 'detail': f"No changes detected for {ip}, skipping update"}
         # 创建主机监控
         else:
             zabbix_api = ZabbixAPI()
@@ -337,13 +356,15 @@ def setup_host_monitoring(instance_id, instance_name, ip, password, groups=None,
                     ZabbixSyncHost.objects.create(instance_id=instance_id,
                                                   host_id=int(host_id),
                                                   name=instance_name,
-                                                  ip=ip
+                                                  ip=ip,
+                                                  proxy=proxy
                                                   )
                     logger.info(f"Zabbix host monitoring setup for {ip}")
                 if ANSIBLE_AVAILABLE:
-                    chain(
-                        install_zabbix_agent.s(ip, password)
-                    ).apply_async()
+                    task = install_zabbix_agent.s(ip, password, proxy_ip=proxy_ip)
+                    task_chain = chain(task)
+                    chain_result = task_chain.apply_async()
+                    return {'status': 'success', 'chain_task_id': chain_result.id}
                 else:
                     raise ValidationError({'detail': f'Failed to create host: {result}'})
     except Exception as e:
@@ -351,12 +372,21 @@ def setup_host_monitoring(instance_id, instance_name, ip, password, groups=None,
         raise ValidationError({'detail': f'Failed to setup host monitoring: {str(e)}'})
 
 
-@shared_task
-def install_zabbix_agent(host_ip, password):
+@shared_task(bind=True)
+def install_zabbix_agent(self, host_ip, password, proxy_ip=None):
     try:
+        self.update_state(state='PROGRESS', meta={'status': 'installing'})
         logger.info(f'Installing Zabbix agent on {host_ip}')
         ansible_api = AnsibleAPI()
-        result = ansible_api.install_zabbix_agent(host_ip, 'root', 22, password)
+        if not proxy_ip:
+            result = ansible_api.install_zabbix_agent(host_ip, 'root', 22, password)
+        else:
+            ppassword = ZabbixProxy.objects.filter(ip=proxy_ip).first().password
+            result = ansible_api.install_zabbix_agent(
+                host_ip, 'root', 22, password,
+                jump_host=proxy_ip, jump_user='root', jump_pass=ppassword,
+                jump_port=22, zabbix_proxy=proxy_ip
+            )
         agent_installed = result.get('status') == 'success'
         error_message = None
 
@@ -366,6 +396,7 @@ def install_zabbix_agent(host_ip, password):
                 'message': 'Installation result is empty.',
                 'task_details': []
             }
+            self.update_state(state='FAILURE', meta=result)()
 
         if not agent_installed:
             main_error = result.get('message', 'Unknown error')

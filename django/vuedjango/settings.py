@@ -48,7 +48,8 @@ INSTALLED_APPS = [
     'import_export',
     'drf_spectacular',
     'drf_spectacular_sidecar',
-    'channels'
+    'channels',
+    'django_celery_beat'
 ]
 
 
@@ -81,7 +82,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'vuedjango.wsgi.application'
-#websocket相关配置
+# websocket相关配置
 ASGI_APPLICATION = 'vuedjango.asgi.application'
 CHANNEL_LAYERS = {
     "default": {

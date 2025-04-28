@@ -57,18 +57,27 @@ class AnsibleAPI:
             if os.path.exists(task_dir):
                 shutil.rmtree(task_dir)
 
-    def install_zabbix_agent(self, host_ip, ssh_user, ssh_port, ssh_pass):
+    def install_zabbix_agent(self, host_ip, ssh_user, ssh_port, ssh_pass,
+                             jump_host=None, jump_user=None, jump_pass=None,
+                             jump_port=22, zabbix_proxy=None):
         """安装Zabbix客户端"""
         playbook_path = '/opt/zabbix_agent/main.yaml'
+
+        host_vars = {
+            'ansible_ssh_user': ssh_user,
+            'ansible_ssh_pass': ssh_pass,
+            'ansible_ssh_port': ssh_port,
+            'ansible_ssh_common_args': '-o StrictHostKeyChecking=no'
+        }
+
+        if jump_host and jump_user and jump_pass:
+            proxy_command = f"sshpass -p '{jump_pass}' ssh -W %h:%p -p {jump_port} {jump_user}@{jump_host}"
+            host_vars['ansible_ssh_common_args'] += f" -o ProxyCommand=\"{proxy_command}\""
+
         inventory_dict = {
             'all': {
                 'hosts': {
-                    host_ip: {
-                        'ansible_ssh_user': ssh_user,
-                        'ansible_ssh_pass': ssh_pass,
-                        'ansible_ssh_port': ssh_port,
-                        'ansible_ssh_common_args': '-o StrictHostKeyChecking=no'
-                    }
+                    host_ip: host_vars
                 }
             }
         }
@@ -79,6 +88,10 @@ class AnsibleAPI:
             'serverActiveIp': server,
             'inventory_hostname': host_ip
         }
+
+        if zabbix_proxy:
+            extra_vars['serverActiveIp'] = zabbix_proxy
+
         result = self.run_playbook(playbook_path, inventory_dict, extra_vars)
         if result:
             installation_status = {
