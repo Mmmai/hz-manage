@@ -46,6 +46,9 @@ from .filters import (
     RelationDefinitionFilter,
     RelationsFilter,
     ZabbixSyncHostFilter,
+    ZabbixProxy,
+    ZabbixProxyFilter,
+    ProxyAssignRuleFilter
 )
 from .models import (
     ModelGroups,
@@ -62,6 +65,8 @@ from .models import (
     RelationDefinition,
     Relations,
     ZabbixSyncHost,
+    ZabbixProxy,
+    ProxyAssignRule
 )
 from .serializers import (
     ModelGroupsSerializer,
@@ -79,7 +84,9 @@ from .serializers import (
     BulkInstanceGroupRelationSerializer,
     RelationDefinitionSerializer,
     RelationsSerializer,
-    ZabbixSyncHostSerializer
+    ZabbixSyncHostSerializer,
+    ZabbixProxySerializer,
+    ProxyAssignRuleSerializer
 )
 from .schemas import (
     model_groups_schema,
@@ -1695,3 +1702,19 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
                 return -1
         else:
             return -1
+
+
+class ZabbixProxyViewSet(viewsets.ModelViewSet):
+    queryset = ZabbixProxy.objects.all().order_by('create_time')
+    serializer_class = ZabbixProxySerializer
+    pagination_class = StandardResultsSetPagination
+    filterset_class = ZabbixProxyFilter
+    ordering_fields = ['proxy_id', 'name', 'ip', 'create_time', 'update_time']
+
+
+class ProxyAssignRuleViewSet(viewsets.ModelViewSet):
+    queryset = ProxyAssignRule.objects.all().order_by('create_time')
+    serializer_class = ProxyAssignRuleSerializer
+    pagination_class = StandardResultsSetPagination
+    filterset_class = ProxyAssignRuleFilter
+    ordering_fields = ['rule', 'type', 'proxy', 'create_time', 'update_time']

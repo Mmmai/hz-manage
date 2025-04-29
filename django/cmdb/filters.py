@@ -1,3 +1,4 @@
+from weakref import proxy
 from django_filters import rest_framework as filters
 from .models import (
     ModelGroups,
@@ -14,7 +15,9 @@ from .models import (
     ModelInstanceGroupRelation,
     RelationDefinition,
     Relations,
-    ZabbixSyncHost
+    ZabbixSyncHost,
+    ZabbixProxy,
+    ProxyAssignRule
 )
 
 
@@ -427,4 +430,38 @@ class ZabbixSyncHostFilter(filters.FilterSet):
             'create_time_before',
             'update_time_after',
             'update_time_before',
+        ]
+
+
+class ZabbixProxyFilter(filters.FilterSet):
+    name = filters.CharFilter(field_name='name', lookup_expr='icontains')
+    ip = filters.CharFilter(field_name='ip', lookup_expr='icontains')
+    port = filters.NumberFilter(field_name='port', lookup_expr='exact')
+    proxy_id = filters.CharFilter(field_name='proxyid', lookup_expr='exact')
+
+    class Meta:
+        model = ZabbixProxy
+        fields = [
+            'name',
+            'ip',
+            'port',
+            'proxy_id'
+        ]
+
+
+class ProxyAssignRuleFilter(filters.FilterSet):
+    name = filters.CharFilter(field_name='name', lookup_expr='icontains')
+    type = filters.CharFilter(field_name='type', lookup_expr='exact')
+    rule = filters.CharFilter(field_name='rule', lookup_expr='icontains')
+    proxy = filters.UUIDFilter(field_name='proxy')
+    active = filters.BooleanFilter(field_name='active')
+
+    class Meta:
+        model = ProxyAssignRule
+        fields = [
+            'name',
+            'type',
+            'rule',
+            'proxy',
+            'active'
         ]

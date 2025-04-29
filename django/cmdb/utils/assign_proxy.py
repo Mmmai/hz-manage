@@ -15,38 +15,41 @@ class ProxyAssignment:
         if not ip_address:
             return None
 
-        # 获取所有活跃的规则，按规则类型的优先级排序
         active_rules = ProxyAssignRule.objects.filter(active=True)
 
-        # 首先检查IP排除规则
-        exclude_rules = active_rules.filter(type='ip_exclude')
-        for rule in exclude_rules:
-            if ProxyAssignment._match_rule(rule, ip_address):
-                return None
+        proxy_rules = {}
+        for rule in active_rules:
+            if rule.proxy.id not in proxy_rules:
+                proxy_rules[rule.proxy.id] = {
+                    'proxy': rule.proxy,
+                    'rules': {
+                        'ip_exclude': [],
+                        'ip_list': [],
+                        'ip_cidr': [],
+                        'ip_range': [],
+                        'ip_regex': []
+                    }
+                }
+            proxy_rules[rule.proxy.id]['rules'][rule.type].append(rule)
 
-        # 再检查IP列表规则（精确匹配）
-        list_rules = active_rules.filter(type='ip_list')
-        for rule in list_rules:
-            if ProxyAssignment._match_rule(rule, ip_address):
-                return rule.proxy
+        excluded_proxies = set()
 
-        # 检查IP子网规则（CIDR）
-        cidr_rules = active_rules.filter(type='ip_cidr')
-        for rule in cidr_rules:
-            if ProxyAssignment._match_rule(rule, ip_address):
-                return rule.proxy
+        for proxy_id, proxy_data in proxy_rules.items():
+            for rule in proxy_data['rules']['ip_exclude']:
+                if ProxyAssignment._match_rule(rule, ip_address):
+                    excluded_proxies.add(proxy_id)
+                    break
 
-        # 检查IP范围规则
-        range_rules = active_rules.filter(type='ip_range')
-        for rule in range_rules:
-            if ProxyAssignment._match_rule(rule, ip_address):
-                return rule.proxy
+        rule_types_by_priority = ['ip_list', 'ip_cidr', 'ip_range', 'ip_regex']
 
-        # 最后检查IP正则规则
-        regex_rules = active_rules.filter(type='ip_regex')
-        for rule in regex_rules:
-            if ProxyAssignment._match_rule(rule, ip_address):
-                return rule.proxy
+        for rule_type in rule_types_by_priority:
+            for proxy_id, proxy_data in proxy_rules.items():
+                if proxy_id in excluded_proxies:
+                    continue
+
+                for rule in proxy_data['rules'][rule_type]:
+                    if ProxyAssignment._match_rule(rule, ip_address):
+                        return proxy_data['proxy']
 
         return None
 
@@ -106,14 +109,11 @@ class ProxyAssignment:
         try:
             host_ip = ipaddress.ip_address(ip_address)
 
-            # 支持多个范围，用逗号分隔
-            for range_expr in rule_value.split(','):
-                range_expr = range_expr.strip()
-                start, end = range_expr.split('-')
-                start_ip = ipaddress.ip_address(start.strip())
-                end_ip = ipaddress.ip_address(end.strip())
-                if start_ip <= host_ip <= end_ip:
-                    return True
+            start, end = rule_value.split('-')
+            start_ip = ipaddress.ip_address(start.strip())
+            end_ip = ipaddress.ip_address(end.strip())
+            if start_ip <= host_ip <= end_ip:
+                return True
         except Exception as e:
             logger.error(f"Error occurred while matching IP range: {str(e)}")
 
