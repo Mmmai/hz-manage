@@ -252,8 +252,12 @@ const getCiModelList = async () => {
   // 设置默认为host
   // ciModelId.value = ciStore.ciLastModel
   // modelInfo.value = modelist.value.find((item) => item.name === "hosts");
-  if (newCiModelId.value === null) {
+  console.log(newCiModelId.value);
+  if (newCiModelId.value === undefined || newCiModelId.value === null) {
     ciModelId.value = modelist.value.find((item) => item.name === "hosts").id;
+    nextTick(() => {
+      ciStore.setCiLastModel(ciModelId.value);
+    });
   } else {
     ciModelId.value = newCiModelId.value;
   }

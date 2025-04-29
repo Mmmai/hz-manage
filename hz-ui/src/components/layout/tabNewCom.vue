@@ -54,7 +54,14 @@
   </div>
 </template>
 <script lang="ts" setup>
-import { ref, computed, getCurrentInstance, onMounted, watch } from "vue";
+import {
+  ref,
+  computed,
+  getCurrentInstance,
+  onMounted,
+  watch,
+  inject,
+} from "vue";
 import { ElTree } from "element-plus";
 import {
   ContextMenu,
@@ -73,7 +80,9 @@ const nowTab = ref(route.fullPath);
 
 import useTabsStore from "@/store/tabs";
 import { ArrowDown, Refresh } from "@element-plus/icons-vue";
-
+import { nextTick } from "vue";
+import { useKeepAliveStore } from "@/store/keepAlive";
+const keepAliveStore = useKeepAliveStore();
 const tabsStore = useTabsStore();
 // console.log(route)
 const tabsMenuList = computed(() => tabsStore.tabsMenuList);
@@ -95,6 +104,7 @@ watch(
       path: route.path,
       name: route.name as string,
       fullPath: route.fullPath,
+      isKeepAlive: route.meta.isKeepAlive,
       //   close: !route.meta.isAffix,
       //   isKeepAlive: route.meta.isKeepAlive as boolean
     };
@@ -187,8 +197,19 @@ const closeAllTab = () => {
   router.push("/home");
 };
 // 刷新
+// 刷新当前页
+const refreshCurrentPage: Function = inject("refresh") as Function;
 const refresh = () => {
-  window.location.reload();
+  setTimeout(() => {
+    route.meta.isKeepAlive &&
+      keepAliveStore.removeKeepAliveName(route.fullPath as string);
+    refreshCurrentPage(false);
+    nextTick(() => {
+      route.meta.isKeepAlive &&
+        keepAliveStore.addKeepAliveName(route.fullPath as string);
+      refreshCurrentPage(true);
+    });
+  }, 0);
 };
 </script>
 

@@ -11,6 +11,8 @@ export const useConfigStore = defineStore(
     const gmCry = ref({});
     const showAllPass = ref(false)
     const showAllPassTime = ref(0 * 1000)
+    // zabbix相关
+
     const setGmCry = (params) => {
       gmCry.value = params
     }

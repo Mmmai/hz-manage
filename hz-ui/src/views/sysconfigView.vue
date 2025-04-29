@@ -1,6 +1,9 @@
 <template>
   <div class="card">
     <el-tabs v-model="activeName" class="demo-tabs" @tab-click="handleClick">
+      <el-tab-pane label="zabbix配置" name="zabbix">
+        <zabbixConfig />
+      </el-tab-pane>
       <el-tab-pane label="安全参数" name="security">
         <securityConfig />
       </el-tab-pane>
@@ -24,12 +27,13 @@ import {
 const { proxy } = getCurrentInstance();
 import { useStore } from "vuex";
 import securityConfig from "@/components/sysconfig/securityConfig.vue";
+import zabbixConfig from "@/components/sysconfig/zabbixConfig.vue";
 
 const store = useStore();
 
 import type { TabsPaneContext } from "element-plus";
 
-const activeName = ref("security");
+const activeName = ref("zabbix");
 
 const handleClick = (tab: TabsPaneContext, event: Event) => {
   console.log(tab, event);

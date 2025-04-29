@@ -398,15 +398,20 @@ const filterMethod = (filters: object) => {
 
 const getZabbixStatus = async () => {
   let res = await proxy.$api.updateZabbixAvailability();
-  console.log(res);
+  // console.log(res);
+  if (res.status == 200) {
+    ElMessage({
+      type: "success",
+      message: "触发成功",
+    });
+  }
 };
 const syncToZabbix = async () => {
   let res = await proxy.$api.syncZabbixHost();
-  console.log(res);
-  ElNotification({
-    title: "Success",
-    message: "触发主机同步~",
+  // console.log(res);
+  ElMessage({
     type: "success",
+    message: "触发主机同步~",
   });
 };
 const eventSource = ref(null);
@@ -427,23 +432,24 @@ const openSse = (sseUrl) => {
   };
 };
 const closeSse = () => {
-  eventSource.value.close();
+  eventSource.value?.close();
 };
 // 安装agent
 const installAction = async (params: object) => {
   let res = await proxy.$api.installAgent(params);
-  console.log(res);
+  // console.log(res);
   if (res.status == 200) {
     ElMessage({
       type: "success",
       message: "触发成功",
     });
     isLoading.value = true;
-    if (params.all) {
-      openSse(`/api/v1/agent_status_sse/?all=true`);
-    } else {
-      openSse(`/api/v1/agent_status_sse/?ids=${JSON.stringify(params.ids)}`);
-    }
+    openSse(`/api/v1/agent_status_sse/?cache_key=${res.data.cache_key}`);
+    // if (params.all) {
+    //   openSse(`/api/v1/agent_status_sse/?all=true`);
+    // } else {
+    //   openSse(`/api/v1/agent_status_sse/?ids=${JSON.stringify(params.ids)}`);
+    // }
   } else {
     ElMessage({
       type: "error",

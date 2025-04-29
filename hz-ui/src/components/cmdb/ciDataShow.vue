@@ -323,7 +323,12 @@
             {{ decrypt_sm4(gmConfig.key, gmConfig.mode, scope.row[data.name]) }}
           </div>
           <div v-else>
-            <el-text v-if="scope.row[data.name]?.length >> 0">******</el-text>
+            <el-text v-if="scope.row[data.name]?.length >> 0">{{
+              "*".repeat(
+                decrypt_sm4(gmConfig.key, gmConfig.mode, scope.row[data.name])
+                  .length
+              )
+            }}</el-text>
             <el-text v-else></el-text>
           </div>
         </template>
@@ -796,7 +801,16 @@
                             :class="{ requiredClass: fitem.required }"
                             @mouseenter="showPassButton = true"
                             @mouseleave="showPassButton = false"
-                            >********
+                          >
+                            {{
+                              "*".repeat(
+                                decrypt_sm4(
+                                  gmConfig.key,
+                                  gmConfig.mode,
+                                  ciDataForm[fitem.name]
+                                ).length
+                              )
+                            }}
                             <el-popover
                               v-permission="
                                 `${route.name?.replace(

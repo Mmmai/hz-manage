@@ -86,7 +86,7 @@ export default {
     return axios.request({ url: path.cmdbCiModelField + params.id + '/', method: 'patch', data: params })
   },
   getCiModelFieldType(params = null) {
-    return axios.request({ url: path.cmdbCiModelField + '/metadata', method: 'get' })
+    return axios.request({ url: path.cmdbCiModelField + 'metadata', method: 'get' })
 
   },
   // 字段校验

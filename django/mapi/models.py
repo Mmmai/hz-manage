@@ -227,11 +227,19 @@ class Datasource(models.Model):
 
 
 class sysConfigParams(models.Model):
+    class TypeChoices(models.TextChoices):
+        STRING = 'string', '字符串'
+        INTER = 'int', '整数'
+        FLOAT = 'float', '小数'
+        # JSON = 'fr', 'French'
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    param_name = models.CharField(max_length=254, unique=True,verbose_name = "参数名")
-    param_value = models.CharField(max_length=254,null=True,blank=True,verbose_name = "参数值")    
+    verbose_name = models.CharField(max_length=254, null=True,blank=True,verbose_name = "参数名称")
+    param_name = models.CharField(max_length=254, unique=True,verbose_name = "参数代码")
+    param_value = models.CharField(max_length=254,null=True,blank=True,verbose_name = "参数值")
+    param_type = models.CharField(max_length=50, choices=TypeChoices.choices, default=TypeChoices.STRING)    
+    description = models.TextField(blank=True, null=True,verbose_name="参数说明") 
     class Meta:
         db_table = "tb_sysconfig"
         verbose_name = "系统参数配置表"
-        verbose_name_plural = verbose_name
+        # verbose_name_plural = verbose_name
         app_label = 'mapi'

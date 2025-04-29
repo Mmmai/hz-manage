@@ -19,9 +19,15 @@
           <!-- <keep-alive include="lokiView">
                   <component :is="Component" />
                 </keep-alive> -->
+
+          <!-- <component
+                  :is="Component"
+                  :key="route.path"
+                  v-if="!['model', 'iframe'].includes($route.name)"
+                /> -->
           <router-view>
             <template #default="{ Component, route }">
-              <keep-alive>
+              <keep-alive :include="keepAliveName">
                 <component
                   :is="Component"
                   :key="route.path"
@@ -43,24 +49,34 @@
     </el-container>
   </div>
 </template>
-<script setup>
+<script setup lang="ts">
 import headerCom from "../components/layout/headerCom.vue";
 import asideCom from "../components/layout/asideCom.vue";
 import tabNewCom from "../components/layout/tabNewCom.vue";
 import iframeView from "./iframeView.vue";
 import { onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { getCurrentInstance } from "vue";
+import { getCurrentInstance, ref, nextTick, provide } from "vue";
 const { proxy } = getCurrentInstance();
+import { useKeepAliveStore } from "@/store/keepAlive";
 // import router from '../router';
 // proxy.$api.test().then(res => {
 //   console.log(res)
 // })
+import { storeToRefs } from "pinia";
 import { useStore } from "vuex";
+const keepAliveStore = useKeepAliveStore();
+const { keepAliveName } = storeToRefs(keepAliveStore);
 const store = useStore();
 
 const route = useRoute();
 const router = useRouter();
+
+// import { RouterLink, RouterView } from 'vue-router'
+const isRouterShow = ref(true);
+const refreshCurrentPage = (val: boolean) => (isRouterShow.value = val);
+provide("refresh", refreshCurrentPage);
+
 onMounted(async () => {
   // await store.dispatch("getSecret");
   // console.log("route", route);
