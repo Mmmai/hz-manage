@@ -8,7 +8,7 @@
         <el-text tag="b">实例树</el-text>
       </el-col>
       <el-col :span="14">
-        <el-select
+        <!-- <el-select
           v-model="ciModelId"
           placeholder="Select"
           @change="changeModel()"
@@ -19,7 +19,14 @@
             :label="item.verbose_name"
             :value="item.id"
           />
-        </el-select>
+        </el-select> -->
+        <el-tree-select
+          v-model="ciModelId"
+          :data="modelOptions"
+          @change="changeModel()"
+          :render-after-expand="false"
+          style="display: block; width: 100%; height: 100%"
+        />
       </el-col>
     </el-row>
 
@@ -172,9 +179,12 @@ import ciDataShow from "../components/cmdb/ciDataShow.vue";
 const { proxy } = getCurrentInstance();
 import { ElTree } from "element-plus";
 import type Node from "element-plus/es/components/tree/src/model/node";
-import useCiStore from "@/store/cmdb/ci";
+
+import { TreeOptionsEnum } from "element-plus/es/components/tree-v2/src/virtual-tree";
 const showTree = ref(true);
+import useCiStore from "@/store/cmdb/ci";
 const ciStore = useCiStore();
+const ciModelId = ref("");
 // const modelInfo = ref("");
 // const currentIconName = defineModel('iconName')
 // const emit = defineEmits(["toChildGetCiData"])
@@ -229,9 +239,10 @@ const getCiModelTree = async () => {
   });
   loading.value = false;
 };
+const newCiModelId = computed(() => ciStore.ciLastModel);
 // 获取所有模型列表
 const modelist = ref([]);
-const ciModelId = ref("");
+// const ciModelId = ref("");
 
 // const defaultCimodelId = ref('id')
 const getCiModelList = async () => {
@@ -239,9 +250,41 @@ const getCiModelList = async () => {
   modelist.value = res.data.results;
   ciStore.setModelList(modelist.value);
   // 设置默认为host
+  // ciModelId.value = ciStore.ciLastModel
   // modelInfo.value = modelist.value.find((item) => item.name === "hosts");
-  ciModelId.value = modelist.value.find((item) => item.name === "hosts").id;
+  console.log(newCiModelId.value);
+  if (newCiModelId.value === undefined || newCiModelId.value === null) {
+    ciModelId.value = modelist.value.find((item) => item.name === "hosts").id;
+    nextTick(() => {
+      ciStore.setCiLastModel(ciModelId.value);
+    });
+  } else {
+    ciModelId.value = newCiModelId.value;
+  }
 };
+// 获取模型组id
+const grouplist = ref([]);
+const getCiModelGroupList = async () => {
+  let res = await proxy.$api.getCiModelGroup();
+  grouplist.value = res.data.results;
+};
+const modelOptions = computed(() => {
+  let tempArr = new Array();
+  grouplist.value.forEach((item) => {
+    let tempChildrenArr = new Array();
+    modelist.value.forEach((item2) => {
+      if (item2.model_group === item.id) {
+        tempChildrenArr.push({ value: item2.id, label: item2.verbose_name });
+      }
+    });
+    tempArr.push({
+      value: item.id,
+      label: item.verbose_name,
+      children: tempChildrenArr,
+    });
+  });
+  return tempArr;
+});
 
 const modelInfoObj = computed(() => {
   let tmpObj = {};
@@ -255,10 +298,11 @@ const modelInfoObj = computed(() => {
 const ciDataShowRef = ref("");
 // 切换模型时
 const changeModel = async () => {
+  // 保存当前模型
+  ciStore.setCiLastModel(ciModelId.value);
   currentNodeId.value = 1;
   // modelInfo
   // ciModelId.value = ;
-  console.log(ciModelId.value);
   await getCiModelTree();
   // modelInfo.value = modelInfoObj.value[ciModelId.value]
   // console.log(modelInfo.value)
@@ -287,7 +331,7 @@ const changeModel = async () => {
 //   console.log(modelInfo.value)
 // },{deep:true})
 onMounted(async () => {
-  console.log(123);
+  await getCiModelGroupList();
   await getCiModelList();
   await getCiModelTree();
   ciDataShowRef.value!.setLoading(true);

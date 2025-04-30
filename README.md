@@ -27,13 +27,16 @@ cd django
 
 python .\manage.py makemigrations mapi mlog cmdb
 
+python .\manage.py migrate 
+
 python .\manage.py migrate mapi
 
 python .\manage.py migrate mlog
 
 python .\manage.py migrate cmdb --database=cmdb
 
-python .\manage.py runserver
+
+daphne -b 0.0.0.0 -p 8000 vuedjango.asgi:application
 
 #windows
 
@@ -47,9 +50,7 @@ cd django
 
 celery -A vuedjango worker -l info
 
-#ws 
 
-uvicorn vuedjango.asgi:application --host 0.0.0.0 --port 8001
 
 # 前端部署
 

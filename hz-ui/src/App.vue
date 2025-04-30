@@ -4,7 +4,19 @@
   <router-view></router-view>
 </template>
 <script setup lang="ts">
+import { nextTick, provide, ref } from "vue";
+
 // import { RouterLink, RouterView } from 'vue-router'
+const isRouterAlive = ref(true);
+
+const reload = () => {
+  isRouterAlive.value = false;
+  nextTick(() => {
+    isRouterAlive.value = true;
+  });
+};
+
+provide("reload", reload);
 </script>
 <style lang="scss">
 html,

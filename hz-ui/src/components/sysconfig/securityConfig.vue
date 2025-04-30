@@ -64,7 +64,7 @@ const formInline = reactive({
 const nowKey = ref({});
 const getKey = async () => {
   let res = await proxy.$api.getSysConfig({ param_name: "secret_key" });
-  nowKey.value = res.data.results[0];
+  nowKey.value = res.data[0];
   // console.log(nowKey.value);
 };
 

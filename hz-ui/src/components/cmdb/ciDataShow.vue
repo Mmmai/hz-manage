@@ -21,13 +21,39 @@
           >添加</el-button
         >
         <!-- <el-button @click="isShowUpload = true">导入</el-button> -->
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="勾选实例且非<所有>分组才支持转移~"
+          placement="top"
+          v-if="
+            (multipleSelectId.length >>> 0 || isSelectAll) &&
+            treeAllId !== currentNodeId
+              ? false
+              : true
+          "
+        >
+          <el-button
+            :disabled="
+              (multipleSelectId.length >>> 0 || isSelectAll) &&
+              treeAllId !== currentNodeId
+                ? false
+                : true
+            "
+            @click="ciDataToTree = true"
+            v-permission="`${route.name?.replace('_info', '')}:edit`"
+            >转移</el-button
+          >
+        </el-tooltip>
         <el-button
+          v-else
           :disabled="
             (multipleSelectId.length >>> 0 || isSelectAll) &&
             treeAllId !== currentNodeId
               ? false
               : true
           "
+          content="勾选实例且非<所有>分组才支持转移~"
           @click="ciDataToTree = true"
           v-permission="`${route.name?.replace('_info', '')}:edit`"
           >转移</el-button
@@ -247,6 +273,7 @@
         show-overflow-tooltip
         sortable
         min-width="120"
+        max-width="220"
       >
         <!-- 新增管理口跳转 -->
         <template #default="scope" v-if="data.name === 'mgmt_ip'">
@@ -296,7 +323,12 @@
             {{ decrypt_sm4(gmConfig.key, gmConfig.mode, scope.row[data.name]) }}
           </div>
           <div v-else>
-            <el-text v-if="scope.row[data.name]?.length >> 0">******</el-text>
+            <el-text v-if="scope.row[data.name]?.length >> 0">{{
+              "*".repeat(
+                decrypt_sm4(gmConfig.key, gmConfig.mode, scope.row[data.name])
+                  .length
+              )
+            }}</el-text>
             <el-text v-else></el-text>
           </div>
         </template>
@@ -769,7 +801,16 @@
                             :class="{ requiredClass: fitem.required }"
                             @mouseenter="showPassButton = true"
                             @mouseleave="showPassButton = false"
-                            >********
+                          >
+                            {{
+                              "*".repeat(
+                                decrypt_sm4(
+                                  gmConfig.key,
+                                  gmConfig.mode,
+                                  ciDataForm[fitem.name]
+                                ).length
+                              )
+                            }}
                             <el-popover
                               v-permission="
                                 `${route.name?.replace(
@@ -1728,20 +1769,21 @@ const multipleParams = computed(() => {
 });
 
 const bulkDelete = async () => {
-  let res = null;
+  let params = new Object();
   if (isSelectAll.value) {
     // 条件下的全量更新
-    res = await proxy.$api.bulkDeleteCiModelInstance({
+    params = {
       update_user: store.state.username,
       ...multipleParams,
-    });
+    };
   } else {
-    res = await proxy.$api.bulkDeleteCiModelInstance({
+    params = {
       update_user: store.state.username,
       instances: multipleSelectId.value,
-    });
+    };
   }
-
+  let res = await proxy.$api.bulkDeleteCiModelInstance(params);
+  // console.log(res);
   if (res.status == "200") {
     ElMessage({
       type: "success",
@@ -1965,23 +2007,24 @@ const saveCommit = () => {
     if (valid) {
       // 批量更新的方法
       // return;
-      let res = undefined;
+      // let res = undefined;
+      let params = new Object();
       if (isSelectAll.value) {
         // 条件下的全量更新
-        res = await proxy.$api.multipleUpdateCiModelInstance({
+        params = {
           update_user: store.state.username,
           fields: multipleCommitParam.value,
           model: props.ciModelId,
           ...multipleParams,
-        });
+        };
       } else {
-        res = await proxy.$api.multipleUpdateCiModelInstance({
+        params = {
           update_user: store.state.username,
           instances: multipleSelectId.value,
           fields: multipleCommitParam.value,
-        });
+        };
       }
-
+      let res = await proxy.$api.multipleUpdateCiModelInstance(params);
       // 发起更新请求
       if (res.status == "200") {
         ElMessage({ type: "success", message: "更新成功" });

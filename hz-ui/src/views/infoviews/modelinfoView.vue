@@ -3,7 +3,7 @@
     <el-scrollbar>
       <el-row class="cimodelinfo" justify="space-between">
         <el-col :span="20">
-          <el-space :size="30" style="width: 40%">
+          <el-space :size="30">
             <el-button size="large" circle disabled style="margin: 10px">
               <!-- <Icon :icon="ciModelInfo.icon"></Icon> -->
               <iconifyOffline :icon="ciModelInfo?.icon" />
@@ -22,12 +22,14 @@
               <el-text tag="b">{{ ciModelInfo.verbose_name }}</el-text>
             </el-text>
 
-            <el-text
+            <el-text style="display: flex"
               >实例数:&nbsp;&nbsp;
-              <el-link type="primary" tag="b" disabled href="/#/cmdb/cidata">{{
+              <el-link type="primary" tag="b" @click="goto_ciData()">{{
                 ciModelInfo.instance_count
               }}</el-link>
             </el-text>
+            <!--                 :href="`/#/cmdb/cidata/?model=${ciModelInfo.id}`"
+ -->
           </el-space>
         </el-col>
         <el-col
@@ -78,9 +80,10 @@
             :ciModelInfo="ciModelInfo"
             :modelFieldLists="modelFieldLists"
             ref="ciModelTemplateRef"
-            @getCiModel="getModelInfo"
           />
         </el-tab-pane>
+        <!--             @getCiModel="getModelInfo"
+ -->
         <!-- <el-tab-pane label="Role" verbose_name="third">Role</el-tab-pane>
     <el-tab-pane label="Task" verbose_name="fourth">Task</el-tab-pane> -->
       </el-tabs>
@@ -154,6 +157,7 @@ import {
   onUnmounted,
   onBeforeMount,
   computed,
+  nextTick,
 } from "vue";
 import iconSelectCom from "../../components/iconSelectCom.vue";
 import { useStore } from "vuex";
@@ -165,7 +169,16 @@ import type { ComponentSize, FormInstance, FormRules } from "element-plus";
 import ciModelField from "../../components/cmdb/ciModelField.vue";
 import ciModelUnique from "../../components/cmdb/ciModelUnique.vue";
 import ciModelTemplate from "../../components/cmdb/ciModelTemplateName.vue";
-
+import useCiStore from "@/store/cmdb/ci";
+const ciStore = useCiStore();
+const goto_ciData = () => {
+  // console.log(ciModelInfo);
+  ciStore.setCiLastModel(ciModelInfo.value.id);
+  console.log(computed(() => ciStore.ciLastModel).value);
+  nextTick(() => {
+    router.push({ path: "/cmdb/cidata" });
+  });
+};
 const ciModelUniqueRef = ref("");
 const ciModelFieldRef = ref("");
 const ciModelTemplateRef = ref("");

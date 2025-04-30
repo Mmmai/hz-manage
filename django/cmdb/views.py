@@ -882,7 +882,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
 
         response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
         response['Cache-Control'] = 'no-cache'
-        response['X-Accel-Buffering'] = 'no'
+        # response['X-Accel-Buffering'] = 'no'
         return response
 
     @action(detail=False, methods=['post'])

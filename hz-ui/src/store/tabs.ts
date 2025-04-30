@@ -3,6 +3,9 @@ import { defineStore } from "pinia";
 import piniaPersistConfig from "@/utils/persist"
 import { ref, computed } from 'vue'
 import { parseMinWidth } from 'element-plus/es/components/table/src/util.mjs';
+import { useKeepAliveStore } from "./keepAlive";
+
+const keepAliveStore = useKeepAliveStore();
 export const useTabsStore = defineStore(
   "tabs",
   () => {
@@ -60,7 +63,9 @@ export const useTabsStore = defineStore(
       if (tabsMenuList.value.every(item => item.path !== tabItem.path)) {
         tabsMenuList.value.push(tabItem);
       }
-
+      if (!keepAliveStore.keepAliveName.includes(tabItem.name) && tabItem.isKeepAlive) {
+        keepAliveStore.addKeepAliveName(tabItem.name);
+      }
 
     }
     const removeTabs = (tabPath: string, isCurrent: boolean = true) => {
@@ -73,7 +78,13 @@ export const useTabsStore = defineStore(
           const nextTab = tabsMenuList.value[index + 1] || tabsMenuList.value[index - 1];
 
           if (!nextTab) return;
-          router.push(nextTab.path)
+          if (nextTab.name === "model_info") {
+            router.push(nextTab.fullPath)
+
+          } else {
+            router.push(nextTab.path)
+
+          }
           // currentTitle.value = nextTab.title
           // console.log(currentTitle.value)
         });
@@ -92,6 +103,8 @@ export const useTabsStore = defineStore(
       // let _tempList = tabsMenuList.value.filter(item => item.path !== tabPath || item.fullPath !== tabPath)
       tabsMenuList.value = _tempList
       console.log(tabsMenuList.value)
+      const tabItem = tabsMenuList.value.find(item => item.path === tabPath);
+      tabItem?.isKeepAlive && keepAliveStore.removeKeepAliveName(tabItem.name);
     }
     const setTabs = (params: TabsMenuProps[]) => {
       tabsMenuList.value = params;
@@ -104,12 +117,17 @@ export const useTabsStore = defineStore(
           return index < range[0] || index >= range[1] || item.name == 'home';
         });
       }
+      const KeepAliveList = tabsMenuList.value.filter(item => item.isKeepAlive);
+      keepAliveStore.setKeepAliveName(KeepAliveList.map(item => item.name));
+
     }
     // Close MultipleTab
     const closeMultipleTab = (tabsMenuValue?: string) => {
       tabsMenuList.value = tabsMenuList.value.filter(item => {
         return item.path === tabsMenuValue || item.name == 'home';
       });
+      const KeepAliveList = tabsMenuList.value.filter(item => item.isKeepAlive);
+      keepAliveStore.setKeepAliveName(KeepAliveList.map(item => item.name));
       // router.push(tabsMenuValue)
     }
 

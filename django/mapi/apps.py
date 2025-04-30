@@ -1,9 +1,9 @@
 from django.apps import AppConfig
 from django.db.models.signals import post_migrate
-from .init_data import INIT_MENU
+from .init_data import INIT_MENU,INIT_CONFIG
 from .utils.comm import get_uuid
 from django.db.utils import OperationalError
-
+import os
 
 
 class MapiConfig(AppConfig):
@@ -89,7 +89,9 @@ class MapiConfig(AppConfig):
         # 生成密钥
         initSysConfig = sysConfigParams.objects.all()
         if len(initSysConfig) == 0:
-            sm4_key = get_uuid()
-            sysConfigParams.objects.create(param_name="secret_key",param_value=sm4_key)
-            sysConfigParams.objects.create(param_name="secret_mode",param_value="ecb")
-            print(f"创建国密秘钥: {sm4_key}")
+            sysconfigs = []
+            for param in INIT_CONFIG:
+                sysconfigs.append(sysConfigParams(verbose_name=param["verbose_name"],param_name=param["param_name"],
+                                                  param_value=param["param_value"],param_type=param["param_type"],
+                                                  description=param["description"]))
+            sysConfigParams.objects.bulk_create(sysconfigs,ignore_conflicts=True)

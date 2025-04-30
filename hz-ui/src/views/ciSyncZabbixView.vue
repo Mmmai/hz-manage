@@ -2,29 +2,52 @@
   <div class="card">
     <div class="table-header">
       <div class="header-button-lf">
-        <el-button
-          v-permission="`${route.name?.replace('_info', '')}:add`"
-          type="primary"
-          @click="syncToZabbix()"
-          >触发同步</el-button
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="触发主机信息同步到zabbix"
+          placement="top"
         >
-        <el-button
-          v-permission="`${route.name?.replace('_info', '')}:add`"
-          type="primary"
-          @click="getZabbixStatus()"
-          >可用性更新</el-button
+          <el-button
+            v-permission="`${route.name?.replace('_info', '')}:add`"
+            type="primary"
+            @click="syncToZabbix()"
+            >触发同步</el-button
+          >
+        </el-tooltip>
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="更新Zabbix接口可用性的状态信息"
+          placement="top"
         >
-        <el-button
-          v-permission="`${route.name?.replace('_info', '')}:add`"
-          type="primary"
-          :disabled="multipleSelection.length >>> 1 ? false : true"
-          @click="installAgent({ ids: multipleSelection })"
-          >批量安装</el-button
+          <el-button
+            v-permission="`${route.name?.replace('_info', '')}:add`"
+            type="primary"
+            @click="getZabbixStatus()"
+            >可用性更新</el-button
+          >
+        </el-tooltip>
+
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="触发重装已勾选的主机"
+          placement="top"
         >
+          <el-button
+            v-permission="`${route.name?.replace('_info', '')}:add`"
+            type="primary"
+            :disabled="multipleSelection.length >>> 0 ? false : true"
+            @click="installAction({ ids: multipleSelection })"
+            >批量安装</el-button
+          >
+        </el-tooltip>
+
         <el-button
           v-permission="`${route.name?.replace('_info', '')}:add`"
           type="primary"
-          @click="installAgent({ all: true })"
+          @click="installAction({ all: true })"
           >触发失败重装</el-button
         >
       </div>
@@ -49,6 +72,7 @@
       </div>
     </div>
     <el-table
+      v-loading="isLoading"
       ref="multipleTableRef"
       :data="syncHosts"
       style="width: 100%"
@@ -117,7 +141,7 @@
               link
               type="primary"
               :icon="Refresh"
-              @click="installAgent({ ids: [scope.row.id] })"
+              @click="installAction({ ids: [scope.row.id] })"
             ></el-button>
           </el-tooltip>
         </template>
@@ -155,6 +179,7 @@ import {
   onMounted,
   reactive,
   nextTick,
+  onUnmounted,
 } from "vue";
 const { proxy } = getCurrentInstance();
 import { useStore } from "vuex";
@@ -163,58 +188,16 @@ const syncHosts = ref([]);
 import { useRoute } from "vue-router";
 import { ElMessageBox, ElMessage, ElNotification } from "element-plus";
 
-import { tr } from "element-plus/es/locale/index.mjs";
+import { pa, tr } from "element-plus/es/locale/index.mjs";
 import { Row } from "element-plus/es/components/table-v2/src/components/index.mjs";
 const route = useRoute();
 const colValue = ref("name");
 const filterValue = ref<string>("");
+const isLoading = ref(true);
 // const filterParam = computed(() => {
 //   return { [colValue.value]: filterValue.value };
 // });
 // watch
-// 正则测试
-const testRegex = ref(null);
-const testRegexRes = computed(() => {
-  // 用户输入的正则表达式
-  if (testRegex.value === null) return true;
-  var regexString = RegExp(formInline.rule);
-  if (regexString.test(testRegex.value)) {
-    return true;
-  } else {
-    return false;
-  }
-});
-const tmpFormData = ref([{ name: "", value: "" }]);
-const arrayJson = computed(() => {
-  let tempArr = {};
-  tmpFormData.value.forEach((item) => {
-    if (item.name !== "" && item.value !== "") {
-      tempArr[item.name] = item.value;
-    }
-  });
-  return tempArr;
-});
-// 重复
-const isUniq = computed(() => {
-  return (
-    proxy.$commonFunc.hasDuplicates(Object.keys(arrayJson.value)) ||
-    proxy.$commonFunc.hasDuplicates(Object.values(arrayJson.value))
-  );
-});
-watch(
-  () => arrayJson.value,
-  (n) => {
-    if (Object.keys(n).length === 0) return;
-    formInline.rule = JSON.stringify(arrayJson.value);
-  }
-);
-const addField = (index) => {
-  tmpFormData.value.splice(index + 1, 0, { name: "", value: "" });
-};
-const rmField = (index) => {
-  tmpFormData.value.splice(index, 1);
-  console.log(tmpFormData.value);
-};
 const colLists = ref([
   {
     value: "name",
@@ -353,10 +336,11 @@ const getZabbixSyncHost = async (params = null) => {
     ...sortParam.value,
     ...params,
   });
-  console.log(res);
+  // console.log(res);
   syncHosts.value = res.data.results;
   // syncHosts.value = res.data;
   totalCount.value = res.data.count;
+  isLoading.value = false;
 };
 
 onMounted(() => {
@@ -365,7 +349,7 @@ onMounted(() => {
 
 const multipleSelection = ref([]);
 const handleSelectionChange = (val) => {
-  multipleSelection.value = val;
+  multipleSelection.value = val.map((item) => item.id);
 };
 
 // 可用性tag标签
@@ -414,26 +398,58 @@ const filterMethod = (filters: object) => {
 
 const getZabbixStatus = async () => {
   let res = await proxy.$api.updateZabbixAvailability();
-  console.log(res);
-};
-const syncToZabbix = async () => {
-  let res = await proxy.$api.syncZabbixHost();
-  console.log(res);
-  ElNotification({
-    title: "Success",
-    message: "触发主机同步~",
-    type: "success",
-  });
-};
-// 安装agent
-const installAgent = async (params: object) => {
-  let res = await proxy.$api.installAgent(params);
-  console.log(res);
-  if (res.status == 202) {
+  // console.log(res);
+  if (res.status == 200) {
     ElMessage({
       type: "success",
       message: "触发成功",
     });
+  }
+};
+const syncToZabbix = async () => {
+  let res = await proxy.$api.syncZabbixHost();
+  // console.log(res);
+  ElMessage({
+    type: "success",
+    message: "触发主机同步~",
+  });
+};
+const eventSource = ref(null);
+const openSse = (sseUrl) => {
+  eventSource.value = new EventSource(sseUrl);
+  eventSource.value.onmessage = (event) => {
+    console.log(event);
+    // if (JSON.parse(event.data).status === "SUCCESS") {
+    //   eventSource.value.close();
+    // }
+
+    if (JSON.parse(event.data).status === "completed") {
+      closeSse();
+      nextTick(() => {
+        getZabbixSyncHost();
+      });
+    }
+  };
+};
+const closeSse = () => {
+  eventSource.value?.close();
+};
+// 安装agent
+const installAction = async (params: object) => {
+  let res = await proxy.$api.installAgent(params);
+  // console.log(res);
+  if (res.status == 200) {
+    ElMessage({
+      type: "success",
+      message: "触发成功",
+    });
+    isLoading.value = true;
+    openSse(`/api/v1/agent_status_sse/?cache_key=${res.data.cache_key}`);
+    // if (params.all) {
+    //   openSse(`/api/v1/agent_status_sse/?all=true`);
+    // } else {
+    //   openSse(`/api/v1/agent_status_sse/?ids=${JSON.stringify(params.ids)}`);
+    // }
   } else {
     ElMessage({
       type: "error",
@@ -441,6 +457,9 @@ const installAgent = async (params: object) => {
     });
   }
 };
+onUnmounted(() => {
+  closeSse();
+});
 </script>
 
 <style scoped></style>

@@ -605,7 +605,7 @@ const getModelField = async () => {
   let res = await proxy.$api.getCiModel(route.query, route.query.id);
   modelInfo.value = res.data.model;
   ciModelFieldsList.value = res.data.field_groups;
-  activeArr.value = res.data.field_groups.map((item) => item.name);
+  activeArr.value = res.data.field_groups?.map((item) => item.name);
   // let tempArr = [];
   // ciModelFieldsList.value.forEach((item, index) => {
   //   activeArr.value.push(item.verbose_name);

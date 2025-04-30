@@ -220,7 +220,13 @@ const api = {
       method: 'patch',
       data: params
     })
+  },
+  updateZabbixConfig(params) {
+    return axios.request({
+      url: path.sysConfig + 'update_zabbix_params/',
+      method: 'post',
+      data: params
+    })
   }
-
 }
 export default api;

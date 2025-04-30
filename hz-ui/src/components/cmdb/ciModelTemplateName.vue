@@ -9,7 +9,9 @@
     <el-button type="primary" @click="editAction" v-show="!isEdit"
       >编辑</el-button
     >
-
+    <el-button type="primary" v-throttle @click="updateCiName"
+      >更新唯一标识</el-button
+    >
     <el-button @click="cancelAction" v-show="isEdit">取消</el-button>
     <el-button type="primary" @click="commit" v-show="isEdit">保存</el-button>
     <el-divider>可选择指标</el-divider>
@@ -46,6 +48,23 @@
         </div>
       </div>
     </VueDraggable>
+    <el-divider>效果预览</el-divider>
+    <div
+      style="
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+      "
+    >
+      <h3>
+        {{
+          checkboxLists
+            .map((item) => modelFieldMap[item].verbose_name)
+            .join(" - ")
+        }}
+      </h3>
+    </div>
   </div>
 </template>
 
@@ -97,6 +116,16 @@ const cancelAction = () => {
   // 后端获取
   isEdit.value = false;
 };
+
+const updateCiName = async () => {
+  let res = await proxy.$api.updateInstanceName(props.modelId);
+  console.log(res);
+  ElNotification({
+    title: "Success",
+    message: "更新任务提交成功",
+    type: "success",
+  });
+};
 // 更新任务的task
 const taskPercentage = ref(0);
 const commit = async () => {
@@ -113,18 +142,9 @@ const commit = async () => {
       cancelButtonText: "取消",
       type: "warning",
     })
-      .then(async () => {
-        let res = await proxy.$api.updateInstanceName(props.modelId);
-        console.log(res);
-        ElNotification({
-          title: "Success",
-          message: "更新任务提交成功",
-          type: "success",
-        });
-        ElMessage({
-          type: "success",
-          message: "Delete completed",
-        });
+      .then(() => {
+        // 触发唯一标识更新接口
+        updateCiName();
       })
       .catch(() => {
         ElMessage({

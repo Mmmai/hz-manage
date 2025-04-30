@@ -1,3 +1,5 @@
+from .utils.comm import get_uuid
+import os
 # 初始化创建目录
 INIT_MENU = [
     {
@@ -61,39 +63,24 @@ INIT_MENU = [
         "parentid_id": ''
     },
     {
-        "label": "资源",
-        "icon": "ep:message-box",
-        "name": "cidata",
-        "status": 1,
-        "path": "/cidata",
-        "is_menu": 1,
-        "sort": 0,
-        "has_info": 0,
-        "info_view_name": '',
-        "is_iframe": 0,
-        "iframe_url": '',
-        "description": "",
-        "parentid_id": "cmdb",
-        "buttons": [
-            {"name": "导入", "action": "import"},
-            {"name": "导出", "action": "export"},
-            {"name": "显示密码", "action": "showPassword"},
-        ]
-    },
-    {
-        "label": "资产同步",
-        "icon": "clarity:repeat-line",
-        "name": "ciSyncZabbix",
-        "status": 1,
-        "path": "/ciSyncZabbix",
-        "is_menu": 1,
-        "sort": 0,
-        "has_info": 0,
-        "info_view_name": '',
-        "is_iframe": 0,
-        "iframe_url": '',
-        "description": "",
-        "parentid_id": "cmdb",
+      "label": "资源",
+      "icon": "ep:message-box",
+      "name": "cidata",
+      "status": 1,
+      "path": "/cidata",
+      "is_menu": 1,
+      "sort": 0,
+      "has_info": 0,
+      "info_view_name": '',
+      "is_iframe": 0,
+      "iframe_url": '',
+      "description": "",
+      "parentid_id": "cmdb",
+      "buttons": [
+                  {"name":"导入","action":"import"},
+                  {"name":"导出","action":"export"},
+                  {"name":"显示密码","action":"showPassword"},
+                  ]
     },
     {
         "label": "模型管理",
@@ -154,6 +141,36 @@ INIT_MENU = [
         "iframe_url": '',
         "description": "",
         "parentid_id": "cmdb"
+    },
+    {
+        "label": "作业平台",
+        "icon": "clarity:wrench-line",
+        "name": "workingPlatform",
+        "status": 1,
+        "path": "",
+        "is_menu": 0,
+        "sort": 4,
+        "has_info": 0,
+        "info_view_name": '',
+        "is_iframe": 0,
+        "iframe_url": '',
+        "description": "",
+        "parentid_id": "",
+    },
+    {
+      "label": "资产同步",
+      "icon": "clarity:repeat-line",
+      "name": "ciSyncZabbix",
+      "status": 1,
+      "path": "/ciSyncZabbix",
+      "is_menu": 1,
+      "sort": 0,
+      "has_info": 0,
+      "info_view_name": '',
+      "is_iframe": 0,
+      "iframe_url": '',
+      "description": "",
+      "parentid_id": "workingPlatform",
     },
     {
         "label": "日志应用",
@@ -396,5 +413,94 @@ INIT_MENU = [
         "iframe_url": '',
         "description": "",
         "parentid_id": ''
+    },
+    {
+        "label": "测试页2",
+        "icon": "ep:promotion",
+        "name": "test",
+        "status": 0,
+        "path": "test",
+        "is_menu": 1,
+        "sort": 100,
+        "has_info": 0,
+        "info_view_name": "",
+        "is_iframe": 0,
+        "iframe_url": '',
+        "description": "",
+        "parentid_id": ''
     }
+]
+
+INIT_CONFIG = [
+    {
+        "verbose_name": "sm4加密key",
+        "param_name": "secret_key",
+        "param_value": get_uuid(),
+        "param_type": "string",
+        "description": "",
+    },
+    {
+        "verbose_name":"sm4加密模式",
+        "param_name":"secret_mode",
+        "param_value": "ecb",
+        "param_type": "string",
+        "description":"",
+    },
+    {
+        "verbose_name": "开启同步",
+        "param_name": "zabbix_is_sync",
+        "param_value": 1,
+        "param_type": "int",
+        "description":"是否开启资产同步zabbix监控",
+    },
+    {
+        "verbose_name":"zabbix地址",
+        "param_name":"zabbix_url",
+        "param_value": os.environ.get('ZABBIX_URL', ''),
+        "param_type": "string",
+        "description":"例如: http://127.0.0.1/api_jsonrpc.php",
+    },
+    {
+        "verbose_name":"zabbix-server的IP",
+        "param_name":"zabbix_server",
+        "param_type": "string",
+        "param_value": os.environ.get('ZABBIX_SERVER', '127.0.0.1'),
+        "description":"例如: zabbix-server的IP地址",
+    },
+    {
+        "verbose_name":"zabbix管理用户",
+        "param_name":"zabbix_username",
+        "param_type": "string",
+        "param_value": os.environ.get('ZABBIX_USERNAME', 'Admin'),
+        "description":"",
+    },
+    {
+        "verbose_name":"密码",
+        "param_name":"zabbix_password",
+        "param_type": "string",
+        "param_value": os.environ.get('ZABBIX_PASSWORD', 'zabbix'),
+        "description":"",
+    },
+    {
+        "verbose_name":"主机模板",
+        "param_name": "host_template",
+        "param_type": "string",
+        "param_value": os.environ.get('ZABBIX_DEFAULT_HOST_TEMPLATE'),
+        "description":"填写zabbix主机监控模板的名称(全英文，不是模板可见名称!)",
+    },
+    {
+        "verbose_name":"network模板",
+        "param_name": "network_template",
+        "param_type": "string",
+        "param_value": os.environ.get('ZABBIX_DEFAULT_NETWORK_TEMPLATE'),
+        "description":"填写zabbix网络监控模板的名称(全英文，不是模板可见名称!)",
+    },
+    {
+        "verbose_name":"token注销时间",
+        "param_name":"zabbix_interval",
+        "param_type": "int",
+        "param_value": os.environ.get('ZABBIX_INTERVAL', 0),
+        "description":"单位秒,0表示不过期",
+    },
+
 ]

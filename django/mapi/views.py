@@ -1,4 +1,6 @@
 from django.shortcuts import render
+from rest_framework.filters import SearchFilter
+
 from django.http import HttpResponse,JsonResponse
 from rest_framework import filters,status
 from rest_framework.viewsets import ModelViewSet
@@ -132,7 +134,7 @@ class getMenu(APIView):
             info.pop('_state')
             parentid = info.pop('parentid_id')
             info["parentid"] = parentid
-            info["meta"] = {"role":roleList,"icon":menu.icon,"title":menu.label}
+            info["meta"] = {"role":roleList,"icon":menu.icon,"title":menu.label,"isKeepAlive":True}
             info["buttons"] = json.loads(serialized_data.decode('utf8'))
             # info["button"] 
             if info["is_iframe"]:
@@ -527,6 +529,7 @@ class dataSourceViewSet(ModelViewSet):
 class sysConfigViewSet(ModelViewSet):
     queryset = sysConfigParams.objects.all()
     serializer_class = SysConfigSerializer
+    pagination_class = None
     # filter_backends = (filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend)
     filterset_class = sysConfigParamsFilter
     ordering_fields = ['param_name', 'param_value',]
@@ -544,3 +547,14 @@ class sysConfigViewSet(ModelViewSet):
             return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+    @action(methods=['post'], detail=False)
+    def update_zabbix_params(self, request, *args, **kwargs):
+        params = json.loads(request.body)
+        # print(params)
+        params_to_update = sysConfigParams.objects.filter(param_name__in=params.keys())
+        for param in params_to_update:
+            param.param_value = params[param.param_name]
+        # 更新
+        sysConfigParams.objects.bulk_update(params_to_update,["param_value"])
+        return Response(data='update success')
+

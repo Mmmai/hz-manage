@@ -26,7 +26,17 @@
           @click="selectIcon(name)"
         >
           <!-- <Icon :icon="name" style="width: 1.2rem; height: 1.2rem"></Icon> -->
-          <iconifyOffline :icon="name" style="width: 1.2rem; height: 1.2rem" />
+          <el-tooltip
+            class="box-item"
+            effect="dark"
+            :content="name"
+            placement="top-start"
+          >
+            <iconifyOffline
+              :icon="name"
+              style="width: 1.2rem; height: 1.2rem"
+            />
+          </el-tooltip>
           <!-- {{ name }} -->
         </div>
       </div>
@@ -105,6 +115,7 @@ const selectIcon = (name) => {
   //   } else if (typeof name === "object") {
   //   currentIconName.value = name.name;
   //   }
+  console.log(currentIconName.value);
   iconDialogVisible.value = false;
 };
 //   const iconList = reactive({

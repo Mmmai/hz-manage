@@ -361,6 +361,7 @@ def lokiStepQuery(request):
 
             )
         # print(LogFlowMissionObj.mission_id)
+        # 任务提交
         task = lokiAnalysis.delay(params={
                                 "reqUrl": reqUrl,
                                 "match_key": match_key,
