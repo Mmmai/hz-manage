@@ -1,3 +1,4 @@
+import ipaddress
 import json
 import re
 import traceback
@@ -40,7 +41,9 @@ from .models import (
     ModelFieldMeta,
     RelationDefinition,
     Relations,
-    ZabbixSyncHost
+    ZabbixSyncHost,
+    ZabbixProxy,
+    ProxyAssignRule
 )
 import logging
 logger = logging.getLogger(__name__)
@@ -1934,3 +1937,137 @@ class ZabbixSyncHostSerializer(serializers.ModelSerializer):
     class Meta:
         model = ZabbixSyncHost
         fields = '__all__'
+
+
+class ZabbixProxySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ZabbixProxy
+        fields = '__all__'
+
+
+class ProxyAssignRuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProxyAssignRule
+        fields = '__all__'
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        rule_type = attrs.get('type')
+        rule_content = attrs.get('rule')
+        active = attrs.get('active', True)
+        instance = self.instance
+
+        if not rule_type or not rule_content or not active:
+            return attrs
+
+        try:
+            # 根据规则类型进行验证
+            if rule_type == 'ip_cidr':
+                self._validate_cidr_rule(rule_content, instance)
+            elif rule_type == 'ip_range':
+                self._validate_range_rule(rule_content, instance)
+            elif rule_type == 'ip_list':
+                self._validate_list_rule(rule_content, instance)
+            elif rule_type == 'ip_regex':
+                self._validate_regex_rule(rule_content, instance)
+
+        except ValueError as e:
+            raise serializers.ValidationError({'rule': str(e)})
+
+        return attrs
+
+    def _validate_cidr_rule(self, rule_content, instance=None):
+        """验证CIDR规则是否与现有规则重叠"""
+
+        try:
+            current_network = ipaddress.ip_network(rule_content.strip())
+        except ValueError:
+            raise ValueError(f"Invalid CIDR format: {rule_content}")
+
+        query = ProxyAssignRule.objects.filter(
+            type='ip_cidr',
+            active=True
+        )
+
+        if instance:
+            query = query.exclude(id=instance.id)
+
+        for existing_rule in query:
+            existing_network = ipaddress.ip_network(existing_rule.rule.strip())
+
+            # 检查网络重叠
+            if current_network.overlaps(existing_network):
+                raise ValidationError(
+                    f'CIDR rule "{rule_content}" overlaps with existing rule '
+                    f'"{existing_rule.rule}" (name: {existing_rule.name})')
+
+    def _validate_range_rule(self, rule_content, instance=None):
+        """验证IP范围规则是否与现有规则重叠"""
+
+        start_ip, end_ip = [ip.strip() for ip in rule_content.split('-')]
+        current_start = ipaddress.ip_address(start_ip)
+        current_end = ipaddress.ip_address(end_ip)
+
+        if current_start > current_end:
+            raise ValidationError(f'IP start value is greater than end value: {rule_content}')
+
+        query = ProxyAssignRule.objects.filter(
+            type='ip_range',
+            active=True
+        )
+
+        if instance:
+            query = query.exclude(id=instance.id)
+
+        for existing_rule in query:
+            existing_start, existing_end = [ip.strip() for ip in existing_rule.rule.split('-')]
+            existing_start_ip = ipaddress.ip_address(existing_start)
+            existing_end_ip = ipaddress.ip_address(existing_end)
+
+            # 检查范围重叠
+            if ((current_start >= existing_start_ip and current_start <= existing_end_ip) or
+                (current_end >= existing_start_ip and current_end <= existing_end_ip) or
+                (existing_start_ip >= current_start and existing_start_ip <= current_end) or
+                    (existing_end_ip >= current_start and existing_end_ip <= current_end)):
+                raise ValidationError(
+                    f'IP range rule "{rule_content}" overlaps with existing rule '
+                    f'"{existing_rule.rule}" (name: {existing_rule.name})')
+
+    def _validate_list_rule(self, rule_content, instance=None):
+        """验证IP列表规则是否有重复项"""
+        try:
+            current_ips = set()
+            for ip in rule_content.split(','):
+                ip = ip.strip()
+                if ip:
+                    ipaddress.ip_address(ip)
+                    current_ips.add(ip)
+        except ValueError:
+            raise ValidationError(f"Invalid IP address in list: {rule_content}")
+
+        query = ProxyAssignRule.objects.filter(
+            type='ip_list',
+            active=True
+        )
+
+        if instance:
+            query = query.exclude(id=instance.id)
+
+        for existing_rule in query:
+            existing_ips = set()
+            for ip in existing_rule.rule.split(','):
+                ip = ip.strip()
+                if ip:
+                    existing_ips.add(ip)
+
+            overlap_ips = current_ips.intersection(existing_ips)
+            if overlap_ips:
+                raise ValidationError(f'IP list rule "{rule_content}" has overlapping IPs: {", ".join(overlap_ips)}')
+
+    def _validate_regex_rule(self, rule_content, instance=None):
+        # 验证正则表达式语法
+        try:
+            re.compile(rule_content)
+        except re.error:
+            raise ValidationError(f"Invalid regex pattern: {rule_content}")

@@ -17,6 +17,8 @@ from .views import (
     # RelationsViewSet,
     PasswordManageViewSet,
     ZabbixSyncHostViewSet,
+    ZabbixProxyViewSet,
+    ProxyAssignRuleViewSet
 )
 
 router = DefaultRouter()
@@ -36,6 +38,8 @@ router.register(r'model_instance_group_relation', ModelInstanceGroupRelationView
 # router.register(r'relations', RelationsViewSet)
 router.register(r'password_manage', PasswordManageViewSet, basename='password_manage')
 router.register(r'zabbix_sync_host', ZabbixSyncHostViewSet, basename='zabbix_sync_host')
+router.register(r'zabbix_proxy', ZabbixProxyViewSet, basename='zabbix_proxy')
+router.register(r'proxy_assign_rule', ProxyAssignRuleViewSet, basename='proxy_assign_rule')
 
 urlpatterns = [
     path('', include(router.urls)),
