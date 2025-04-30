@@ -6,6 +6,7 @@ import threading
 import requests
 import json
 import logging
+from . import zabbix_config
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +36,11 @@ class ZabbixTokenManager:
 
     def initialize(self):
         """初始化 token 管理"""
-        config = getattr(settings, 'ZABBIX_CONFIG', {})
-        self.url = config.get('url')
-        self.username = config.get('username')
-        self.password = config.get('password')
-        self.interval = config.get('interval', 0)
+        config = zabbix_config.get_all()
+        self.url = config.get('zabbix_url')
+        self.username = config.get('zabbix_username')
+        self.password = config.get('zabbix_password')
+        self.interval = config.get('zabbix_interval', 0)
         self.token = None
         self._refresh_token()
 
@@ -48,7 +49,6 @@ class ZabbixTokenManager:
         try:
             response = self._login()
             self.token = response
-            # logger.debug(f"Refreshed token to: {self.token}")
             if self.interval > 0:
                 cache.set('zabbix_token', self.token, timeout=self.interval)
                 self._schedule_next_refresh()
@@ -90,8 +90,8 @@ class ZabbixAPI:
     _default_template_id = None
 
     def __init__(self):
-        self.url = getattr(settings, 'ZABBIX_CONFIG', {}).get('url')
-        self.template = getattr(settings, 'ZABBIX_CONFIG', {}).get('template')
+        self.url = zabbix_config.get('zabbix_url')
+        self.template = zabbix_config.get('zabbix_host_template')
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json-rpc"})
         self.token_manager = ZabbixTokenManager()

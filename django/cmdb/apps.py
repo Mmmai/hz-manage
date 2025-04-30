@@ -2,7 +2,10 @@ from django.apps import AppConfig
 from cacheops import invalidate_all
 from django.core.cache import cache
 from .utils import password_handler
+from .utils.zabbix import ZabbixTokenManager
+import sys
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -14,13 +17,15 @@ class CMDBConfig(AppConfig):
 
     def ready(self):
         """应用启动时初始化内置模型和验证规则"""
-        import sys
-        if 'runserver' in sys.argv or any('celery' in arg for arg in sys.argv) or 'uwsgi' in sys.modules:
+        if 'runserver' in sys.argv or any('celery' in arg for arg in sys.argv) or 'daphne' in sys.modules:
             # 清除缓存
             invalidate_all()
-            from .utils.zabbix import ZabbixTokenManager
-            token_manager = ZabbixTokenManager()
-            token_manager.initialize()
-            logger.info(f"ZabbixTokenManager initialized")
             password_handler.load_keys()
-        from .signals import create_field_meta_for_instances
+
+            threading.Thread(target=self._initialize_zabbix, daemon=True).start()
+            logger.info("ZabbixTokenManager initialization thread started")
+
+    def _initialize_zabbix(self):
+        token_manager = ZabbixTokenManager()
+        token_manager.initialize()
+        logger.info(f"ZabbixTokenManager initialized")

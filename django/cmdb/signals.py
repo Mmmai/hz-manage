@@ -8,7 +8,7 @@ from django.db import transaction
 from django.db.utils import OperationalError
 from .config import BUILT_IN_MODELS, BUILT_IN_VALIDATION_RULES
 from .tasks import setup_host_monitoring
-from .utils import password_handler
+from .utils import password_handler, zabbix_config
 from .utils.zabbix import ZabbixAPI
 from .message import instance_group_relation_updated
 from .models import (
@@ -361,6 +361,8 @@ def update_instance_name_on_field_change(sender, instance, created, **kwargs):
 @receiver(post_save, sender=ModelInstance)
 def sync_zabbix_host(sender, instance, created, **kwargs):
     """同步Zabbix主机"""
+    if not zabbix_config.is_zabbix_sync_enabled():
+        return
 
     def delayed_process():
         try:
@@ -414,6 +416,8 @@ def sync_zabbix_host(sender, instance, created, **kwargs):
 @receiver(pre_delete, sender=ModelInstance)
 def prepare_delete_zabbix_host(sender, instance, **kwargs):
     """准备删除Zabbix主机"""
+    if not zabbix_config.is_zabbix_sync_enabled():
+        return
     logger.info(f"Preparing to delete Zabbix host for instance {instance.id}")
     try:
         a = time.perf_counter()
@@ -446,6 +450,8 @@ def prepare_delete_zabbix_host(sender, instance, **kwargs):
 @receiver(post_delete, sender=ModelInstance)
 def delete_zabbix_host(sender, instance, **kwargs):
     """删除Zabbix主机"""
+    if not zabbix_config.is_zabbix_sync_enabled():
+        return
     a = time.perf_counter()
 
     def delayed_process():
@@ -487,6 +493,8 @@ def handle_group_path(sender, instance, created, **kwargs):
     处理实例分组path更新和Zabbix主机组同步
     使用递归方式处理所有子节点
     """
+    if not zabbix_config.is_zabbix_sync_enabled():
+        return
     # 检查是否需要跳过信号处理
     if getattr(instance, '_skip_signal', False):
         return
@@ -535,6 +543,8 @@ def handle_group_path(sender, instance, created, **kwargs):
 @receiver(pre_delete, sender=ModelInstanceGroup)
 def prepare_delete_instance_group(sender, instance, **kwargs):
     """准备删除实例分组"""
+    if not zabbix_config.is_zabbix_sync_enabled():
+        return
     try:
         if instance.model.name != 'hosts':
             return
@@ -556,7 +566,10 @@ def prepare_delete_instance_group(sender, instance, **kwargs):
 @receiver(post_delete, sender=ModelInstanceGroup)
 def handle_group_deletion(sender, instance, **kwargs):
     """处理实例分组删除后的操作"""
+    if not zabbix_config.is_zabbix_sync_enabled():
+        return
     try:
+
         if instance.model.name != 'hosts':
             return
 
@@ -601,6 +614,8 @@ def handle_group_deletion(sender, instance, **kwargs):
 @receiver(instance_group_relation_updated)
 def sync_zabbix_hostgroup_relation(sender, hosts, groups, **kwargs):
     """同步实例分组关联到Zabbix"""
+    if not zabbix_config.is_zabbix_sync_enabled():
+        return
     try:
         # 同步主机组关联
         zapi = ZabbixAPI()
