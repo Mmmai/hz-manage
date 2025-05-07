@@ -1,7 +1,8 @@
+from operator import is_
 from django.apps import AppConfig
 from cacheops import invalidate_all
 from django.core.cache import cache
-from .utils import password_handler
+from .utils import password_handler, zabbix_config
 from .utils.zabbix import ZabbixTokenManager
 import sys
 import logging
@@ -16,16 +17,16 @@ class CMDBConfig(AppConfig):
     label = 'cmdb'
 
     def ready(self):
-        """应用启动时初始化内置模型和验证规则"""
+        """应用启动时加载密钥及zabbix相关实例"""
+        import cmdb.signals
+
         if 'runserver' in sys.argv or any('celery' in arg for arg in sys.argv) or 'daphne' in sys.modules:
             # 清除缓存
             invalidate_all()
             password_handler.load_keys()
+            zabbix_config.load_config()
 
-            threading.Thread(target=self._initialize_zabbix, daemon=True).start()
-            logger.info("ZabbixTokenManager initialization thread started")
-
-    def _initialize_zabbix(self):
-        token_manager = ZabbixTokenManager()
-        token_manager.initialize()
-        logger.info(f"ZabbixTokenManager initialized")
+            if zabbix_config.is_zabbix_sync_enabled():
+                token_manager = ZabbixTokenManager()
+            else:
+                pass

@@ -1,7 +1,11 @@
+from curses.ascii import SI
 import threading
 import logging
 import time
+import sys
 from django.core.cache import cache
+from django.apps import apps
+from django.dispatch import Signal
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +21,12 @@ class ConfigManager:
         "zabbix_url": "",
         "zabbix_version": "6.0",
         "zabbix_server": "",
-        "zabbix_host_template": "",
+        "host_template": "",
         "zabbix_username": "Admin",
         "zabbix_password": "zabbix",
         "zabbix_interval": "0",
         "zabbix_is_sync": 0,
-        "zabbix_network_template": "",
+        "network_template": "",
     }
 
     # 缓存超时时间 (秒)
@@ -49,7 +53,9 @@ class ConfigManager:
     def load_config(self, force=False):
         current_time = time.time()
 
-        if not force and self.config and (current_time - self._last_refresh_time < 300):
+        is_migrating = any(arg in ['migrate', 'makemigrations'] for arg in sys.argv)
+
+        if is_migrating or not force and self.config and (current_time - self._last_refresh_time < 300):
             return self.config
 
         cached_config = cache.get(self.CACHE_KEY)
@@ -135,6 +141,9 @@ class ConfigManager:
 
     def is_zabbix_sync_enabled(self):
         """检查 Zabbix 同步是否启用"""
+        if not apps.ready:
+            return False
+
         if not self.config:
             self.load_config()
 

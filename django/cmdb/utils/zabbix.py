@@ -10,6 +10,8 @@ from . import zabbix_config
 
 logger = logging.getLogger(__name__)
 
+# TODO: 添加zabbix可用性验证，避免失败调用
+
 
 class ZabbixTokenManager:
     _lock = threading.Lock()
@@ -36,6 +38,9 @@ class ZabbixTokenManager:
 
     def initialize(self):
         """初始化 token 管理"""
+        if not zabbix_config.is_zabbix_sync_enabled():
+            return
+
         config = zabbix_config.get_all()
         self.url = config.get('zabbix_url')
         self.username = config.get('zabbix_username')
@@ -91,7 +96,7 @@ class ZabbixAPI:
 
     def __init__(self):
         self.url = zabbix_config.get('zabbix_url')
-        self.template = zabbix_config.get('zabbix_host_template')
+        self.template = zabbix_config.get('host_template')
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json-rpc"})
         self.token_manager = ZabbixTokenManager()
