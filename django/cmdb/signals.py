@@ -1,3 +1,7 @@
+
+import sys
+import traceback
+import logging
 from django.dispatch import receiver, Signal
 from django.db.models.signals import post_save, post_delete, pre_save, pre_delete, post_migrate
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -24,9 +28,8 @@ from .models import (
     RelationDefinition,
     Relations,
 )
-import sys
-import traceback
-import logging
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -306,6 +309,27 @@ def initialize_cmdb(sender, **kwargs):
         logger.warning("Database not ready, skipping initialization")
     except Exception as e:
         logger.error(f"Error during CMDB initialization: {traceback.format_exc()}")
+
+
+@receiver(post_save, sender=ModelInstance)
+def record_instance_change(sender, instance, created, **kwargs):
+    """记录实例变更"""
+    try:
+        # 仅在创建或更新时触发
+        if created or instance._state.db == 'default':
+            # 获取当前用户
+            user = instance.update_user if instance.update_user else 'system'
+            # 获取模型和实例名称
+            model = Models.objects.get(id=instance.model_id)
+            instance_name = instance.instance_name or str(instance.id)
+
+            # 记录操作日志
+            logger.info(
+                f"Instance {instance_name} of model {
+                    model.name} has been {
+                    'created' if created else 'updated'}")
+    except Exception as e:
+        logger.error(f"Error recording instance change: {str(e)}")
 
 
 @receiver(post_save, sender=ModelInstance)

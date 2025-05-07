@@ -22,7 +22,6 @@ class AuditLog(models.Model):
     user_ip = models.GenericIPAddressField(null=True, blank=True)
 
     # 实例相关
-    # 使用字符串引用避免循环导入
     model = models.ForeignKey('cmdb.Models', on_delete=models.CASCADE, verbose_name='模型')
     instance_id = models.CharField(max_length=100, verbose_name='实例ID')
     instance_name = models.CharField(max_length=255, null=True, blank=True, verbose_name='实例名称')

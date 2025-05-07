@@ -5,7 +5,7 @@ from .views import AuditLogViewSet
 
 # 创建路由器并注册视图
 router = DefaultRouter()
-router.register(r'audit-logs', AuditLogViewSet, basename='audit-logs')
+router.register(r'audit', AuditLogViewSet, basename='audit')
 
 urlpatterns = [
     path('', include(router.urls)),

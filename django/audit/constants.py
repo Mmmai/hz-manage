@@ -1,5 +1,3 @@
-# filepath: audit/constants.py
-
 AUDIT_ACTION_CREATE = 'create'
 AUDIT_ACTION_UPDATE = 'update'
 AUDIT_ACTION_DELETE = 'delete'
