@@ -1,4 +1,0 @@
-
-const myCommand = (Vue,Options)=>{
-    
-}

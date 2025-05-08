@@ -1,6 +1,0 @@
-logs/
-.idea
-**/__pycache__
-**/migrations
-*-bak*
-venv
