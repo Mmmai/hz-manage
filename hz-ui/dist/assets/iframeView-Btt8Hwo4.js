@@ -1,1 +1,0 @@
-import{d as r,aK as t,h as a,c as o,o as c,i as n,v as _,_ as u}from"./index-iGnbKzkN.js";const i={class:"card"},d=["src"],l=r({__name:"iframeView",setup(f){const e=a(),s=t(()=>e.query.url);return(m,p)=>(c(),o("div",i,[n("iframe",{src:_(s),width:"100%",height:"800px",frameborder:"0",allowfullscreen:""},null,8,d)]))}}),w=u(l,[["__scopeId","data-v-33c679c5"]]);export{w as default};

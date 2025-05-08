@@ -312,6 +312,8 @@ import { Delete, Edit, CirclePlus } from "@element-plus/icons-vue";
 const { proxy } = getCurrentInstance();
 import { ElMessageBox, ElMessage } from "element-plus";
 import { useRoute } from "vue-router";
+defineOptions({ name: "logAnalysis" });
+
 const route = useRoute();
 const initFormLabelAlign = {
   name: "",

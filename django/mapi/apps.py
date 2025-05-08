@@ -95,3 +95,5 @@ class MapiConfig(AppConfig):
                                                   param_value=param["param_value"],param_type=param["param_type"],
                                                   description=param["description"]))
             sysConfigParams.objects.bulk_create(sysconfigs,ignore_conflicts=True)
+        # 更新版本号
+        sysConfigParams.objects.update_or_create(verbose_name="系统版本",param_name="app_version",param_value=os.environ.get('APP_VERSION',None),param_type="string",description="系统版本号，会根据启动的环境更新")

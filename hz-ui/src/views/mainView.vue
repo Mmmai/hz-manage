@@ -27,22 +27,18 @@
                 /> -->
           <router-view>
             <template #default="{ Component, route }">
-              <keep-alive :include="keepAliveName">
-                <component
-                  :is="Component"
-                  :key="route.path"
-                  v-if="!['model', 'iframe'].includes($route.name)"
-                />
-              </keep-alive>
+              <KeepAlive :include="keepAliveName">
+                <component :is="Component" :key="route.path" />
+              </KeepAlive>
             </template>
           </router-view>
-          <iframe-view v-show="route.meta.is_iframe"></iframe-view>
-          <router-view v-if="['model'].includes($route.name)"></router-view>
+          <!-- <iframe-view v-show="route.meta.is_iframe"></iframe-view>
+          <router-view v-if="['model'].includes($route.name)"></router-view> -->
           <!-- </el-scrollbar> -->
         </el-main>
         <el-footer class="efooter">
           <el-text tag="p">
-            2024 © 智维 By 工程售后服务中心-技术管理室
+            {{ `2024 © 智维_${appVersion} By 工程售后服务中心-技术管理室` }}
           </el-text>
         </el-footer>
       </el-container>
@@ -65,19 +61,28 @@ import { useKeepAliveStore } from "@/store/keepAlive";
 // })
 import { storeToRefs } from "pinia";
 import { useStore } from "vuex";
+import { computed } from "@vue/reactivity";
+import useConfigStore from "@/store/config";
+const configStore = useConfigStore();
 const keepAliveStore = useKeepAliveStore();
+const { appVersion } = storeToRefs(configStore);
 const { keepAliveName } = storeToRefs(keepAliveStore);
 const store = useStore();
-
+// const appVersion = ref(process.env.APP_VERSION);
 const route = useRoute();
 const router = useRouter();
-
+const noKeepAliveName = computed(() => {
+  return route.matched
+    .filter((record) => !record.meta.keepalive)
+    .map((record) => record.name);
+});
 // import { RouterLink, RouterView } from 'vue-router'
 const isRouterShow = ref(true);
 const refreshCurrentPage = (val: boolean) => (isRouterShow.value = val);
 provide("refresh", refreshCurrentPage);
 
 onMounted(async () => {
+  await configStore.getAppVersion();
   // await store.dispatch("getSecret");
   // console.log("route", route);
   // console.log("router", router, router.getRoutes());

@@ -20,7 +20,7 @@
             v-loading="loading"
             :data="menuList"
             style="width: 100%"
-            max-height="500px"
+            max-height="100%"
             highlight-current-row
             row-key="id"
             table-layout="fixed"
@@ -72,7 +72,22 @@
                     --el-switch-on-color: #13ce66;
                     --el-switch-off-color: #ff4949;
                   "
-                  @change="updateStatus(scope.row)"
+                  @change="updateStatus(scope.row, 'status')"
+                />
+              </template>
+              <template #default="scope" v-if="item.prop === 'keepalive'">
+                <el-switch
+                  v-permission="{
+                    id: `${route.name?.replace('_info', '')}:edit`,
+                    action: 'disabled',
+                  }"
+                  v-model="scope.row.keepalive"
+                  class="ml-2"
+                  style="
+                    --el-switch-on-color: #13ce66;
+                    --el-switch-off-color: #ff4949;
+                  "
+                  @change="updateStatus(scope.row, 'keepalive')"
                 />
               </template>
               <template #default="scope" v-if="item.prop === 'icon'">
@@ -262,6 +277,23 @@
           />
         </el-form-item>
         <el-form-item
+          label="缓存"
+          prop="keepalive"
+          :rules="[{ required: true }]"
+        >
+          <el-switch
+            v-model="formInline.keepalive"
+            class="ml-2"
+            inline-prompt
+            style="
+              --el-switch-on-color: #13ce66;
+              --el-switch-off-color: #ff4949;
+            "
+            active-text="Y"
+            inactive-text="N"
+          />
+        </el-form-item>
+        <el-form-item
           label="是否菜单"
           prop="is_menu"
           :rules="[{ required: true }]"
@@ -346,6 +378,7 @@ import menuButtonCom from "../components/menuButtonCom.vue";
 import { useRoute } from "vue-router";
 const route = useRoute();
 import { Icon } from "@iconify/vue";
+defineOptions({ name: "menu" });
 
 import { useStore } from "vuex";
 const store = useStore();
@@ -380,6 +413,10 @@ const menuListCol = ref([
   {
     prop: "status",
     label: "启用",
+  },
+  {
+    prop: "keepalive",
+    label: "缓存",
   },
   {
     prop: "sort",
@@ -482,6 +519,7 @@ const formInline = reactive({
   is_iframe: false,
   iframe_url: "",
   status: true,
+  keepalive: true,
 });
 const action = ref("add");
 // 显示新增弹出框
@@ -641,9 +679,9 @@ const isShow = ref(false);
 const isShowIconSelect = () => {
   isShow.value = true;
 };
-const updateStatus = async (param) => {
+const updateStatus = async (param, vars) => {
   let res = await proxy.$api.menuUpdate({
-    status: param.status,
+    [vars]: param[vars],
     id: param.id,
   });
   if (res.status == 200) {

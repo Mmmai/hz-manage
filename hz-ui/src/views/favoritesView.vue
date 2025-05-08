@@ -110,6 +110,8 @@ import { vDraggable } from "vue-draggable-plus";
 import { Search } from "@element-plus/icons-vue";
 import { useRouter } from "vue-router";
 import { el } from "element-plus/es/locale/index.mjs";
+defineOptions({ name: "favorites" });
+
 const { proxy } = getCurrentInstance();
 // import { useRoute,useRouter } from 'vue-router'
 // const route = useRoute()

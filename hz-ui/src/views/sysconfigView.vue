@@ -28,6 +28,7 @@ const { proxy } = getCurrentInstance();
 import { useStore } from "vuex";
 import securityConfig from "@/components/sysconfig/securityConfig.vue";
 import zabbixConfig from "@/components/sysconfig/zabbixConfig.vue";
+defineOptions({ name: "sysconfig" });
 
 const store = useStore();
 

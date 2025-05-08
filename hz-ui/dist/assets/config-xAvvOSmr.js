@@ -1,1 +1,0 @@
-import{aW as l,r as o}from"./index-iGnbKzkN.js";const c=l("configs",()=>{const t=o({}),a=o(!1),e=o(0*1e3);return{gmCry:t,setGmCry:s=>{t.value=s},showAllPass:a,updateShowAllPass:s=>{a.value=s},setShowAllPassTime:s=>{e.value=s},showAllPassTime:e,updateShowAllPassTime:s=>{e.value=s}}},{persist:!0});export{c as u};

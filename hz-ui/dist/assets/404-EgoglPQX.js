@@ -1,1 +1,0 @@
-import{f as t,u as s,c as r,o as n}from"./index-iGnbKzkN.js";const _={__name:"404",setup(c){const o=t();console.log(o.getRoutes());const e=s();return console.log(e.state.routerInfo),(u,a)=>(n(),r("h1",null,"404 Not Found"))}};export{_ as default};

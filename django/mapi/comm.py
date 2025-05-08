@@ -54,9 +54,11 @@ def installation_status_sse(request):
     """使用 SSE 实时获取 Zabbix 安装状态"""
     try:
         cache_key = request.GET.get('cache_key')
+        print(cache_key)
         if not cache_key:
             raise ValidationError({'detail': 'Missing cache key'})
         task_info = cache.get(cache_key)
+        print(task_info)
         if not task_info:
             raise ValidationError({'detail': 'Cache key not found'})
         result = {
@@ -74,6 +76,7 @@ def installation_status_sse(request):
                 for zsh_id, task_id in task_info['host_task_map'].items():
                     if zsh_id in completed_hosts:
                         continue
+                    print(task_id)
                     check_result = check_chain_task(task_id)
                     if check_result is None:
                         continue
@@ -111,7 +114,9 @@ def check_chain_task(task_id):
         return None
     if task.successful():
         if task.result:
+            print(task.result)
             chain_task_id = task.result.get('chain_task_id')
+            print(chain_task_id)
             chain_task = AsyncResult(chain_task_id)
             if not chain_task.ready():
                 return None

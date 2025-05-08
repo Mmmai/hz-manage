@@ -15,6 +15,7 @@ export const useKeepAliveStore = defineStore(
     // Remove KeepAliveName
     const removeKeepAliveName = async (name: string) => {
       keepAliveName.value = keepAliveName.value.filter(item => item !== name);
+      // console.log(keepAliveName.value)
     }
     // Set KeepAliveName
     const setKeepAliveName = async (keepaliveName: []) => {

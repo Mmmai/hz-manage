@@ -69,6 +69,9 @@ export const useTabsStore = defineStore(
 
     }
     const removeTabs = (tabPath: string, isCurrent: boolean = true) => {
+      const tabItem = tabsMenuList.value.find(item => item.path === tabPath);
+      // console.log(tabItem)
+      tabItem?.isKeepAlive && keepAliveStore.removeKeepAliveName(tabItem.name);
       // console.log(tabPath.path)
       if (isCurrent) {
         tabsMenuList.value.forEach((item, index) => {
@@ -103,8 +106,7 @@ export const useTabsStore = defineStore(
       // let _tempList = tabsMenuList.value.filter(item => item.path !== tabPath || item.fullPath !== tabPath)
       tabsMenuList.value = _tempList
       console.log(tabsMenuList.value)
-      const tabItem = tabsMenuList.value.find(item => item.path === tabPath);
-      tabItem?.isKeepAlive && keepAliveStore.removeKeepAliveName(tabItem.name);
+
     }
     const setTabs = (params: TabsMenuProps[]) => {
       tabsMenuList.value = params;

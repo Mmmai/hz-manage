@@ -30,6 +30,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": '',
+        "keepalive": 1,
         "parentid_id": ''
     },
     {
@@ -75,6 +76,7 @@ INIT_MENU = [
       "is_iframe": 0,
       "iframe_url": '',
       "description": "",
+      "keepalive": 1,
       "parentid_id": "cmdb",
       "buttons": [
                   {"name":"导入","action":"import"},
@@ -95,6 +97,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": "",
+        "keepalive": 1,
         "parentid_id": "cmdb"
     },
     {
@@ -110,6 +113,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": "",
+        "keepalive": 1,
         "parentid_id": "cimodelManage"
     },
     {
@@ -125,6 +129,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": "",
+        "keepalive": 1,
         "parentid_id": "cimodelManage"
     },
     {
@@ -170,6 +175,7 @@ INIT_MENU = [
       "is_iframe": 0,
       "iframe_url": '',
       "description": "",
+      "keepalive": 1,
       "parentid_id": "workingPlatform",
     },
     {
@@ -200,6 +206,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": "",
+        "keepalive": 1,
         "parentid_id": "log"
     },
     {
@@ -215,6 +222,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": "",
+        "keepalive": 1,
         "parentid_id": "log"
     },
     {
@@ -230,6 +238,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": "配置日志环节日志",
+        "keepalive": 1,
         "parentid_id": "log"
     },
     {
@@ -245,6 +254,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": "",
+        "keepalive": 1,
         "parentid_id": "log"
     },
 
@@ -276,6 +286,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": '',
+        "keepalive": 1,
         "parentid_id": "settings"
     },
     {
@@ -291,6 +302,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": '',
+        "keepalive": 1,
         "parentid_id": "settings"
     },
     {
@@ -306,6 +318,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": "",
+        "keepalive": 1,
         "parentid_id": "settings"
     },
     {
@@ -321,6 +334,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": "",
+        "keepalive": 1,
         "parentid_id": "settings"
     },
 
@@ -337,6 +351,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": "",
+        "keepalive": 1,
         "parentid_id": "settings"
     },
     {
@@ -352,6 +367,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": "",
+        "keepalive": 1,
         "parentid_id": "settings"
     },
     {
@@ -367,6 +383,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": "",
+        "keepalive": 1,
         "parentid_id": "settings"
     },
     {
@@ -382,6 +399,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": "",
+        "keepalive": 1,
         "parentid_id": ''
     },
     {
@@ -397,6 +415,7 @@ INIT_MENU = [
         "is_iframe": 0,
         "iframe_url": '',
         "description": "",
+        "keepalive": 1,
         "parentid_id": ''
     },
     {
@@ -483,14 +502,14 @@ INIT_CONFIG = [
     },
     {
         "verbose_name":"主机模板",
-        "param_name": "host_template",
+        "param_name": "zabbix_host_template",
         "param_type": "string",
         "param_value": os.environ.get('ZABBIX_DEFAULT_HOST_TEMPLATE'),
         "description":"填写zabbix主机监控模板的名称(全英文，不是模板可见名称!)",
     },
     {
         "verbose_name":"network模板",
-        "param_name": "network_template",
+        "param_name": "zabbix_network_template",
         "param_type": "string",
         "param_value": os.environ.get('ZABBIX_DEFAULT_NETWORK_TEMPLATE'),
         "description":"填写zabbix网络监控模板的名称(全英文，不是模板可见名称!)",

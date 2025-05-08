@@ -638,6 +638,8 @@ const allowDrag = (draggingNode: Node) => {
   // 内置目录不能拖拽
   return !draggingNode.data.built_in;
 };
+
+defineOptions({ name: "cidata" });
 </script>
 
 <style scoped lang="scss">

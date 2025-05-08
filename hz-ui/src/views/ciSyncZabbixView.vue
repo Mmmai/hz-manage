@@ -190,6 +190,8 @@ import { ElMessageBox, ElMessage, ElNotification } from "element-plus";
 
 import { pa, tr } from "element-plus/es/locale/index.mjs";
 import { Row } from "element-plus/es/components/table-v2/src/components/index.mjs";
+defineOptions({ name: "ciSyncZabbix" });
+
 const route = useRoute();
 const colValue = ref("name");
 const filterValue = ref<string>("");
@@ -439,12 +441,20 @@ const installAction = async (params: object) => {
   let res = await proxy.$api.installAgent(params);
   // console.log(res);
   if (res.status == 200) {
-    ElMessage({
-      type: "success",
-      message: "触发成功",
-    });
-    isLoading.value = true;
-    openSse(`/api/v1/agent_status_sse/?cache_key=${res.data.cache_key}`);
+    if (res.data.cache_key) {
+      ElMessage({
+        type: "success",
+        message: "触发成功",
+      });
+      isLoading.value = true;
+      openSse(`/api/v1/agent_status_sse/?cache_key=${res.data.cache_key}`);
+    } else {
+      ElMessage({
+        type: "error",
+        message: `触发失败:${res.data.message}`,
+      });
+    }
+
     // if (params.all) {
     //   openSse(`/api/v1/agent_status_sse/?all=true`);
     // } else {

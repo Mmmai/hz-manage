@@ -269,6 +269,8 @@ import {
   computed,
   nextTick,
 } from "vue";
+defineOptions({ name: "user" });
+
 const { proxy } = getCurrentInstance();
 // 搜素框变量
 const filterObject = reactive({

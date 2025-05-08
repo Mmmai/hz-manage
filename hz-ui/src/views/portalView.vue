@@ -437,6 +437,7 @@ import { useRoute } from "vue-router";
 const route = useRoute();
 const store = useStore();
 const { proxy } = getCurrentInstance();
+defineOptions({ name: "portalView" });
 
 const filterObject = ref({
   search: null,
