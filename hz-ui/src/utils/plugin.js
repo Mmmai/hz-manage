@@ -1,0 +1,4 @@
+
+const myCommand = (Vue,Options)=>{
+    
+}
