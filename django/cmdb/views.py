@@ -1,4 +1,5 @@
 import logging
+from pyexpat import model
 import time
 import uuid
 import traceback
@@ -28,7 +29,7 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter
 from celery.result import AsyncResult
 from .utils import password_handler, celery_manager, zabbix_config
 from .excel import ExcelHandler
-from .constants import FieldMapping, limit_field_names
+from .constants import FieldMapping, FieldType, limit_field_names
 from .tasks import process_import_data, setup_host_monitoring, install_zabbix_agent, sync_zabbix_host_task, update_instance_names_for_model_template_change, update_zabbix_interface_availability
 from .filters import (
     ModelGroupsFilter,
@@ -443,6 +444,56 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
     ordering_fields = ['create_time', 'update_time']
     search_fields = ['model', 'instance_name', 'create_user', 'update_user']
 
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        ref_instance_ids = set()
+        field_meta = {}
+        instance_group = {}
+        if page is not None:
+            instance_ids_on_page = [instance.id for instance in page]
+
+            # 获取全部字段元数据
+            meta_qs = ModelFieldMeta.objects.filter(
+                model_instance_id__in=instance_ids_on_page
+            ).select_related('model_fields', 'model_fields__validation_rule')
+            for meta in meta_qs:
+                field_meta.setdefault(str(meta.model_instance_id), []).append(meta)
+            # 获取引用类型的id
+            meta_instance_ids = meta_qs.filter(
+                model_fields__type=FieldType.MODEL_REF
+            ).values_list('model_instance_id', flat=True)
+            for instance_id in meta_instance_ids:
+                ref_instance_ids.add(str(instance_id))
+            # 获取分组
+            instance_group_data = ModelInstanceGroupRelation.objects.filter(
+                instance__in=instance_ids_on_page
+            ).select_related('group').values('instance_id', 'group_id', 'group__path')
+            for group in instance_group_data:
+                instance_group.setdefault(str(group['instance_id']), []).append({
+                    'group_id': str(group['group_id']),
+                    'group_path': group['group__path']
+                })
+            # logger.info(f"Fetched instance group data: {instance_group_data}")
+
+        ref_instances = {}
+        if ref_instance_ids:
+            instances = ModelInstance.objects.filter(
+                id__in=ref_instance_ids
+            ).values('id', 'instance_name')
+            ref_instances = {str(instance['id']): instance['instance_name'] for instance in instances}
+
+        context = self.get_serializer_context()
+        context['field_meta'] = field_meta
+        context['ref_instances'] = ref_instances
+        context['instance_group'] = instance_group
+
+        serializer = self.get_serializer(page, many=True, context=context)
+
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context['decrypt_password'] = self.request.query_params.get('decrypt_password', 'false').lower() == 'true'
@@ -566,12 +617,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
 
     @cached_as(ModelInstance, timeout=600)
     def get_queryset(self):
-        queryset = ModelInstance.objects.all()\
-            .order_by('-create_time')\
-            .prefetch_related(
-                'field_values__model_fields',
-                'field_values__model_fields__validation_rule',
-        ).select_related('model')
+        queryset = ModelInstance.objects.all().order_by('-create_time').select_related('model')
 
         if self.action == 'retrieve' and self.kwargs.get('pk'):
             return queryset

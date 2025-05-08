@@ -10,6 +10,7 @@ from .config import BUILT_IN_MODELS, BUILT_IN_VALIDATION_RULES
 from .tasks import setup_host_monitoring
 from .utils import password_handler, zabbix_config
 from .utils.zabbix import ZabbixAPI
+from .constants import ValidationType
 from .message import instance_group_relation_updated
 from .models import (
     ModelGroups,
@@ -659,3 +660,15 @@ def check_field_dependencies(sender, instance, **kwargs):
         raise PermissionDenied({
             'detail': f'Error checking field dependencies: {str(e)}'
         })
+
+
+@receiver(post_save, sender=ValidationRules)
+def on_validation_rule_save(sender, instance, **kwargs):
+    if instance.type == ValidationType.ENUM:
+        ValidationRules.clear_specific_enum_cache(instance.id)
+
+
+@receiver(post_delete, sender=ValidationRules)
+def on_validation_rule_delete(sender, instance, **kwargs):
+    if instance.type == ValidationType.ENUM:
+        ValidationRules.clear_specific_enum_cache(instance.id)
