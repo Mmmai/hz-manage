@@ -28,5 +28,7 @@ class CMDBConfig(AppConfig):
 
             if zabbix_config.is_zabbix_sync_enabled():
                 token_manager = ZabbixTokenManager()
+                token_manager.initialize()
+                logger.info(f'Zabbix token manager initialized')
             else:
-                pass
+                logger.warning(f'Zabbix synchronization is disabled')

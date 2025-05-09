@@ -139,9 +139,6 @@ class ConfigManager:
 
     def is_zabbix_sync_enabled(self):
         """检查 Zabbix 同步是否启用"""
-        if not apps.ready:
-            return False
-
         if not self.config:
             self.load_config()
 

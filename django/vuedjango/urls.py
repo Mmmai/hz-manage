@@ -23,7 +23,7 @@ from drf_spectacular.views import (
 
 
 urlpatterns = [
-    path('silk/', include('silk.urls')),
+    # path('silk/', include('silk.urls')),
     # path('admin/', admin.site.urls),
     # path('api/v1/',include('mapi.urls')),
     path('api/v1/', include('mapi.urls')),

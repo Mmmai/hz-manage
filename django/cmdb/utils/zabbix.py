@@ -1,7 +1,4 @@
-from math import log
-from re import I
 from django.core.cache import cache
-from django.conf import settings
 import threading
 import requests
 import json
@@ -45,7 +42,7 @@ class ZabbixTokenManager:
         self.url = config.get('zabbix_url')
         self.username = config.get('zabbix_username')
         self.password = config.get('zabbix_password')
-        self.interval = config.get('zabbix_interval', 0)
+        self.interval = int(config.get('zabbix_interval', 0))
         self.token = None
         self._refresh_token()
 
@@ -54,6 +51,7 @@ class ZabbixTokenManager:
         try:
             response = self._login()
             self.token = response
+            logger.info(f"Zabbix token refreshed.")
             if self.interval > 0:
                 cache.set('zabbix_token', self.token, timeout=self.interval)
                 self._schedule_next_refresh()
@@ -68,7 +66,7 @@ class ZabbixTokenManager:
             "jsonrpc": "2.0",
             "method": "user.login",
             "params": {
-                "user": self.username,
+                "username": self.username,
                 "password": self.password
             },
             "id": 1
@@ -131,7 +129,9 @@ class ZabbixAPI:
             "auth": self.auth
         }
         result = self._call("host.get", data["params"])
-        return result["result"]
+        if result.get('result'):
+            return result["result"]
+        return None
 
     def host_create(self, host, name, ip, groups=None, proxy_id=None):
         data = {
