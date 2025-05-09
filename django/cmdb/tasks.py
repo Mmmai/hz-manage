@@ -318,7 +318,6 @@ def setup_host_monitoring(self, instance_id, instance_name, ip, password,
                         instance_id=instance_id).update(
                         ip=ip, name=instance_name, proxy=proxy)
                     logger.info(f"Zabbix host monitoring updated for {ip}")
-                    self.update_state(state='SUCCESS', meta={'status': 'updated'})
                 else:
                     self.update_state(state='FAILURE', meta={'status': 'failed'})
                     raise ValidationError({'detail': f'Failed to update host: {result}'})

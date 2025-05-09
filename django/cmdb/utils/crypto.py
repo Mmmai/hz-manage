@@ -92,6 +92,8 @@ class PasswordHandler:
     def decrypt_sm4(self, value: str) -> str:
         """静态方法：使用 SM4 解密"""
         try:
+            if not value:
+                return None
             # 使用 SM4 解密
             plain_text = self.sm4_decryptor.crypt_ecb(
                 bytes.fromhex(value)
