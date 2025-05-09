@@ -96,7 +96,7 @@ class ZabbixAPI:
 
     def __init__(self):
         self.url = zabbix_config.get('zabbix_url')
-        self.template = zabbix_config.get('host_template')
+        self.template = zabbix_config.get('zabbix_host_template')
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json-rpc"})
         self.token_manager = ZabbixTokenManager()

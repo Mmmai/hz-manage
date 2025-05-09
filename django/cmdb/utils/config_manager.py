@@ -19,12 +19,12 @@ class ConfigManager:
         "zabbix_url": "",
         "zabbix_version": "6.0",
         "zabbix_server": "",
-        "host_template": "",
+        "zabbix_host_template": "",
         "zabbix_username": "Admin",
         "zabbix_password": "zabbix",
         "zabbix_interval": "0",
         "zabbix_is_sync": 0,
-        "network_template": "",
+        "zabbix_network_template": "",
     }
 
     # 缓存超时时间 (秒)
