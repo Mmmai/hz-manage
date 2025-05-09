@@ -1774,7 +1774,7 @@ const bulkDelete = async () => {
     // 条件下的全量更新
     params = {
       update_user: store.state.username,
-      ...multipleParams,
+      ...multipleParams.value,
     };
   } else {
     params = {
@@ -1782,19 +1782,24 @@ const bulkDelete = async () => {
       instances: multipleSelectId.value,
     };
   }
-  let res = await proxy.$api.bulkDeleteCiModelInstance(params);
-  // console.log(res);
+  console.log(params);
+  tableLoading.value = true;
+  let res = await proxy.$api.bulkDeleteCiModelInstance(params, 60 * 1000);
+  console.log(res);
   if (res.status == "200") {
     ElMessage({
       type: "success",
       message: "删除成功",
     });
     ciDataTableRef.value!.clearSelection();
-
     await getCiData({
       model: props.ciModelId,
       model_instance_group: props.currentNodeId,
     });
+    setTimeout(() => {
+      emit("getTree");
+    }, 2000);
+
     //
   } else {
     ElMessage({
@@ -1802,6 +1807,7 @@ const bulkDelete = async () => {
       message: `删除失败:${res.data}`,
     });
   }
+  tableLoading.value = false;
 };
 const exportSelect = async (params) => {
   if (params) {
@@ -1824,7 +1830,7 @@ const exportAll = async () => {
     all: true,
     model: props.ciModelId,
     group: props.currentNodeId,
-    // params: filterParam.value,
+    params: filterParam.value,
   });
   console.log(res);
 };

@@ -127,8 +127,8 @@ export default {
   deleteCiModelInstance(params) {
     return axios.delete(path.cmdbCiModelInstance + params)
   },
-  bulkDeleteCiModelInstance(params) {
-    return axios.request({ url: path.cmdbCiModelInstance + '/bulk_delete/', method: 'post', data: params })
+  bulkDeleteCiModelInstance(params, timeout = 30) {
+    return axios.request({ url: path.cmdbCiModelInstance + '/bulk_delete/', method: 'post', data: params, timeout: timeout })
   },
   addCiModelInstance(params) {
     return axios.request({ url: path.cmdbCiModelInstance, method: 'post', data: params })
