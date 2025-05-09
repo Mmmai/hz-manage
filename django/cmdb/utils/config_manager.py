@@ -1,11 +1,9 @@
-from curses.ascii import SI
 import threading
 import logging
 import time
 import sys
 from django.core.cache import cache
 from django.apps import apps
-from django.dispatch import Signal
 
 logger = logging.getLogger(__name__)
 

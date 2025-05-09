@@ -49,11 +49,13 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'drf_spectacular_sidecar',
     'channels',
-    'django_celery_beat'
+    'django_celery_beat',
+    'silk',
 ]
 
 
 MIDDLEWARE = [
+    'silk.middleware.SilkyMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -62,6 +64,12 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+SILKY_PYTHON_PROFILER = True
+
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+DEBUG = True
 
 ROOT_URLCONF = 'vuedjango.urls'
 
@@ -100,7 +108,7 @@ DATABASES = {
         'USER': 'root',
         'PASSWORD': 'thinker',
         'HOST': '127.0.0.1',
-        'PORT': '3306',
+        'PORT': '3333',
     },
     'cmdb': {
         'ENGINE': 'django.db.backends.mysql',
@@ -108,7 +116,7 @@ DATABASES = {
         'USER': 'root',
         'PASSWORD': 'thinker',
         'HOST': '127.0.0.1',
-        'PORT': '3306',
+        'PORT': '3333',
     },
 }
 # 多数据库配置
@@ -116,6 +124,7 @@ DATABASE_ROUTERS = ['vuedjango.db_router.database_router']
 DATABASE_APPS_MAPPING = {
     'mlog': 'default',
     'mapi': 'default',
+    'silk': 'default',
     'cmdb': 'cmdb',
 }
 

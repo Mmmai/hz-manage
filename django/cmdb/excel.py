@@ -249,34 +249,9 @@ class ExcelHandler:
         # 写入实例数据
         for row, instance in enumerate(instances, 2):
             # 写入name
-            data_sheet[f'A{row}'] = instance.instance_name
+            data_sheet[f'A{row}'] = instance.get('instance_name')
 
-            field_values = {}
-            for field_meta in instance.field_values.all():
-                value = field_meta.data
-
-                # 处理枚举类型
-                if (field_meta.model_fields.type == FieldType.ENUM and
-                    field_meta.model_fields.validation_rule and
-                        field_meta.model_fields.validation_rule.type == ValidationType.ENUM):
-
-                    # 从缓存获取枚举字典
-                    rule_id = field_meta.model_fields.validation_rule.id
-                    enum_dict = ValidationRules.get_enum_dict(rule_id)
-                    value = enum_dict.get(value, None)
-                # 处理关联模型
-                elif field_meta.model_fields.type == FieldType.MODEL_REF:
-                    ref_model = field_meta.model_fields.ref_model
-                    ref_instance = ModelInstance.objects.filter(
-                        model=ref_model,
-                        id=value
-                    ).first()
-                    value = ref_instance.instance_name if ref_instance else None
-                elif field_meta.model_fields.type == FieldType.PASSWORD:
-                    logger.info(f"Decrypting password {value} for field {field_meta.model_fields.name}")
-                    value = password_handler.decrypt_to_plain(value)
-                    logger.info(f"Decrypted password: {value}")
-                field_values[field_meta.model_fields.name] = value
+            field_values = instance.get('fields', {})
 
             # 写入字段值
             for field_name, field_value in field_values.items():

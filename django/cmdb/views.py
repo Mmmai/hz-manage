@@ -1,4 +1,5 @@
 import logging
+from pyexpat import model
 import time
 import uuid
 import traceback
@@ -28,7 +29,7 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter
 from celery.result import AsyncResult
 from .utils import password_handler, celery_manager, zabbix_config
 from .excel import ExcelHandler
-from .constants import FieldMapping, limit_field_names
+from .constants import FieldMapping, FieldType, limit_field_names
 from .tasks import process_import_data, setup_host_monitoring, install_zabbix_agent, sync_zabbix_host_task, update_instance_names_for_model_template_change, update_zabbix_interface_availability
 from .filters import (
     ModelGroupsFilter,
@@ -443,10 +444,56 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
     ordering_fields = ['create_time', 'update_time']
     search_fields = ['model', 'instance_name', 'create_user', 'update_user']
 
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context['decrypt_password'] = self.request.query_params.get('decrypt_password', 'false').lower() == 'true'
-        return context
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        ref_model_ids = set()
+        field_meta = {}
+        instance_group = {}
+        if page is not None:
+            instance_ids_on_page = [instance.id for instance in page]
+
+            # 获取全部字段元数据
+            meta_qs = ModelFieldMeta.objects.filter(
+                model_instance_id__in=instance_ids_on_page
+            ).select_related('model_fields', 'model_fields__validation_rule')
+            for meta in meta_qs:
+                field_meta.setdefault(str(meta.model_instance_id), []).append(meta)
+            # 获取引用类型的id
+            ref_model_qs = meta_qs.filter(
+                model_fields__type=FieldType.MODEL_REF
+            ).exclude(
+                model_fields__ref_model_id__isnull=True
+            ).values_list('model_fields__ref_model_id', flat=True)
+            for ref_model_id in ref_model_qs:
+                ref_model_ids.add(str(ref_model_id))
+            # 获取分组
+            instance_group_data = ModelInstanceGroupRelation.objects.filter(
+                instance__in=instance_ids_on_page
+            ).select_related('group').values('instance_id', 'group_id', 'group__path')
+            for group in instance_group_data:
+                instance_group.setdefault(str(group['instance_id']), []).append({
+                    'group_id': str(group['group_id']),
+                    'group_path': group['group__path']
+                })
+
+        ref_instances = {}
+        if ref_model_ids:
+            instances = ModelInstance.objects.filter(
+                model_id__in=ref_model_ids
+            ).values('id', 'instance_name')
+            ref_instances = {str(instance['id']): instance['instance_name'] for instance in instances}
+
+        context = self.get_serializer_context()
+        context['field_meta'] = field_meta
+        context['ref_instances'] = ref_instances
+        context['instance_group'] = instance_group
+
+        serializer = self.get_serializer(page, many=True, context=context)
+
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def _apply_filters(self, queryset, model, filter_params):
         model_id = model
@@ -469,7 +516,6 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
         if standard_fields:
             filterset = ModelInstanceFilter(standard_fields, queryset=queryset)
             queryset = filterset.qs
-            logger.info(f"Applied standard filters: {standard_fields}")
 
         for field_name, field_value in filter_params.items():
             # 忽略特殊参数
@@ -481,7 +527,6 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
                     model=model_id if model_id else queryset.first().model_id,
                     name=field_name
                 )
-                logger.debug(f"Processing field: {field.name}")
 
                 meta_query = ModelFieldMeta.objects.filter(model_fields=field)
                 all_instance_ids = set(meta_query.values_list('model_instance_id', flat=True))
@@ -540,7 +585,6 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
                 # 获取匹配的实例ID
                 matching_ids = all_instance_ids - exclude_ids
                 matching_ids_list.append(matching_ids)
-                logger.debug(f"Found matching IDs for {field_name}: {matching_ids}")
 
             except ModelFields.DoesNotExist:
                 logger.warning(f"Field not found: {field_name}")
@@ -552,11 +596,9 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
         # 取交集并过滤queryset
         if matching_ids_list:
             final_ids = reduce(lambda x, y: x & y, matching_ids_list)
-            logger.debug(f"Final matching IDs: {final_ids}")
 
             if final_ids:
                 queryset = queryset.filter(id__in=final_ids)
-                logger.debug("Final query generated successfully")
             else:
                 # 当没有匹配的 ID 时，返回空查询集
                 queryset = queryset.none()
@@ -566,12 +608,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
 
     @cached_as(ModelInstance, timeout=600)
     def get_queryset(self):
-        queryset = ModelInstance.objects.all()\
-            .order_by('-create_time')\
-            .prefetch_related(
-                'field_values__model_fields',
-                'field_values__model_fields__validation_rule',
-        ).select_related('model')
+        queryset = ModelInstance.objects.all().order_by('-create_time').select_related('model')
 
         if self.action == 'retrieve' and self.kwargs.get('pk'):
             return queryset
@@ -717,31 +754,59 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
 
             instances = ModelInstance.objects.filter(model_id=model_id)
 
-            if filter_by_params and (group_id or params):
+            if group_id:
+                params['model_instance_group'] = group_id
+
+            if filter_by_params and params:
                 instances = ModelInstance.objects.all()
-                if params:
-                    instances = self._apply_filters(instances, model_id, params)
+                instances = self._apply_filters(instances, model_id, params)
             elif instance_ids:
                 instances = instances.filter(id__in=instance_ids)
 
-            if group_id:
-                instance_in_group = ModelInstanceGroupRelation.objects.filter(
-                    group=group_id
-                ).values_list('instance_id', flat=True)
-                instances = instances.filter(id__in=instance_in_group)
+            # if group_id:
+            #     instance_in_group = ModelInstanceGroupRelation.objects.filter(
+            #         group=group_id
+            #     ).values_list('instance_id', flat=True)
+            #     instances = instances.filter(id__in=instance_in_group)
 
             if not instances.exists():
                 raise ValidationError("No instances found with the provided criteria.")
 
-            # 获取缓存的查询结果
-            cached_queryset = self.get_queryset().filter(model_id=model_id)
-
-            # 如果有指定实例ID，则从缓存结果中过滤
             if instance_ids:
-                instances = cached_queryset.filter(id__in=instance_ids)
-            else:
-                instances = cached_queryset
+                instances = instances.filter(id__in=instance_ids)
             logger.info(f'Exporting data for {len(instances)} instances')
+
+            field_meta_map = {}
+            instances_meta_qs = ModelFieldMeta.objects.filter(
+                model_instance__in=instances
+            ).select_related('model_fields', 'model_fields__validation_rule')
+            for meta in instances_meta_qs:
+                field_meta_map.setdefault(str(meta.model_instance_id), []).append(meta)
+
+            ref_model_ids = set()
+            ref_model_qs = instances_meta_qs.filter(
+                model_fields__type=FieldType.MODEL_REF
+            ).exclude(
+                model_fields__ref_model_id__isnull=True
+            ).values_list('model_fields__ref_model_id', flat=True)
+            for id in ref_model_qs:
+                ref_model_ids.add(str(id))
+
+            ref_instances_map = {}
+            if ref_model_ids:
+                ref_instances_list = ModelInstance.objects.filter(
+                    model_id__in=ref_model_ids
+                ).values('id', 'instance_name')
+                ref_instances_map = {
+                    str(instance['id']): instance['instance_name']
+                    for instance in ref_instances_list
+                }
+
+            context = self.get_serializer_context()
+            context['field_meta'] = field_meta_map
+            context['ref_instances'] = ref_instances_map
+
+            serialized_instances_data = self.get_serializer(instances, many=True, context=context).data
 
             # 获取模型及其字段
             model = Models.objects.get(id=model_id)
@@ -754,11 +819,25 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             fields = fields_query.select_related(
                 'validation_rule',
                 'model_field_group'
-            ).order_by('order')
+            ).order_by('model_field_group__create_time', 'order')
+
+            for instance_data in serialized_instances_data:
+                for field in fields:
+                    if field.type == FieldType.ENUM:
+                        data = instance_data['fields'].get(field.name, {})
+                        if data:
+                            instance_data['fields'][field.name] = data.get('label')
+                    elif field.type == FieldType.MODEL_REF:
+                        data = instance_data['fields'].get(field.name, {})
+                        if data:
+                            instance_data['fields'][field.name] = data.get('instance_name')
+                    elif field.type == FieldType.PASSWORD:
+                        data = instance_data['fields'].get(field.name, None)
+                        instance_data['fields'][field.name] = password_handler.decrypt_sm4(data)
 
             # 生成Excel导出
             excel_handler = ExcelHandler()
-            workbook = excel_handler.generate_data_export(fields, instances)
+            workbook = excel_handler.generate_data_export(fields, serialized_instances_data)
 
             excel_file = io.BytesIO()
             workbook.save(excel_file)
@@ -780,7 +859,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             )
 
         except Exception as e:
-            logger.error(f"Error exporting data: {str(e)}")
+            logger.error(f"Error exporting data: {traceback.format_exc()}")
             raise ValidationError({'detail': f'Failed to export data: {str(e)}'})
 
     @action(detail=False, methods=['post'])
@@ -912,7 +991,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
         groups = ModelInstanceGroupRelation.objects.filter(instance=instance).values_list('group', flat=True)
         groups = ModelInstanceGroup.objects.filter(id__in=groups)
         if '空闲池' not in groups.values_list('label', flat=True):
-            raise PermissionDenied({'detail': '实例不在空闲池中，无法删除，请先移动到空闲池'})
+            raise PermissionDenied({'detail': 'Instance is not in unassigned group'})
         ModelInstanceGroup.clear_groups_cache(groups)
         instance.delete()
 
@@ -1224,178 +1303,6 @@ class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Error deleting group: {str(e)}")
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=True, methods=['post'])
-    def add_instances(self, request, pk=None):
-        """添加实例到分组"""
-        group = self.get_object()
-        self._check_root_group_operation(group)
-        instance_ids = request.data.get('instances', [])
-        user = request.data.get('update_user')
-
-        try:
-            logger.info(f"Adding instances {instance_ids} to group {group.label}")
-
-            with transaction.atomic():
-                unassigned_group = ModelInstanceGroup.objects.get(
-                    model=group.model,
-                    label='空闲池',
-                    built_in=True
-                )
-
-                if group.label == '空闲池' and group.built_in:
-                    # 如果目标组是空闲池，删除所有其他组关系
-                    logger.info(f"Target group is unassigned pool, removing all other group relations")
-                    ModelInstanceGroupRelation.objects.filter(
-                        instance_id__in=instance_ids
-                    ).delete()
-                else:
-                    # 如果目标组不是空闲池，只删除与空闲池的关系
-                    logger.info(f"Target group is not unassigned pool, removing unassigned pool relations")
-                    ModelInstanceGroupRelation.objects.filter(
-                        instance_id__in=instance_ids,
-                        group=unassigned_group
-                    ).delete()
-
-                # 批量创建新的关系
-                relations_to_create = [
-                    ModelInstanceGroupRelation(
-                        instance_id=instance_id,
-                        group=group,
-                        create_user=user
-                    )
-                    for instance_id in instance_ids
-                    if not ModelInstanceGroupRelation.objects.filter(
-                        instance_id=instance_id,
-                        group=group
-                    ).exists()
-                ]
-
-                if relations_to_create:
-                    ModelInstanceGroupRelation.objects.bulk_create(relations_to_create)
-                    logger.info(f"Created {len(relations_to_create)} new group relations")
-
-            return Response({
-                'message': f'Successfully added {len(instance_ids)} instances to group {group.label}',
-                'added_count': len(relations_to_create)
-            }, status=status.HTTP_201_CREATED)
-
-        except ModelInstanceGroup.DoesNotExist as e:
-            logger.error(f"Group not found: {str(e)}")
-            return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            logger.error(f"Error adding instances to group: {str(e)}")
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=True, methods=['post'])
-    def remove_instances(self, request, pk=None):
-        """从分组移除实例"""
-        try:
-            group = self.get_object()
-            self._check_root_group_operation(group)
-            instance_ids = request.data.get('instances', [])
-            user = request.data.get('update_user')
-
-            logger.info(f"Removing instances {instance_ids} from group {group.label}")
-
-            if group.label == '空闲池' and group.built_in:
-                logger.warning("Cannot remove instances from unassigned pool")
-                return Response({
-                    'error': 'Cannot remove instances from unassigned pool'
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-            with transaction.atomic():
-                unassigned_group = ModelInstanceGroup.objects.get(
-                    model=group.model,
-                    label='空闲池',
-                    built_in=True
-                )
-
-                deleted_count = ModelInstanceGroupRelation.objects.filter(
-                    instance_id__in=instance_ids,
-                    group=group
-                ).delete()[0]
-                logger.info(f"Deleted {deleted_count} group relations")
-
-                # 检查每个实例是否还有其他组关系
-                instances_to_unassign = []
-                for instance_id in instance_ids:
-                    other_relations = ModelInstanceGroupRelation.objects.filter(
-                        instance_id=instance_id
-                    ).exclude(group=unassigned_group)
-
-                    if not other_relations.exists():
-                        instances_to_unassign.append(
-                            ModelInstanceGroupRelation(
-                                instance_id=instance_id,
-                                group=unassigned_group,
-                                create_user=user,
-                                update_user=user
-                            )
-                        )
-                        logger.info(f"Instance {instance_id} will be moved to unassigned pool")
-
-                # 批量创建空闲池关系
-                if instances_to_unassign:
-                    ModelInstanceGroupRelation.objects.bulk_create(instances_to_unassign)
-                    logger.info(f"Added {len(instances_to_unassign)} instances to unassigned pool")
-
-            return Response({
-                'message': f'Successfully removed {deleted_count} instances from group {group.label}',
-                'removed_count': deleted_count,
-                'unassigned_count': len(instances_to_unassign)
-            }, status=status.HTTP_200_OK)
-
-        except ModelInstanceGroup.DoesNotExist as e:
-            logger.error(f"Group not found: {str(e)}")
-            return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            logger.error(f"Error removing instances from group: {str(e)}")
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=True, methods=['get'])
-    def search_instances(self, request, pk=None):
-        """搜索分组及其子分组下的所有实例"""
-        try:
-            group = self.get_object()
-            logger.info(f'Searching instances in group {group.label}')
-
-            group_ids = list(set(self._get_all_child_groups(group.id)))
-            group_ids.append(group.id)
-            logger.info(f'Found {len(group_ids)} groups in total')
-            logger.info(f'Group IDs: {group_ids}')
-            # 获取实例ID
-            instance_ids = ModelInstanceGroupRelation.objects.filter(
-                group_id__in=group_ids
-            ).values_list('instance_id', flat=True)
-
-            # 构建查询
-            instances = ModelInstance.objects.filter(id__in=instance_ids)
-
-            logger.info(f'Found {instances.count()} instances in total')
-            # 分页
-            paginator = StandardResultsSetPagination()
-            paginated_instances = paginator.paginate_queryset(
-                instances.order_by('id'),
-                request
-            )
-
-            if paginated_instances is not None:
-                serializer = ModelInstanceSerializer(
-                    paginated_instances,
-                    many=True,
-                    context={'request': request}
-                )
-                return paginator.get_paginated_response(serializer.data)
-
-            return Response([])
-
-        except Exception as e:
-            logger.error(f"Error searching instances: {str(e)}")
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
 
 
 @model_instance_group_relation_schema

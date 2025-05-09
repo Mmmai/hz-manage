@@ -1,10 +1,12 @@
 import ipaddress
 import json
 import re
+import time
 import traceback
 from datetime import date, datetime
 from uuid import UUID
 from ast import literal_eval
+from weakref import ref
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -806,13 +808,15 @@ class ModelFieldMetaNestedSerializer(ModelFieldMetaSerializer):
         data = super().to_representation(instance)
         if instance.model_fields.type == FieldType.MODEL_REF and data.get('data'):
             try:
-                ref_instance = ModelInstance.objects.get(id=data['data'])
+                ref_instance_map = self.context.get('ref_instances', {})
+                ref_instance_name = ref_instance_map.get(str(data['data']))
                 # 转换为嵌套字典
                 data['data'] = {
-                    'id': str(ref_instance.id),
-                    'instance_name': ref_instance.instance_name
+                    'id': str(data['data']),
+                    'instance_name': ref_instance_name
                 }
-            except ModelInstance.DoesNotExist:
+            except Exception as e:
+                logger.error(f"Error retrieving reference instance: {str(e)}")
                 data['data'] = {
                     'id': data['data'],
                     'instance_name': None
@@ -867,16 +871,13 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
     })
     def get_instance_group(self, obj):
         """获取实例关联的分组列表"""
-        groups = ModelInstanceGroupRelation.objects.filter(
-            instance=obj
-        ).select_related('group').values_list('group_id', 'group__path')
+        # groups = ModelInstanceGroupRelation.objects.filter(
+        #     instance=obj
+        # ).select_related('group').values_list('group_id', 'group__path')
+        groups = self.context.get('instance_group', {})
+        group = groups.get(str(obj.id), [])
 
-        return [
-            {
-                'group_id': group_id,
-                'group_path': group_path
-            } for group_id, group_path in groups
-        ] if groups else None
+        return group
 
     @extend_schema_field({
         'type': 'object',
@@ -886,11 +887,12 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
     })
     def get_field_values(self, obj):
         """获取实例的字段值"""
-        queryset = ModelFieldMeta.objects.filter(
-            model_instance=obj
-        ).select_related('model_fields')
+
+        field_meta_all = self.context.get('field_meta', {})
+        field_meta = field_meta_all.get(str(obj.id), [])
+
         return ModelFieldMetaNestedSerializer(
-            queryset,
+            field_meta,
             many=True,
             context=self.context
         ).data
