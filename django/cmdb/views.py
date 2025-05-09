@@ -1528,7 +1528,6 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
             if not cache_key:
                 raise ValidationError({'detail': 'Missing cache key'})
             task_info = cache.get(cache_key)
-            logger.info(f'{task_info}')
             if not task_info:
                 raise ValidationError({'detail': 'Cache key not found'})
 
