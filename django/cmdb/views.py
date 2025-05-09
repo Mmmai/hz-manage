@@ -532,7 +532,6 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
                     model=model_id if model_id else queryset.first().model_id,
                     name=field_name
                 )
-                logger.debug(f"Processing field: {field.name}")
 
                 meta_query = ModelFieldMeta.objects.filter(model_fields=field)
                 all_instance_ids = set(meta_query.values_list('model_instance_id', flat=True))
@@ -591,7 +590,6 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
                 # 获取匹配的实例ID
                 matching_ids = all_instance_ids - exclude_ids
                 matching_ids_list.append(matching_ids)
-                logger.debug(f"Found matching IDs for {field_name}: {matching_ids}")
 
             except ModelFields.DoesNotExist:
                 logger.warning(f"Field not found: {field_name}")
@@ -603,11 +601,9 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
         # 取交集并过滤queryset
         if matching_ids_list:
             final_ids = reduce(lambda x, y: x & y, matching_ids_list)
-            logger.debug(f"Final matching IDs: {final_ids}")
 
             if final_ids:
                 queryset = queryset.filter(id__in=final_ids)
-                logger.debug("Final query generated successfully")
             else:
                 # 当没有匹配的 ID 时，返回空查询集
                 queryset = queryset.none()
@@ -751,6 +747,7 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
     def export_data(self, request):
         """导出实例数据"""
         try:
+            begin = time.perf_counter()
             instance_ids = request.data.get('instances', [])
             model_id = request.data.get('model')
             filter_by_params = request.data.get('all', False)
@@ -779,15 +776,14 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             if not instances.exists():
                 raise ValidationError("No instances found with the provided criteria.")
 
-            # 获取缓存的查询结果
-            cached_queryset = self.get_queryset().filter(model_id=model_id)
-
-            # 如果有指定实例ID，则从缓存结果中过滤
             if instance_ids:
-                instances = cached_queryset.filter(id__in=instance_ids)
-            else:
-                instances = cached_queryset
+                instances = instances.filter(id__in=instance_ids)
             logger.info(f'Exporting data for {len(instances)} instances')
+
+            instances_data = ModelInstanceSerializer(instances, many=True).data
+
+            end_filter = time.perf_counter()
+            logger.info(f'Filtering time: {end_filter - begin:.2f} seconds')
 
             # 获取模型及其字段
             model = Models.objects.get(id=model_id)
@@ -800,15 +796,21 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             fields = fields_query.select_related(
                 'validation_rule',
                 'model_field_group'
-            ).order_by('order')
+            ).order_by('model_field_group__create_time', 'order')
+
+            end_get_fields_order = time.perf_counter()
+            logger.info(f'Fields order retrieval time: {end_get_fields_order - begin:.2f} seconds')
 
             # 生成Excel导出
             excel_handler = ExcelHandler()
-            workbook = excel_handler.generate_data_export(fields, instances)
+            workbook = excel_handler.generate_data_export(fields, instances_data)
 
             excel_file = io.BytesIO()
             workbook.save(excel_file)
             excel_file.seek(0)
+
+            end_excel = time.perf_counter()
+            logger.info(f"Excel generation time: {end_excel - begin:.2f} seconds")
 
             # 返回文件响应
             headers = {
