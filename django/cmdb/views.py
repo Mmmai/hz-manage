@@ -643,21 +643,17 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
         params = request.data.get('params', {})
         group_id = request.data.get('group')
 
-        if filter_by_params and (group_id or params):
+        if group_id:
+            params['model_instance_group'] = group_id
+
+        if filter_by_params and params:
             instances = ModelInstance.objects.all()
-            if params:
-                instances = self._apply_filters(instances, model_id, params)
+            instances = self._apply_filters(instances, model_id, params)
         elif instance_ids:
             instances = ModelInstance.objects.filter(id__in=instance_ids)
         else:
             # 给定的查询参数不足
             raise ValidationError("Insufficient query parameters provided.")
-
-        if group_id:
-            instance_in_group = ModelInstanceGroupRelation.objects.filter(
-                group=group_id
-            ).values_list('instance_id', flat=True)
-            instances = instances.filter(id__in=instance_in_group)
 
         if not instances.exists():
             raise ValidationError("No instances found with the provided criteria.")
@@ -1532,6 +1528,7 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
             if not cache_key:
                 raise ValidationError({'detail': 'Missing cache key'})
             task_info = cache.get(cache_key)
+            logger.info(f'{task_info}')
             if not task_info:
                 raise ValidationError({'detail': 'Cache key not found'})
 
@@ -1545,8 +1542,8 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
 
             def event_stream():
                 result['status'] = 'processing'
-                completed_hosts = set()
                 last_progress = 0
+                completed_hosts = set()
 
                 for _ in range(600):
                     for zsh_id, task_id in task_info['host_task_map'].items():
@@ -1563,7 +1560,8 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
                             result['failed'] += 1
                             completed_hosts.add(zsh_id)
 
-                    result['progress'] = (result['success'] + result['failed']) // result['total'] * 100
+                    result['progress'] = (result['success'] + result['failed']) * 100 // result['total']
+
                     if result['progress'] == 100:
                         result['status'] = 'completed'
                         yield f"data: {result}\n\n"
