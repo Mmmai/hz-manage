@@ -1,9 +1,9 @@
 // import {callback} from 'vue'
 
-const pageFunc = (dataArr,pageConfig) =>{ 
-  let sindex = 0+pageConfig.size*(pageConfig.page - 1 )
+const pageFunc = (dataArr, pageConfig) => {
+  let sindex = 0 + pageConfig.size * (pageConfig.page - 1)
   let eindex = pageConfig.size + sindex
-  let res = dataArr.slice(sindex,eindex)
+  let res = dataArr.slice(sindex, eindex)
   return res
 
 }
@@ -22,12 +22,12 @@ const downloadFunc = (res) => {
   var reader = new FileReader();
   reader.readAsDataURL(blob);
   // onload当读取操作成功完成时调用
-  reader.onload = function(e) {
+  reader.onload = function (e) {
     var a = document.createElement('a');
     // 获取文件名fileName
     let contentDisposition = res.headers['content-disposition'];
     // fileName必用这种方式进行解析，否则乱码
-    let fileName = window.decodeURI(contentDisposition.substring(contentDisposition.indexOf('=')+1));
+    let fileName = window.decodeURI(contentDisposition.substring(contentDisposition.indexOf('=') + 1));
     // var fileName = res.headers["content-disposition"].split("=");
     // fileName = fileName[fileName.length - 1];
     // fileName = fileName.replace(/"/g, "");
@@ -39,16 +39,16 @@ const downloadFunc = (res) => {
     document.body.removeChild(a);
   }
 }
-const testr = () =>{
+const testr = () => {
   let contentDisposition = response.headers['content-disposition'];
   // fileName必用这种方式进行解析，否则乱码
-  let fileName = window.decodeURI(contentDisposition.substring(contentDisposition.indexOf('=')+1));
+  let fileName = window.decodeURI(contentDisposition.substring(contentDisposition.indexOf('=') + 1));
   console.log('fileName=' + fileName);
   let url = window.URL.createObjectURL(new Blob([data]));
   let a = document.createElement('a');
   a.style.display = 'none';
   a.href = url;
-  a.setAttribute('download',fileName);
+  a.setAttribute('download', fileName);
   document.body.appendChild(a);
   //点击下载
   a.click();
@@ -57,38 +57,38 @@ const testr = () =>{
   // 释放掉blob对象
   window.URL.revokeObjectURL(url);
   console.log("下载完成");
- 
+
 }
 // 防抖函数
-const debounceFunc = (fn,wait=500) => {
+const debounceFunc = (fn, wait = 500) => {
   let timer
-  return function() {
+  return function () {
     let context = this
     let args = arguments
     if (timer) clearTimeout(timer)
-    timer = setTimeout(()=>{
-      fn.apply(context,args)
-    },wait)
+    timer = setTimeout(() => {
+      fn.apply(context, args)
+    }, wait)
   }
 }
 // 节流
-const throttle = (func, wait=1000) =>{
+const throttle = (func, wait = 1000) => {
   let timer; // 定义一个计时器变量，用于限制函数调用频率
   return function (...args) { // 返回一个包装后的函数
-      const context = this; // 保存函数执行上下文对象
-      if (!timer) { // 如果计时器不存在
-          func.apply(context, args); // 执行函数
-          timer = setTimeout(() => {
-            timer = null; // 清空计时器变量
-          }, wait); // 创建计时器，在指定时间后重置计时器变量
-      }
+    const context = this; // 保存函数执行上下文对象
+    if (!timer) { // 如果计时器不存在
+      func.apply(context, args); // 执行函数
+      timer = setTimeout(() => {
+        timer = null; // 清空计时器变量
+      }, wait); // 创建计时器，在指定时间后重置计时器变量
+    }
   };
 }
 // 将数组导出
 //res.value.code 数据源
 //type：格式设置
 //form.name是下载文件的自定义名字
-const downloadArray = (fileName,exportArray)=>{
+const downloadArray = (fileName, exportArray) => {
 
   let result = exportArray
   const blob = new Blob(result, { type: 'text/txt' });
@@ -100,7 +100,7 @@ const downloadArray = (fileName,exportArray)=>{
   URL.revokeObjectURL(url);
 }
 // 当前时间字符串
-const getCurrentTimeString = (ym='-',md='-',dh=' ',hm=':',ms=':') => {
+const getCurrentTimeString = (ym = '-', md = '-', dh = ' ', hm = ':', ms = ':') => {
   var now = new Date();
   var year = now.getFullYear();
   var month = now.getMonth() + 1; // 月份是从0开始的
@@ -120,22 +120,22 @@ const getCurrentTimeString = (ym='-',md='-',dh=' ',hm=':',ms=':') => {
   return year + ym + month + md + day + dh + hours + hm + minutes + ms + seconds;
 }
 // 时间戳转字符串
-const timestampToDate = (timeValue)=>{
+const timestampToDate = (timeValue) => {
   const timestamp = Number(timeValue);
   const date = new Date(timestamp);
   const formattedDate = date.toLocaleString();
   return formattedDate
 }
 // UUID
-const getUuid = ()=> {
+const getUuid = () => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-      var r = Math.random() * 16 | 0,
-          v = c == 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
+    var r = Math.random() * 16 | 0,
+      v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
   });
 }
 
-const validateRegexp = (regexp,rule, value, callback) => {
+const validateRegexp = (regexp, rule, value, callback) => {
   const pattern = new RegExp(regexp)
   if (value === '' || value === undefined || value == null) {
     callback()
@@ -153,29 +153,30 @@ const hasDuplicates = (array) => {
 // 模板下载
 import axios from '../utils/request'
 
-const downloadFile = async(fileUrl,params)=>{
-    try {
-      const response = await axios({
-        url: fileUrl, // 替换为你的文件 URL
-        method: 'POST',
-        data:params,
-        responseType: 'blob' // 确保响应是 Blob 类型
-      });
-      console.log(response)
-      // 创建一个 URL 对象
-      const url = window.URL.createObjectURL(new Blob([response.data],{type: response.data.type}));
-      
-      // 创建一个 <a> 元素并下载
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', response.headers['content-disposition'].split('"')[1]); // 替换为你希望的文件名
-      document.body.appendChild(link);
-      link.click();
-      link.remove(); // 下载后移除链接元素
-    } catch (error) {
-      console.error('下载文件失败', error); // 捕获并输出错误信息
-    }
+const downloadFile = async (fileUrl, params) => {
+  try {
+    const response = await axios({
+      url: fileUrl, // 替换为你的文件 URL
+      method: 'POST',
+      data: params,
+      responseType: 'blob', // 确保响应是 Blob 类型
+      timeout: 0
+    });
+    console.log(response)
+    // 创建一个 URL 对象
+    const url = window.URL.createObjectURL(new Blob([response.data], { type: response.data.type }));
+
+    // 创建一个 <a> 元素并下载
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', response.headers['content-disposition'].split('"')[1]); // 替换为你希望的文件名
+    document.body.appendChild(link);
+    link.click();
+    link.remove(); // 下载后移除链接元素
+  } catch (error) {
+    console.error('下载文件失败', error); // 捕获并输出错误信息
   }
+}
 
 
 

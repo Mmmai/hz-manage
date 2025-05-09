@@ -1762,9 +1762,9 @@ const isShowUpload = ref(false);
 // 批量操作的参数
 const multipleParams = computed(() => {
   if (isSelectAll.value) {
-    return { all: true, group: props.currentNodeId, params: filterParam };
+    return { all: true, group: props.currentNodeId, params: filterParam.value };
   } else {
-    return { group: props.currentNodeId, params: filterParam };
+    return { group: props.currentNodeId, params: filterParam.value };
   }
 });
 
@@ -1819,9 +1819,12 @@ const exportSelect = async (params) => {
   }
 };
 const exportAll = async () => {
+  console.log(multipleParams.value);
   let res = await proxy.$api.exportCiData({
+    all: true,
     model: props.ciModelId,
-    ...multipleParams,
+    group: props.currentNodeId,
+    // params: filterParam.value,
   });
   console.log(res);
 };

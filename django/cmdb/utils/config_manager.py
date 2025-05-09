@@ -1,4 +1,3 @@
-from curses.ascii import SI
 import threading
 import logging
 import time
