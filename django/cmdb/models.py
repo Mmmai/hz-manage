@@ -10,6 +10,7 @@ from cacheops import cached_as
 import json
 import uuid
 import logging
+import functools
 from .constants import ValidationType
 
 logger = logging.getLogger(__name__)
@@ -168,21 +169,47 @@ class ValidationRules(models.Model):
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
 
-    @classmethod
-    def get_enum_dict(cls, rule_id):
+    # @classmethod
+    # def get_enum_dict(cls, rule_id):
 
-        @cached_as(ValidationRules, timeout=60 * 60)
-        def _get_enum_dict(rule_id):
-            """获取枚举规则字典"""
-            try:
-                rule = cls.objects.get(id=rule_id)
-                if rule.type == ValidationType.ENUM:
-                    return json.loads(rule.rule)
-            except (cls.DoesNotExist, json.JSONDecodeError):
-                pass
+    #     @cached_as(ValidationRules, timeout=60 * 60)
+    #     def _get_enum_dict(rule_id):
+    #         """获取枚举规则字典"""
+    #         try:
+    #             rule = cls.objects.get(id=rule_id)
+    #             if rule.type == ValidationType.ENUM:
+    #                 return json.loads(rule.rule)
+    #         except (cls.DoesNotExist, json.JSONDecodeError):
+    #             pass
+    #         return {}
+
+    #     return _get_enum_dict(rule_id)
+
+    @staticmethod
+    @functools.lru_cache(maxsize=128)  # maxsize 可根据枚举规则的数量调整
+    def get_enum_dict(rule_id):
+        logger.info(
+            f"LRU Cache MISS for get_enum_dict(rule_id={rule_id})."
+            f"Executing function body. Cache info: {ValidationRules.get_enum_dict.cache_info()}")
+        try:
+            rule_instance = ValidationRules.objects.get(id=rule_id)
+            if rule_instance.type == ValidationType.ENUM and rule_instance.rule:
+                parsed_enum_dict = json.loads(rule_instance.rule)
+                return parsed_enum_dict
+            return {}
+        except ValidationRules.DoesNotExist:
+            logger.warning(f"ValidationRule with id {rule_id} not found.")
+            return {}
+        except json.JSONDecodeError:
+            logger.error(f"Error decoding enum_dict from DB for rule_id {rule_id}")
+            return {}
+        except Exception as e:
+            logger.error(f"Unexpected error fetching enum_dict for rule_id {rule_id}: {e}")
             return {}
 
-        return _get_enum_dict(rule_id)
+    @staticmethod
+    def clear_specific_enum_cache(rule_id):
+        ValidationRules.get_enum_dict.cache_clear()
 
 
 class ModelFields(models.Model):
