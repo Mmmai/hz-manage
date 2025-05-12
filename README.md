@@ -3,7 +3,7 @@
 mysql:8
 docker run -p 3306:3306 --name mysql -e MYSQL_ROOT_PASSWORD=(密码与setting.py中的一致) -d mysql:8.0
 
-create database hz-manage;
+create database manage;
 
 create database cmdb;
 
