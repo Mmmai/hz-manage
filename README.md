@@ -42,13 +42,13 @@ daphne -b 0.0.0.0 -p 8000 vuedjango.asgi:application
 
 cd django
 
-celery -A vuedjango worker -l info -P eventlet
+celery -A vuedjango worker -l info -P eventlet -B
 
 #linux
 
 cd django
 
-celery -A vuedjango worker -l info
+celery -A vuedjango worker -l info -B
 
 
 
