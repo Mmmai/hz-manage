@@ -3,7 +3,7 @@
 mysql:8
 docker run -p 3306:3306 --name mysql -e MYSQL_ROOT_PASSWORD=(密码与setting.py中的一致) -d mysql:8.0
 
-create database hz-manage;
+create database manage;
 
 create database cmdb;
 
@@ -42,15 +42,13 @@ daphne -b 0.0.0.0 -p 8000 vuedjango.asgi:application
 
 cd django
 
-celery -A vuedjango worker -l info -P eventlet
+celery -A vuedjango worker -l info -P eventlet -B
 
 #linux
 
 cd django
 
-celery -A vuedjango worker -l info
-
-
+celery -A vuedjango worker -l info -B
 
 # 前端部署
 

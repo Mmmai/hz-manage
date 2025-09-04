@@ -56,10 +56,10 @@ export default {
   },
   // 模型唯一标识更新
   updateInstanceName(params) {
-    return axios.request({ url: path.cmdbCiModel + params + '/rename_instances/', method: 'post' })
+    return axios.request({ url: path.cmdbCiModel + params + 'rename_instances/', method: 'post' })
   },
   updateInstanceNameTask(params) {
-    return axios.request({ url: path.cmdbCiModel + '/rename_status/', method: 'get', params: params })
+    return axios.request({ url: path.cmdbCiModel + 'rename_status/', method: 'get', params: params })
 
   },
   // 模型字段组
@@ -128,7 +128,7 @@ export default {
     return axios.delete(path.cmdbCiModelInstance + params)
   },
   bulkDeleteCiModelInstance(params, timeout = 30) {
-    return axios.request({ url: path.cmdbCiModelInstance + '/bulk_delete/', method: 'post', data: params, timeout: timeout })
+    return axios.request({ url: path.cmdbCiModelInstance + 'bulk_delete/', method: 'post', data: params, timeout: timeout })
   },
   addCiModelInstance(params) {
     return axios.request({ url: path.cmdbCiModelInstance, method: 'post', data: params })
@@ -138,10 +138,10 @@ export default {
   },
   // 批量更新
   multipleUpdateCiModelInstance(params) {
-    return axios.request({ url: path.cmdbCiModelInstance + '/bulk_update_fields/', method: 'patch', data: params })
+    return axios.request({ url: path.cmdbCiModelInstance + 'bulk_update_fields/', method: 'patch', data: params })
   },
   syncHosts() {
-    return axios.request({ url: path.cmdbCiModelInstance + '/sync_hosts/', method: 'post' })
+    return axios.request({ url: path.cmdbCiModelInstance + 'sync_hosts/', method: 'post' })
   },
 
   // ci数据显示列

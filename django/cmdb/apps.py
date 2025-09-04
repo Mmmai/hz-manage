@@ -20,7 +20,7 @@ class CMDBConfig(AppConfig):
         """应用启动时加载密钥及zabbix相关实例"""
         import cmdb.signals
 
-        if 'runserver' in sys.argv or any('celery' in arg for arg in sys.argv) or 'daphne' in sys.modules:
+        if 'runserver' in sys.argv or any('celery' in arg for arg in sys.argv) or 'daphne'  in sys.modules or '--host' in sys.argv:
             # 清除缓存
             invalidate_all()
             password_handler.load_keys()

@@ -367,7 +367,7 @@ const filterTag = (value, row) => {
 const filterParam = ref({});
 watch(filterValue, (n) => {
   // console.log(filterParam);
-  filterParam.value[colValue.value] = n;
+  filterParam.value = { [colValue.value]: n };
 });
 const filterMethod = (filters: object) => {
   //

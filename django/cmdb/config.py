@@ -2134,7 +2134,7 @@ BUILT_IN_VALIDATION_RULES = {
         'verbose_name': '主机名校验',
         'field_type': 'string',
         'type': 'regex',
-        'rule': '^[a-zA-Z][a-zA-Z0-9-]{1,63}$',
+        'rule': '^[a-zA-Z0-9][a-zA-Z0-9-]{1,63}$',
         'editable': False,
         'description': '主机名格式校验'
     },
