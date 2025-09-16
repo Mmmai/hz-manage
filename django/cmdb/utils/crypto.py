@@ -152,7 +152,7 @@ if __name__ == "__main__":
     print("Encrypted:", encrypted)
 
     # 模拟前端加密后的 hex 字符串
-    sm4_encrypted_hex = "5ea8b5e5ce9872b9f52432f49e29d005"
+    sm4_encrypted_hex = "67744f2be1ae26e8ba7a9a5e8e7832b5"
 
     # Fernet 二次加密存储
     stored = handler.encrypt(sm4_encrypted_hex)

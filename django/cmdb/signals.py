@@ -359,59 +359,59 @@ def update_instance_name_on_field_change(sender, instance, created, **kwargs):
         logger.error(f"Error generating instance name: {str(e)}")
 
 
-@receiver(post_save, sender=ModelInstance)
-def sync_zabbix_host(sender, instance, created, **kwargs):
-    """同步Zabbix主机"""
-    if not zabbix_config.is_zabbix_sync_enabled():
-        return
+# @receiver(post_save, sender=ModelInstance)
+# def sync_zabbix_host(sender, instance, created, **kwargs):
+#     """同步Zabbix主机"""
+#     if not zabbix_config.is_zabbix_sync_enabled():
+#         return
 
-    def delayed_process():
-        try:
-            model = Models.objects.get(id=instance.model_id)
-            if model.name != 'hosts':
-                return
+#     def delayed_process():
+#         try:
+#             model = Models.objects.get(id=instance.model_id)
+#             if model.name != 'hosts':
+#                 return
 
-            # 获取主机信息
-            host_info = {}
-            field_values = ModelFieldMeta.objects.filter(
-                model_instance=instance
-            ).select_related('model_fields')
+#             # 获取主机信息
+#             host_info = {}
+#             field_values = ModelFieldMeta.objects.filter(
+#                 model_instance=instance
+#             ).select_related('model_fields')
 
-            for field in field_values:
-                logger.debug(f"Field: {field.model_fields.name}, Value: {field.data}")
-                if field.model_fields.name == 'ip':
-                    host_info[field.model_fields.name] = field.data
-                elif field.model_fields.name == 'system_password':
-                    host_info[field.model_fields.name] = password_handler.decrypt_to_plain(field.data)
+#             for field in field_values:
+#                 logger.debug(f"Field: {field.model_fields.name}, Value: {field.data}")
+#                 if field.model_fields.name == 'ip':
+#                     host_info[field.model_fields.name] = field.data
+#                 elif field.model_fields.name == 'system_password':
+#                     host_info[field.model_fields.name] = password_handler.decrypt_to_plain(field.data)
 
-            groups = []
-            instance_group_relations = ModelInstanceGroupRelation.objects.filter(
-                instance=instance
-            ).select_related('group')
-            for relation in instance_group_relations:
-                if relation.group.path not in ['所有', '所有/空闲池']:
-                    groups.append(relation.group.path.replace('所有/', ''))
+#             groups = []
+#             instance_group_relations = ModelInstanceGroupRelation.objects.filter(
+#                 instance=instance
+#             ).select_related('group')
+#             for relation in instance_group_relations:
+#                 if relation.group.path not in ['所有', '所有/空闲池']:
+#                     groups.append(relation.group.path.replace('所有/', ''))
 
-            if not host_info.get('ip'):
-                logger.warning(f"Missing required host information for instance {instance.id}")
-                return
+#             if not host_info.get('ip'):
+#                 logger.warning(f"Missing required host information for instance {instance.id}")
+#                 return
 
-            logger.info(f"Syncing Zabbix host for IP: {host_info.get('ip')} instance: {instance.id}")
+#             logger.info(f"Syncing Zabbix host for IP: {host_info.get('ip')} instance: {instance.id}")
 
-            # 异步创建Zabbix主机
-            setup_host_monitoring.delay(
-                instance_id=str(instance.id),
-                instance_name=instance.instance_name,
-                ip=host_info['ip'],
-                password=host_info['system_password'],
-                groups=groups
-            )
+#             # 异步创建Zabbix主机
+#             setup_host_monitoring.delay(
+#                 instance_id=str(instance.id),
+#                 instance_name=instance.instance_name,
+#                 ip=host_info['ip'],
+#                 password=host_info['system_password'],
+#                 groups=groups
+#             )
 
-        except Exception as e:
-            logger.error(f"Failed to sync Zabbix host: {str(e)}")
+#         except Exception as e:
+#             logger.error(f"Failed to sync Zabbix host: {str(e)}")
 
-    transaction.on_commit(delayed_process)
-    logger.info(f'Syncing Zabbix host for instance {instance.id} completed')
+#     transaction.on_commit(delayed_process)
+#     logger.info(f'Syncing Zabbix host for instance {instance.id} completed')
 
 
 @receiver(pre_delete, sender=ModelInstance)
@@ -672,3 +672,30 @@ def on_validation_rule_save(sender, instance, **kwargs):
 def on_validation_rule_delete(sender, instance, **kwargs):
     if instance.type == ValidationType.ENUM:
         ValidationRules.clear_specific_enum_cache(instance.id)
+
+
+
+# 信号接收器
+instance_signal = Signal(providing_args=["instance","action"])
+# 同步的模型
+model_sync_list = ['hosts','switches']
+#创建或更新时，信号同步给node
+@receiver(post_save, sender=ModelInstance,dispatch_uid="sync_to_nodes")
+def send_model_instance_signal(sender, instance, created, **kwargs):
+    if instance.model.name not in model_sync_list:
+        print("模型不在同步列表中，跳过节点同步")
+        return 
+    instance_signal.send(sender=sender, instance=instance,action=created)
+#删除时，信号同步给node
+@receiver(pre_delete, sender=ModelInstance,dispatch_uid="delete_to_nodes")
+def send_model_instance_delete_signal(sender, instance, **kwargs):
+    if instance.model.name not in model_sync_list:
+        print("模型不在同步列表中，跳过节点同步")
+        return 
+    instance_signal.send(sender=sender, instance=instance,action='delete')
+# @receiver(post_save, sender=ModelInstance,dispatch_uid="111")
+# def send_model_instance_signal(sender, instance, created, **kwargs):
+#     print(123)
+#     if instance.model.name not in model_sync_list:
+#         print("模型不在同步列表中，跳过节点同步")
+#         return 

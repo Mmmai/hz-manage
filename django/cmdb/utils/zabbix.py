@@ -71,7 +71,7 @@ class ZabbixTokenManager:
             },
             "id": 1
         }
-        response = requests.post(self.url, json=payload)
+        response = requests.post(self.url, json=payload, verify=False)
         response.raise_for_status()
         return response.json()['result']
 
@@ -96,6 +96,7 @@ class ZabbixAPI:
         self.url = zabbix_config.get('zabbix_url')
         self.template = zabbix_config.get('zabbix_host_template')
         self.session = requests.Session()
+        self.session.verify = False
         self.session.headers.update({"Content-Type": "application/json-rpc"})
         self.token_manager = ZabbixTokenManager()
 

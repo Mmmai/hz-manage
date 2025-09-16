@@ -324,10 +324,11 @@
           </div>
           <div v-else>
             <el-text v-if="scope.row[data.name]?.length >> 0">{{
-              "*".repeat(
-                decrypt_sm4(gmConfig.key, gmConfig.mode, scope.row[data.name])
-                  .length
-              )
+              // "*".repeat(
+              //   decrypt_sm4(gmConfig.key, gmConfig.mode, scope.row[data.name])
+              //     .length
+              // )
+              "*".repeat(scope.row[data.name]?.length)
             }}</el-text>
             <el-text v-else></el-text>
           </div>
@@ -801,16 +802,9 @@
                             :class="{ requiredClass: fitem.required }"
                             @mouseenter="showPassButton = true"
                             @mouseleave="showPassButton = false"
+                            class="hide-text"
                           >
-                            {{
-                              "*".repeat(
-                                decrypt_sm4(
-                                  gmConfig.key,
-                                  gmConfig.mode,
-                                  ciDataForm[fitem.name]
-                                ).length
-                              )
-                            }}
+                            {{ "*".repeat(ciDataForm[fitem.name]?.length) }}
                             <el-popover
                               v-permission="
                                 `${route.name?.replace(
@@ -2628,10 +2622,14 @@ const editCiData = (params, edit = false) => {
             ciDataForm[item] = params[item];
           }
         } else if (modelFieldType.value.password.indexOf(item) !== -1) {
-          console.log("password");
           if (!showAllPass.value) {
+            console.log(params[item]);
             ciDataForm[item] = params[item];
           } else {
+            console.log(params[item]);
+            console.log(
+              decrypt_sm4(gmConfig.value.key, gmConfig.value.mode, params[item])
+            );
             ciDataForm[item] = decrypt_sm4(
               gmConfig.value.key,
               gmConfig.value.mode,
@@ -2644,6 +2642,7 @@ const editCiData = (params, edit = false) => {
         }
       } // isDisabled.value = params.built_in
     );
+    console.log(ciDataForm);
     // ciDataForm = params
     beforeEditCiDataForm.value = JSON.parse(JSON.stringify(ciDataForm));
   });
@@ -2669,7 +2668,7 @@ const cpCiData = (params) => {
           ciDataForm[item] = params[item].value;
         } else if (modelFieldType.value.password.indexOf(item) !== -1) {
           if (!showAllPass.value) {
-            ciDataForm[item] = params[item];
+            ciDataForm[item] = null;
           } else {
             ciDataForm[item] = decrypt_sm4(
               gmConfig.value.key,
@@ -2764,7 +2763,7 @@ const ciDataCommit = async (
         });
         setTimeout(() => {
           loading.close();
-        }, 2000);
+        }, 200);
 
         // console.log(res)
         // console.log(123)
@@ -2804,6 +2803,9 @@ const ciDataCommit = async (
             message: "无更新,关闭窗口",
             type: "info",
           });
+          setTimeout(() => {
+            loading.close();
+          }, 200);
           return;
         } else {
           // 判断此次用户操作的字段
@@ -2879,7 +2881,7 @@ const ciDataCommit = async (
         }
         setTimeout(() => {
           loading.close();
-        }, 1000);
+        }, 200);
       }
       // console.log('submit!')
     } else {
@@ -3094,6 +3096,16 @@ const leftHeaderStyle = ({ row, column, rowIndex, columnIndex }) => {
 //   text-overflow: clip;
 //   overflow-wrap: break-word;
 // }
+
+// 密码过长显示
+
+.hide-text {
+  display: inline-block;
+  max-width: 150px; /* 控制显示宽度 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* 超出部分显示省略号 */
+}
 .demo-tabs > .el-tabs__content {
   padding: 32px;
   color: #6b778c;

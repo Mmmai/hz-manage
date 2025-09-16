@@ -23,6 +23,10 @@ export function decrypt_sm4(key: string, mode: string, text: string): string {
   const bytes = encoder.encode(key);
   try {
     const decryptedText = smCrypto.sm4.decrypt(text, bytes, { mode });
+    if (decryptedText === null || decryptedText === undefined || decryptedText === "") {
+      console.error(`解密失败,，，,密文:${text}`);
+      return text
+    }
     return decryptedText
   } catch {
     console.error("解密失败，，，")

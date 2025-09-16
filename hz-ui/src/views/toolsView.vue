@@ -22,7 +22,9 @@ import qrCode from "../components/tools/qrCode.vue";
 // import transform from '../components/tools/transform.vue';
 import JsonParse from "../components/tools/jsonparse.vue";
 import TimeTrans from "../components/tools/timetrans.vue";
-
+import { encrypt_sm4, decrypt_sm4 } from "@/utils/gmCrypto.ts";
+// console.log(
+// );
 const activeName = ref("qrCode");
 </script>
 

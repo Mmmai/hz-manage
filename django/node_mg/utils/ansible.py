@@ -1,0 +1,280 @@
+import shutil
+import uuid
+import ansible_runner
+import logging
+import os,time,json
+from django.conf import settings
+# from . import zabbix_config
+from django.utils import timezone
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+
+class AnsibleAPI:
+    def __init__(self):
+        self.private_data_dir = '/tmp/ansible_runner'
+        os.makedirs(self.private_data_dir, exist_ok=True)
+
+
+    def run_playbook(self, playbook_path, inventory_dict, extra_vars=None):
+        """运行playbook并获取结果"""
+        try:
+
+            # 为每个任务创建唯一的临时目录，避免多个任务创建时inventory被覆盖导致无法匹配IP
+            task_dir = os.path.join(self.private_data_dir, str(uuid.uuid4()))
+            os.makedirs(task_dir, exist_ok=True)
+            for subdir in ['env', 'inventory', 'project', 'artifacts']:
+                path = os.path.join(task_dir, subdir)
+                os.makedirs(path, exist_ok=True)
+
+            if not os.path.exists(playbook_path):
+                logger.error(f"Playbook file not found: {playbook_path}")
+                return {
+                    'rc': 1,
+                    'status': 'failed',
+                    'events': [],
+                    'error': f"ERROR! the playbook: {playbook_path} could not be found"
+                }
+
+            result = ansible_runner.run(
+                private_data_dir=task_dir,
+                playbook=playbook_path,
+                inventory=inventory_dict,
+                extravars=extra_vars,
+                quiet=True
+            )
+            # 立刻解析结果，避免在调用方等待时临时目录被清理
+            events = list(result.events)
+            # print(events)
+            status = {
+                'rc': result.rc,
+                'status': result.status,
+                'events': events
+            }
+            return status
+            # report_data = {
+            #     "status": result.status,
+            #     "rc": result.rc,
+            #     "stats": result.status,
+            #     "tasks": []
+            # }
+    
+            # for event in list(result.events):
+            #     print(event)
+            #     if 'task' in event:
+            #         report_data["tasks"].append({
+            #             "name": event['task']['name'],
+            #             "host": event['host'],
+            #             "status": event['event'],
+            #             "stdout": event.get('stdout', '')
+            #         })
+                        
+            stdout = result.stdout.read()
+            stderr = result.stderr.read()
+            print(f"STDOUT: {stdout}"
+                  f"STDERR: {stderr}")
+            return {
+                'status': 'success',
+                'result': str(stdout),
+                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+            }
+
+
+        except Exception as e:
+            logger.error(f"Ansible playbook execution failed: {str(e)}")
+            return None
+        finally:
+            # 清理临时目录
+            if os.path.exists(task_dir):
+                shutil.rmtree(task_dir)
+
+    def run_cmd(self,inventory,module,args,):
+        try:
+
+            r = ansible_runner.run(
+                private_data_dir='/tmp/ansible_runner',  # 临时目录
+                inventory=inventory, # 动态库存
+                module=module,
+                module_args=args,
+                host_pattern="all",
+                quiet=True
+            )
+
+            if r.rc != 0:
+                raise Exception(f"Ansible task failed with return code {r.rc}")
+
+            # 提取结果
+            #result = r.get_fact_cache()
+                # 直接获取标准输出
+            
+            stdout = r.stdout.read()
+            stderr = r.stderr.read()
+            print(f"STDOUT: {stdout}"
+                  f"STDERR: {stderr}")
+            #result = r.events
+            return {
+                'status': 'success',
+                'result': str(stdout),
+                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+            }
+
+        except Exception as exc:
+            # # 重试机制
+            # if self.request.retries < self.max_retries:
+            #     return self.retry(exc=exc, countdown=2 ** self.request.retries)
+
+            return {
+                'status': 'failed',
+                'error': str(exc)
+            }      
+    def install_zabbix_agent(self, host_ip, ssh_user, ssh_port, ssh_pass,
+                             jump_host=None, jump_user=None, jump_pass=None,
+                             jump_port=22, zabbix_proxy=None):
+        """安装Zabbix客户端"""
+        playbook_path = '/opt/zabbix_agent/main.yaml'
+
+        host_vars = {
+            'ansible_ssh_user': ssh_user,
+            'ansible_ssh_pass': ssh_pass,
+            'ansible_ssh_port': ssh_port,
+            'ansible_ssh_common_args': '-o StrictHostKeyChecking=no'
+        }
+
+        if jump_host and jump_user and jump_pass:
+            proxy_command = f"sshpass -p '{jump_pass}' ssh -W %h:%p -p {jump_port} {jump_user}@{jump_host}"
+            host_vars['ansible_ssh_common_args'] += f" -o ProxyCommand=\"{proxy_command}\""
+
+        inventory_dict = {
+            'all': {
+                'hosts': {
+                    host_ip: host_vars
+                }
+            }
+        }
+        server = zabbix_config.get('zabbix_server')
+        extra_vars = {
+            'hostIp': host_ip,
+            'serverIp': server,
+            'serverActiveIp': server,
+            'inventory_hostname': host_ip
+        }
+
+        if zabbix_proxy:
+            extra_vars['serverActiveIp'] = zabbix_proxy
+
+        result = self.run_playbook(playbook_path, inventory_dict, extra_vars)
+        if result:
+            installation_status = {
+                'status': 'success',
+                'message': '',
+                'task_details': []
+            }
+            for event in result.get('events'):
+                if event.get('event') in ['runner_on_failed', 'runner_on_unreachable']:
+                    event_data = event.get('event_data', {})
+                    task_name = event_data.get('task', 'unknown')
+                    error_msg = event_data.get('res', {}).get('msg', 'No error message')
+                    ignore_errors = event_data.get('ignore_errors', False)
+
+                    if not ignore_errors:
+                        if event.get('event') == 'runner_on_failed':
+                            installation_status['status'] = 'failed'
+                            installation_status['message'] = f"Task '{task_name}' failed: {error_msg}"
+                        else:
+                            installation_status['status'] = 'unreachable'
+                            installation_status['message'] = f"Host unreachable: {error_msg}"
+
+                    installation_status['task_details'].append({
+                        'task': task_name,
+                        'status': 'ignored' if ignore_errors else installation_status['status'],
+                        'message': error_msg
+                    })
+                    break
+            if installation_status['status'] == 'success' and result.get('rc') != 0:
+                installation_status = {
+                    'status': 'failed',
+                    'message': f"Ansible execution failed with return code {result.get('rc')}",
+                    'task_details': []
+                }
+            if installation_status['status'] == 'success':
+                logger.info(f'Installation for {host_ip} completed with status: {installation_status["status"]}')
+            else:
+                logger.error(f'Installation for {host_ip} failed with status: {installation_status["status"]}'
+                             f' and message: {installation_status["message"]}'
+                             f' and task details: {installation_status["task_details"]}')
+            logger.info(f'Parsed installation result for {host_ip}: {installation_status}')
+            return installation_status
+        logger.error(f'Installation for {host_ip} failed, no result found')
+        return {
+            'status': 'unknown'
+        }
+
+    def collect_cmdb_data():
+        result = ansible_runner.run(
+            playbook='/opt/get_system_info.yaml',
+            inventory='inventory.ini',
+            ident='cmdb_collection'
+        )
+
+        cmdb_list = []
+        for event in result.events:
+            if event.get('event') == 'DEBUG':
+                try:
+                    cmdb_list.append(json.loads(event.get('msg')))
+                except json.JSONDecodeError:
+                    continue
+        return cmdb_list
+    def extract_debug_json(self,events):
+        json_data = []
+        aaa = events[-2].get('event_data').get('res')
+        # print(events[-2].get('event_data').get('rec'))
+        output = json.loads(events[-2].get('event_data').get('res').get('msg'))
+        # print(output)
+        return output
+        for event in events:
+            try:
+                print(event.keys())
+                if event["event_data"]["task_action"] == 'debug' and event["event"] == "runner_on_ok":
+                    try:
+                        # 提取 msg 字段并解析 JSON
+                        print(event["event_data"]["res"])
+                        json_data.append(payload)
+                    except json.JSONDecodeError:
+                        print(12332)
+                        continue
+            except KeyError:
+                print(event)
+        return json_data
+def main():
+
+    host_ip = '192.168.163.160'
+    ansible_api = AnsibleAPI()
+    # result = ansible_api.install_zabbix_agent(host_ip)
+    inventory = { 'all': { 'hosts': { host_ip: {
+        'ansible_ssh_user': 'root',
+        'ansible_ssh_pass': 'thinker',
+        'ansible_ssh_port': 22,
+        'ansible_ssh_common_args': '-o StrictHostKeyChecking=no'
+    } } } }
+    # result = ansible_api.run_cmd(inventory,'ping','')
+    result = ansible_api.run_playbook('/opt/get_system_info.yaml',inventory)
+    print(result['rc'])
+    print(result)
+    print(ansible_api.extract_debug_json(result['events']))
+    # if result:
+    #     print(f"\nZabbix agent installation result for {host_ip}:")
+    #     print(f"Status: {result['status']}")
+    #     if result['status'] != 'success':
+    #         print(f"Error: {result['message']}")
+    #         print("\nTask Details:")
+    #         for task in result['task_details']:
+    #             print(f"- Task: {task['task']}")
+    #             print(f"  Status: {task['status']}")
+    #             print(f"  Message: {task['message']}")
+    # else:
+    #     print(f"Failed to execute playbook for {host_ip}")
+
+
+if __name__ == "__main__":
+    main()

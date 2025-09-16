@@ -1,0 +1,9 @@
+from cmdb.utils.crypto import PasswordHandler
+from cmdb.utils.celery import CeleryManager
+from cmdb.utils.config_manager import ConfigManager
+# 创建单例
+password_handler = PasswordHandler()
+celery_manager = CeleryManager()
+zabbix_config = ConfigManager()
+
+__all__ = ['password_handler', 'celery_manager', 'zabbix_config']

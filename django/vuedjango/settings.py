@@ -50,6 +50,8 @@ INSTALLED_APPS = [
     'drf_spectacular_sidecar',
     'channels',
     'django_celery_beat',
+    'node_mg',
+
 ]
 
 
@@ -122,6 +124,7 @@ DATABASE_APPS_MAPPING = {
     'mlog': 'default',
     'mapi': 'default',
     'cmdb': 'cmdb',
+    'node_mg': 'cmdb'
 }
 
 CACHEOPS_REDIS = {

@@ -1085,6 +1085,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 return instance
 
         except Exception as e:
+            print (traceback.print_exc())
             logger.error(f"Error creating model instance: {str(e)}")
             raise serializers.ValidationError(str(e))
 

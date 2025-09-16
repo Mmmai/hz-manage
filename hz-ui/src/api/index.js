@@ -3,12 +3,14 @@ import path from './path'
 import userApis from './user';
 import cmdbApis from './cmdb';
 import lokiApis from './loki'
+import nodeApis from './node_mg'
 import commonFunc from '../utils/common'
 
 const api = {
   ...userApis,
   ...cmdbApis,
   ...lokiApis,
+  ...nodeApis,
   getRouteInfo(params) {
     return axios.request({
       url: path.routeInfo,
