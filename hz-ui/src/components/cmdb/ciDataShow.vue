@@ -598,6 +598,7 @@
                       <el-input
                         v-model="ciDataForm[fitem.name]"
                         style="width: 240px"
+                        :disabled="controlEdit(fitem.editable)"
                         v-else
                       ></el-input>
                     </el-form-item>
@@ -2601,6 +2602,7 @@ const addCiData = () => {
 const currentRow = ref({});
 const beforeEditCiDataForm = ref({});
 const editCiData = (params, edit = false) => {
+  isCopy.value = false;
   ciDrawer.value = true;
   commitActionAdd.value = false;
   isEdit.value = edit;
@@ -2647,8 +2649,10 @@ const editCiData = (params, edit = false) => {
     beforeEditCiDataForm.value = JSON.parse(JSON.stringify(ciDataForm));
   });
 };
+const isCopy = ref(false);
 const cpCiData = (params) => {
   ciDrawer.value = true;
+  isCopy.value = true;
   commitActionAdd.value = true;
   isEdit.value = true;
   currentRow.value = params;
@@ -2690,7 +2694,15 @@ const cpCiData = (params) => {
     duration: 2000,
   });
 };
-
+const controlEdit = (refVal) => {
+  if (commitActionAdd.value) return false;
+  if (isCopy.value) return false;
+  if (refVal) {
+    return false;
+  } else {
+    return true;
+  }
+};
 const ciDataFormRef = ref<FormInstance>();
 const ciDataForm = reactive({
   instance_name: null,
@@ -2699,7 +2711,7 @@ const rmNameObj = computed(() => {
   let tmpObj = Object.assign({}, ciDataForm);
   delete tmpObj.instance_name;
   for (let [ckey, cvalue] of Object.entries(tmpObj)) {
-    if (cvalue === null) continue;
+    if (cvalue === null || cvalue === "") continue;
     if (modelFieldType.value.password.indexOf(ckey) !== -1) {
       // 加密
       tmpObj[ckey] = encrypt_sm4(
@@ -2714,10 +2726,8 @@ const rmNameObj = computed(() => {
 const rmNameObjUpdate = computed(() => {
   let tmpObj = Object.assign({}, updateParams.value);
   delete tmpObj.instance_name;
-  console.log(modelFieldType.value);
-
   for (let [ckey, cvalue] of Object.entries(updateParams.value)) {
-    if (cvalue === null) continue;
+    if (cvalue === null || cvalue === "") continue;
     if (modelFieldType.value.password.indexOf(ckey) !== -1) {
       // 加密
       tmpObj[ckey] = encrypt_sm4(

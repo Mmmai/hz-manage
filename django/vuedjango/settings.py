@@ -343,7 +343,7 @@ LOGGING = {
     'disable_existing_loggers': False,
     'formatters': {
         'standard': {
-            'format': '[{levelname}] {asctime} [{name}] {message}',
+            'format': '[{levelname}] {asctime} [{name} {lineno}] {message}',
             'datefmt': '%Y-%m-%d %H:%M:%S',
             'style': '{',
         },
@@ -354,16 +354,42 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'standard',
         },
+        #通用日志
         'file': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': os.path.join(LOG_DIR, 'cmdb.log'),
+            'filename': os.path.join(LOG_DIR, 'run.log'),
             'formatter': 'standard',
         },
         'celery_file': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOG_DIR, 'celery.log'),
+            'formatter': 'standard',
+        },
+        # 为其他app添加日志文件
+        'mlog_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'mlog.log'),
+            'formatter': 'standard',
+        },
+        'mapi_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'mapi.log'),
+            'formatter': 'standard',
+        },
+        'node_mg_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'node_mg.log'),
+            'formatter': 'standard',
+        },
+        'cmdb_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'cmdb.log'),
             'formatter': 'standard',
         },
     },
@@ -376,6 +402,27 @@ LOGGING = {
         'celery': {
             'handlers': ['celery_file', 'console'],
             'level': 'INFO',
+            'propagate': False,
+        },
+        # 为各app配置独立日志记录器
+        'mlog': {
+            'handlers': ['mlog_file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'mapi': {
+            'handlers': ['mapi_file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'node_mg': {
+            'handlers': ['node_mg_file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'cmdb': {
+            'handlers': ['cmdb_file', 'console'],
+            'level': 'DEBUG',
             'propagate': False,
         },
         '': {

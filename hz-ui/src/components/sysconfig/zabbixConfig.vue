@@ -189,6 +189,7 @@ const zabbixParamsFormItem = [
   "zabbix_username",
   "zabbix_password",
   "zabbix_host_template",
+  "zabbix_ipmi_template",
   "zabbix_network_template",
   "zabbix_interval",
 ];
@@ -199,6 +200,7 @@ const paramForm = reactive({
   zabbix_server: null,
   zabbix_username: null,
   zabbix_password: null,
+  zabbix_ipmi_template: null,
   zabbix_host_template: null,
   zabbix_network_template: null,
   zabbix_interval: 0,

@@ -1,6 +1,7 @@
 from rest_framework import serializers
-from .models import (Nodes,NodeInfoTask,NodeSyncZabbix)
+from .models import (Nodes,NodeInfoTask,NodeSyncZabbix,Proxy)
 from cmdb.models import ModelInstance,Models,ModelFieldMeta
+
 
 class NodeInfoTaskSerializer(serializers.ModelSerializer):
     class Meta:
@@ -30,6 +31,9 @@ class NodesSerializer(serializers.ModelSerializer):
     zbx_status = serializers.SerializerMethodField()
 
     model_verbose_name = serializers.CharField(source='model.verbose_name', read_only=True)
+    manage_error_message = serializers.SerializerMethodField()
+    agent_error_message = serializers.SerializerMethodField()
+
     # node_ip = serializers.SerializerMethodField()
     class Meta:
         model = Nodes
@@ -71,6 +75,26 @@ class NodesSerializer(serializers.ModelSerializer):
             return 2
         except Exception as e:
             return 2
+    def get_manage_error_message(self, obj):
+        """获取节点关联的最新任务错误信息"""
+        try:
+            latest_task = obj.node_info_tasks.order_by('-created_at').first()
+            if latest_task:
+                # return NodeInfoTaskSerializer(latest_task).data
+                return latest_task.error_message
+            return ""
+        except Exception as e:
+            return ""
+    def get_agent_error_message(self, obj):
+        """获取节点关联的最新任务错误信息"""
+        try:
+            latest_task = obj.node_sync_zabbix.order_by('-created_at').first()
+            if latest_task:
+                # return NodeInfoTaskSerializer(latest_task).data
+                return latest_task.error_message
+            return ""
+        except Exception as e:
+            return ""
     # def get_node_ip(self, obj):
     #     """获取节点关联的实例IP"""
     #     try:
@@ -85,3 +109,24 @@ class NodesSerializer(serializers.ModelSerializer):
     #         return ""
     #     except Exception as e:
     #         return ""
+
+
+class ProxySerializer(serializers.ModelSerializer):
+    node_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Proxy
+        fields = '__all__'
+    def get_node_count(self,obj):
+        return Nodes.objects.filter(proxy=obj).count()
+    
+class ProxyDetailSerializer(serializers.ModelSerializer):
+    node_count = serializers.SerializerMethodField()
+    nodes = NodesSerializer(many=True, read_only=True)
+    class Meta:
+        model = Proxy
+        # 可以自定义需要返回的字段
+        fields = '__all__'
+    
+    def get_node_count(self,obj):
+        return Nodes.objects.filter(proxy=obj).count()

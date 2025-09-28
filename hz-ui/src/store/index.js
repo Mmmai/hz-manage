@@ -8,7 +8,7 @@ export default createStore({
   state: {
     counter: 0,
     isCollapse: true,
-    currentMenu: localStorage.getItem('currentMenu') ? localStorage.getItem('currentMenu')  : '',
+    currentMenu: localStorage.getItem('currentMenu') ? localStorage.getItem('currentMenu') : '',
 
     // currentMenu: localStorage.getItem('currentMenu') ? JSON.parse(localStorage.getItem('currentMenu'))  : '',
     token: localStorage.getItem('token') ? localStorage.getItem('token') : '',
@@ -18,7 +18,7 @@ export default createStore({
     username: localStorage.getItem('username') ? localStorage.getItem('username') : '',
     userinfo: localStorage.getItem('userinfo') ? JSON.parse(localStorage.getItem('userinfo')) : '',
 
-    permission: localStorage.getItem('permission') ? JSON.parse(localStorage.getItem('permission')) : '', 
+    permission: localStorage.getItem('permission') ? JSON.parse(localStorage.getItem('permission')) : '',
     // 动态菜单
     dynamicCreateRoute: false,
     routeInfo: [],
@@ -42,7 +42,7 @@ export default createStore({
       if (val.name == 'home') {
         // localStorage.setItem('currentMenu', '');
 
-        return 
+        return
       } else {
         state.currentMenu = val.label
         localStorage.setItem('currentMenu', val.label);
@@ -52,26 +52,26 @@ export default createStore({
         let result = state.tagList.findIndex(item => item.name === val.name)
 
         // JSON.parse(localStorage.getItem('tagList'))
-        if (val.is_info){
+        if (val.is_info) {
           let result = state.tagList.findIndex(item => item.path === val.path)
-          if (result == -1){
+          if (result == -1) {
             state.tagList.push(val)
             localStorage.setItem('tagList', JSON.stringify(state.tagList));
           }
-        }else{
+        } else {
           let result = state.tagList.findIndex(item => item.name === val.name)
-          if (result == -1){
+          if (result == -1) {
             state.tagList.push(val)
             localStorage.setItem('tagList', JSON.stringify(state.tagList));
           }
         }
         // state.tagList.forEach(item => {
         //   if (item.is_info){
-            
+
         //   }else{
 
         //   }
-          
+
         // });
 
         // result == -1 ? state.tagList.push(val) : ''
@@ -123,6 +123,11 @@ export default createStore({
     setRouteInfo(state, config) {
       state.routeInfo = config
     },
+    // 更新权限列表
+    updatePermission(state, config) {
+      state.permission = config
+      localStorage.setItem('permission', JSON.stringify(config));
+    },
     // 更新菜单列表
     setRoleMenu(state, config) {
       // 禁用的菜单不显示,只禁用了第一级别
@@ -133,13 +138,13 @@ export default createStore({
       //   if (item.name === 'home'){
       //     localStorage.setItem('tagList', JSON.stringify([item]))
       //   }
-        
-        
+
+
       // });
       // state.tagList = config.slice(0, 1)
     },
     // 当前路由地址
-    setSecret(state,config){
+    setSecret(state, config) {
       state.secret = config
     }
 

@@ -361,6 +361,7 @@ def update_instance_name_on_field_change(sender, instance, created, **kwargs):
 
 # @receiver(post_save, sender=ModelInstance)
 # def sync_zabbix_host(sender, instance, created, **kwargs):
+#     print(4444)
 #     """同步Zabbix主机"""
 #     if not zabbix_config.is_zabbix_sync_enabled():
 #         return

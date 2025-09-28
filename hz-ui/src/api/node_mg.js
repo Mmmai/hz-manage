@@ -1,9 +1,12 @@
 import axios from '../utils/request'
 import commonFunc from '../utils/common'
-import { method } from 'lodash'
+import { add, method } from 'lodash'
+import { del } from 'vue-demi'
 // import path from './path'
 const path = {
   nodes: "/api/v1/node_mg/nodes/",
+  proxy: "/api/v1/node_mg/proxy/",
+  // node_mg: "/api/v1/node_mg
 
 }
 export default {
@@ -21,5 +24,37 @@ export default {
   updateNodes(params) {
     // return axios.put(path.role+params.id+'/',params)
     return axios.request({ url: path.nodes + params.id + '/', method: 'patch', data: params })
+  },
+  // zabbix主机同步状态
+  getZabbixStatus(params) {
+    return axios.request({ url: path.nodes, params: params, method: 'get' })
+  },
+  syncZabbixHost(params) {
+    return axios.request({ url: path.nodes + 'sync_zabbix/', method: 'post', data: params })
+  },
+  updateZabbixAvailability(params) {
+    return axios.request({ url: path.nodes + 'update_zabbix_availability/', method: 'post', data: params })
+  },
+  installAgent(params) {
+    return axios.request({ url: path.nodes + 'install_agent/', method: 'post', data: params })
+  },
+  get_inventory(params) {
+    return axios.request({ url: path.nodes + 'get_inventory/', method: 'post', data: params })
+  },
+  // proxy
+  getProxy(params) {
+    return axios.request({ url: path.proxy, method: 'get', params: params })
+  },
+  getProxyInfo(id) {
+    return axios.request({ url: path.proxy + id + '/', method: 'get' })
+  },
+  addProxy(params) {
+    return axios.request({ url: path.proxy, method: 'post', data: params })
+  },
+  deleteProxy(params) {
+    return axios.request({ url: path.proxy + params, method: 'delete' })
+  },
+  updateProxy(params) {
+    return axios.request({ url: path.proxy + params.id + '/', method: 'patch', data: params })
   },
 }

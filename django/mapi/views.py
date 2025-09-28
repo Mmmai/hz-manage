@@ -143,6 +143,16 @@ class getMenu(APIView):
             # if info["is_menu"]:
             #     # print(info["label"])
             #     info["meta"]["permission"] = []
+                        # 构建菜单全路径
+            path_labels = []
+            current = menu
+            while current:
+                path_labels.insert(0, {'name':current.label,'icon': current.icon})
+                current = current.parentid
+            # menu_path = "/".join(path_labels)
+            
+            # 添加meta信息，包含菜单全路径
+            info["meta"].update({"menuPath": path_labels}) 
             info['children'] = self.get_menu_tree(menu_list,role,menu)
             # print(info)
 
@@ -173,7 +183,6 @@ class getPermissionToRole(APIView):
                 info = {"id":menu.id,"label":menu.label,"tree_type":"menu"}
             else:
                 info = {"id":menu.id,"label":menu.label,"tree_type":"directory"}
-
             info['children'] = self.get_menu_tree(menu_list,menu)
             # print(info)
                 # 如果是目录，但是没有子目录，则跳过
@@ -557,4 +566,3 @@ class sysConfigViewSet(ModelViewSet):
         # 更新
         sysConfigParams.objects.bulk_update(params_to_update,["param_value"])
         return Response(data='update success')
-

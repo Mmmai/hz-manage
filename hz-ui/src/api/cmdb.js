@@ -211,17 +211,17 @@ export default {
     return axios.request({ url: path.cmdbReEncrypt, method: 'post', data: params, timeout: timeout })
   },
   // zabbix主机同步状态
-  getZabbixSync(params) {
-    return axios.request({ url: path.cmdbSyncZabbix, params: params, method: 'get' })
-  },
-  syncZabbixHost(params) {
-    return axios.request({ url: path.cmdbSyncZabbix + 'sync_zabbix_host/', method: 'post', data: params })
-  },
-  updateZabbixAvailability(params) {
-    return axios.request({ url: path.cmdbSyncZabbix + 'update_zabbix_availability/', method: 'post', data: params })
-  },
-  installAgent(params) {
-    return axios.request({ url: path.cmdbSyncZabbix + 'install_agents/', method: 'post', data: params })
-  }
+  // getZabbixSync(params) {
+  //   return axios.request({ url: path.cmdbSyncZabbix, params: params, method: 'get' })
+  // },
+  // syncZabbixHost(params) {
+  //   return axios.request({ url: path.cmdbSyncZabbix + 'sync_zabbix_host/', method: 'post', data: params })
+  // },
+  // updateZabbixAvailability(params) {
+  //   return axios.request({ url: path.cmdbSyncZabbix + 'update_zabbix_availability/', method: 'post', data: params })
+  // },
+  // installAgent(params) {
+  //   return axios.request({ url: path.cmdbSyncZabbix + 'install_agents/', method: 'post', data: params })
+  // }
 
 }

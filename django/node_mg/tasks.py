@@ -1,15 +1,24 @@
-from celery import chain, shared_task
+from celery import chain, shared_task,group
+from celery.result import AsyncResult
+
 from .models import Nodes,NodeInfoTask,NodeSyncZabbix
 from cmdb.models import (
     Models,
     ModelInstance,
-    ModelFieldMeta
+    ModelFieldMeta,
+    ModelInstanceGroupRelation
     )
-import os,time
+import os,time,logging
 from django.utils import timezone
 import ping3
-from .utils.get_cmdb_data import get_instance_field_value
+import re
+from .utils.cmdb_tools import get_instance_field_value
 from .utils.zabbix import ZabbixAPI
+from .utils import zabbix_config
+from .utils.commFunc import compare_interfaces
+from .utils.cmdb_tools import get_instance_field_value,get_instance_field_value_info,update_asset_info,node_inventory
+
+logger = logging.getLogger(__name__)
 
 if os.name != 'nt':
     from .utils.ansible import AnsibleAPI
@@ -17,6 +26,31 @@ if os.name != 'nt':
 else:
     ANSIBLE_AVAILABLE = False
     logger.warning("Ansible functionality not available on Windows")
+@shared_task
+def aggregate_results(results):
+    """
+    处理批量任务的结果
+    """
+    # 参数验证
+    if results is None:
+        return {"success": 0, "failure": 0}
+    
+    success_count = 0
+    failure_count = 0
+    
+    for res in results:
+        print(res)
+        try:
+            if res.get('status') == 'success':
+                success_count += 1
+            else:
+                failure_count += 1
+        except Exception as e:
+            failure_count += 1
+            print(f"Failed: Exception occurred - {str(e)}")
+            
+    return {"total":len(results),"success": success_count, "failure": failure_count}
+
 @shared_task(bind=True)
 def sync_node_mg(self):
     """初始化加载node_mg"""
@@ -156,252 +190,598 @@ def ansible_task(self, node, module, args):
             'error': str(exc)
         }
 
-def node_inventory(node):
-    """获取节点的配置"""
-    proxy = node.proxy
-    ssh_user = get_instance_field_value(node.model_instance, 'system_user') or 'root'
-    ssh_pass = get_instance_field_value(node.model_instance, 'system_password') or ''
-    ssh_port = get_instance_field_value(node.model_instance, 'ssh_port') or 22
-    inventory = { 'all': { 'hosts': { node.ip_address: {
-        'ansible_ssh_user': ssh_user,
-        'ansible_ssh_pass': ssh_pass,
-        'ansible_ssh_port': ssh_port,
-        'ansible_ssh_common_args': '-o StrictHostKeyChecking=no'
-    } } } }
-
-    if proxy:
-        jump_host = proxy.ip_address
-        jump_user = proxy.ssh_user
-        jump_pass = proxy.ssh_pass
-        jump_port = proxy.ssh_port
-        inventory['all']['hosts'][node.ip_address]['ansible_ssh_common_args'] += f" -o ProxyCommand=\"sshpass -p '{jump_pass}' ssh -W %h:%p -p {jump_port} {jump_user}@{jump_host}\""
-    return inventory
-@shared_task(bind=True, max_retries=3)
+@shared_task(bind=True)
+def ansible_getinfo_batch(self, node_ids):
+    """
+    批量执行 Ansible 获取系统信息任务
+    
+    该函数使用 Celery 的 group 功能并行执行多个 ansible_getinfo 任务，
+    每个节点独立执行并更新各自的数据库记录。
+    
+    :param self: 当前任务实例
+    :param node_ids: 节点ID列表
+    :return: 批量任务执行结果字典
+    """
+    results = {}
+    
+    # 使用 Celery 的 group 功能并行执行多个任务
+    job = group(ansible_getinfo.s(node_id) for node_id in node_ids)
+    
+    # 执行并等待结果
+    # result = job.apply_async()
+    chord_result = job | aggregate_results.s()
+    return chord_result.apply_async()     
+@shared_task(bind=True, max_retries=2)
 def ansible_getinfo(self, node_id):
     """
-    执行 Ansible 获取系统信息 任务
-    :param node: 目标节点对象
-    :return: 任务结果字典
+    执行 Ansible 获取系统信息的异步任务。
+
+    该函数通过 Ansible 执行指定的 Playbook 来获取目标节点的系统信息，
+    并将执行结果记录到数据库中。如果任务失败，会根据配置进行重试。
+
+    :param self: 当前任务实例，用于访问任务上下文和控制任务行为（如重试）
+    :param node_id: 目标节点的 ID，用于从数据库中获取对应的节点对象
+    :return: 包含任务状态、节点 IP、执行结果和时间戳的字典
     """
+
     ansible_api = AnsibleAPI()
     try:
         start = time.perf_counter()
         node = Nodes.objects.get(id=node_id)
-        print(f"Starting Ansible playbook for node {node.ip_address}")
+        logger.info(f"Starting Ansible playbook for node {node.ip_address}")
 
+        # 构造 Ansible Inventory 和 Playbook 路径
         inventory = node_inventory(node)
-        print(inventory)
-        result = ansible_api.run_playbook('/opt/get_system_info.yaml',inventory)
+        playbook_path = '/opt/get_system_info.yaml'  # 可考虑从配置中读取
+
+        # 执行 Ansible Playbook
+        result = ansible_api.run_playbook(playbook_path, inventory)
         end_time = time.perf_counter()
 
+        cost_time = round(end_time - start, 2)
+
+        # 如果执行失败，记录失败信息并抛出异常
         if result['rc'] != 0:
             try:
                 NodeInfoTask.objects.create(
                     node=node,
                     status=False,
                     results=str(result),
-                    cost_time=float(f"{end_time - start:.2f}"),
+                    error_message=result.get('error', ''),
+                    cost_time=cost_time,
                 )
-                # obj,created = NodeInfoTask.objects.update_or_create(
-                #     node=node,
-                #     defaults={
-                #         "status": False,
-                #         "results": str(result),
-                #         "cost_time": float(f"{end_time - start:.2f}"),
-                #     }
-                # )
             except Exception as e:
-                print(e)
-            print(f"Ansible playbook failed with return code {result['rc']},{end_time - start:.2f} seconds")
+                logger.error(f"Failed to create NodeInfoTask for node {node.ip_address}: {str(e)}")
+            logger.error(f"Ansible playbook failed with return code {result['rc']}, took {cost_time} seconds")
+            #self.update_state(state="FAILURE", meta={"status": "fail", "code": 400})
             raise Exception(f"Ansible playbook failed with return code {result['rc']}")
-        info = ansible_api.extract_debug_json(result['events'])
-        # info['ansible_playbook_time'] = f"{end_time - start:.2f}"
+
+        info = result.get('debug', {})
+
+        # 记录成功执行的结果
         try:
             NodeInfoTask.objects.create(
                 node=node,
                 status=True,
-                results=str(info),
-                cost_time=float(f"{end_time - start:.2f}"),
+                asset_info=info,
+                results=result,
+                error_message=result.get('error', ''),
+                cost_time=cost_time,
             )
         except Exception as e:
-            print(e)
-        # NodeInfoTask.objects.update_or_create(
-        #     node=node,
-        #     defaults={
-        #         "status": True,
-        #         "results": str(info),
-        #         "cost_time": float(f"{end_time - start:.2f}"),
-        #     }
-        # )
-        # 更新资产 info
-        
-        print(f"Ansible playbook completed in {end_time - start:.2f} seconds")
+            logger.error(f"Error creating or updating node {node.ip_address} info task: {str(e)}")
+
+        # 如果启用了资产自动更新，则更新资产信息
+        if zabbix_config.is_asset_auto_update_enabled():
+            logger.info(f"Updating asset info for node {node.ip_address}")
+            try:
+                update_asset_info(node.model_instance, info)
+            except Exception as e:
+                logger.error(f"Failed to update asset info for node {node.ip_address}: {str(e)}")
+
+        logger.info(f"Ansible playbook completed in {cost_time} seconds")
         return {
             'status': 'success',
             'node': node.ip_address,
             'result': info,
             'timestamp': timezone.now().isoformat()
         }
+    except Nodes.DoesNotExist:
+        logger.error(f"Node with id {node_id} does not exist.")
+        raise
     except Exception as exc:
-        return None
+        logger.error(f"Unexpected error in ansible_getinfo for node_id {node_id}: {str(exc)}")
+        # 重试任务，延迟时间随重试次数指数增长
+        if self.request.retries >= self.max_retries - 1:
+            logger.info("超过最大重试次数，任务失败")
+        else:
+            logger.info("任务重试中...")
+            raise self.retry(exc=exc, countdown=2**self.request.retries)
+
+
+
+@shared_task(bind=True)
+def ansible_agent_install_batch(self, node_ids):
+    """
+    批量执行 Ansible 安装 Zabbix Agent 任务
+    :param node_ids: 节点ID列表
+    :return: 批量任务结果字典
+    """
+    results = {}
+    
+    # 使用 Celery 的 group 功能并行执行多个任务
+    print("node_ids:", node_ids)
+    # 创建子任务组
+    job = group(ansible_agent_install.s(node_id) for node_id in node_ids)
+    
+    # 执行并等待结果
+    # result = job.apply_async()
+    chord_result = job | aggregate_results.s()
+    return chord_result.apply_async()    
+    # 等待所有任务完成
+    # try:
+    #     # 等待所有任务完成，设置合理的超时时间
+    #     task_results = result.get(timeout=600)  # 5分钟超时
+        
+    #     # 整理结果
+    #     for i, task_result in enumerate(task_results):
+    #         node_id = node_ids[i]
+    #         results[node_id] = task_result
+            
+    #     return {
+    #         'status': 'completed',
+    #         'results': results,
+    #         'timestamp': timezone.now().isoformat()
+    #     }
+    # except Exception as exc:
+    #     logger.exception("Batch ansible agent install task failed")
+    #     return {
+    #         'status': 'failed',
+    #         'error': str(exc),
+    #         'timestamp': timezone.now().isoformat()
+    #     }
 
 @shared_task(bind=True)
 def ansible_agent_install(self, node_id):
     """
     执行 Ansible 安装 Zabbix Agent 任务
-    :param node: 目标节点对象
+    :param node_id: 目标节点 ID
     :return: 任务结果字典
     """
     ansible_api = AnsibleAPI()
+    start = time.perf_counter()
     try:
-        start = time.perf_counter()
         node = Nodes.objects.get(id=node_id)
-        # print(f"Starting Ansible playbook for node {node.ip_address}")
+    except Nodes.DoesNotExist:
+        logger.error(f"Node with id {node_id} does not exist.")
+        return {
+            'status': 'failed',
+            'error': 'Node not found',
+            'timestamp': timezone.now().isoformat()
+        }
+    except Exception as e:
+        logger.exception("Unexpected error when fetching node.")
+        return {
+            'status': 'failed',
+            'error': str(e),
+            'timestamp': timezone.now().isoformat()
+        }
 
+    try:
         inventory = node_inventory(node)
-        # print(inventory)
-        result = ansible_api.run_playbook('/opt/zabbix_agent/main.yaml',inventory)
+        server_ip = zabbix_config.get('server')
+        extra_vars = {
+            'hostIp': node.ip_address,
+            'serverIp': server_ip,
+            'serverActiveIp': server_ip,
+        }
+
+        if node.proxy:
+            proxy_ip = node.proxy.ip_address
+            extra_vars['serverIp'] = f"{server_ip},{proxy_ip}"
+            extra_vars['serverActiveIp'] = f"{server_ip},{proxy_ip}"
+
+        playbook_path = '/opt/zabbix_agent/main.yaml'
+        result = ansible_api.run_playbook(playbook_path, inventory, extra_vars=extra_vars)
         end_time = time.perf_counter()
+        cost_time = float(f"{end_time - start:.2f}")
+
+        defaults = {
+            "results": str(result),
+            "error_message": result.get('error', ''),
+            "cost_time": cost_time,
+        }
 
         if result['rc'] != 0:
-            NodeSyncZabbix.objects.update_or_create(
-                node=node,
-                defaults={
-                    "agent_status": 0,
-                    "results": str(result),
-                    "cost_time": float(f"{end_time - start:.2f}"),
-                }
-            )
-            print(f"Ansible playbook failed with return code {result['rc']},{end_time - start:.2f} seconds")
-            raise Exception(f"Ansible playbook failed with return code {result['rc']}")
-        info = ansible_api.extract_debug_json(result['events'])
-        NodeSyncZabbix.objects.update_or_create(
-            node=node,
-            defaults={
-                "agent_status": 1,
-                "results": str(info),
-                "cost_time": float(f"{end_time - start:.2f}"),
+            defaults["agent_status"] = 0
+            NodeSyncZabbix.objects.update_or_create(node=node, defaults=defaults)
+            logger.error(f"Ansible playbook failed with return code {result['rc']}, took {cost_time} seconds")
+            return {
+                'status': 'failed',
+                'node': node.ip_address,
+                'result': result,
+                'timestamp': timezone.now().isoformat()
             }
-        )
-        # info['ansible_playbook_time'] = f"{end_time - start:.2f}"
-        
-        print(f"Ansible playbook completed in {end_time - start:.2f} seconds")
+
+        defaults["agent_status"] = 1
+        NodeSyncZabbix.objects.update_or_create(node=node, defaults=defaults)
+        logger.info(f"Ansible playbook completed in {cost_time} seconds")
+
         return {
             'status': 'success',
             'node': node.ip_address,
-            'result': info,
+            'result': result,
             'timestamp': timezone.now().isoformat()
         }
+
     except Exception as exc:
-        return None
+        end_time = time.perf_counter()
+        logger.exception(f"Unexpected error during Ansible execution for node {node.ip_address}")
+        return {
+            'status': 'failed',
+            'node': node.ip_address,
+            'error': str(exc),
+            'timestamp': timezone.now().isoformat()
+        }
+
+def is_valid_ip(ip):
+    """校验是否为合法的 IPv4 或 IPv6 地址"""
+    ipv4_pattern = r"^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+    ipv6_pattern = r"^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$"
+    return re.match(ipv4_pattern, ip) or re.match(ipv6_pattern, ip)
+
+def build_host_info(instance, ip):
+    """根据模型类型构造 host_info"""
+    if instance.model.name == 'hosts':
+        _host_info = get_instance_field_value_info(instance, ['mgmt_user', 'mgmt_password', 'mgmt_ip', 'device_status'])
+        host_type = 1 if _host_info.get('mgmt_ip') else 0
+        return {**_host_info, 'ip': ip, 'hostname': instance.instance_name, 'type': host_type}
+    elif instance.model.name == 'switches':
+        return {
+            'ip': ip,
+            'hostname': instance.instance_name,
+            'type': 2,
+            'device_status': get_instance_field_value(instance, 'device_status')
+        }
+    return None
+
+def build_interfaces_and_args(host_info):
+    """构造接口信息和主机其他参数"""
+    interfaces = []
+    other_args = {}
+
+    if host_info.get('type') == 0:
+        interfaces = [{
+            "type": "1",
+            "main": "1",
+            "useip": "1",
+            "ip": host_info['ip'],
+            "dns": "",
+            "port": "10050"
+        }]
+    elif host_info.get('type') == 1:
+        interfaces = [{
+            "type": "1",
+            "main": "1",
+            "useip": "1",
+            "ip": host_info['ip'],
+            "dns": "",
+            "port": "10050"
+        }, {
+            "type": "3",
+            "main": "1",
+            "useip": "1",
+            "ip": host_info.get('mgmt_ip', ''),
+            "dns": "",
+            "port": "623"
+        }]
+        other_args = {
+            "ipmi_authtype": 6,
+            "ipmi_password": host_info.get('mgmt_password'),
+            "ipmi_username": host_info.get('mgmt_user'),
+            "ipmi_privilege": 2
+        }
+    elif host_info.get('type') == 2:
+        interfaces = [{
+            "type": "2",
+            "main": "1",
+            "useip": "1",
+            "ip": host_info['ip'],
+            "dns": "",
+            "port": "161",
+            "details": {
+                "version": "2",
+                "bulk": "0",
+                "community": "{$SNMP_COMMUNITY}"
+            }
+        }]
+
+    if host_info.get('device_status','in-use') not in ['in-use', 'standby']:
+        other_args["status"] = 1
+    else:
+        other_args["status"] = 0
+
+    return interfaces, other_args
+
+
 @shared_task(bind=True)
-def zabbix_sync(self,host_info,is_delete=False):
+def zabbix_sync(self, instance_id=None, ip=None, is_delete=False):
     """
     执行同步 Zabbix 任务
     :param node: 目标节点对象
     :return: 任务结果字典
     """
     zabbix_api = ZabbixAPI()
-    ip = host_info.get('ip')
-    if not ip:
+    now_iso = timezone.now().isoformat()
+
+    # 校验 IP 地址
+    if not ip or not ip.strip():
         return {
             'status': 'failed',
             'node': ip,
             'result': "IP address is required",
-            'timestamp': timezone.now().isoformat()
+            'timestamp': now_iso
         }
-    #主机删除
+
+    ip = ip.strip()
+
+    if not is_valid_ip(ip):
+        return {
+            'status': 'failed',
+            'node': ip,
+            'result': "Invalid IP address format",
+            'timestamp': now_iso
+        }
+
+    # 主机删除
     if is_delete:
-        # 以ip作为host去查询
-        result = zabbix_api.host_get(host=ip)
-        host_id = result[0].get('hostid') if result else None
-        if host_id:
-            result = zabbix_api.host_delete(host_id)
-            if result:
-                print(f"Zabbix host monitoring deleted for {ip}")
-                return {'status': 'success', 'detail': f"Zabbix host monitoring deleted for {ip}"}      
+        try:
+            result = zabbix_api.host_get(host=ip, output=["hostid", "name", "status"])
+            if not result:
+                logger.warning(f"Host {ip} not found in Zabbix")
+                return {
+                    'status': 'failed',
+                    'node': ip,
+                    'result': f"Host {ip} not found in Zabbix",
+                    'timestamp': now_iso
+                }
+
+            if len(result) > 1:
+                logger.warning(f"Multiple hosts found for IP {ip}, deleting first one")
+
+            host_id = result[0].get('hostid')
+            if not host_id:
+                logger.warning(f"Host ID not found for IP {ip}")
+                return {
+                    'status': 'failed',
+                    'node': ip,
+                    'result': f"Host ID not found for IP {ip}",
+                    'timestamp': now_iso
+                }
+
+            delete_result = zabbix_api.host_delete(host_id)
+            if delete_result:
+                logger.info(f"Zabbix host monitoring deleted for {ip}")
+                return {'status': 'success', 'detail': f"Zabbix host monitoring deleted for {ip}"}
             else:
-                print(f"Failed to delete Zabbix host monitoring for {ip}")
-                return {'status': 'failed', 'detail': f"Failed to delete Zabbix host monitoring for {ip}"}        
-        else:  
-            print(f"Host {ip} not find in Zabbix")
+                logger.error(f"Failed to delete Zabbix host monitoring for {ip}")
+                return {'status': 'failed', 'detail': f"Failed to delete Zabbix host monitoring for {ip}"}
+
+        except Exception as e:
+            logger.exception(f"Exception during host deletion: {e}")
             return {
                 'status': 'failed',
                 'node': ip,
-                'result': f"Host {ip} not find in Zabbix",
-                'timestamp': timezone.now().isoformat()
+                'result': str(e),
+                'timestamp': now_iso
             }
+
     # 主机更新或创建
     else:
-        #groups 创建和判断
-        # group_ids = []
-        # for group in host_info.get('groups',None):
-        #     group_id = zabbix_api.get_hostgroup(group_name=group)
-        #     if not group_id:
-        #         group_id = zabbix_api.create_hostgroup(group_name=group)
-        #     group_ids.append({"groupid": group_id})
-        group_ids = [zabbix_api.get_or_create_hostgroup(g) for g in host_info.get('groups',None)]
-        result = zabbix_api.host_get(host=ip,output=["hostid","name"])
-        host_id = result[0].get('hostid') if result else None
-        # 接口类型判断,关联模板和接口
-        interfaces = []
-        template_ids = []
-        if host_info.get('type') == 0:
-            template_id = zabbix_api.get_template(template_names='Template OS Linux')
-            interfaces = [{
-                "type": 1,
-                "main": 1,
-                "useip": 1,
-                "ip": ip,
-                "dns": "",
-                "port": "10050"
-            }]
-        elif host_info.get('type') == 1:
-            template_id = zabbix_api.get_template('Template OS Linux')
-            ipmi_template_id = zabbix_api.get_template('Template IPMI')
-            interfaces = [{
-                "type": 1,
-                "main": 1,
-                "useip": 1,
-                "ip": ip,
-                "port": "10050",
-                "dns": ""
-            },{
-                "type": 3,
-                "main": 1,
-                "useip": 1,
-                "ip": host_info.get('mgmt_ip',''),
-                "port": "623",
-                "dns": "",
-            }]
-            if ipmi_template_id:
-                template_id = f"{template_id},{ipmi_template_id}"
-        elif host_info.get('type') == 2:
-            template_ids = zabbix_api.get_template('Template Net Cisco')
-            interfaces = [{
-                "type": 2,
-                "main": 1,
-                "useip": 1,
-                "ip": ip,
-                "dns": "",
-                "port": "161"
-            }]
-        
-        if host_id:
-            # 更新host
-            print(f"Host {ip} already exists in Zabbix with hostid {host_id}")
+        try:
+            instance = ModelInstance.objects.get(id=instance_id)
+        except ModelInstance.DoesNotExist:
             return {
-                'status': 'success',
+                'status': 'failed',
                 'node': ip,
-                'result': f"Host {ip} already exists in Zabbix with hostid {host_id}",
-                'timestamp': timezone.now().isoformat()
+                'result': "Instance not found",
+                'timestamp': now_iso
             }
+        except Exception as e:
+            logger.exception(f"Unexpected error fetching instance: {e}")
+            return {
+                'status': 'failed',
+                'node': ip,
+                'result': str(e),
+                'timestamp': now_iso
+            }
+
+        host_info = build_host_info(instance, ip)
+        if not host_info:
+            return {
+                'status': 'failed',
+                'node': ip,
+                'result': "Unsupported model type",
+                'timestamp': now_iso
+            }
+
+        # 获取组信息
+        groups = []
+        instance_group_relations = ModelInstanceGroupRelation.objects.filter(
+            instance=instance
+        ).select_related('group')
+        for relation in instance_group_relations:
+            if relation.group.path not in ['所有', '所有/空闲池']:
+                groups.append(relation.group.path.replace('所有/', ''))
+
+        group_ids = [zabbix_api.get_or_create_hostgroup(g) for g in groups]
+
+        # 获取主机信息
+        try:
+            result = zabbix_api.host_get(
+                host=ip,
+                output="extend",
+                other_args={"selectInterfaces": ["type", "main", "useip", "ip", "dns", "port"]}
+            )
+        except Exception as e:
+            logger.exception(f"Failed to get host info from Zabbix: {e}")
+            return {
+                'status': 'failed',
+                'node': ip,
+                'result': f"Failed to get host info from Zabbix: {e}",
+                'timestamp': now_iso
+            }
+
+        old_interfaces = result[0].get('interfaces', []) if result else []
+        host_name = result[0].get('name') if result else None
+        host_status = result[0].get('status') if result else None
+        host_id = result[0].get('hostid') if result else None
+
+        interfaces, other_args = build_interfaces_and_args(host_info)
+
+        # 更新主机
+        if host_id:
+            # 对比接口
+            added, removed, modified = compare_interfaces(old_interfaces, interfaces)
+            logger.info(f"实例: {instance.instance_name} 新增接口: {added}, 删除接口: {removed}, 修改接口: {modified}")
+
+            try:
+                if added:
+                    for _added in added:
+                        zabbix_api.create_interfaces(hostid=host_id, interface=_added)
+                if removed:
+                    for __removed in removed:
+                        zabbix_api.delete_interfaces(hostid=host_id, interface=__removed)
+                if modified:
+                    zabbix_api.update_interfaces(hostid=host_id, interfaces=modified)
+
+                # 判断是否需要更新主机信息
+                if (
+                    host_name != host_info.get('hostname') or
+                    result[0].get('ipmi_password', '') != other_args.get('ipmi_password', '') or
+                    result[0].get('ipmi_username', '') != other_args.get('ipmi_username', '') or
+                    host_status != other_args.get('status', '') or
+                    result[0].get('proxy_hostid', '') != other_args.get('proxy_hostid', '')
+
+                ):
+                    update_result = zabbix_api.host_update(
+                        hostid=host_id,
+                        host=ip,
+                        name=host_info.get('hostname'),
+                        interfaces=interfaces,
+                        other_args=other_args
+                    )
+                    if update_result:
+                        logger.info(f"Zabbix host monitoring updated for {ip}")
+                        # return {'status': 'success', 'detail': f"Zabbix host monitoring updated for {ip}"}
+                        return {
+                                'status': 'success',
+                                'node': ip,
+                                'result': update_result,
+                                'timestamp': timezone.now().isoformat()
+                                }
+                    else:
+                        logger.error(f"Failed to update Zabbix host monitoring for {ip}")
+                        return {
+                                'status': 'failed',
+                                'node': ip,
+                                'result': update_result,
+                                'timestamp': timezone.now().isoformat()
+                                }
+
+                logger.info(f"Host {ip} already exists in Zabbix with hostid {host_id}")
+                return {
+                    'status': 'success',
+                    'node': ip,
+                    'result': f"Host {ip} already exists in Zabbix with hostid {host_id}",
+                    'timestamp': now_iso
+                }
+            except Exception as e:
+                logger.exception(f"Exception during host update: {e}")
+                return {
+                    'status': 'failed',
+                    'node': ip,
+                    'result': str(e),
+                    'timestamp': now_iso
+                }
+
+        # 创建主机
         else:
-            # 创建host
-            result = zabbix_api.host_create(host=ip, interfaces=interfaces, groups=group_ids, templates=[{"templateid": template_id}])
-            if result:
-                print(f"Zabbix host monitoring created for {ip}")
-                return {'status': 'success', 'detail': f"Zabbix host monitoring created for {ip}"}      
-            else:
-                print(f"Failed to create Zabbix host monitoring for {ip}")
-                return {'status': 'failed', 'detail': f"Failed to create Zabbix host monitoring for {ip}"}
+            # 主机状态不是使用中或备用状态，则跳过
+            if host_info.get('device_status') not in ['in-use', 'standby']:
+                logger.info(f"Host {ip} is {host_info.get('device_status')}, skipping Zabbix sync")
+                return {
+                    'status': 'failed',
+                    'node': ip,
+                    'result': f"Host {ip} is {host_info.get('device_status')}, skipping Zabbix sync",
+                    'timestamp': now_iso
+                }
+
+            try:
+                result = zabbix_api.host_create(
+                    host=ip,
+                    name=host_info.get('hostname'),
+                    interfaces=interfaces,
+                    groups=group_ids,
+                    other_args=other_args
+                )
+                if result:
+                    logger.info(f"Zabbix host monitoring created for {ip}")
+                    return {'status': 'success', 'detail': f"Zabbix host monitoring created for {ip}"}
+                else:
+                    logger.error(f"Failed to create Zabbix host monitoring for {ip}")
+                    return {'status': 'failed', 'detail': f"Failed to create Zabbix host monitoring for {ip}"}
+            except Exception as e:
+                logger.exception(f"Exception during host creation: {e}")
+                return {
+                    'status': 'failed',
+                    'node': ip,
+                    'result': str(e),
+                    'timestamp': now_iso
+                }
+@shared_task(bind=True)
+def zabbix_sync_batch(self, instance_ids):
+    """
+    批量同步Zabbix主机和交换机模型数据
+
+    该函数通过Celery并行执行多个zabbix_sync子任务，实现对指定实例列表的批量同步操作。
+    使用group机制管理并发任务，并设置合理的超时控制以确保任务执行的稳定性。
+
+    参数:
+        instance_ids (list): 实例信息列表，每个元素为包含"instance_id"和可选"ip"键的字典
+                            例如: [{"instance_id": "i-123", "ip": "192.168.1.1"}, ...]
+
+    返回值:
+        dict: 包含执行状态、结果详情和时间戳的字典
+             - status (str): 执行状态，'completed'表示成功完成，'failed'表示执行失败
+             - results (dict): 当status为'completed'时存在，包含各实例同步结果的映射
+             - statistics (dict): 任务统计信息，包含成功、失败、总计等计数
+             - error (str): 当status为'failed'时存在，包含错误信息描述
+             - timestamp (str): ISO格式的时间戳，表示响应生成时间
+    """
+
+    # 参数校验
+    if not isinstance(instance_ids, list):
+        raise ValueError("instance_ids must be a list")
+    if not instance_ids:
+        return {
+            'status': 'completed',
+            'results': {},
+            'statistics': {
+                'total': 0,
+                'success': 0,
+                'failed': 0
+            },
+            'timestamp': timezone.now().isoformat()
+        }
+
+    # 使用 Celery 的 group 功能并行执行多个任务
+    # 创建子任务组
+    job = group(
+        zabbix_sync.s(
+            instance_id=instance["instance_id"],
+            ip=instance.get("ip")
+        ) for instance in instance_ids
+    )
+    chord_result = job | aggregate_results.s()
+    return chord_result.apply_async()     

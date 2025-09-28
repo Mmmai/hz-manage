@@ -21,11 +21,16 @@
       >
         {{ currentMenu.name }}
       </el-breadcrumb-item> -->
-        <el-breadcrumb-item>首页</el-breadcrumb-item>
         <el-breadcrumb-item
-          v-if="currentMenuLabel && currentMenuLabel !== '首页'"
-        >
-          {{ currentMenuLabel }}
+          ><el-icon><HomeFilled /></el-icon>
+        </el-breadcrumb-item>
+        <el-breadcrumb-item v-for="(item, index) in currentBreadcrumb">
+          <div class="flexJbetween gap-2">
+            <el-icon>
+              <iconifyOffline :icon="item.icon" />
+            </el-icon>
+            <span> {{ item.name }}</span>
+          </div>
         </el-breadcrumb-item>
       </el-breadcrumb>
       <!-- </div> -->
@@ -90,6 +95,9 @@ import useTabsStore from "@/store/tabs";
 const tabsStore = useTabsStore();
 const currentMenuLabel = computed(() => {
   return tabsStore.currentTitle;
+});
+const currentBreadcrumb = computed(() => {
+  return tabsStore.currentBreadcrumb;
 });
 const isDark = useDark();
 

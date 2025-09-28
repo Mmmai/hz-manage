@@ -56,7 +56,7 @@ const forMenuRoute = (data, mainObject, parent = '') => {
     let pstr = parent + '/' + item.name
     // if (! item.status) return 
     if (item.is_menu) {
-      if (item.is_iframe){
+      if (item.is_iframe) {
         mainObject.children.push({
           path: '/iframe',
           name: item.name,
@@ -64,7 +64,7 @@ const forMenuRoute = (data, mainObject, parent = '') => {
           // component: () => import(`../views/${item.component}`),
           meta: item.meta
         })
-      }else{
+      } else {
         mainObject.children.push({
           path: pstr,
           name: item.name,
@@ -85,8 +85,8 @@ const forMenuRoute = (data, mainObject, parent = '') => {
 
           component: infoModules[`../views/infoviews/${item.info_view_name}View.vue`],
           // component: () => import(`../views/${item.component}`),
-          
-          meta: {isInfo:true,...item.meta}
+
+          meta: { isInfo: true, ...item.meta }
         })
       }
     } else {
@@ -99,7 +99,7 @@ const forMenuRoute = (data, mainObject, parent = '') => {
   }
 }
 
-const dealWithRoute = (data,obj) => {
+const dealWithRoute = (data, obj) => {
   // let mainObject = {
   //   name: 'main',
   //   path: '/',
@@ -107,12 +107,12 @@ const dealWithRoute = (data,obj) => {
   //   component: () => import('../views/mainView.vue'),
   //   children: [],
   // }
-  let mainObject  = obj.filter(item => item.name === 'main')[0]
+  let mainObject = obj.filter(item => item.name === 'main')[0]
   // forMenuRoute(data,mainObject,'main')
   forMenuRoute(data, mainObject)
   // console.log("获取路由后",mainObject)
   router.addRoute(mainObject)
-  // console.log("router", router, router.getRoutes());
+  console.log("router", router, router.getRoutes());
 }
 
 export default dealWithRoute;

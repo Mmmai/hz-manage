@@ -1,13 +1,12 @@
 import shutil
 import uuid
 import ansible_runner
-import logging
 import os,time,json
 from django.conf import settings
 # from . import zabbix_config
 from django.utils import timezone
 from datetime import datetime
-
+import logging
 logger = logging.getLogger(__name__)
 
 
@@ -33,8 +32,9 @@ class AnsibleAPI:
                 return {
                     'rc': 1,
                     'status': 'failed',
-                    'events': [],
-                    'error': f"ERROR! the playbook: {playbook_path} could not be found"
+                    'events': '',
+                    'stdout': f"ERROR! the playbook: {playbook_path} could not be found",
+                    'error': []
                 }
 
             result = ansible_runner.run(
@@ -47,40 +47,46 @@ class AnsibleAPI:
             # 立刻解析结果，避免在调用方等待时临时目录被清理
             events = list(result.events)
             # print(events)
-            status = {
-                'rc': result.rc,
-                'status': result.status,
-                'events': events
-            }
-            return status
-            # report_data = {
-            #     "status": result.status,
-            #     "rc": result.rc,
-            #     "stats": result.status,
-            #     "tasks": []
+            # # print(events)
+            # status = {
+            #     'rc': result.rc,
+            #     'status': result.status,
+            #     'events': events
             # }
-    
-            # for event in list(result.events):
-            #     print(event)
-            #     if 'task' in event:
-            #         report_data["tasks"].append({
-            #             "name": event['task']['name'],
-            #             "host": event['host'],
-            #             "status": event['event'],
-            #             "stdout": event.get('stdout', '')
-            #         })
-                        
-            stdout = result.stdout.read()
-            stderr = result.stderr.read()
-            print(f"STDOUT: {stdout}"
-                  f"STDERR: {stderr}")
-            return {
-                'status': 'success',
-                'result': str(stdout),
-                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+            # return status
+            # 处理剧本运行结果，提取失败原因
+            # print(f"STDOUT: {result.stdout.read()}"
+            #       f"STDERR: {result.stderr.read()}")
+            debugs = self.extract_debug_json(events)
+            report_data = {
+                "status": result.status,
+                "rc": result.rc,
+                "error": None,
+                "debug": debugs,
+                "stdout": result.stdout.read(),
             }
-
-
+            # 处理剧本运行结果，提取失败原因
+            if result.rc != 0:
+                error_messages = []
+                for event in list(result.events):
+                    # print(event)
+                    if 'event' in event.keys():
+                        if event['event'] in ['runner_on_unreachable','runner_on_failed']:
+                            if event['event_data'].get("ignore_errors",None):
+                                continue
+                            error_messages.append(event['event_data']['res'])
+                report_data['error'] = error_messages                
+            # stdout = result.stdout.read()
+            # stderr = result.stderr.read()
+            # print(f"STDOUT: {stdout}"
+            #       f"STDERR: {stderr}")
+            # return {
+            #     'status': 'success',
+            #     'result': str(stdout),
+            #     'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+            # }
+            logger.info(f"Ansible playbook execution completed. Result: {report_data}")
+            return report_data
         except Exception as e:
             logger.error(f"Ansible playbook execution failed: {str(e)}")
             return None
@@ -226,26 +232,30 @@ class AnsibleAPI:
                     continue
         return cmdb_list
     def extract_debug_json(self,events):
-        json_data = []
-        aaa = events[-2].get('event_data').get('res')
-        # print(events[-2].get('event_data').get('rec'))
-        output = json.loads(events[-2].get('event_data').get('res').get('msg'))
-        # print(output)
-        return output
+        """解析debug的输出"""
+        # json_data = []
+        # aaa = events[-2].get('event_data').get('res')
+        # # print(events[-2].get('event_data').get('rec'))
+        # output = json.loads(events[-2].get('event_data').get('res').get('msg'))
+        # # print(output)
+        # return output
         for event in events:
             try:
-                print(event.keys())
-                if event["event_data"]["task_action"] == 'debug' and event["event"] == "runner_on_ok":
-                    try:
-                        # 提取 msg 字段并解析 JSON
-                        print(event["event_data"]["res"])
-                        json_data.append(payload)
-                    except json.JSONDecodeError:
-                        print(12332)
-                        continue
+                # print(event.keys())'
+                if event.get("event_data",None):
+                    if event["event_data"]["task_action"] == 'debug' and event["event"] == "runner_on_ok":
+                        try:
+                            # 提取 msg 字段并解析 JSON
+                            res = event["event_data"]["res"]
+                            print(type(res))
+                            # res = json.loads(res)
+                            return json.loads(res["msg"])
+                        except json.JSONDecodeError:
+                            continue
             except KeyError:
-                print(event)
-        return json_data
+                # print(event)
+                pass
+        return None
 def main():
 
     host_ip = '192.168.163.160'
@@ -260,8 +270,8 @@ def main():
     # result = ansible_api.run_cmd(inventory,'ping','')
     result = ansible_api.run_playbook('/opt/get_system_info.yaml',inventory)
     print(result['rc'])
-    print(result)
-    print(ansible_api.extract_debug_json(result['events']))
+    print(result['debug'])
+    # print(ansible_api.extract_debug_json(result))
     # if result:
     #     print(f"\nZabbix agent installation result for {host_ip}:")
     #     print(f"Status: {result['status']}")

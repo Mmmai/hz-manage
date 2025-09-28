@@ -9,6 +9,7 @@ urlpatterns = [
   ]
 router = DefaultRouter()
 router.register('nodes',views.NodesViewSet)
+router.register('proxy',views.ProxyViewSet)
 
 
 urlpatterns += router.urls

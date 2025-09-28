@@ -1,5 +1,14 @@
 <template>
   <div class="card">
+    <!-- <el-tabs
+      v-model="activeName"
+      type="card"
+      class="demo-tabs"
+      @tab-click="handleClick"
+    >
+      <el-tab-pane label="主机" name="hosts"></el-tab-pane>
+      <el-tab-pane label="交换机" name="switches"></el-tab-pane>
+    </el-tabs> -->
     <div class="table-header">
       <div class="header-button-lf">
         <el-tooltip
@@ -15,20 +24,34 @@
             >触发同步</el-button
           >
         </el-tooltip>
-        <el-tooltip
+        <!-- <el-tooltip
           class="box-item"
           effect="dark"
           content="更新Zabbix接口可用性的状态信息"
           placement="top"
         >
           <el-button
+            v-show="False"
             v-permission="`${route.name?.replace('_info', '')}:add`"
             type="primary"
             @click="getZabbixStatus()"
-            >可用性更新</el-button
+            >管理状态更新</el-button
+          >
+        </el-tooltip> -->
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="触发已勾选的主机资产更新"
+          placement="top"
+        >
+          <el-button
+            v-permission="`${route.name?.replace('_info', '')}:add`"
+            type="primary"
+            :disabled="multipleSelection.length >>> 0 ? false : true"
+            @click="assetInfoTask({ id: multipleSelection })"
+            >管理状态更新</el-button
           >
         </el-tooltip>
-
         <el-tooltip
           class="box-item"
           effect="dark"
@@ -39,17 +62,17 @@
             v-permission="`${route.name?.replace('_info', '')}:add`"
             type="primary"
             :disabled="multipleSelection.length >>> 0 ? false : true"
-            @click="installAction({ ids: multipleSelection })"
+            @click="installAgentTask({ id: multipleSelection })"
             >批量安装</el-button
           >
         </el-tooltip>
 
-        <el-button
+        <!-- <el-button
           v-permission="`${route.name?.replace('_info', '')}:add`"
           type="primary"
-          @click="installAction({ all: true })"
+          @click="installAgentTask({ all: true })"
           >触发失败重装</el-button
-        >
+        > -->
       </div>
       <div class="header-button-ri">
         <el-select v-model="colValue" placeholder="Select" style="width: 120px">
@@ -190,16 +213,50 @@
         </template>
       </el-table-column>
       <el-table-column
-        property="installation_error"
-        label="报错信息"
+        property="manage_error_message"
+        label="管理错误信息"
         width="400"
       />
+      <el-table-column
+        property="agent_error_message"
+        label="agent错误信息"
+        width="400"
+      />
+
       <el-table-column fixed="right" width="80" label="操作">
         <template #default="scope">
+          <!-- <el-tooltip
+            class="box-item"
+            effect="dark"
+            content="查看详情"
+            placement="top"
+          >
+            <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
+              link
+              type="primary"
+              :icon="View"
+              @click="showInfo({ id: scope.row.id })"
+            ></el-button>
+          </el-tooltip> -->
           <el-tooltip
             class="box-item"
             effect="dark"
-            content="触发安装"
+            content="管理状态更新"
+            placement="top"
+          >
+            <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
+              link
+              type="primary"
+              :icon="Compass"
+              @click="assetInfoTask({ id: scope.row.id })"
+            ></el-button>
+          </el-tooltip>
+          <el-tooltip
+            class="box-item"
+            effect="dark"
+            content="触发agent安装"
             placement="top"
           >
             <el-button
@@ -207,7 +264,7 @@
               link
               type="primary"
               :icon="Refresh"
-              @click="installAction({ ids: [scope.row.id] })"
+              @click="installAgentTask({ id: scope.row.id })"
             ></el-button>
           </el-tooltip>
         </template>
@@ -236,6 +293,8 @@ import {
   CircleClose,
   CirclePlus,
   Refresh,
+  View,
+  Compass,
 } from "@element-plus/icons-vue";
 import {
   ref,
@@ -257,7 +316,14 @@ import { ElMessageBox, ElMessage, ElNotification } from "element-plus";
 import { pa, tr } from "element-plus/es/locale/index.mjs";
 import { Row } from "element-plus/es/components/table-v2/src/components/index.mjs";
 defineOptions({ name: "ciSyncZabbix" });
+import type { TabsPaneContext } from "element-plus";
 
+const activeName = ref("hosts");
+
+const handleClick = (tab: TabsPaneContext, event: Event) => {
+  console.log(tab, event);
+  console.log(activeName.value);
+};
 const route = useRoute();
 const colValue = ref("model_instance_name");
 const filterValue = ref<string>("");
@@ -277,7 +343,7 @@ const colLists = ref([
   },
   {
     value: "ip_address",
-    label: "主机ip",
+    label: "ip地址",
     sort: false,
     filter: true,
     type: "string",
@@ -471,33 +537,67 @@ watch(filterValue, (n) => {
   // console.log(filterParam);
   filterParam.value = { [colValue.value]: n };
 });
+// const filterMethod = (filters: object) => {
+//   console.log(filters);
+//
+// nextTick(() => {
+//   getNodesData();
+// });
 const filterMethod = (filters: object) => {
   console.log(filters);
-  //
-  // nextTick(() => {
-  //   getNodesData();
-  // });
-  if (Object.keys(filters)[0] === "status") {
-    if (Object.values(filters)[0].length > 1) {
-      filterParam.value[`${Object.keys(filters)[0]}`] = null;
-    } else {
-      filterParam.value[Object.keys(filters)[0]] = Object.values(filters)[0][0];
-    }
+
+  const filterKey = Object.keys(filters)[0];
+  const filterValues = Object.values(filters)[0];
+
+  // 定义需要特殊处理的字段列表（这些字段在多选时应设为null）
+  const specialFields = [
+    "status",
+    "manage_status",
+    "agent_status",
+    "zbx_status",
+    "enable_sync",
+  ];
+
+  // if (specialFields.includes(filterKey)) {
+  //   // 对于特殊字段，当有多个值时设为null，单个值时使用该值
+  //   if (filterValues.length > 1) {
+  //     filterParam.value[filterKey] = null;
+  //   } else {
+  //     filterParam.value[filterKey] = filterValues[0];
+  //   }
+  // } else {
+  // 通用处理其他字段
+  if (filterValues.length === 1) {
+    // 单值过滤使用等于查询
+    filterParam.value[filterKey] = filterValues[0];
+  } else if (filterValues.length > 1) {
+    filterParam.value[`${filterKey}`] = filterValues.join(",");
   } else {
-    console.log(filters);
-    // console.log(Object.keys(filters)[0]);
-    if (Object.values(filters)[0].length > 0) {
-      filterParam.value[`${Object.keys(filters)[0]}__in`] =
-        Object.values(filters)[0].join(",");
-    } else {
-      filterParam.value[Object.keys(filters)[0]] = null;
-    }
+    // 无过滤条件时清空该字段
+    filterParam.value[filterKey] = null;
   }
+  nextTick(() => {});
+  // }
+
+  //   nextTick(() => {
+  //     getNodesData();
+  //   });
+  // };else {
+  //     console.log(filters);
+  //     // console.log(Object.keys(filters)[0]);
+  //     if (Object.values(filters)[0].length > 0) {
+  //       filterParam.value[`${Object.keys(filters)[0]}__in`] =
+  //         Object.values(filters)[0].join(",");
+  //     } else {
+  //       filterParam.value[Object.keys(filters)[0]] = null;
+  //     }
+  //   }
 
   // console.log(column);
   // console.log(filterParam.value);
   nextTick(() => {
     getNodesData();
+    console.log(filterParam.value);
   });
 };
 
@@ -540,35 +640,47 @@ const closeSse = () => {
   eventSource.value?.close();
 };
 // 安装agent
-const installAction = async (params: object) => {
+const installAgentTask = async (params: object) => {
   let res = await proxy.$api.installAgent(params);
-  // console.log(res);
   if (res.status == 200) {
-    if (res.data.cache_key) {
-      ElMessage({
-        type: "success",
-        message: "触发成功",
-      });
-      isLoading.value = true;
-      openSse(`/api/v1/agent_status_sse/?cache_key=${res.data.cache_key}`);
-    } else {
-      ElMessage({
-        type: "error",
-        message: `触发失败:${res.data.message}`,
-      });
-    }
-
-    // if (params.all) {
-    //   openSse(`/api/v1/agent_status_sse/?all=true`);
-    // } else {
-    //   openSse(`/api/v1/agent_status_sse/?ids=${JSON.stringify(params.ids)}`);
-    // }
+    ElMessage({
+      type: "success",
+      message: "触发成功",
+    });
+    // openSse(`/api/v1/agent_status_sse/?cache_key=${res.data.cache_key}`);
   } else {
     ElMessage({
       type: "error",
-      message: "触发失败",
+      message: `触发失败:${res.data.message}`,
     });
   }
+
+  // if (params.all) {
+  //   openSse(`/api/v1/agent_status_sse/?all=true`);
+  // } else {
+  //   openSse(`/api/v1/agent_status_sse/?ids=${JSON.stringify(params.ids)}`);
+  // }
+};
+const assetInfoTask = async (params: object) => {
+  let res = await proxy.$api.get_inventory(params);
+  if (res.status == 200) {
+    ElMessage({
+      type: "success",
+      message: "触发成功",
+    });
+    // openSse(`/api/v1/agent_status_sse/?cache_key=${res.data.cache_key}`);
+  } else {
+    ElMessage({
+      type: "error",
+      message: `触发失败:${res.data.message}`,
+    });
+  }
+
+  // if (params.all) {
+  //   openSse(`/api/v1/agent_status_sse/?all=true`);
+  // } else {
+  //   openSse(`/api/v1/agent_status_sse/?ids=${JSON.stringify(params.ids)}`);
+  // }
 };
 onUnmounted(() => {
   closeSse();

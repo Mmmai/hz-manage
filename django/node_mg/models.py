@@ -6,18 +6,22 @@ import uuid
 
 class Proxy(models.Model):
     PROXY_TYPES = (
-        ('http', 'HTTP/HTTPS'),
-        ('ssh', 'SSH'),
-        ('socks5', 'SOCKS5'),
+        ('all', 'all'),
+        ('zabbix', 'zabbix'),
+        ('ansible', 'ansible'),
     )
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50, verbose_name="代理名称")
-    proxy_type = models.CharField(max_length=10, choices=PROXY_TYPES,default=PROXY_TYPES[0][1], verbose_name="代理类型")
-    host = models.GenericIPAddressField(verbose_name="代理主机")
+    verbose_name = models.CharField(max_length=50,null=True,blank=True,verbose_name="代理中文名称")
+    proxy_type = models.CharField(max_length=20, choices=PROXY_TYPES,default=PROXY_TYPES[0][0], verbose_name="代理类型")
+    enabled = models.BooleanField(default=True)
+    ip_address = models.GenericIPAddressField(verbose_name="代理主机")
     port = models.PositiveIntegerField(default=22, verbose_name="代理端口")
     auth_user = models.CharField(max_length=100, blank=True, verbose_name="认证用户")
     auth_pass = models.CharField(max_length=100, blank=True, verbose_name="认证密码")
+    description = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
+    updated_at = models.DateTimeField(auto_now=True)
     class Meta:
         verbose_name = "代理配置"
         verbose_name_plural = "代理配置"
@@ -30,6 +34,7 @@ class Proxy(models.Model):
     #     ('offline', '离线'),
     #     ('unknown', '未知'),
     # )
+
 class Nodes(models.Model):
     class statusChoices(models.IntegerChoices):
         ABNORMAL = '0', '异常'
@@ -41,8 +46,8 @@ class Nodes(models.Model):
         app_label = 'node_mg'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    model = models.ForeignKey(Models, on_delete=models.CASCADE)
-    model_instance = models.ForeignKey(ModelInstance, on_delete=models.CASCADE)
+    model = models.ForeignKey("cmdb.Models", on_delete=models.CASCADE,related_name="nodes")
+    model_instance = models.ForeignKey("cmdb.ModelInstance", on_delete=models.CASCADE,related_name="nodes")
     ip_address = models.GenericIPAddressField(null=False, blank=False,verbose_name='IP地址',default='127.0.0.1')
     proxy = models.ForeignKey(
             Proxy,
@@ -73,7 +78,9 @@ class NodeInfoTask(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     node = models.ForeignKey(Nodes, on_delete=models.CASCADE,related_name='node_info_tasks')
     status = models.IntegerField(choices=MANAGE_STATUS,default=MANAGE_STATUS[2][0])
-    results = models.TextField(blank=True)
+    results = models.TextField(null=True,blank=True)
+    error_message = models.TextField(null=True,blank=True)
+    asset_info = models.JSONField(blank=True,null=True)
     cost_time = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(auto_now=True,null=True)
@@ -96,7 +103,8 @@ class NodeSyncZabbix(models.Model):
     node = models.ForeignKey(Nodes, on_delete=models.CASCADE,related_name='node_sync_zabbix')
     agent_status = models.IntegerField(choices=AGENT_STATUS,default=AGENT_STATUS[2][0])
     zbx_status = models.IntegerField(choices=ZBX_STATUS,default=ZBX_STATUS[2][0])
-    results = models.TextField(blank=True)
+    results = models.TextField(null=True,blank=True)
+    error_message = models.TextField(null=True,blank=True)
     zabbix_info = models.JSONField(null=True, blank=True)   
     cost_time = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

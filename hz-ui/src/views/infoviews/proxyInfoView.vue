@@ -1,0 +1,255 @@
+<template>
+  <div class="divVertical">
+    <div class="card flexJstart gap-5" style="height: 50px; flex: none">
+      <el-tooltip
+        class="box-item"
+        effect="dark"
+        content="返回proxy列表"
+        placement="top"
+      >
+        <el-button @click="goBack()" :icon="Back" plain size="small">
+        </el-button>
+        <!-- <el-icon @click="goBack()">
+          <Back />
+        </el-icon> -->
+      </el-tooltip>
+      <el-text tag="b" size="large">{{
+        `代理详情【${proxyForm.name}】`
+      }}</el-text>
+    </div>
+    <div class="card">
+      <!-- proxy表单 -->
+      <el-form
+        ref="proxyFormRef"
+        :model="proxyForm"
+        :rules="proxyFormRules"
+        label-width="100px"
+        style="max-width: 800px; margin-top: 10px"
+      >
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="代理名称" prop="name">
+              <el-input v-model="proxyForm.name" placeholder="请输入代理名称" />
+            </el-form-item>
+            <el-form-item label="中文名称" prop="verbose_name">
+              <el-input
+                v-model="proxyForm.verbose_name"
+                placeholder="请输入中文名称"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="代理类型" prop="proxy_type">
+              <el-select
+                v-model="proxyForm.proxy_type"
+                placeholder="请选择代理类型"
+              >
+                <el-option
+                  v-for="item in proxyTypeOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                >
+                  <span style="float: left">{{ item.label }}</span>
+                  <span
+                    style="
+                      float: right;
+                      color: var(--el-text-color-secondary);
+                      font-size: 13px;
+                    "
+                  >
+                    {{ item.description }}
+                  </span>
+                </el-option>
+              </el-select>
+            </el-form-item>
+            <el-form-item label="是否启用" prop="enabled">
+              <el-switch v-model="proxyForm.enabled" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="代理ip" prop="ip_address">
+              <el-input
+                v-model="proxyForm.ip_address"
+                placeholder="请输入代理ip"
+              />
+            </el-form-item>
+            <el-form-item label="代理端口" prop="port">
+              <el-input-number
+                v-model="proxyForm.port"
+                placeholder="请输入代理端口"
+                :min="1"
+                :max="65535"
+                controls-position="right"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="认证用户" prop="auth_user">
+              <el-input
+                v-model="proxyForm.auth_user"
+                placeholder="请输入认证用户"
+              />
+            </el-form-item>
+            <el-form-item label="用户密码" prop="auth_pass">
+              <el-input
+                v-model="proxyForm.auth_pass"
+                type="password"
+                placeholder="请输入用户密码"
+                show-password
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="备注信息" prop="description">
+              <el-input
+                v-model="proxyForm.description"
+                placeholder="请输入备注信息"
+                :autosize="{ minRows: 2, maxRows: 4 }"
+                type="textarea"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <template #footer>
+          <div class="dialog-footer">
+            <el-button @click="closeDia()">取消</el-button>
+            <el-button type="primary" @click="addAction()">更新</el-button>
+          </div>
+        </template>
+      </el-form>
+    </div>
+  </div>
+</template>
+<script lang="ts" setup>
+import {
+  ref,
+  computed,
+  watch,
+  getCurrentInstance,
+  onMounted,
+  reactive,
+  nextTick,
+} from "vue";
+import { Back } from "@element-plus/icons-vue";
+import { ElMessageBox, ElMessage, ElNotification } from "element-plus";
+import { useRoute, useRouter } from "vue-router";
+const router = useRouter();
+const route = useRoute();
+const { proxy } = getCurrentInstance();
+// proxyId
+const proxyId = ref(null);
+
+const goBack = () => {
+  router.push({
+    path: "/node_control/proxyManage",
+  });
+};
+const resetForm = (formEl) => {
+  if (!formEl) return;
+  formEl.resetFields();
+};
+const formRef = ref("");
+// 表单字段
+const proxyForm = reactive({
+  name: "",
+  verbose_name: "",
+  proxy_type: "all",
+  enabled: true,
+  ip_address: "",
+  port: 22,
+  auth_user: "",
+  auth_pass: "",
+  description: "",
+});
+// 代理类型选项
+const proxyTypeOptions = [
+  { label: "all", value: "all", description: "所有类型,支持zabbix和ansible" },
+  { label: "zabbix", value: "zabbix", description: "zabbix代理" },
+  { label: "ansible", value: "ansible", description: "ansible代理" },
+];
+
+// 表单验证规则
+const proxyFormRules = {
+  name: [
+    { required: true, message: "请输入代理名称(不支持中文)", trigger: "blur" },
+    {
+      pattern:
+        /^((\d{1,3}\.){1,3}\d{1,3})?[a-zA-Z0-9_-]{1,32}((\d{1,3}\.){1,3}\d{1,3})?$/,
+      message: "请输入正确的代理名称,不支持中文等特殊符号",
+      trigger: "blur",
+    },
+  ],
+
+  proxy_type: [
+    { required: true, message: "请选择代理类型", trigger: "change" },
+  ],
+  ip_address: [
+    { required: true, message: "请输入代理IP", trigger: "blur" },
+    {
+      pattern: /^(\d{1,3}\.){3}\d{1,3}$/,
+      message: "请输入正确的IP地址格式",
+      trigger: "blur",
+    },
+  ],
+  port: [
+    { required: true, message: "请输入代理端口", trigger: "blur" },
+    {
+      //
+      type: "number",
+      min: 1,
+      max: 65535,
+      message: "端口号应在1-65535之间",
+      trigger: "blur",
+    },
+  ],
+  auth_user: [{ required: true, message: "请输入认证用户", trigger: "blur" }],
+  auth_pass: [{ required: true, message: "请输入用户密码", trigger: "blur" }],
+};
+// 获取单个proxy信息
+const getProxyData = async () => {
+  let res = await proxy.$api.getProxyInfo(proxyId.value);
+  if (res.status == 200) {
+    console.log(res.data);
+    // 赋值给表单
+    proxyForm.name = res.data.name;
+    proxyForm.verbose_name = res.data.verbose_name;
+    proxyForm.proxy_type = res.data.proxy_type;
+    proxyForm.enabled = res.data.enabled;
+    proxyForm.ip_address = res.data.ip_address;
+    proxyForm.port = res.data.port;
+    proxyForm.auth_user = res.data.auth_user;
+    proxyForm.auth_pass = res.data.auth_pass;
+    proxyForm.description = res.data.description;
+  }
+};
+// 更新方法
+const updateAction = async (row) => {
+  let res = await proxy.$api.updateProxy({ id: row.id, ...proxyForm });
+  if (res.status == 200) {
+    ElMessage({
+      type: "success",
+      message: "更新成功",
+    });
+    getProxyData();
+    resetForm(formRef.value);
+  } else {
+    ElMessage({
+      type: "error",
+      message: `更新失败: ${res.data}`,
+    });
+  }
+};
+onMounted(() => {
+  // 截取路由的id
+  console.log(route.path);
+  console.log(route.path.split("/"));
+
+  proxyId.value = route.path.split("/").at(-1);
+  console.log("proxyId:", proxyId.value);
+  getProxyData();
+});
+</script>
+<style scoped lang="scss">
+</style>
