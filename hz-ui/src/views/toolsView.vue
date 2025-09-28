@@ -15,6 +15,8 @@
 </template>
 
 <script lang="ts" setup>
+defineOptions({ name: "tools" });
+
 import { ref } from "vue";
 import qrCode from "../components/tools/qrCode.vue";
 // import transform from '../components/tools/transform.vue';

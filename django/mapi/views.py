@@ -134,7 +134,7 @@ class getMenu(APIView):
             info.pop('_state')
             parentid = info.pop('parentid_id')
             info["parentid"] = parentid
-            info["meta"] = {"role":roleList,"icon":menu.icon,"title":menu.label,"isKeepAlive":True}
+            info["meta"] = {"role":roleList,"icon":menu.icon,"title":menu.label,"isKeepAlive":menu.keepalive}
             info["buttons"] = json.loads(serialized_data.decode('utf8'))
             # info["button"] 
             if info["is_iframe"]:

@@ -170,6 +170,8 @@ import ciModelField from "../../components/cmdb/ciModelField.vue";
 import ciModelUnique from "../../components/cmdb/ciModelUnique.vue";
 import ciModelTemplate from "../../components/cmdb/ciModelTemplateName.vue";
 import useCiStore from "@/store/cmdb/ci";
+// defineOptions({ name: "model" });
+
 const ciStore = useCiStore();
 const goto_ciData = () => {
   // console.log(ciModelInfo);

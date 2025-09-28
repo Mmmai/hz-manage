@@ -4,3 +4,4 @@ logs/
 **/migrations
 *-bak*
 venv
+celerybeat-schedule*

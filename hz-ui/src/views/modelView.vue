@@ -84,11 +84,34 @@
             @click="goToModelInfo(data)"
           >
             <el-space size="large">
-              <el-icon :size="30">
-                <!-- <component :is="data.icon" /> -->
-                <!-- <Icon :icon="data.icon"></Icon> -->
-                <iconifyOffline :icon="data.icon" />
-              </el-icon>
+              <!-- <el-badge
+                :value="data.instance_count"
+                class="item"
+                :max="30000"
+                :offset="[-15, 40]"
+                :color="data.instance_count >>> 0 ? '#aaf4b6' : '#c1d1df'"
+              > -->
+              <div
+                style="
+                  display: flex;
+                  flex-direction: column;
+                  gap: 10px;
+                  align-items: center;
+                "
+              >
+                <el-icon :size="30">
+                  <!-- <component :is="data.icon" /> -->
+                  <!-- <Icon :icon="data.icon"></Icon> -->
+                  <iconifyOffline :icon="data.icon" />
+                </el-icon>
+                <el-tag
+                  round
+                  size="small"
+                  :type="data.instance_count >>> 0 ? 'success' : 'info'"
+                  >{{ data.instance_count }}</el-tag
+                >
+              </div>
+              <!-- </el-badge> -->
               <el-space direction="vertical" size="small">
                 <el-text>
                   {{ data.verbose_name }}
@@ -211,6 +234,7 @@ import { ElMessageBox, ElMessage } from "element-plus";
 import type { ComponentSize, FormInstance, FormRules } from "element-plus";
 import { fa } from "element-plus/es/locale/index.mjs";
 import iconSelectCom from "../components/iconSelectCom.vue";
+defineOptions({ name: "model" });
 
 const { proxy } = getCurrentInstance();
 const modelGroupAction = ref(false);

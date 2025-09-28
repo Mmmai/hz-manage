@@ -372,6 +372,7 @@ import { Delete, Filter, CirclePlus } from "@element-plus/icons-vue";
 const { proxy } = getCurrentInstance();
 import { ElMessageBox, ElMessage } from "element-plus";
 import nearLogCom from "@/components/loki/nearLogCom.vue";
+defineOptions({ name: "loki" });
 
 interface User {
   lokiTime: string;

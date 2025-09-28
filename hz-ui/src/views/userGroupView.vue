@@ -173,6 +173,8 @@ import {
   reactive,
   nextTick,
 } from "vue";
+defineOptions({ name: "userGroup" });
+
 import { useRoute } from "vue-router";
 const route = useRoute();
 const { proxy } = getCurrentInstance();

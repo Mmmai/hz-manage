@@ -79,6 +79,7 @@ class Menu(models.Model):
     has_info = models.BooleanField(verbose_name="是否有详细页面",default=False)
     info_view_name = models.CharField(max_length=128,verbose_name='详细页面路由',null=True,blank=True)
     is_iframe = models.BooleanField(verbose_name="是否内嵌",default=False)
+    keepalive = models.BooleanField(verbose_name="缓存",default=False)
     iframe_url = models.CharField(max_length=256, verbose_name='链接地址',null=True,blank=True)
     description = models.CharField(max_length=256,null=True,blank=True)
     # role = models.ManyToManyField("Role")

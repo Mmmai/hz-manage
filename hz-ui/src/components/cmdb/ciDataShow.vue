@@ -1606,7 +1606,12 @@ import {
   Fold,
   Expand,
 } from "@element-plus/icons-vue";
-import { ElMessageBox, ElMessage, ElNotification } from "element-plus";
+import {
+  ElMessageBox,
+  ElMessage,
+  ElNotification,
+  ElLoading,
+} from "element-plus";
 import { Rank } from "@element-plus/icons-vue";
 import {
   ref,
@@ -1762,9 +1767,9 @@ const isShowUpload = ref(false);
 // 批量操作的参数
 const multipleParams = computed(() => {
   if (isSelectAll.value) {
-    return { all: true, group: props.currentNodeId, params: filterParam };
+    return { all: true, group: props.currentNodeId, params: filterParam.value };
   } else {
-    return { group: props.currentNodeId, params: filterParam };
+    return { group: props.currentNodeId, params: filterParam.value };
   }
 });
 
@@ -1774,7 +1779,7 @@ const bulkDelete = async () => {
     // 条件下的全量更新
     params = {
       update_user: store.state.username,
-      ...multipleParams,
+      ...multipleParams.value,
     };
   } else {
     params = {
@@ -1782,26 +1787,32 @@ const bulkDelete = async () => {
       instances: multipleSelectId.value,
     };
   }
-  let res = await proxy.$api.bulkDeleteCiModelInstance(params);
-  // console.log(res);
+  console.log(params);
+  tableLoading.value = true;
+  let res = await proxy.$api.bulkDeleteCiModelInstance(params, 60 * 1000);
+  console.log(res);
   if (res.status == "200") {
     ElMessage({
       type: "success",
       message: "删除成功",
     });
     ciDataTableRef.value!.clearSelection();
-
     await getCiData({
       model: props.ciModelId,
       model_instance_group: props.currentNodeId,
     });
+    setTimeout(() => {
+      emit("getTree");
+    }, 2000);
+
     //
   } else {
     ElMessage({
       type: "error",
-      message: `删除失败:${res.data}`,
+      message: `删除失败:${JSON.stringify(res.data)}`,
     });
   }
+  tableLoading.value = false;
 };
 const exportSelect = async (params) => {
   if (params) {
@@ -1819,9 +1830,12 @@ const exportSelect = async (params) => {
   }
 };
 const exportAll = async () => {
+  console.log(multipleParams.value);
   let res = await proxy.$api.exportCiData({
+    all: true,
     model: props.ciModelId,
-    ...multipleParams,
+    group: props.currentNodeId,
+    params: filterParam.value,
   });
   console.log(res);
 };
@@ -1843,11 +1857,21 @@ const treeDataCommit = async () => {
   });
   // console.log("已选择的组id", _tmepArr);
   // console.log("已选的实例", multipleSelectId.value);
-
-  let res = await proxy.$api.setCiDataToTree({
-    instances: multipleSelectId.value,
-    groups: _tmepArr,
-  });
+  let params = new Object();
+  if (isSelectAll.value) {
+    // 条件下的全量更新
+    params = {
+      all: true,
+      groups: _tmepArr,
+      instances: [],
+    };
+  } else {
+    params = {
+      instances: multipleSelectId.value,
+      groups: _tmepArr,
+    };
+  }
+  let res = await proxy.$api.setCiDataToTree(params);
   if (res.status == "201") {
     ElMessage({ type: "success", message: "更新成功" });
     // 重置表单
@@ -2001,6 +2025,9 @@ const multipleCommitParam = computed(() => {
   }
   return tmpObj;
 });
+// 202507230，新增loading
+
+const multipleDiaLoading = ref(false);
 
 const saveCommit = () => {
   multipleFormRef.value!.validate(async (valid) => {
@@ -2015,7 +2042,7 @@ const saveCommit = () => {
           update_user: store.state.username,
           fields: multipleCommitParam.value,
           model: props.ciModelId,
-          ...multipleParams,
+          ...multipleParams.value,
         };
       } else {
         params = {
@@ -2024,6 +2051,11 @@ const saveCommit = () => {
           fields: multipleCommitParam.value,
         };
       }
+      const loading = ElLoading.service({
+        lock: true,
+        text: "Loading",
+        background: "rgba(0, 0, 0, 0.7)",
+      });
       let res = await proxy.$api.multipleUpdateCiModelInstance(params);
       // 发起更新请求
       if (res.status == "200") {
@@ -2045,6 +2077,10 @@ const saveCommit = () => {
           type: "error",
         });
       }
+      nextTick(() => loading.close());
+      // setTimeout(() => {
+      //   multipleDiaLoading.value = false;
+      // }, 3000);
     } else {
       ElMessage({
         showClose: true,
@@ -2705,6 +2741,11 @@ const ciDataCommit = async (
   // 增加如果用户进入编辑模式后，没有更新，点击确认的话，就不会调度后端更新
   await formEl.validate(async (valid, fields) => {
     if (valid) {
+      const loading = ElLoading.service({
+        lock: true,
+        text: "Loading",
+        background: "rgba(0, 0, 0, 0.7)",
+      });
       if (commitActionAdd.value) {
         // 添加
         // let rmNameObj = Object.assign({}, ciDataForm)
@@ -2712,6 +2753,7 @@ const ciDataCommit = async (
         // 加密转换
         // for (let [key, value] of Object.entries(obj))
         console.log(rmNameObj.value);
+
         let res = await proxy.$api.addCiModelInstance({
           model: props.ciModelId,
           create_user: store.state.username,
@@ -2720,6 +2762,10 @@ const ciDataCommit = async (
           instance_name: ciDataForm.instance_name,
           instance_group: [props.currentNodeId],
         });
+        setTimeout(() => {
+          loading.close();
+        }, 2000);
+
         // console.log(res)
         // console.log(123)
         if (res.status == "201") {
@@ -2813,6 +2859,7 @@ const ciDataCommit = async (
         console.log();
         let res = await proxy.$api.updateCiModelInstance(updateObj);
         // console.log(123)
+
         if (res.status == "200") {
           ElMessage({ type: "success", message: "更新成功" });
           // 重置表单
@@ -2830,6 +2877,9 @@ const ciDataCommit = async (
             type: "error",
           });
         }
+        setTimeout(() => {
+          loading.close();
+        }, 1000);
       }
       // console.log('submit!')
     } else {

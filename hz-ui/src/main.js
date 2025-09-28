@@ -43,6 +43,9 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 }
 app.config.globalProperties.$api = api
 app.config.globalProperties.$commonFunc = commonFunc
+
+// 全局变量
+// app.config.globalProperties.$APP_VERSION = import.meta.env.APP_VERSION
 app.use(store)
 app.use(pinia)
 app.use(router)

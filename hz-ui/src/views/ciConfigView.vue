@@ -259,6 +259,8 @@ const filterValue = ref<string>("");
 const filterParam = computed(() => {
   return { [colValue.value]: filterValue.value };
 });
+defineOptions({ name: "ciConfig" });
+
 // 正则测试
 const testRegex = ref(null);
 const testRegexRes = computed(() => {

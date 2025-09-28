@@ -129,6 +129,7 @@ import lokiSource from "@/components/datasource/lokiSource.vue";
 import zabbixSource from "../components/datasource/zabbixSource.vue";
 import { debounce, method } from "lodash";
 import { ElMessageBox, ElMessage } from "element-plus";
+defineOptions({ name: "datasource" });
 
 // const ComponentA = defineAsyncComponent(() => import("../components/datasource/lokiSource.vue"))
 const { proxy } = getCurrentInstance();

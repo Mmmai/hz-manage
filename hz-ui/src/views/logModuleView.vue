@@ -197,6 +197,7 @@ const getImgPath = (name: string): any => {
   return new URL(`/src/assets/images/${name}`, import.meta.url).href;
 };
 const formRef = ref<FormInstance>();
+defineOptions({ name: "logModule" });
 
 const rules = reactive<FormRules>({
   module_name: [{ required: true, message: "请填写名称", trigger: "blur" }],

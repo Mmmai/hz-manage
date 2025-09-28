@@ -109,7 +109,6 @@
               link
               type="primary"
               :icon="Edit"
-              :disabled="scope.row.username == 'admin' ? true : false"
               @click="handleEdit(scope.row)"
             ></el-button>
             <el-button
@@ -152,7 +151,10 @@
       :model="formInline"
       class="demo-form-inline"
       ref="userFrom"
+      label-position="right"
+      label-width="auto"
       status-icon
+      :rules="rules"
     >
       <el-row>
         <el-col :span="12">
@@ -232,6 +234,7 @@
           v-model="formInline.password"
           type="password"
           autocomplete="off"
+          show-password
         />
       </el-form-item>
       <el-form-item label="状态" prop="status">
@@ -256,7 +259,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Delete, Edit } from "@element-plus/icons-vue";
 import { useRoute } from "vue-router";
 const route = useRoute();
@@ -269,6 +272,9 @@ import {
   computed,
   nextTick,
 } from "vue";
+defineOptions({ name: "user" });
+import type { FormInstance, FormRules } from "element-plus";
+
 const { proxy } = getCurrentInstance();
 // 搜素框变量
 const filterObject = reactive({
@@ -309,6 +315,19 @@ const userListCol = ref([
   //   label: "创建时间",
   // },
 ]);
+interface RuleForm {
+  username: string;
+  real_name: string;
+  password: string;
+  status: boolean;
+  location: string;
+}
+const rules = reactive<FormRules<RuleForm>>({
+  password: [
+    { required: true, message: "请输入密码", trigger: "blur" },
+    { min: 5, message: "密码长度不能低于5", trigger: "blur" },
+  ],
+});
 // 分页变量
 const currentPage = ref(1);
 const pageSize = ref(10);

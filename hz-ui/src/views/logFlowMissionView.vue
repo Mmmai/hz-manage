@@ -66,6 +66,8 @@
 <script setup lang="ts">
 import { reactive, ref, watch, getCurrentInstance, onMounted } from "vue";
 const { proxy } = getCurrentInstance();
+defineOptions({ name: "logFlowMission" });
+
 import { ElMessageBox, ElMessage } from "element-plus";
 import { Failed } from "@element-plus/icons-vue";
 const missionObject = reactive([
