@@ -20,6 +20,7 @@ from .views import (
     ZabbixProxyViewSet,
     ProxyAssignRuleViewSet
 )
+from audit.views import *
 
 router = DefaultRouter()
 router.register(r'model_groups', ModelGroupsViewSet)

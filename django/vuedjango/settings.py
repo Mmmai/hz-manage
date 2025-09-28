@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
 import os
+import warnings
 from pathlib import Path
 from celery.schedules import crontab
 
@@ -43,6 +44,7 @@ INSTALLED_APPS = [
     'mapi',
     'cacheops',
     'cmdb',
+    'audit',
     'rest_framework',
     'django_filters',
     'import_export',
@@ -50,6 +52,7 @@ INSTALLED_APPS = [
     'drf_spectacular_sidecar',
     'channels',
     'django_celery_beat',
+    'silk'
 ]
 
 
@@ -61,6 +64,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'audit.middleware.AuditContextMiddleware'
 ]
 
 

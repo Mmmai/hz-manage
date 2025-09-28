@@ -1,2 +1,7 @@
 .VSCodeCounter/*
 .vscode
+.github
+app
+base/
+start.sh
+Dockerfile[
