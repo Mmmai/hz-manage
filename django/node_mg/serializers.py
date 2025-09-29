@@ -111,6 +111,13 @@ class NodesSerializer(serializers.ModelSerializer):
     #         return ""
 
 
+
+
+class NodeForProxySerializer(serializers.ModelSerializer):
+    instance_name = serializers.CharField(source='model_instance.instance_name', read_only=True)
+    class Meta:
+        model = Nodes
+        fields = ['id','ip_address','instance_name']
 class ProxySerializer(serializers.ModelSerializer):
     node_count = serializers.SerializerMethodField()
     
@@ -122,7 +129,7 @@ class ProxySerializer(serializers.ModelSerializer):
     
 class ProxyDetailSerializer(serializers.ModelSerializer):
     node_count = serializers.SerializerMethodField()
-    nodes = NodesSerializer(many=True, read_only=True)
+    nodes = NodeForProxySerializer(many=True, read_only=True)
     class Meta:
         model = Proxy
         # 可以自定义需要返回的字段

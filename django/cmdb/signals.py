@@ -353,8 +353,8 @@ def update_instance_name_on_field_change(sender, instance, created, **kwargs):
 
         # 更新名称
         model_instance.instance_name = new_name
-        model_instance.save(update_fields=['instance_name', 'update_time'])
-        logger.info(f"Updated instance name to {new_name} for instance {model_instance.id}")
+        #model_instance.save(update_fields=['instance_name', 'update_time'])
+        #logger.info(f"Updated instance name to {new_name} for instance {model_instance.id}")
     except Exception as e:
         logger.error(f"Error generating instance name: {str(e)}")
 

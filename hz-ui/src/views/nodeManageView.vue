@@ -75,19 +75,21 @@
         > -->
       </div>
       <div class="header-button-ri">
-        <el-select v-model="colValue" placeholder="Select" style="width: 120px">
+        <!-- <el-select v-model="colValue" placeholder="Select" style="width: 120px">
           <el-option
             v-for="item in filterOptions"
             :key="item.value"
             :label="item.name"
             :value="item.value"
           />
-        </el-select>
+        </el-select> -->
+        <!-- <el-text>搜索</el-text> -->
         <el-input
-          v-model="filterValue"
+          v-model="searchText"
           style="width: 240px"
           placeholder="回车查询"
           clearable
+          :prefix-icon="Search"
           @clear="getNodesData()"
           @keyup.enter.native="getNodesData()"
         />
@@ -117,8 +119,19 @@
         property="proxy_name"
         label="代理"
         sortable="custom"
-        width="140"
-      ></el-table-column>
+        width="100"
+      >
+        <template #default="scope">
+          <el-tag>
+            {{ scope.row.proxy_name }}
+          </el-tag>
+          <!-- <el-tag
+            :type="scope.row.status ? 'success' : 'danger'"
+            effect="dark"
+            >{{ scope.row.status ? "正常" : "异常" }}</el-tag
+          > -->
+        </template>
+      </el-table-column>
 
       <el-table-column
         column-key="manage_status"
@@ -215,12 +228,12 @@
       <el-table-column
         property="manage_error_message"
         label="管理错误信息"
-        width="400"
+        width="500"
       />
       <el-table-column
         property="agent_error_message"
         label="agent错误信息"
-        width="400"
+        width="500"
       />
 
       <el-table-column fixed="right" width="80" label="操作">
@@ -295,6 +308,7 @@ import {
   Refresh,
   View,
   Compass,
+  Search,
 } from "@element-plus/icons-vue";
 import {
   ref,
@@ -385,15 +399,15 @@ const filterOptions = computed(() => {
 // })
 const formRef = ref("");
 // 表单字段
-const formInline = reactive({
-  name: null,
-  verbose_name: null,
-  field_type: "string",
-  type: "regex",
-  rule: null,
-  description: null,
-});
-const getStatusType = (status) => {
+// const formInline = reactive({
+//   name: null,
+//   verbose_name: null,
+//   field_type: "string",
+//   type: "regex",
+//   rule: null,
+//   description: null,
+// });
+const getStatusType = (status: number) => {
   if (status === 1) {
     return "success";
   } else if (status === 0) {
@@ -402,7 +416,7 @@ const getStatusType = (status) => {
     return "info";
   }
 };
-const getStatusText = (status) => {
+const getStatusText = (status: number) => {
   if (status === 1) {
     return "正常";
   } else if (status === 0) {
@@ -412,13 +426,6 @@ const getStatusText = (status) => {
   }
 };
 // 监听更新校验类型的值,默认拿第一个
-watch(
-  () => formInline.field_type,
-  (n) => {
-    formInline.type = validate_type.value[n][0].type;
-  },
-  { deep: true }
-);
 // 分页
 const currentPage = ref(1);
 const pageSize = ref(10);
@@ -438,7 +445,7 @@ const pageChange = () => {
 //   getNodesData();
 // });
 const sortParam = ref({ ordering: "-model_instance_name" });
-const sortMethod = (data) => {
+const sortMethod = (data: any) => {
   // console.log(data);
   if (data.order === "ascending") {
     sortParam.value["ordering"] = data.prop;
@@ -479,13 +486,13 @@ const fieldOptions = ref([]);
 const validate_type = ref([]);
 // 后端请求
 
-const getNodesData = async (params = null) => {
+const getNodesData = async () => {
   let res = await proxy.$api.getNodes({
     page: currentPage.value,
     page_size: pageSize.value,
+    search: searchText.value,
     ...filterParam.value,
     ...sortParam.value,
-    ...params,
   });
   // console.log(res);
   syncHosts.value = res.data.results;
@@ -528,6 +535,9 @@ const avaiableTag = {
   1: { level: "success", label: "可用" },
   2: { level: "danger", label: "不可用" },
 };
+// 模糊检索
+const searchText = ref("");
+
 // 过滤
 const filterTag = (value, row) => {
   return row.tag === value;

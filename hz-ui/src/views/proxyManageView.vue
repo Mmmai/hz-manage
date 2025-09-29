@@ -89,7 +89,7 @@
       >
         <template #default="scope">
           <el-switch
-            v-model="scope.row.enable_sync"
+            v-model="scope.row.enabled"
             class="ml-2"
             style="
               --el-switch-on-color: #13ce66;
@@ -294,6 +294,7 @@ import {
   reactive,
   nextTick,
   onUnmounted,
+  onActivated,
 } from "vue";
 const { proxy } = getCurrentInstance();
 import { useStore } from "vuex";
@@ -634,6 +635,9 @@ const closeDia = () => {
 };
 
 onUnmounted(() => {});
+onActivated(() => {
+  getProxyData();
+});
 </script>
 
 <style scoped></style>

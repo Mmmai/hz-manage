@@ -10,10 +10,12 @@ const path = {
 
 }
 export default {
-  // cmdb
-  // 模型组
+  // nodes
   getNodes(params) {
     return axios.request({ url: path.nodes, method: 'get', params: params })
+  },
+  getNodesArray(params) {
+    return axios.request({ url: path.nodes + 'list_all_nodes/', method: 'get', params: params })
   },
   // deleteNodesGroup(params) {
   //   return axios.delete(path.node_mg + params)
@@ -24,6 +26,16 @@ export default {
   updateNodes(params) {
     // return axios.put(path.role+params.id+'/',params)
     return axios.request({ url: path.nodes + params.id + '/', method: 'patch', data: params })
+  },
+  // 批量关联proxy
+  batchAssociateProxy(params) {
+    // params: { ids:[],proxy_id:''}
+    return axios.request({ url: path.nodes + 'associate_proxy/', method: 'post', data: params })
+  },
+  // 批量解除关联proxy
+  batchDissociateProxy(params) {
+    // params: { ids:[]}
+    return axios.request({ url: path.nodes + 'dissociate_proxy/', method: 'post', data: params })
   },
   // zabbix主机同步状态
   getZabbixStatus(params) {
@@ -52,7 +64,7 @@ export default {
     return axios.request({ url: path.proxy, method: 'post', data: params })
   },
   deleteProxy(params) {
-    return axios.request({ url: path.proxy + params, method: 'delete' })
+    return axios.request({ url: path.proxy + params + '/', method: 'delete' })
   },
   updateProxy(params) {
     return axios.request({ url: path.proxy + params.id + '/', method: 'patch', data: params })

@@ -17,20 +17,22 @@
         `代理详情【${proxyForm.name}】`
       }}</el-text>
     </div>
-    <div class="card">
+    <div class="card" style="flex: none">
       <!-- proxy表单 -->
       <el-form
         ref="proxyFormRef"
         :model="proxyForm"
         :rules="proxyFormRules"
         label-width="100px"
-        style="max-width: 800px; margin-top: 10px"
+        style="width: 100%; margin-top: 10px"
       >
         <el-row :gutter="20">
-          <el-col :span="12">
+          <el-col :span="4">
             <el-form-item label="代理名称" prop="name">
               <el-input v-model="proxyForm.name" placeholder="请输入代理名称" />
             </el-form-item>
+          </el-col>
+          <el-col :span="4">
             <el-form-item label="中文名称" prop="verbose_name">
               <el-input
                 v-model="proxyForm.verbose_name"
@@ -38,11 +40,12 @@
               />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col :span="4">
             <el-form-item label="代理类型" prop="proxy_type">
               <el-select
                 v-model="proxyForm.proxy_type"
                 placeholder="请选择代理类型"
+                disabled
               >
                 <el-option
                   v-for="item in proxyTypeOptions"
@@ -63,17 +66,23 @@
                 </el-option>
               </el-select>
             </el-form-item>
+          </el-col>
+          <el-col :span="4">
             <el-form-item label="是否启用" prop="enabled">
               <el-switch v-model="proxyForm.enabled" />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+        </el-row>
+        <el-row>
+          <el-col :span="4">
             <el-form-item label="代理ip" prop="ip_address">
               <el-input
                 v-model="proxyForm.ip_address"
                 placeholder="请输入代理ip"
               />
             </el-form-item>
+          </el-col>
+          <el-col :span="4">
             <el-form-item label="代理端口" prop="port">
               <el-input-number
                 v-model="proxyForm.port"
@@ -85,13 +94,15 @@
               />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col :span="4">
             <el-form-item label="认证用户" prop="auth_user">
               <el-input
                 v-model="proxyForm.auth_user"
                 placeholder="请输入认证用户"
               />
             </el-form-item>
+          </el-col>
+          <el-col :span="4">
             <el-form-item label="用户密码" prop="auth_pass">
               <el-input
                 v-model="proxyForm.auth_pass"
@@ -101,7 +112,9 @@
               />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+        </el-row>
+        <el-row>
+          <el-col :span="4">
             <el-form-item label="备注信息" prop="description">
               <el-input
                 v-model="proxyForm.description"
@@ -112,13 +125,55 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <template #footer>
-          <div class="dialog-footer">
-            <el-button @click="closeDia()">取消</el-button>
-            <el-button type="primary" @click="addAction()">更新</el-button>
-          </div>
-        </template>
       </el-form>
+      <el-row justify="center">
+        <el-button type="primary" @click="updateAction()">更新</el-button>
+      </el-row>
+    </div>
+    <div class="card">
+      <el-row justify="center">
+        <h3>节点关联配置</h3>
+      </el-row>
+      <div style="text-align: center">
+        <!-- :left-default-checked="[2, 3]"
+          :right-default-checked="[1]" -->
+        <el-transfer
+          v-model="hasConfigNodes"
+          style="text-align: left; display: inline-block"
+          filterable
+          :titles="['所有节点', '已配置节点']"
+          :button-texts="['删除', '添加']"
+          :format="{
+            noChecked: '${total}',
+            hasChecked: '${checked}/${total}',
+          }"
+          :data="allNodes"
+          @change="handleChange"
+        >
+          <template #default="{ option }">
+            <el-tooltip
+              v-if="option.disabled"
+              class="box-item"
+              effect="dark"
+              content="已被其它proxy关联"
+              placement="top"
+            >
+              <span>{{ option.label }}</span>
+            </el-tooltip>
+            <span v-else>{{ option.label }}</span>
+          </template>
+          <!-- <template #left-footer>
+            <el-button class="transfer-footer" size="small"
+              >Operation</el-button
+            >
+          </template>
+          <template #right-footer>
+            <el-button class="transfer-footer" size="small"
+              >Operation</el-button
+            >
+          </template> -->
+        </el-transfer>
+      </div>
     </div>
   </div>
 </template>
@@ -135,6 +190,7 @@ import {
 import { Back } from "@element-plus/icons-vue";
 import { ElMessageBox, ElMessage, ElNotification } from "element-plus";
 import { useRoute, useRouter } from "vue-router";
+import { has } from "lodash";
 const router = useRouter();
 const route = useRoute();
 const { proxy } = getCurrentInstance();
@@ -207,6 +263,31 @@ const proxyFormRules = {
   auth_user: [{ required: true, message: "请输入认证用户", trigger: "blur" }],
   auth_pass: [{ required: true, message: "请输入用户密码", trigger: "blur" }],
 };
+
+// 穿梭框
+const allNodes = ref([]);
+const hasConfigNodes = ref([]);
+import type {
+  TransferDirection,
+  TransferKey,
+  renderContent,
+} from "element-plus";
+import { ca } from "element-plus/es/locale/index.mjs";
+const handleChange = (
+  value: TransferKey[],
+  direction: TransferDirection,
+  movedKeys: TransferKey[]
+) => {
+  console.log(value, direction, movedKeys);
+  if (direction == "right") {
+    // 添加关联
+    associate(movedKeys);
+  } else {
+    cancelAssociate(movedKeys);
+  }
+};
+
+// 请求
 // 获取单个proxy信息
 const getProxyData = async () => {
   let res = await proxy.$api.getProxyInfo(proxyId.value);
@@ -223,10 +304,38 @@ const getProxyData = async () => {
     proxyForm.auth_pass = res.data.auth_pass;
     proxyForm.description = res.data.description;
   }
+  // 获取proxy已关联的node节点
+  hasConfigNodes.value = res.data.nodes.map((item) => {
+    // return {
+    //   value: item.instance_name,
+    //   key: item.id,
+    //   disabled: false,
+    // };
+    return item.id;
+  });
+  // console.log("hasConfigNodes:", hasConfigNodes.value);
+};
+// 获取所有nodes
+const getNodesData = async () => {
+  let res = await proxy.$api.getNodesArray();
+  if (res.status == 200) {
+    console.log(res.data);
+    allNodes.value = res.data.map((item) => {
+      return {
+        label: item.instance_name,
+        key: item.id,
+        disabled:
+          item.proxy_id === proxyId.value || item.proxy_id == null
+            ? false
+            : true,
+      };
+    });
+  }
+  // console.log("allNodes:", allNodes.value);
 };
 // 更新方法
-const updateAction = async (row) => {
-  let res = await proxy.$api.updateProxy({ id: row.id, ...proxyForm });
+const updateAction = async () => {
+  let res = await proxy.$api.updateProxy({ id: proxyId.value, ...proxyForm });
   if (res.status == 200) {
     ElMessage({
       type: "success",
@@ -241,15 +350,61 @@ const updateAction = async (row) => {
     });
   }
 };
+// 节点关联
+const associate = async (ids: TransferKey[]) => {
+  let res = await proxy.$api.batchAssociateProxy({
+    proxy_id: proxyId.value,
+    ids: ids,
+  });
+  if (res.status == 200) {
+    ElMessage({
+      type: "success",
+      message: "关联成功",
+    });
+    // 获取已配置的nodes
+    getProxyData();
+  } else {
+    ElMessage({
+      type: "error",
+      message: `关联失败: ${res.data}`,
+    });
+  }
+};
+// 节点取消关联
+const cancelAssociate = async (ids: TransferKey[]) => {
+  // 发起删除请求
+  let res = await proxy.$api.batchDissociateProxy({ ids: ids });
+  if (res.status == 200) {
+    ElMessage({
+      type: "success",
+      message: "取消关联成功",
+    });
+    // 获取已配置的nodes
+    getProxyData();
+  } else {
+    ElMessage({
+      type: "error",
+      message: `取消关联失败: ${res.data}`,
+    });
+  }
+};
 onMounted(() => {
   // 截取路由的id
-  console.log(route.path);
-  console.log(route.path.split("/"));
+  // console.log(route.path);
+  // console.log(route.path.split("/"));
 
   proxyId.value = route.path.split("/").at(-1);
-  console.log("proxyId:", proxyId.value);
+  // console.log("proxyId:", proxyId.value);
   getProxyData();
+  getNodesData();
 });
 </script>
 <style scoped lang="scss">
+:deep(.el-transfer-panel) {
+  width: 500px;
+  // height: auto;
+}
+:deep(.el-transfer) {
+  --el-transfer-panel-body-height: 700px;
+}
 </style>

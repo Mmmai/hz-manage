@@ -29,6 +29,8 @@ import json
 from django.conf import settings
 from mapi.extensions.pagination import StandardResultsSetPagination
 from .export import exportHandler
+import logging
+logger = logging.getLogger(__name__)
 def getRolePermissionList(role_ids):
     allPermissionList = []
     for role_id in role_ids:
@@ -297,12 +299,12 @@ class RoleViewSet(ModelViewSet):
                 # print(123)
                 # 先清空原有的，再添加新的
                 instance.permission.all().delete()
-                print(f"清空角色<{instance.role}>权限!")
+                logger.info(f"清空角色<{instance.role}>权限!")
                 # 添加新的
                 for button_id in rolePermission:
                     button_obj = Button.objects.get(id=button_id)
                     Permission.objects.create(role=instance,menu=button_obj.menu,button=button_obj)
-                    print(f"为角色<{instance.role}>添加<${button_obj.action}>权限!")
+                    logger.info(f"为角色<{instance.role}>添加<${button_obj.action}>权限!")
                     # 如果有其他按钮权限，查看的权限应该同步添加，就算用户没有勾选！
                     if button_obj.action == "view":
                         pass
@@ -310,9 +312,9 @@ class RoleViewSet(ModelViewSet):
                         view_button_obj = Button.objects.get(action="view",menu=button_obj.menu)
                         view_per_obj, created = Permission.objects.get_or_create(role=instance,menu=button_obj.menu,button=view_button_obj)
                         if created:
-                            print(f"为角色<{instance.role}>添加<${view_button_obj.action}>权限!")
+                            logger.info(f"为角色<{instance.role}>添加<${view_button_obj.action}>权限!")
                         else:
-                            print(f"为角色<{instance.role}>已拥有<${view_button_obj.action}>权限!")
+                            logger.info(f"为角色<{instance.role}>已拥有<${view_button_obj.action}>权限!")
         return Response(serializer.data)
 
 class MenuViewSet(ModelViewSet):

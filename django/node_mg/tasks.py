@@ -532,6 +532,7 @@ def zabbix_sync(self, instance_id=None, ip=None, is_delete=False):
             'result': "Invalid IP address format",
             'timestamp': now_iso
         }
+    
 
     # 主机删除
     if is_delete:
@@ -595,6 +596,14 @@ def zabbix_sync(self, instance_id=None, ip=None, is_delete=False):
                 'result': str(e),
                 'timestamp': now_iso
             }
+        # 获取节点的proxy信息
+        nodeObj = Nodes.objects.get(model_instance=instance)
+        proxy_info = {}
+        if nodeObj.proxy:
+            if nodeObj.proxy.proxy_type in ['zabbix','all']:
+                # proxy_info["proxy_id"] = nodeObj.proxy.id
+                proxy_info["proxy_name"] = nodeObj.proxy.name
+                proxy_info["proxy_ip"] = nodeObj.proxy.ip_address
 
         host_info = build_host_info(instance, ip)
         if not host_info:
@@ -785,3 +794,85 @@ def zabbix_sync_batch(self, instance_ids):
     )
     chord_result = job | aggregate_results.s()
     return chord_result.apply_async()     
+
+@shared_task(bind=True)
+def zabbix_proxy_sync(self,proxy_info,action,node_ids=None):
+    zabbix_api = ZabbixAPI()
+    proxy_name = proxy_info.get('proxy_name')
+    proxy_ip = proxy_info.get('proxy_ip')
+    if action == 'delete':
+        result = zabbix_api.delete_proxy_by_name(proxy_name=proxy_name)
+        if result:
+            logger.info(f"Zabbix Proxy deleted for {proxy_name},response:{result}")
+            return {'status': 'success', 'detail': f"Zabbix Proxy deleted for {proxy_name},response:{result}"}
+        else:
+            logger.error(f"Failed to delete Zabbix Proxy {proxy_name},response:{result}")
+            return {'status': 'failed', 'detail': f"Failed to delete Zabbix Proxy {proxy_name},response:{result}"}
+
+    elif action in ['update','create']:
+        # proxy_zabbix = zabbix_api.get_proxy_by_name(proxy_name=proxy_name)
+        proxy_zabbix = zabbix_api.get_proxy_by_proxy_address(ip_address=proxy_ip)
+        if not proxy_zabbix:
+            logger.info(f"Zabbix Proxy {proxy_name} does not exist, creating...")
+            result = zabbix_api.create_proxy(proxy_ip=proxy_ip,proxy_name=proxy_name)
+            if result:
+                logger.info(f"Zabbix Proxy created for {proxy_name},response:{result}")
+                return {'status': 'success', 'detail': f"Zabbix Proxy created for {proxy_name},response:{result}"}
+            else:
+                logger.error(f"Failed to create Zabbix Proxy {proxy_name},response:{result}")
+                return {'status': 'failed', 'detail': f"Failed to create Zabbix Proxy {proxy_name},response:{result}"}
+        else:
+            result = zabbix_api.update_proxy(proxyId=proxy_zabbix.get("proxyid"),proxy_name=proxy_name,proxy_ip=proxy_ip)
+            if result:
+                logger.info(f"Zabbix Proxy updated for {proxy_name},response:{result}")
+                return {'status': 'success', 'detail': f"Zabbix Proxy updated for {proxy_name},response:{result}"}
+            else:
+                logger.error(f"Failed to update Zabbix Proxy {proxy_name},response:{result}")
+                return {'status': 'failed', 'detail': f"Failed to update Zabbix Proxy {proxy_name},response:{result}"}
+    elif action == 'associate_host':
+        proxy_zabbix = zabbix_api.get_proxy_by_name(proxy_name=proxy_name)
+        # 根据node_id获取host_id
+        nodes = Nodes.objects.get(id__in=node_ids)
+        associate_hosts = []
+        for node in nodes:
+            result = zabbix_api.host_get(
+                host=node.ip_address,
+                output=["hostid"],
+            )
+            host_id = result[0].get('hostid') if result else None
+            if host_id:              
+                associate_hosts.append(host_id)
+            else:
+                logger.error(f"Failed to get host id for {node.ip_address}")
+                # 触发同步任务,添加主机，并且由zabbix_sync任务处理添加proxy
+                zabbix_sync.delay(instance_id=node.model_instance.id,ip=node.ip_address)
+        result = zabbix_api.update_proxy(proxyId=proxy_zabbix.proxy_id,proxy_name=proxy_name,proxy_ip=proxy_ip,hosts=associate_hosts)
+    elif action == 'dissociate_host':
+        #proxy_zabbix = zabbix_api.get_proxy_by_name(proxy_name=proxy_name)
+        nodes = Nodes.objects.get(id__in=node_ids)
+        dissociate_hosts = []
+        for node in nodes:
+            result = zabbix_api.host_get(
+                host=node.ip_address,
+                output=["hostid"],
+            )
+            host_id = result[0].get('hostid') if result else None
+            if host_id:              
+                dissociate_hosts.append(host_id)
+            else:
+                pass     
+        # result = zabbix_api.update_proxy(proxyId=proxy_zabbix.proxy_id,proxy_name=proxy_name,proxy_ip=proxy_ip)
+        if dissociate_hosts:
+            result = zabbix_api.host_massclear_proxy(hostids=node_ids)
+            if result:
+                logger.info(f"Zabbix host {dissociate_hosts.join(',')} has been dissociated on {proxy_name},response:{result}")
+                return {'status': 'success', 'detail': f"Zabbix Proxy dissociated for {proxy_name},response:{result}"}
+            else:
+                logger.error(f"Failed to dissociate Zabbix Proxy {proxy_name},response:{result}")
+                return {'status': 'failed', 'detail': f"Failed to dissociate Zabbix Proxy"
+            }
+        else:
+            return {'status': 'success', 'detail': f"Zabbix Proxy dissociated for {proxy_name},response:{result}"}
+
+    else:
+        return {'status': 'failed', 'detail': f"Invalid action {action}"}

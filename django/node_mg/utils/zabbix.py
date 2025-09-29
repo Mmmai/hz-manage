@@ -506,7 +506,18 @@ class ZabbixAPI:
         if result.get("result"):
             return result["result"]
         return None
-
+    def host_massclear_proxy(self, hostids=[]):
+        """清除主机代理"""
+        data = {
+            "params": {
+                "hostid": hostids,
+                "proxy_hostid": "0"
+            },
+        }
+        result = self._call("host.massupdate", data["params"])
+        if result.get("result"):
+            return result["result"]
+        return None    
     def get_default_template(self, template_name):
         target = template_name or self.template_host_name
         data = {
@@ -718,21 +729,69 @@ class ZabbixAPI:
 
     def get_proxy_by_name(self, proxy_name):
         data = {
-            "jsonrpc": "2.0",
-            "method": "proxy.get",
             "params": {
                 "output": ["proxyid", "host", "status", "lastaccess", "description"],
                 "filter": {
                     "host": proxy_name
                 }
             },
-            "auth": self.auth,
-            "id": 1
         }
         result = self._call("proxy.get", data["params"])
         if result.get("result"):
             return result["result"][0]
         return None
+    def get_proxy_by_proxy_address(self, ip_address):
+        data = {
+            "params": {
+                "output": ["proxyid", "host", "status", "lastaccess", "description"],
+                "filter": {
+                    "proxy_address": ip_address
+                }
+            },
+        }
+        result = self._call("proxy.get", data["params"])
+        if result.get("result"):
+            return result["result"][0]
+        return None
+    def create_proxy(self, proxy_name,proxy_ip=None,status=5):
+        data = {
+            "params": {
+                "host": proxy_name,
+                "status":status,
+                "proxy_address": proxy_ip,
+                "hosts": []
+            },
+        }
+        result = self._call("proxy.create", data["params"])
+        if result.get("result"):
+            return result["result"]
+        return None
+
+    def update_proxy(self, proxyId, proxy_name,proxy_ip=None,hosts=[]):
+        data = {
+            "params": {
+                "proxyid": proxyId,
+                "host": proxy_name,
+                "proxy_address": proxy_ip,
+                "hosts": hosts
+            },
+        }
+        result = self._call("proxy.update", data["params"])
+        if result.get("result"):
+            return result["result"]
+        return None
+    def delete_proxy(self, proxyId):
+        data = {
+            "params": proxyId,
+        }
+        result = self._call("proxy.delete", data["params"])
+        if result.get("result"):
+            return result["result"][0]
+        return None
+    def delete_proxy_by_name(self, proxy_name):
+        proxy = self.get_proxy_by_name(proxy_name)
+        if proxy:
+            return self.delete_proxy(proxy["proxyid"])
     def get_template_by_id(self,hostid,output=None,other_args=None):
         """获取主机关联的模板"""
         data = {

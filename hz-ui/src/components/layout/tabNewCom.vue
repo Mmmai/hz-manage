@@ -243,10 +243,9 @@ const refresh = () => {
   font-weight: 600;
 }
 
-:deep {
-  .el-tabs__header {
-    margin: 0;
-  }
+:deep(.el-tabs__header) {
+  margin: 0;
 }
+
 @import "./tabs.scss";
 </style>

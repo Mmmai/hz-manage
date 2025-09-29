@@ -3,16 +3,22 @@ from django.dispatch import receiver
 from django.apps import apps
 from .models import (
     Nodes,
-    NodeSyncZabbix
+    NodeSyncZabbix,
+    Proxy
 )
 from django.db.models.signals import post_save, post_delete, pre_save, pre_delete, post_migrate
-import logging
 from .utils import zabbix_config
 from django.db import transaction
 from .utils.cmdb_tools import get_instance_field_value,get_instance_field_value_info
-from .tasks import ansible_getinfo,zabbix_sync,ansible_agent_install
+from .tasks import (
+    ansible_getinfo,
+    zabbix_sync,
+    ansible_agent_install,
+    zabbix_proxy_sync
+)
 from cmdb.signals import instance_signal
 from cmdb.models import ModelInstanceGroupRelation
+import logging
 logger = logging.getLogger(__name__)
 
 # 监听实例的创建和删除信号
@@ -83,13 +89,48 @@ def sync_node(sender,instance,action, **kwargs):
 
 @receiver(post_save, sender=Nodes)
 def create_initial_sync_zabbix(sender, instance, created, **kwargs):
+    """
+    节点创建成功后触发zabbix同步创建及更新
+    """
     def delayed_process():
         if created:
             # 创建与节点关联的NodeSyncZabbix实例
             NodeSyncZabbix.objects.create(node=instance)
             # 触发zabbix同步
             # 触发agent安装任务
-
-            print(f"为节点[{instance.model_instance.instance_name}]创建了初始的NodeSyncZabbix实例")
+            logger.info(f"为节点[{instance.model_instance.instance_name}]创建了初始的NodeSyncZabbix实例")
+    transaction.on_commit(delayed_process)
+# @receiver(post_save, sender=Nodes)
+@receiver(post_save, sender=Proxy)
+def proxy_sync_zabbix(sender, instance, created, **kwargs):
+    """
+    proxy创建成功后触发zabbix同步创建及更新
+    """
+    def delayed_process():
+        if not zabbix_config.is_zabbix_sync_enabled() or instance.proxy_type not in ['all','zabbix']:
+            return
+        proxy_info = {
+                    "proxy_name": instance.name,
+                    "proxy_ip": instance.ip_address,
+                    "proxy_type": instance.proxy_type,
+                    "proxy_status": instance.enabled,
+                }
+        if created:
+            zabbix_proxy_sync.delay(proxy_info=proxy_info,action='create')
+        else:
+            zabbix_proxy_sync.delay(proxy_info=proxy_info,action='update')
     transaction.on_commit(delayed_process)
 
+@receiver(post_delete, sender=Proxy)
+def proxy_delete_zabbix(sender, instance, **kwargs):
+    """
+    proxy删除成功后触发zabbix同步删除
+    """
+    if not zabbix_config.is_zabbix_sync_enabled():
+        return
+    if instance.proxy_type in ['all','zabbix']:
+        proxy_info = {
+            "proxy_name": instance.name,
+            "proxy_ip": instance.ip_address,
+        }
+        zabbix_proxy_sync.delay(proxy_info=proxy_info,action='delete')

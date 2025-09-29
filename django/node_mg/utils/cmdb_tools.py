@@ -119,7 +119,7 @@ def node_inventory(node):
     } } } }
 
     # 如果存在代理节点，则添加代理跳转配置
-    if proxy:
+    if proxy and proxy.type != 'zabbix' and proxy.enabled:
         jump_host = proxy.ip_address
         jump_user = proxy.ssh_user
         jump_pass = proxy.ssh_pass

@@ -1146,12 +1146,12 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                         )
                         field_metas.append(meta)
 
-                    post_save.send(
-                        sender=ModelInstance,
-                        instance=instance,
-                        created=False,
-                        using=DEFAULT_DB_ALIAS
-                    )
+                    # post_save.send(
+                    #     sender=ModelInstance,
+                    #     instance=instance,
+                    #     created=False,
+                    #     using=DEFAULT_DB_ALIAS
+                    # )
                 return field_metas
         except Exception as e:
             logger.error(f"Error in bulk update: {str(e)}")
