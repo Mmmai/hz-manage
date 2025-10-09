@@ -104,7 +104,7 @@ DATABASES = {
         'NAME': 'manage',
         'USER': 'root',
         'PASSWORD': 'thinker',
-        'HOST': '127.0.0.1',
+        'HOST': 'mysql',
         'PORT': '3306',
     },
     'cmdb': {
@@ -112,7 +112,7 @@ DATABASES = {
         'NAME': 'cmdb',
         'USER': 'root',
         'PASSWORD': 'thinker',
-        'HOST': '127.0.0.1',
+        'HOST': 'mysql',
         'PORT': '3306',
     },
 }
@@ -125,7 +125,7 @@ DATABASE_APPS_MAPPING = {
 }
 
 CACHEOPS_REDIS = {
-    'host': 'localhost',
+    'host': 'redis',
     'port': 6379,
     'db': 1,
     'socket_timeout': 3,
@@ -155,7 +155,7 @@ CACHEOPS_DEFAULTS = {
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/2',
+        'LOCATION': 'redis://redis:6379/2',
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             'CONNECTION_POOL_CLASS': 'redis.BlockingConnectionPool',
@@ -173,8 +173,8 @@ CACHES = {
 
 # Celery配置共享Redis
 CELERY_CACHE_BACKEND = 'django-cache'
-CELERY_BROKER_URL = 'redis://127.0.0.1:6379/2'
-CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/2'
+CELERY_BROKER_URL = 'redis://redis:6379/2'
+CELERY_RESULT_BACKEND = 'redis://redis:6379/2'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -199,11 +199,11 @@ SPECTACULAR_SETTINGS = {
     },
     'SERVE_AUTHENTICATION': [],
     # 配置安全认证
-    'SECURITY': [
-        {
-            'ApiKeyAuth': []
-        }
-    ],
+    # 'SECURITY': [
+    #     {
+    #         'ApiKeyAuth': []
+    #     }
+    # ],
 
     # 配置认证组件
     'COMPONENT_SPLIT_REQUEST': True,
