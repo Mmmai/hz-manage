@@ -73,9 +73,9 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             field_ids = [str(field_id) for field_id in field_ids]
             combined_query |= Q(content_type=field_ct, object_id__in=field_ids)
 
-        logger.info(f"Constructed combined query for history: {combined_query}")
+        # logger.debug(f"Constructed combined query for history: {combined_query}")
         final_query = AuditLog.objects.filter(combined_query).distinct().order_by('-timestamp')
-        logger.info(f"Final query for history has {final_query.count()} records.")
+        # logger.debug(f"Final query for history has {final_query.count()} records.")
         page = self.paginate_queryset(final_query)
         if page is not None:
             serializer = self.get_serializer(page, many=True)

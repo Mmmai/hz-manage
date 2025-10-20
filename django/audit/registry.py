@@ -1,5 +1,8 @@
+import logging
 from typing import Dict, Type
 from django.db import models
+
+logger = logging.getLogger(__name__)
 
 class AuditRegistry:
     """
@@ -21,7 +24,8 @@ class AuditRegistry:
             if public_name in self._public_name_map:
                 raise ValueError(f"Public name '{public_name}' 已被注册给模型 {self._public_name_map[public_name].__name__}。")
             self._public_name_map[public_name] = model
-            self._model_map[public_name] = model
+            self._model_map[model] = public_name
+            logger.debug(f"Registered model {model} with public name '{public_name}' in AuditRegistry.")
 
     def is_registered(self, model: Type[models.Model]) -> bool:
         """检查一个模型是否已被注册"""

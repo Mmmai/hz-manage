@@ -1,7 +1,9 @@
+import logging
 from rest_framework import serializers
 from .models import AuditLog, FieldAuditDetail
 from .registry import registry
 
+logger = logging.getLogger(__name__)
 class FieldAuditDetailSerializer(serializers.ModelSerializer):
     """字段级别变更详情的序列化器"""
     

@@ -26,11 +26,11 @@ class AuditContextMixin:
             "operator": operator_name,
             "operator_ip": source_ip,
         }
-        logger.info(f"Context data prepared in initial(): {context_data}")
+        # logger.debug(f"Context data prepared in initial(): {context_data}")
 
         self._audit_context_manager = audit_context(**context_data)
         self._audit_context_manager.__enter__()
-        logger.info(f"--- Entering Audit Context via initial(): {context_data} ---")
+        # logger.debug(f"--- Entering Audit Context via initial(): {context_data} ---")
 
     def dispatch(self, request, *args, **kwargs):
         try:
@@ -38,4 +38,4 @@ class AuditContextMixin:
         finally:
             if hasattr(self, '_audit_context_manager'):
                 self._audit_context_manager.__exit__(None, None, None)
-                logger.info("--- Exiting Audit Context ---")
+                # logger.debug("--- Exiting Audit Context ---")
