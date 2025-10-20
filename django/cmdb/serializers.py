@@ -1873,7 +1873,11 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
                     ).select_related('group')
                     groups_to_clear.update(relation.group for relation in existing_query)
                     old_groups_snapshot = [
-                        {'id': str(relation.group.id), 'label': relation.group.label}
+                        {
+                            'id': str(relation.group.id), 
+                            'label': relation.group.label,
+                            'path': relation.group.path
+                        }
                         for relation in existing_query
                     ]
                     existing_query.delete()
@@ -1892,7 +1896,11 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
                         created_relations.append(relation)
                     invalidate_obj(instance)
                     new_groups_snapshot = [
-                        {'id': str(relation.group.id), 'label': relation.group.label}
+                        {
+                            'id': str(relation.group.id),
+                            'label': relation.group.label,
+                            'path': relation.group.path
+                        }
                         for relation in created_relations
                     ]
                     instance_group_relations_audit.send(
