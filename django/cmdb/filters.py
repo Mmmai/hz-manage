@@ -1,24 +1,6 @@
 from weakref import proxy
 from django_filters import rest_framework as filters
-from .models import (
-    ModelGroups,
-    Models,
-    ModelFieldGroups,
-    ValidationRules,
-    ModelFields,
-    ModelFieldOrder,
-    ModelFieldPreference,
-    UniqueConstraint,
-    ModelInstance,
-    ModelFieldMeta,
-    ModelInstanceGroup,
-    ModelInstanceGroupRelation,
-    RelationDefinition,
-    Relations,
-    ZabbixSyncHost,
-    ZabbixProxy,
-    ProxyAssignRule
-)
+from .models import *
 
 
 class ModelGroupsFilter(filters.FilterSet):
@@ -158,24 +140,6 @@ class ModelFieldsFilter(filters.FilterSet):
             'required',
             'editable',
             'built_in',
-            'create_time_after',
-            'create_time_before',
-            'update_time_after',
-            'update_time_before',
-        ]
-
-
-class ModelFieldOrderFilter(filters.FilterSet):
-    model = filters.UUIDFilter(field_name='model')
-    create_time_after = filters.DateTimeFilter(field_name='create_time', lookup_expr='gte')
-    create_time_before = filters.DateTimeFilter(field_name='create_time', lookup_expr='lte')
-    update_time_after = filters.DateTimeFilter(field_name='update_time', lookup_expr='gte')
-    update_time_before = filters.DateTimeFilter(field_name='update_time', lookup_expr='lte')
-
-    class Meta:
-        model = ModelFieldOrder
-        fields = [
-            'model',
             'create_time_after',
             'create_time_before',
             'update_time_after',

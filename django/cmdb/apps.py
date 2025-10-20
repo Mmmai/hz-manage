@@ -11,16 +11,16 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class CMDBConfig(AppConfig):
+class CmdbConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'cmdb'
-    label = 'cmdb'
 
     def ready(self):
         """应用启动时加载密钥及zabbix相关实例"""
         import cmdb.signals
 
-        if 'runserver' in sys.argv or any('celery' in arg for arg in sys.argv) or 'daphne'  in sys.modules or '--host' in sys.argv:
+        if 'runserver' in sys.argv or any(
+                'celery' in arg for arg in sys.argv) or 'daphne' in sys.modules or '--host' in sys.argv:
             # 清除缓存
             invalidate_all()
             password_handler.load_keys()

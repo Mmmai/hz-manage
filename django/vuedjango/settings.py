@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
 import os
+import warnings
 from pathlib import Path
 from celery.schedules import crontab
 
@@ -26,6 +27,12 @@ SECRET_KEY = 'wt$!m&wf%5yl#ttz!2xxu9&1nrev9xn7dyr0b5g4lj8qzais86'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+
+DB_HOST = os.environ.get('DB_HOST', 'mysql')
+REDIS_HOST = os.environ.get('REDIS_HOST', 'redis')
+
+# DB_HOST = '127.0.0.1' if DEBUG else os.environ.get('DB_HOST', 'mysql')
+# REDIS_HOST = '127.0.0.1' if DEBUG else os.environ.get('REDIS_HOST', 'redis')
 
 ALLOWED_HOSTS = ['*']
 
@@ -43,6 +50,7 @@ INSTALLED_APPS = [
     'mapi',
     'cacheops',
     'cmdb',
+    'audit',
     'rest_framework',
     'django_filters',
     'import_export',
@@ -106,7 +114,7 @@ DATABASES = {
         'NAME': 'autoOps',
         'USER': 'root',
         'PASSWORD': 'thinker',
-        'HOST': '127.0.0.1',
+        'HOST': DB_HOST,
         'PORT': '3306',
     },
     # 'cmdb': {
@@ -128,7 +136,7 @@ DATABASE_APPS_MAPPING = {
 }
 
 CACHEOPS_REDIS = {
-    'host': 'localhost',
+    'host': REDIS_HOST,
     'port': 6379,
     'db': 1,
     'socket_timeout': 3,
@@ -158,7 +166,7 @@ CACHEOPS_DEFAULTS = {
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/2',
+        'LOCATION': f'redis://{REDIS_HOST}:6379/2',
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             'CONNECTION_POOL_CLASS': 'redis.BlockingConnectionPool',
@@ -176,8 +184,8 @@ CACHES = {
 
 # Celery配置共享Redis
 CELERY_CACHE_BACKEND = 'django-cache'
-CELERY_BROKER_URL = 'redis://127.0.0.1:6379/2'
-CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/2'
+CELERY_BROKER_URL = f'redis://{REDIS_HOST}:6379/2'
+CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:6379/2'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -428,7 +436,7 @@ LOGGING = {
         '': {
             'handlers': ['console', 'file'],
             'level': 'DEBUG',
-            'propagate': False,
+            'propagate': True,
         },
     },
 }

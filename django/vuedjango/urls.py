@@ -30,6 +30,7 @@ urlpatterns = [
     path('api/v1/cmdb/', include('cmdb.urls')),
     path('api/v1/node_mg/', include('node_mg.urls')),
 
+    path('api/v1/audit/', include('audit.urls')),
     # OpenAPI schema
     path('api/schema/', SpectacularAPIView.as_view(api_version='v1'), name='schema'),
     # Swagger UI

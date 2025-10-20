@@ -8,7 +8,6 @@ import logging
 from typing import Optional
 from threading import Lock
 
-
 logger = logging.getLogger(__name__)
 
 

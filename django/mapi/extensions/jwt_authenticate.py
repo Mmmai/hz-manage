@@ -4,6 +4,11 @@ from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 from django.conf import settings
 import jwt
+import logging
+from ..models import UserInfo
+
+logger = logging.getLogger(__name__)
+
 class JWTQueryParamsAuthentication(BaseAuthentication):
     def authenticate(self, request):
         # token的获取路径
@@ -23,8 +28,12 @@ class JWTQueryParamsAuthentication(BaseAuthentication):
             # print(unverified_payload)
             # 从token中获取payload【校验合法性】
             payload = jwt.decode(jwt=token, key=salt, algorithms=["HS256"])
-
-            return (payload,token)
+            user_id = payload.get("user_id")
+            if not user_id:
+                error = "token中用户信息不存在"
+                raise AuthenticationFailed({"code": 401, "error": error})
+            user = UserInfo.objects.filter(id=user_id).first()
+            return (user, token)
         except jwt.exceptions.ExpiredSignatureError:
             error = "token已失效"
             raise AuthenticationFailed({"code": 401, "error": error})
