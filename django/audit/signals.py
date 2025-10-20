@@ -4,10 +4,6 @@ from django.db.models.signals import pre_save, post_save, post_delete
 from django.dispatch import receiver
 from django.forms.models import model_to_dict
 from django.utils import timezone
-
-logger = logging.getLogger(__name__)
-
-
 from .registry import registry
 from .models import AuditLog, FieldAuditDetail
 from .context import get_audit_context
@@ -17,6 +13,9 @@ from .snapshots import (
     get_prefetched_snapshot,
     get_static_field_snapshot,
 )
+from cmdb.message import instance_group_relations_audit
+
+logger = logging.getLogger(__name__)
 
 def build_audit_comment(action, instance):
     verb = {"CREATE": "创建", "UPDATE": "更新", "DELETE": "删除"}.get(action, action)
@@ -229,3 +228,28 @@ def log_deletion(sender, instance, **kwargs):
         FieldAuditDetail.objects.bulk_create(details_to_create)
         
         
+@receiver(instance_group_relations_audit)
+def log_instance_group_relation_audit(sender, instance, old_groups, new_groups, **kwargs):
+    if not instance:
+        return
+
+    context = get_audit_context()
+
+    def delayed_audit_log(context=context):
+        old_groups_str = '，'.join(f"{group['label']}" for group in old_groups) if old_groups else '无'
+        new_groups_str = '，'.join(f"{group['label']}" for group in new_groups) if new_groups else '无'
+        comment = f"更新了模型实例 <{instance.instance_name}> 的分组关联关系：<{old_groups_str}> -> <{new_groups_str}>"
+        AuditLog.objects.create(
+            content_object=instance,
+            action='UPDATE',
+            changed_fields={
+                'groups': [old_groups, new_groups]    
+            },
+            operator=context.get('operator', ''),
+            operator_ip=context.get('operator_ip', None),
+            request_id=context.get('request_id', ''),
+            correlation_id=context.get('correlation_id', ''),
+            comment=comment
+        )
+
+    transaction.on_commit(delayed_audit_log)

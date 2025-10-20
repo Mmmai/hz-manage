@@ -446,7 +446,7 @@ class ModelInstanceGroup(models.Model):
         cache.delete_many(cache_keys)
         logger.info(f'Cache cleared successfully')
 
-@register_audit(ignore_fields={'update_time', 'create_time'}, public_name='model_instance_group_relation')
+# @register_audit(ignore_fields={'update_time', 'create_time'}, public_name='model_instance_group_relation')
 class ModelInstanceGroupRelation(models.Model):
     """实例与分组的关联关系"""
     class Meta:

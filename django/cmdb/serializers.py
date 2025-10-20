@@ -25,7 +25,7 @@ from cacheops import invalidate_model, invalidate_obj
 from .utils import password_handler
 from .validators import FieldValidator
 from .constants import FieldMapping, ValidationType, FieldType, limit_field_names
-from .message import instance_group_relation_updated
+from .message import instance_group_relation_updated, instance_group_relations_audit
 from audit.snapshots import capture_audit_snapshots
 from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.types import OpenApiTypes
@@ -1872,7 +1872,10 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
                         instance=instance
                     ).select_related('group')
                     groups_to_clear.update(relation.group for relation in existing_query)
-
+                    old_groups_snapshot = [
+                        {'id': str(relation.group.id), 'label': relation.group.label}
+                        for relation in existing_query
+                    ]
                     existing_query.delete()
 
                     # 创建新的关联关系
@@ -1888,7 +1891,16 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
                         hostgroups.append(group.path)
                         created_relations.append(relation)
                     invalidate_obj(instance)
-
+                    new_groups_snapshot = [
+                        {'id': str(relation.group.id), 'label': relation.group.label}
+                        for relation in created_relations
+                    ]
+                    instance_group_relations_audit.send(
+                        sender=ModelInstanceGroupRelation,
+                        instance=instance,
+                        old_groups=old_groups_snapshot,
+                        new_groups=new_groups_snapshot
+                    )
                 logger.info(f'Saved {len(created_relations)} relations')
                 groups_to_clear.update(
                     relation.group for relation in created_relations
