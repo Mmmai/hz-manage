@@ -13,9 +13,12 @@ import logging
 import functools
 from .constants import ValidationType
 
+from audit.decorators import register_audit
+from audit.snapshots import get_field_definition_snapshot, get_dynamic_field_snapshot
+
 logger = logging.getLogger(__name__)
 
-
+@register_audit(ignore_fields={'update_time', 'create_time'}, public_name='model_group')
 class ModelGroups(models.Model):
     class Meta:
         db_table = 'model_groups'
@@ -55,11 +58,11 @@ class ModelGroups(models.Model):
         if not self.editable:
             raise PermissionDenied('Non-editable model group cannot be deleted')
         with transaction.atomic():
-            default_group = self.__class__.get_default_group()
+            default_group = self.__class__.get_default_model_group()
             Models.objects.filter(model_group=self).update(model_group=default_group)
             super().delete(*args, **kwargs)
 
-
+@register_audit(ignore_fields={'update_time', 'create_time'}, public_name='model')
 class Models(models.Model):
     class Meta:
         db_table = 'models'
@@ -109,7 +112,7 @@ class Models(models.Model):
                 update_user='system'
             )
 
-
+@register_audit(ignore_fields={'update_time', 'create_time'}, public_name='model_field_group')
 class ModelFieldGroups(models.Model):
     class Meta:
         db_table = 'model_field_groups'
@@ -119,7 +122,7 @@ class ModelFieldGroups(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50, db_index=True, null=False, blank=False)
     verbose_name = models.CharField(max_length=50, null=False, blank=False)
-    model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True)
+    model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True, related_name='field_groups')
     built_in = models.BooleanField(default=False, null=False, blank=False)
     editable = models.BooleanField(default=True, null=False, blank=False)
     description = models.TextField(blank=True, null=True)
@@ -147,7 +150,7 @@ class ModelFieldGroups(models.Model):
         )
         return default_field_group
 
-
+@register_audit(ignore_fields={'update_time', 'create_time'}, public_name='validation_rule')
 class ValidationRules(models.Model):
     """验证规则表"""
     class Meta:
@@ -212,6 +215,7 @@ class ValidationRules(models.Model):
         ValidationRules.get_enum_dict.cache_clear()
 
 
+@register_audit(ignore_fields={'update_time', 'create_time'}, public_name='model_field')
 class ModelFields(models.Model):
     class Meta:
         db_table = 'model_fields'
@@ -219,7 +223,7 @@ class ModelFields(models.Model):
         app_label = 'cmdb'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True)
+    model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True, related_name='fields')
     model_field_group = models.ForeignKey('ModelFieldGroups', on_delete=models.SET_NULL, null=True, blank=True)
     name = models.CharField(max_length=50, db_index=True, null=False, blank=False)
     verbose_name = models.CharField(max_length=50, null=False, blank=False)
@@ -233,21 +237,6 @@ class ModelFields(models.Model):
     validation_rule = models.ForeignKey('ValidationRules', on_delete=models.SET_NULL, null=True, blank=True)
     description = models.TextField(blank=True, null=True)
     order = models.IntegerField(blank=True, null=True, db_index=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
-
-
-class ModelFieldOrder(models.Model):
-    class Meta:
-        db_table = 'model_field_order'
-        managed = True
-        app_label = 'cmdb'
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True)
-    field_order = models.JSONField(default=list, blank=True, null=True)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
     create_user = models.CharField(max_length=20, null=False, blank=False)
@@ -268,7 +257,7 @@ class ModelFieldPreference(models.Model):
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
 
-
+@register_audit(ignore_fields={'update_time', 'create_time'}, public_name='unique_constraint')
 class UniqueConstraint(models.Model):
     class Meta:
         db_table = 'unique_constraint'
@@ -286,7 +275,12 @@ class UniqueConstraint(models.Model):
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
 
-
+@register_audit(
+    is_field_aware=True,
+    dynamic_snapshot_func=get_dynamic_field_snapshot,
+    ignore_fields={'update_time'},
+    public_name='model_instance'
+)
 class ModelInstance(models.Model):
     class Meta:
         db_table = 'model_instance'
@@ -350,7 +344,7 @@ class ModelFieldMeta(models.Model):
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
 
-
+@register_audit(ignore_fields={'update_time', 'create_time'}, public_name='model_instance_group')
 class ModelInstanceGroup(models.Model):
     class Meta:
         db_table = 'model_instance_group'
@@ -452,7 +446,7 @@ class ModelInstanceGroup(models.Model):
         cache.delete_many(cache_keys)
         logger.info(f'Cache cleared successfully')
 
-
+@register_audit(ignore_fields={'update_time', 'create_time'}, public_name='model_instance_group_relation')
 class ModelInstanceGroupRelation(models.Model):
     """实例与分组的关联关系"""
     class Meta:
@@ -460,7 +454,7 @@ class ModelInstanceGroupRelation(models.Model):
         managed = True
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    instance = models.ForeignKey('ModelInstance', on_delete=models.CASCADE)
+    instance = models.ForeignKey('ModelInstance', on_delete=models.CASCADE, related_name='group_relations')
     group = models.ForeignKey('ModelInstanceGroup', on_delete=models.CASCADE)
     create_time = models.DateTimeField(auto_now_add=True)
     update_time = models.DateTimeField(auto_now=True)

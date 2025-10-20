@@ -31,64 +31,9 @@ from .utils import password_handler, celery_manager, zabbix_config
 from .excel import ExcelHandler
 from .constants import FieldMapping, FieldType, limit_field_names
 from .tasks import process_import_data, setup_host_monitoring, install_zabbix_agent, sync_zabbix_host_task, update_instance_names_for_model_template_change, update_zabbix_interface_availability
-from .filters import (
-    ModelGroupsFilter,
-    ModelsFilter,
-    ModelFieldGroupsFilter,
-    ValidationRulesFilter,
-    ModelFieldsFilter,
-    ModelFieldPreferenceFilter,
-    UniqueConstraintFilter,
-    ModelInstanceFilter,
-    ModelInstanceBasicFilter,
-    ModelFieldMetaFilter,
-    ModelInstanceGroupFilter,
-    ModelInstanceGroupRelationFilter,
-    RelationDefinitionFilter,
-    RelationsFilter,
-    ZabbixSyncHostFilter,
-    ZabbixProxy,
-    ZabbixProxyFilter,
-    ProxyAssignRuleFilter
-)
-from .models import (
-    ModelGroups,
-    Models,
-    ModelFieldGroups,
-    ValidationRules,
-    ModelFields,
-    ModelFieldPreference,
-    UniqueConstraint,
-    ModelInstance,
-    ModelFieldMeta,
-    ModelInstanceGroup,
-    ModelInstanceGroupRelation,
-    RelationDefinition,
-    Relations,
-    ZabbixSyncHost,
-    ZabbixProxy,
-    ProxyAssignRule
-)
-from .serializers import (
-    ModelGroupsSerializer,
-    ModelsSerializer,
-    ModelFieldGroupsSerializer,
-    ValidationRulesSerializer,
-    ModelFieldsSerializer,
-    ModelFieldPreferenceSerializer,
-    UniqueConstraintSerializer,
-    ModelInstanceSerializer,
-    ModelInstanceBasicViewSerializer,
-    ModelFieldMetaSerializer,
-    ModelInstanceGroupSerializer,
-    ModelInstanceGroupRelationSerializer,
-    BulkInstanceGroupRelationSerializer,
-    RelationDefinitionSerializer,
-    RelationsSerializer,
-    ZabbixSyncHostSerializer,
-    ZabbixProxySerializer,
-    ProxyAssignRuleSerializer
-)
+from .filters import *
+from .models import *
+from .serializers import *
 from .schemas import (
     model_groups_schema,
     models_schema,
@@ -104,6 +49,8 @@ from .schemas import (
     model_instance_group_relation_schema,
     password_manage_schema,
 )
+from audit.context import audit_context
+from audit.mixins import AuditContextMixin
 
 logger = logging.getLogger(__name__)
 
@@ -112,25 +59,37 @@ class StandardResultsSetPagination(PageNumberPagination):
     page_size = settings.REST_FRAMEWORK.get('PAGE_SIZE', 20)
     page_size_query_param = 'page_size'
     max_page_size = 1000
+    
+    
+class CmdbBaseViewSet(AuditContextMixin, viewsets.ModelViewSet):
+    """
+    CMDB 应用专属的 ViewSet 基类。
 
+    它自动集成了 AuditContextMixin，确保所有继承自它的 ViewSet
+    都会被置于审计上下文中。
+    """
+    pagination_class = StandardResultsSetPagination
+
+class CmdbReadOnlyBaseViewSet(AuditContextMixin, viewsets.ReadOnlyModelViewSet):
+    """
+    为只读视图提供的基类，同样集成了审计上下文。
+    """
+    pagination_class = StandardResultsSetPagination
 
 @model_groups_schema
-class ModelGroupsViewSet(viewsets.ModelViewSet):
+class ModelGroupsViewSet(CmdbBaseViewSet):
     queryset = ModelGroups.objects.all().order_by('create_time')
     serializer_class = ModelGroupsSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ModelGroupsFilter
     ordering_fields = ['name', 'built_in', 'editable', 'create_time', 'update_time']
     search_fields = ['name', 'description', 'create_user', 'update_user']
 
 
 @models_schema
-class ModelsViewSet(viewsets.ModelViewSet):
+class ModelsViewSet(CmdbBaseViewSet):
     queryset = Models.objects.all().order_by('create_time')
     serializer_class = ModelsSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ModelsFilter
-    # lookup_field = 'id'
     ordering_fields = ['name', 'type', 'create_time', 'update_time']
     search_fields = ['name', 'type', 'description', 'create_user', 'update_user']
 
@@ -234,10 +193,9 @@ class ModelsViewSet(viewsets.ModelViewSet):
 
 
 @model_field_groups_schema
-class ModelFieldGroupsViewSet(viewsets.ModelViewSet):
+class ModelFieldGroupsViewSet(CmdbBaseViewSet):
     queryset = ModelFieldGroups.objects.all().order_by('-create_time')
     serializer_class = ModelFieldGroupsSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ModelFieldGroupsFilter
     ordering_fields = ['name', 'built_in', 'editable', 'create_time', 'update_time']
     search_fields = ['name', 'description', 'create_user', 'update_user']
@@ -274,10 +232,9 @@ class ModelFieldGroupsViewSet(viewsets.ModelViewSet):
 
 
 @validation_rules_schema
-class ValidationRulesViewSet(viewsets.ModelViewSet):
+class ValidationRulesViewSet(CmdbBaseViewSet):
     queryset = ValidationRules.objects.all()
     serializer_class = ValidationRulesSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ValidationRulesFilter
     ordering_fields = ['name', 'field_type', 'type', 'create_time', 'update_time']
     search_fields = ['name', 'type', 'description', 'rule']
@@ -320,11 +277,10 @@ class ModelFieldsMetadata(BaseMetadata):
 
 
 @model_fields_schema
-class ModelFieldsViewSet(viewsets.ModelViewSet):
+class ModelFieldsViewSet(CmdbBaseViewSet):
     metadata_class = ModelFieldsMetadata
     queryset = ModelFields.objects.all().order_by('-create_time')
     serializer_class = ModelFieldsSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ModelFieldsFilter
     ordering_fields = ['name', 'type', 'order', 'create_time', 'update_time']
 
@@ -363,10 +319,9 @@ class ModelFieldsViewSet(viewsets.ModelViewSet):
 
 
 @model_field_preference_schema
-class ModelFieldPreferenceViewSet(viewsets.ModelViewSet):
+class ModelFieldPreferenceViewSet(CmdbBaseViewSet):
     queryset = ModelFieldPreference.objects.all().order_by('-create_time')
     serializer_class = ModelFieldPreferenceSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ModelFieldPreferenceFilter
     search_fields = ['model', 'create_user', 'update_user']
     ordering_fields = ['model', 'create_time', 'update_time']
@@ -405,10 +360,9 @@ class ModelFieldPreferenceViewSet(viewsets.ModelViewSet):
 
 
 @unique_constraint_schema
-class UniqueConstraintViewSet(viewsets.ModelViewSet):
+class UniqueConstraintViewSet(CmdbBaseViewSet):
     queryset = UniqueConstraint.objects.all().order_by('-create_time')
     serializer_class = UniqueConstraintSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = UniqueConstraintFilter
     ordering_fields = ['model', 'create_time', 'update_time']
 
@@ -436,10 +390,9 @@ class BinaryFileRenderer(BaseRenderer):
 
 
 @model_instance_schema
-class ModelInstanceViewSet(viewsets.ModelViewSet):
+class ModelInstanceViewSet(CmdbBaseViewSet):
     queryset = ModelInstance.objects.all().order_by('-create_time').prefetch_related('field_values__model_fields')
     serializer_class = ModelInstanceSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ModelInstanceFilter
     ordering_fields = ['create_time', 'update_time']
     search_fields = ['model', 'instance_name', 'create_user', 'update_user']
@@ -658,24 +611,27 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
         if not instances.exists():
             raise ValidationError("No instances found with the provided criteria.")
 
-        serializer = self.get_serializer(
-            instance=instances.first(),
-            data={
-                'fields': fields_data,
-                'update_user': update_user
-            },
-            partial=True,
-            context={
-                'request': request,
-                'bulk_update': True,
-                'instances': instances
-            }
-        )
-        logger.info(f'Updating {len(instances)} instances with fields: {fields_data}')
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        logger.debug(f'Serializer data: {serializer.data}')
-        logger.info(f'Instances updated successfully')
+        correlation_id = str(uuid.uuid4())
+        
+        with audit_context(correlation_id=correlation_id):
+            serializer = self.get_serializer(
+                instance=instances.first(),
+                data={
+                    'fields': fields_data,
+                    'update_user': update_user
+                },
+                partial=True,
+                context={
+                    'request': request,
+                    'bulk_update': True,
+                    'instances': instances
+                }
+            )
+            logger.info(f'Updating {len(instances)} instances with fields: {fields_data}')
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            logger.debug(f'Serializer data: {serializer.data}')
+            logger.info(f'Instances updated successfully')
 
         return Response({
             'status': 'success',
@@ -1078,29 +1034,26 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
 
 
 @model_ref_schema
-class ModelInstanceBasicViewSet(viewsets.ReadOnlyModelViewSet):
+class ModelInstanceBasicViewSet(CmdbReadOnlyBaseViewSet):
     serializer_class = ModelInstanceBasicViewSerializer
     queryset = ModelInstance.objects.all().order_by('-create_time')
     filterset_class = ModelInstanceBasicFilter
-    pagination_class = StandardResultsSetPagination
     search_fields = ['model', 'instance_name', 'create_user', 'update_user']
     ordering_fields = ['name', 'create_time', 'update_time']
 
 
 @model_field_meta_schema
-class ModelFieldMetaViewSet(viewsets.ModelViewSet):
+class ModelFieldMetaViewSet(CmdbBaseViewSet):
     queryset = ModelFieldMeta.objects.all().order_by('-create_time')
     serializer_class = ModelFieldMetaSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ModelFieldMetaFilter
     ordering_fields = ['create_time', 'update_time']
 
 
 @model_instance_group_schema
-class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
+class ModelInstanceGroupViewSet(CmdbBaseViewSet):
     queryset = ModelInstanceGroup.objects.all().order_by('create_time')
     serializer_class = ModelInstanceGroupSerializer
-    # pagination_class = StandardResultsSetPagination
     pagination_class = None
     filterset_class = ModelInstanceGroupFilter
     ordering_fields = ['label', 'order', 'path', 'create_time', 'update_time']
@@ -1302,10 +1255,9 @@ class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
 
 
 @model_instance_group_relation_schema
-class ModelInstanceGroupRelationViewSet(viewsets.ModelViewSet):
+class ModelInstanceGroupRelationViewSet(CmdbBaseViewSet):
     queryset = ModelInstanceGroupRelation.objects.all().order_by('-create_time')
     # serializer_class = ModelInstanceGroupRelationSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ModelInstanceGroupRelationFilter
     ordering_fields = ['create_time', 'update_time']
     http_method_names = ['get', 'post']
@@ -1324,8 +1276,10 @@ class ModelInstanceGroupRelationViewSet(viewsets.ModelViewSet):
         logger.debug(f"Data validated. Saving relations...")
 
         try:
-            relations = serializer.save()
-            logger.info(f"Successfully created or updated {len(relations)} instance group relations.")
+            correlation_id = str(uuid.uuid4())
+            with audit_context(correlation_id=correlation_id):
+                relations = serializer.save()
+                logger.info(f"Successfully created or updated {len(relations)} instance group relations.")
             return Response(
                 ModelInstanceGroupRelationSerializer(
                     relations,
@@ -1349,7 +1303,7 @@ class ModelInstanceGroupRelationViewSet(viewsets.ModelViewSet):
 
 
 @password_manage_schema
-class PasswordManageViewSet(viewsets.ViewSet):
+class PasswordManageViewSet(CmdbBaseViewSet):
 
     @action(detail=False, methods=['post'])
     def re_encrypt(self, request):
@@ -1399,7 +1353,7 @@ class PasswordManageViewSet(viewsets.ViewSet):
             return Response({'status': 'fail', 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
+class ZabbixSyncHostViewSet(CmdbBaseViewSet):
     queryset = ZabbixSyncHost.objects.all().order_by('create_time')
     serializer_class = ZabbixSyncHostSerializer
     pagination_class = StandardResultsSetPagination
@@ -1609,17 +1563,15 @@ class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
             return -1
 
 
-class ZabbixProxyViewSet(viewsets.ModelViewSet):
+class ZabbixProxyViewSet(CmdbBaseViewSet):
     queryset = ZabbixProxy.objects.all().order_by('create_time')
     serializer_class = ZabbixProxySerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ZabbixProxyFilter
     ordering_fields = ['proxy_id', 'name', 'ip', 'create_time', 'update_time']
 
 
-class ProxyAssignRuleViewSet(viewsets.ModelViewSet):
+class ProxyAssignRuleViewSet(CmdbBaseViewSet):
     queryset = ProxyAssignRule.objects.all().order_by('create_time')
     serializer_class = ProxyAssignRuleSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ProxyAssignRuleFilter
     ordering_fields = ['rule', 'type', 'proxy', 'create_time', 'update_time']

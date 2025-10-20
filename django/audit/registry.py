@@ -1,63 +1,46 @@
-from typing import Dict, Type, Set
+from typing import Dict, Type
 from django.db import models
-
 
 class AuditRegistry:
     """
-    注册模型及其审计策略
+    统一的模型审计注册中心。
+    使用单一的 register 方法，通过配置参数驱动行为。
     """
 
     def __init__(self):
-        self._schema_models = set()
-        self._instance_models = set()
-        self._field_aware_models: Set[Type[models.Model]] = set()
         self._config: Dict[Type[models.Model], dict] = {}
+        self._public_name_map: Dict[str, Type[models.Model]] = {}
+        self._model_map: Dict[str, Type[models.Model]] = {}
 
-    def register_schema(self, model, *, ignore_fields=None, field_tracker=None):
-        """注册模式变更审计"""
-        self._schema_models.add(model)
-        self._config[model] = {
-            "ignore_fields": set(ignore_fields or []),
-            "field_tracker": field_tracker
-        }
+    def register(self, model: Type[models.Model], **kwargs):
+        """统一的注册方法。"""
+        kwargs['ignore_fields'] = set(kwargs.get('ignore_fields', []))
+        self._config[model] = kwargs
+        public_name = kwargs.get('public_name')
+        if public_name:
+            if public_name in self._public_name_map:
+                raise ValueError(f"Public name '{public_name}' 已被注册给模型 {self._public_name_map[public_name].__name__}。")
+            self._public_name_map[public_name] = model
+            self._model_map[public_name] = model
 
-    def register_instance(self, model, *, ignore_fields=None, field_tracker=None):
-        """注册实例变更审计"""
-        self._instance_models.add(model)
-        self._config[model] = {
-            "ignore_fields": set(ignore_fields or []),
-            "field_tracker": field_tracker
-        }
+    def is_registered(self, model: Type[models.Model]) -> bool:
+        """检查一个模型是否已被注册"""
+        return model in self._config
 
-    def register_field_aware(self, model, *, field_definition_model, field_value_model,
-                             instance_field_name='model_instance'):
-        """
-        注册字段感知模型（用于CMDB动态字段）
-        这会同时将其注册为实例模型。
-        """
-        self.register_instance(model)
-        self._field_aware_models.add(model)
-        current_config = self._config.get(model, {})
-        current_config.update({
-            "field_definition_model": field_definition_model,
-            "field_value_model": field_value_model,
-            "instance_field_name": instance_field_name,
-            "is_field_aware": True
-        })
-        self._config[model] = current_config
-
-    def is_schema(self, model):
-        return model in self._schema_models
-
-    def is_instance(self, model):
-        return model in self._instance_models
-
-    def is_field_aware(self, model):
-        """检查模型是否被注册为字段感知"""
-        return model in self._field_aware_models
-
-    def config(self, model):
+    def config(self, model: Type[models.Model]) -> dict:
+        """获取一个已注册模型的配置"""
         return self._config.get(model, {})
 
-
+    def is_field_aware(self, model: Type[models.Model]) -> bool:
+        """检查一个模型是否被配置为“字段感知”"""
+        return self.config(model).get('is_field_aware', False)
+    
+    def get_model_by_public_name(self, public_name: str) -> Type[models.Model]:
+        """通过公开名称获取模型类"""
+        return self._public_name_map.get(public_name)
+    
+    def get_public_name_by_model(self, model: Type[models.Model]) -> str:
+        """通过模型类获取公开名称"""
+        return self._model_map.get(model)
+    
 registry = AuditRegistry()

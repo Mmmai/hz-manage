@@ -1,58 +1,49 @@
-import contextvars
+from contextvars import ContextVar, Token
+from contextlib import contextmanager
+from typing import Dict, Any
 
-_ctx = {
-    "operator_id": contextvars.ContextVar("operator_id", default=None),
-    "operator_name": contextvars.ContextVar("operator_name", default=None),
-    "channel": contextvars.ContextVar("channel", default="api"),
-    "request_id": contextvars.ContextVar("request_id", default=None),
-    "correlation_id": contextvars.ContextVar("correlation_id", default=None),
-    "source_ip": contextvars.ContextVar("source_ip", default=None),
+
+# 默认的上下文状态
+DEFAULT_CONTEXT: Dict[str, Any] = {
+    "operator_id": None,
+    "operator_name": None,
+    "channel": "api",
+    "request_id": None,
+    "correlation_id": None,
+    "source_ip": None,
+    "comment": ""
 }
 
-
-def set_ctx(**kwargs):
-    for k, v in kwargs.items():
-        if k in _ctx:
-            _ctx[k].set(v)
+audit_context_var: ContextVar[Dict[str, Any]] = ContextVar(
+    "audit_context", default=DEFAULT_CONTEXT.copy()
+)
 
 
-def clear():
-    for k in _ctx:
-        _ctx[k].set(None)
-
-
-def operator_id():
-    return _ctx["operator_id"].get()
-
-
-def operator_name():
-    return _ctx["operator_name"].get()
-
-
-def channel():
-    return _ctx["channel"].get()
-
-
-def request_id():
-    return _ctx["request_id"].get()
-
-
-def correlation_id():
-    return _ctx["correlation_id"].get()
-
-
-def source_ip():
-    return _ctx["source_ip"].get()
-
-
-def get_audit_context():
+@contextmanager
+def audit_context(**kwargs):
     """
-    获取所有审计上下文变量并返回一个字典。
+    一个健壮的上下文管理器，用于安全地设置和恢复审计上下文。
+    这是修改上下文的唯一推荐方式。
     """
-    return {
-        "operator": _ctx["operator_name"].get(),
-        "operator_ip": _ctx["source_ip"].get(),
-        "request_id": _ctx["request_id"].get(),
-        "correlation_id": _ctx["correlation_id"].get(),
-        "channel": _ctx["channel"].get(),
-    }
+    # 获取当前上下文，并用传入的参数进行更新
+    current_context = audit_context_var.get()
+    new_context = {**current_context, **kwargs}
+    
+    # 设置新值并保存 token
+    token: Token = audit_context_var.set(new_context)
+    try:
+        yield
+    finally:
+        # 无论如何，最终都会使用 token 恢复到之前的状态
+        audit_context_var.reset(token)
+
+
+def get_audit_context() -> Dict[str, Any]:
+    """获取当前完整的审计上下文（只读）。"""
+    return audit_context_var.get()
+
+
+def get_context_value(key: str, default: Any = None) -> Any:
+    """从上下文中获取单个值。"""
+    return audit_context_var.get().get(key, default)
+

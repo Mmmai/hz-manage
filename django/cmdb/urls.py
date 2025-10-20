@@ -1,26 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import (
-    ModelGroupsViewSet,
-    ModelsViewSet,
-    ModelFieldGroupsViewSet,
-    ValidationRulesViewSet,
-    ModelFieldsViewSet,
-    ModelFieldPreferenceViewSet,
-    UniqueConstraintViewSet,
-    ModelInstanceViewSet,
-    ModelInstanceBasicViewSet,
-    ModelFieldMetaViewSet,
-    ModelInstanceGroupViewSet,
-    ModelInstanceGroupRelationViewSet,
-    # RelationDefinitionViewSet,
-    # RelationsViewSet,
-    PasswordManageViewSet,
-    ZabbixSyncHostViewSet,
-    ZabbixProxyViewSet,
-    ProxyAssignRuleViewSet
-)
-from audit.views import *
+from .views import *
 
 router = DefaultRouter()
 router.register(r'model_groups', ModelGroupsViewSet)

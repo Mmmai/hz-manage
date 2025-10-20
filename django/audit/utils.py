@@ -1,15 +1,37 @@
 import json
+import uuid
 import hashlib
 from typing import Any, Dict, Tuple
+from datetime import date, datetime
 
 IGNORED_FIELDS = {"updated_at"}
 
+class CustomJSONEncoder(json.JSONEncoder):
+    """
+    自定义JSON编码器，用于处理UUID、datetime等特殊类型。
+    """
+    def default(self, obj):
+        if isinstance(obj, uuid.UUID):
+            return str(obj)
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        
+        # 其他类型使用默认编码器
+        return super().default(obj)
 
-def canonical_json(obj: Any) -> str:
+
+def clean_for_json(data: dict) -> dict:
+    if not isinstance(data, dict):
+        return data
+    json_string = json.dumps(data, cls=CustomJSONEncoder)
+    return json.loads(json_string)
+
+
+def canonical_json(obj) -> str:
     return json.dumps(obj, sort_keys=True, separators=(',', ':'))
 
 
-def calc_integrity(prev_hash: str | None, payload: dict) -> str:
+def calc_integrity(prev_hash, payload) -> str:
     base = (prev_hash or '') + canonical_json(payload)
     return hashlib.sha256(base.encode("utf-8")).hexdigest()
 
@@ -27,7 +49,7 @@ def snapshot_model(instance, include_fields=None, exclude_fields=None) -> dict:
     return data
 
 
-def diff_dict(before: dict | None, after: dict | None) -> dict:
+def diff_dict(before, after) -> dict:
     if before is None and after is None:
         return {}
     if before is None:
@@ -44,7 +66,7 @@ def diff_dict(before: dict | None, after: dict | None) -> dict:
     return diff
 
 
-def diff_instance(before_snap: dict | None, after_snap: dict | None) -> dict:
+def diff_instance(before_snap, after_snap) -> dict:
     """
     对实例：拆分静态字段与 attrs.*
     """

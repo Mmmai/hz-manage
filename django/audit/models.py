@@ -36,10 +36,12 @@ class AuditLog(models.Model):
 class FieldAuditDetail(models.Model):
     """CMDB动态字段的详细审计记录"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    audit_log = models.ForeignKey(AuditLog, on_delete=models.CASCADE, related_name='field_details')
+    audit_log = models.ForeignKey(AuditLog, on_delete=models.CASCADE, related_name='details')
 
     # 字段信息
     field_id = models.CharField(max_length=100, null=True, blank=True)
+    name = models.CharField(max_length=100)
+    verbose_name = models.CharField(max_length=200, blank=True)
 
     # 变更的值
     old_value = models.TextField(null=True, blank=True)

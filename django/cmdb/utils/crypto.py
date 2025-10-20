@@ -8,9 +8,6 @@ import logging
 from typing import Optional
 from threading import Lock
 
-from cryptography.utils import CryptographyDeprecationWarning
-warnings.filterwarnings(action='ignore',message='Python 3.6 is no longer supported')
-
 logger = logging.getLogger(__name__)
 
 
