@@ -29,6 +29,8 @@ import json
 from django.conf import settings
 from mapi.extensions.pagination import StandardResultsSetPagination
 from .export import exportHandler
+from node_mg.utils.config_manager import ConfigManager
+
 import logging
 logger = logging.getLogger(__name__)
 def getRolePermissionList(role_ids):
@@ -254,9 +256,9 @@ class UserInfoViewSet(ModelViewSet):
         pks = request.data.get('pks',None)
         if not pks:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        for pk in pks:
-            get_object_or_404(UserInfo, id=int(pk)).delete()
-
+       # for pk in pks:
+            # get_object_or_404(UserInfo, id=pk).delete()
+        UserInfo.objects.filter(id__in=pks).delete()
         return Response(data='delete success',status=status.HTTP_204_NO_CONTENT)
 class UserGroupViewSet(ModelViewSet):
     queryset = UserGroup.objects.all()
@@ -566,5 +568,13 @@ class sysConfigViewSet(ModelViewSet):
         for param in params_to_update:
             param.param_value = params[param.param_name]
         # 更新
-        sysConfigParams.objects.bulk_update(params_to_update,["param_value"])
+        try:
+            sysConfigParams.objects.bulk_update(params_to_update,["param_value"])
+            #触发配置文件加载
+            sys_config = ConfigManager()
+            #强制刷新
+            sys_config.reload()
+            logger.info(f"刷新redis<{params}>")
+        except Exception as e:
+            return Response(data=e)
         return Response(data='update success')

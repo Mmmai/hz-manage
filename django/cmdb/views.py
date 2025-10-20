@@ -27,7 +27,8 @@ from django.db.models import Q
 from django.db.models import Max, Case, When, Value, IntegerField
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from celery.result import AsyncResult
-from .utils import password_handler, celery_manager, zabbix_config
+from .utils import password_handler, celery_manager
+from node_mg.utils import sys_config
 from .excel import ExcelHandler
 from .constants import FieldMapping, FieldType, limit_field_names
 from .tasks import process_import_data, setup_host_monitoring, install_zabbix_agent, sync_zabbix_host_task, update_instance_names_for_model_template_change, update_zabbix_interface_availability

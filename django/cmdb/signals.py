@@ -8,7 +8,8 @@ from django.db import transaction
 from django.db.utils import OperationalError
 from .config import BUILT_IN_MODELS, BUILT_IN_VALIDATION_RULES
 from .tasks import setup_host_monitoring
-from .utils import password_handler, zabbix_config
+from .utils import password_handler
+from node_mg.utils import sys_config
 from .utils.zabbix import ZabbixAPI
 from .constants import ValidationType
 from .message import instance_group_relation_updated
@@ -296,7 +297,7 @@ def _initialize_model_groups():
 def initialize_cmdb(sender, **kwargs):
     """初始化 CMDB 应用"""
     # 仅允许通过 migrate cmdb 命令触发初始化
-    if not all([kw in sys.argv for kw in ['cmdb', 'migrate']]) or sender.name != 'cmdb':
+    if sender.name != 'cmdb':
         return
     logger.info(f'Initializing CMDB application')
     try:
@@ -363,7 +364,7 @@ def update_instance_name_on_field_change(sender, instance, created, **kwargs):
 # def sync_zabbix_host(sender, instance, created, **kwargs):
 #     print(4444)
 #     """同步Zabbix主机"""
-#     if not zabbix_config.is_zabbix_sync_enabled():
+#     if not sys_config.is_zabbix_sync_enabled():
 #         return
 
 #     def delayed_process():
@@ -418,7 +419,7 @@ def update_instance_name_on_field_change(sender, instance, created, **kwargs):
 @receiver(pre_delete, sender=ModelInstance)
 def prepare_delete_zabbix_host(sender, instance, **kwargs):
     """准备删除Zabbix主机"""
-    if not zabbix_config.is_zabbix_sync_enabled():
+    if not sys_config.is_zabbix_sync_enabled():
         return
     logger.info(f"Preparing to delete Zabbix host for instance {instance.id}")
     try:
@@ -452,7 +453,7 @@ def prepare_delete_zabbix_host(sender, instance, **kwargs):
 @receiver(post_delete, sender=ModelInstance)
 def delete_zabbix_host(sender, instance, **kwargs):
     """删除Zabbix主机"""
-    if not zabbix_config.is_zabbix_sync_enabled():
+    if not sys_config.is_zabbix_sync_enabled():
         return
     a = time.perf_counter()
 
@@ -495,7 +496,7 @@ def handle_group_path(sender, instance, created, **kwargs):
     处理实例分组path更新和Zabbix主机组同步
     使用递归方式处理所有子节点
     """
-    if not zabbix_config.is_zabbix_sync_enabled():
+    if not sys_config.is_zabbix_sync_enabled():
         return
     # 检查是否需要跳过信号处理
     if getattr(instance, '_skip_signal', False):
@@ -545,7 +546,7 @@ def handle_group_path(sender, instance, created, **kwargs):
 @receiver(pre_delete, sender=ModelInstanceGroup)
 def prepare_delete_instance_group(sender, instance, **kwargs):
     """准备删除实例分组"""
-    if not zabbix_config.is_zabbix_sync_enabled():
+    if not sys_config.is_zabbix_sync_enabled():
         return
     try:
         if instance.model.name != 'hosts':
@@ -568,7 +569,7 @@ def prepare_delete_instance_group(sender, instance, **kwargs):
 @receiver(post_delete, sender=ModelInstanceGroup)
 def handle_group_deletion(sender, instance, **kwargs):
     """处理实例分组删除后的操作"""
-    if not zabbix_config.is_zabbix_sync_enabled():
+    if not sys_config.is_zabbix_sync_enabled():
         return
     try:
 
@@ -616,7 +617,7 @@ def handle_group_deletion(sender, instance, **kwargs):
 @receiver(instance_group_relation_updated)
 def sync_zabbix_hostgroup_relation(sender, hosts, groups, **kwargs):
     """同步实例分组关联到Zabbix"""
-    if not zabbix_config.is_zabbix_sync_enabled():
+    if not sys_config.is_zabbix_sync_enabled():
         return
     try:
         # 同步主机组关联
@@ -676,27 +677,33 @@ def on_validation_rule_delete(sender, instance, **kwargs):
 
 
 
-# 信号接收器
-instance_signal = Signal(providing_args=["instance","action"])
-# 同步的模型
-model_sync_list = ['hosts','switches']
-#创建或更新时，信号同步给node
+# 信跨应用传递信号
+# 模型
+model_signal = Signal(providing_args=["instance","action"])
+@receiver(post_save,sender=Models)
+def send_model_created_signal(sender, instance, created, **kwargs):
+    """
+    模型创建或更新时触发同步
+    """
+    if created:
+        model_signal.send(sender=sender,instance=instance,action='create')
+# 实例分组
+
+# 模型实例
+model_instance_signal = Signal(providing_args=["instance","action"])
+# 创建或更新时，信号同步给node
 @receiver(post_save, sender=ModelInstance,dispatch_uid="sync_to_nodes")
 def send_model_instance_signal(sender, instance, created, **kwargs):
-    if instance.model.name not in model_sync_list:
-        print("模型不在同步列表中，跳过节点同步")
-        return 
-    instance_signal.send(sender=sender, instance=instance,action=created)
+
+    model_instance_signal.send(sender=sender, instance=instance,action=created)
 #删除时，信号同步给node
 @receiver(pre_delete, sender=ModelInstance,dispatch_uid="delete_to_nodes")
 def send_model_instance_delete_signal(sender, instance, **kwargs):
-    if instance.model.name not in model_sync_list:
-        print("模型不在同步列表中，跳过节点同步")
-        return 
-    instance_signal.send(sender=sender, instance=instance,action='delete')
+    model_instance_signal.send(sender=sender, instance=instance,action='delete')
 # @receiver(post_save, sender=ModelInstance,dispatch_uid="111")
 # def send_model_instance_signal(sender, instance, created, **kwargs):
 #     print(123)
 #     if instance.model.name not in model_sync_list:
 #         print("模型不在同步列表中，跳过节点同步")
 #         return 
+

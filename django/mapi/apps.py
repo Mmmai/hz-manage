@@ -5,7 +5,8 @@ from .utils.comm import get_uuid
 from django.db.utils import OperationalError
 import os
 
-
+import logging
+logger = logging.getLogger(__name__)
 class MapiConfig(AppConfig):
     default_auto_field = 'django.db.models.AutoField'
 
@@ -49,7 +50,7 @@ class MapiConfig(AppConfig):
             # menuList = [ i.id for i in Menu.objects.all() ]
             # role_admin_obj.menu.set(Menu.objects.all())
             # role_admin_obj.save()
-            print("初始化完成,用户名密码为: admin/thinker")
+            logger.info("初始化完成,用户名密码为: admin/thinker")
         menuInitList = INIT_MENU
         # 创建目录
         initMenu = Menu.objects.all()
@@ -62,9 +63,9 @@ class MapiConfig(AppConfig):
                     i['parentid_id'] = None
                     instance, created = Menu.objects.get_or_create(**i)
                     if created:
-                         print(f"Created a new menu diretory: {instance}")
+                         logger.info(f"Created a new menu diretory: {instance}")
                     else:
-                         print(f"Menu diretory already exists: {instance}")            
+                         logger.warning(f"Menu diretory already exists: {instance}")            
                 else:
                     parent_name = i['parentid_id']
                     parentid_id = Menu.objects.get(name=parent_name).id
@@ -72,16 +73,16 @@ class MapiConfig(AppConfig):
                     # print(i)
                     instance, created = Menu.objects.get_or_create(**i)
                     if created:
-                        print(f"Created a new menu: {instance}")
+                        # print(f"Created a new menu: {instance}")
                         if buttons:
                             # print(123)
                             for button in buttons:
                                 button_instance,button_created  = Button.objects.get_or_create(name=button["name"],action=button["action"],menu=instance)
                                 if button_created:
-                                    print(f"菜单<{instance.label}>添加<${button_instance.name}>按钮!")
+                                    logger.info(f"菜单<{instance.label}>添加<${button_instance.name}>按钮!")
 
                     else:
-                        print(f"Menu already exists: {instance}")         
+                        logger.warning(f"Menu already exists: {instance}")         
         # 授权菜单给系统管理员
         # admin_role_id = role_admin_obj.id
         #获取菜单id

@@ -103,28 +103,28 @@ CHANNEL_LAYERS = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'manage',
+        'NAME': 'autoOps',
         'USER': 'root',
         'PASSWORD': 'thinker',
         'HOST': '127.0.0.1',
         'PORT': '3306',
     },
-    'cmdb': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'cmdb',
-        'USER': 'root',
-        'PASSWORD': 'thinker',
-        'HOST': '127.0.0.1',
-        'PORT': '3306',
-    },
+    # 'cmdb': {
+    #     'ENGINE': 'django.db.backends.mysql',
+    #     'NAME': 'cmdb',
+    #     'USER': 'root',
+    #     'PASSWORD': 'thinker',
+    #     'HOST': '127.0.0.1',
+    #     'PORT': '3306',
+    # },
 }
 # 多数据库配置
 DATABASE_ROUTERS = ['vuedjango.db_router.database_router']
 DATABASE_APPS_MAPPING = {
     'mlog': 'default',
     'mapi': 'default',
-    'cmdb': 'cmdb',
-    'node_mg': 'cmdb'
+    'cmdb': 'default',
+    'node_mg': 'default'
 }
 
 CACHEOPS_REDIS = {

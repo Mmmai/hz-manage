@@ -33,7 +33,7 @@ class ConfigManager:
     CACHE_TIMEOUT = 3600
 
     # 缓存键名
-    CACHE_KEY = "system_config_zabbix_from_node_mg"
+    CACHE_KEY = "config_from_node_mg"
 
     def __new__(cls):
         if cls._instance is None:
@@ -55,7 +55,8 @@ class ConfigManager:
 
         is_migrating = any(arg in ['migrate', 'makemigrations'] for arg in sys.argv)
 
-        if is_migrating or not force and self.config and (current_time - self._last_refresh_time < 300):
+        # if is_migrating or not force and self.config and (current_time - self._last_refresh_time < 300):
+        if is_migrating or not force and self.config:
             return self.config
 
         cached_config = cache.get(self.CACHE_KEY)
@@ -66,7 +67,7 @@ class ConfigManager:
 
         try:
             from mapi.models import sysConfigParams
-
+            from node_mg.models import ModelConfig
             # 从数据库加载配置
             db_config = {}
             for key, default_value in self.CONFIG_DEFAULTS.items():
@@ -85,8 +86,11 @@ class ConfigManager:
                 except (TypeError, ValueError):
                     db_config['interval'] = 0
 
+            # 添加modelConfig信息到缓存
+            for model_config in ModelConfig.objects.filter(is_manage=True):
+                db_config[model_config.model.name] = model_config.zabbix_sync_info
             self.config = db_config
-
+            
             cache.set(self.CACHE_KEY, db_config, timeout=self.CACHE_TIMEOUT)
 
             self._last_refresh_time = current_time
@@ -143,7 +147,6 @@ class ConfigManager:
         """检查 Zabbix 同步是否启用"""
         if not self.config:
             self.load_config()
-
         is_sync = self.config.get('zabbix_is_sync', 0)
         try:
             return int(is_sync) == 1
@@ -153,7 +156,6 @@ class ConfigManager:
         """检查 Zabbix 同步是否启用"""
         if not self.config:
             self.load_config()
-        print(self.config.get('asset_auto_update', 0))
         is_sync = self.config.get('asset_auto_update', 0)
         try:
             return int(is_sync) == 1

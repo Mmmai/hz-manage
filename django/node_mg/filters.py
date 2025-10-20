@@ -6,6 +6,7 @@ class NodesFilter(filters.FilterSet):
     # 精确匹配
     enable_sync = filters.BooleanFilter(field_name='enable_sync', lookup_expr='exact')    
     # 模糊匹配
+    model_name = filters.CharFilter(field_name='model__name', lookup_expr='icontains')
     ip_address = filters.CharFilter(field_name='ip_address', lookup_expr='icontains')
     model_instance_name = filters.CharFilter(field_name='model_instance__instance_name', lookup_expr='icontains')
     # status = filters.NumberFilter(field_name='node_info_tasks__status', lookup_expr='exact')
@@ -19,7 +20,7 @@ class NodesFilter(filters.FilterSet):
 
     class Meta:
         model = Nodes
-        fields = ['ip_address', 'model_instance_name','enable_sync','model','proxy','model_instance','manage_status','agent_status','zbx_status']
+        fields = ['ip_address', 'model_instance_name','enable_sync','model_name','proxy','model_instance','manage_status','agent_status','zbx_status']
     def filter_latest_status(self, queryset, name, value):
         # 子查询：获取每个 NodeInfo 的最新任务状态
         latest_task_subquery = NodeInfoTask.objects.filter(

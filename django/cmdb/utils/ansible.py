@@ -4,7 +4,7 @@ import ansible_runner
 import logging
 import os
 from django.conf import settings
-from . import zabbix_config
+from node_mg.utils import sys_config
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ class AnsibleAPI:
                 }
             }
         }
-        server = zabbix_config.get('zabbix_server')
+        server = sys_config.get('zabbix_server')
         extra_vars = {
             'hostIp': host_ip,
             'serverIp': server,

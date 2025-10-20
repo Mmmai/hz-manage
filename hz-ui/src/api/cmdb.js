@@ -26,21 +26,21 @@ export default {
     return axios.request({ url: path.cmdbCiModelGroup, method: 'get', params: params })
   },
   deleteCiModelGroup(params) {
-    return axios.delete(path.cmdbCiModelGroup + params)
+    return axios.delete(path.cmdbCiModelGroup + params + '/')
   },
   addCiModelGroup(params) {
     return axios.request({ url: path.cmdbCiModelGroup, method: 'post', data: params })
   },
   updateCiModelGroup(params) {
     // return axios.put(path.role+params.id+'/',params)
-    return axios.request({ url: path.cmdbCiModelGroup + params.id, method: 'put', data: params })
+    return axios.request({ url: path.cmdbCiModelGroup + params.id + '/', method: 'put', data: params })
   },
   // 模型
   getCiModel(params, obj = null) {
     if (obj === null) {
       return axios.request({ url: path.cmdbCiModel, method: 'get', params: params })
     } else {
-      return axios.request({ url: path.cmdbCiModel + obj, method: 'get', params: params })
+      return axios.request({ url: path.cmdbCiModel + obj + '/', method: 'get', params: params })
     }
   },
   deleteCiModel(params) {
@@ -86,7 +86,7 @@ export default {
     return axios.request({ url: path.cmdbCiModelField + params.id + '/', method: 'patch', data: params })
   },
   getCiModelFieldType(params = null) {
-    return axios.request({ url: path.cmdbCiModelField + 'metadata', method: 'get' })
+    return axios.request({ url: path.cmdbCiModelField + 'metadata/', method: 'get' })
 
   },
   // 字段校验

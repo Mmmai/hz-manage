@@ -4,8 +4,8 @@ from cmdb.models import (
     ModelFieldMeta
     )
 from cmdb.serializers import ModelInstanceSerializer
-from cmdb.utils import password_handler, zabbix_config
-import os
+from cmdb.utils import password_handler, sys_config
+import os,json
 import logging
 logger = logging.getLogger(__name__)
 
@@ -33,10 +33,13 @@ def get_instance_field_value_info(obj, field_name_list):
         if field.model_fields.name in field_name_list:
             # return field.data
             if field.model_fields.type == 'password':
+                logger.debug(f"字段解密: {field.data}")
                 res[field.model_fields.name] = password_handler.decrypt_to_plain(field.data)
             else:
                 # print(field.model_fields.name,field.data)
                 res[field.model_fields.name] = field.data
+        else:
+            res[field.model_fields.name] = None
     return res
 
 def update_asset_info(instance, info):
@@ -66,13 +69,15 @@ def update_asset_info(instance, info):
     update_fields = {}
     if res:
         for k, v in res.items():
-            info_value = info.get(k)
+            _info_value = info.get(k)
             v_str = str(v)
-            info_value_str = str(info_value)
-            if info_value_str != v_str:
-                logger.debug(f"字段更新: {k},旧{v_str},新{info_value_str}")
+            if isinstance(_info_value, dict):
+                info_value = json.dumps(_info_value)
+            else:
+                info_value = str(_info_value)
+            if v != info_value:
+                logger.debug(f"字段更新: {k},旧{v},新{info_value}")
                 update_fields[k] = info_value
-
     # 如果有需要更新的字段且实例存在，则执行更新操作
     if update_fields and instance:
         serializer = ModelInstanceSerializer(
@@ -119,12 +124,13 @@ def node_inventory(node):
     } } } }
 
     # 如果存在代理节点，则添加代理跳转配置
-    if proxy and proxy.type != 'zabbix' and proxy.enabled:
-        jump_host = proxy.ip_address
-        jump_user = proxy.ssh_user
-        jump_pass = proxy.ssh_pass
-        jump_port = proxy.ssh_port
-        inventory['all']['hosts'][node.ip_address]['ansible_ssh_common_args'] += f" -o ProxyCommand=\"sshpass -p '{jump_pass}' ssh -W %h:%p -p {jump_port} {jump_user}@{jump_host}\""
+    if proxy:
+        if proxy.proxy_type != 'zabbix' and proxy.enabled:
+            jump_host = proxy.ip_address
+            jump_user = proxy.auth_user
+            jump_pass = proxy.auth_pass
+            jump_port = proxy.port
+            inventory['all']['hosts'][node.ip_address]['ansible_ssh_common_args'] += f" -o ProxyCommand=\"sshpass -p '{jump_pass}' ssh -W %h:%p -p {jump_port} {jump_user}@{jump_host}\""
     return inventory
 if __name__ == "__main__":
     # print(123)

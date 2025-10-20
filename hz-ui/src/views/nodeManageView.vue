@@ -1,14 +1,19 @@
 <template>
   <div class="card">
-    <!-- <el-tabs
+    <el-tabs
       v-model="activeName"
       type="card"
       class="demo-tabs"
       @tab-click="handleClick"
     >
-      <el-tab-pane label="主机" name="hosts"></el-tab-pane>
-      <el-tab-pane label="交换机" name="switches"></el-tab-pane>
-    </el-tabs> -->
+      <el-tab-pane
+        :label="item.label"
+        :name="item.name"
+        :key="index"
+        v-for="(item, index) in manageModelArr"
+      >
+      </el-tab-pane>
+    </el-tabs>
     <div class="table-header">
       <div class="header-button-lf">
         <el-tooltip
@@ -24,34 +29,7 @@
             >触发同步</el-button
           >
         </el-tooltip>
-        <!-- <el-tooltip
-          class="box-item"
-          effect="dark"
-          content="更新Zabbix接口可用性的状态信息"
-          placement="top"
-        >
-          <el-button
-            v-show="False"
-            v-permission="`${route.name?.replace('_info', '')}:add`"
-            type="primary"
-            @click="getZabbixStatus()"
-            >管理状态更新</el-button
-          >
-        </el-tooltip> -->
-        <el-tooltip
-          class="box-item"
-          effect="dark"
-          content="触发已勾选的主机资产更新"
-          placement="top"
-        >
-          <el-button
-            v-permission="`${route.name?.replace('_info', '')}:add`"
-            type="primary"
-            :disabled="multipleSelection.length >>> 0 ? false : true"
-            @click="assetInfoTask({ id: multipleSelection })"
-            >管理状态更新</el-button
-          >
-        </el-tooltip>
+
         <el-tooltip
           class="box-item"
           effect="dark"
@@ -119,10 +97,10 @@
         property="proxy_name"
         label="代理"
         sortable="custom"
-        width="100"
+        width="120"
       >
         <template #default="scope">
-          <el-tag>
+          <el-tag v-if="scope.row.proxy_name ? true : false">
             {{ scope.row.proxy_name }}
           </el-tag>
           <!-- <el-tag
@@ -144,6 +122,7 @@
           { text: '异常', value: 0 },
           { text: '未知', value: 2 },
         ]"
+        v-if="activeName === 'hosts'"
       >
         <template #default="scope">
           <el-tag :type="getStatusType(scope.row.manage_status)" effect="dark">
@@ -190,6 +169,7 @@
           { text: '异常', value: 0 },
           { text: '未知', value: 2 },
         ]"
+        v-if="activeName === 'hosts'"
       >
         <template #default="scope">
           <el-tag :type="getStatusType(scope.row.agent_status)" effect="dark">
@@ -213,6 +193,7 @@
           { text: '异常', value: 0 },
           { text: '未知', value: 2 },
         ]"
+        v-if="activeName === 'hosts'"
       >
         <template #default="scope">
           <el-tag :type="getStatusType(scope.row.zbx_status)" effect="dark">
@@ -229,14 +210,16 @@
         property="manage_error_message"
         label="管理错误信息"
         width="500"
+        v-if="activeName === 'hosts'"
       />
       <el-table-column
         property="agent_error_message"
         label="agent错误信息"
         width="500"
+        v-if="activeName === 'hosts'"
       />
 
-      <el-table-column fixed="right" width="80" label="操作">
+      <el-table-column fixed="right" width="120" label="操作">
         <template #default="scope">
           <!-- <el-tooltip
             class="box-item"
@@ -255,8 +238,23 @@
           <el-tooltip
             class="box-item"
             effect="dark"
+            content="触发同步"
+            placement="top"
+          >
+            <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
+              link
+              type="primary"
+              :icon="Promotion"
+              @click="syncNodeToZabbix({ id: scope.row.id })"
+            ></el-button>
+          </el-tooltip>
+          <el-tooltip
+            class="box-item"
+            effect="dark"
             content="管理状态更新"
             placement="top"
+            v-if="activeName === 'hosts'"
           >
             <el-button
               v-permission="`${route.name?.replace('_info', '')}:edit`"
@@ -271,6 +269,7 @@
             effect="dark"
             content="触发agent安装"
             placement="top"
+            v-if="activeName === 'hosts'"
           >
             <el-button
               v-permission="`${route.name?.replace('_info', '')}:edit`"
@@ -307,6 +306,7 @@ import {
   CirclePlus,
   Refresh,
   View,
+  Promotion,
   Compass,
   Search,
 } from "@element-plus/icons-vue";
@@ -323,29 +323,44 @@ import {
 const { proxy } = getCurrentInstance();
 import { useStore } from "vuex";
 const store = useStore();
-const syncHosts = ref([]);
 import { useRoute } from "vue-router";
-import { ElMessageBox, ElMessage, ElNotification } from "element-plus";
+import {
+  ElMessageBox,
+  ElMessage,
+  ElNotification,
+  rowContextKey,
+} from "element-plus";
 
 import { pa, tr } from "element-plus/es/locale/index.mjs";
 import { Row } from "element-plus/es/components/table-v2/src/components/index.mjs";
 defineOptions({ name: "ciSyncZabbix" });
 import type { TabsPaneContext } from "element-plus";
 
+// ========== 响应式数据 ==========
 const activeName = ref("hosts");
-
-const handleClick = (tab: TabsPaneContext, event: Event) => {
-  console.log(tab, event);
-  console.log(activeName.value);
-};
 const route = useRoute();
+const syncHosts = ref([]);
+const isLoading = ref(true);
+
+// 表单相关
+const formRef = ref("");
+const isAdd = ref(true);
+const dialogVisible = ref(false);
+const nowRow = ref({});
+const beforeEditFormData = ref({});
+
+// 分页相关
+const currentPage = ref(1);
+const pageSize = ref(10);
+const size = ref("default");
+const disabled = ref(false);
+const totalCount = ref(0);
+
+// 搜索和过滤相关
+const searchText = ref("");
 const colValue = ref("model_instance_name");
 const filterValue = ref<string>("");
-const isLoading = ref(true);
-// const filterParam = computed(() => {
-//   return { [colValue.value]: filterValue.value };
-// });
-// watch
+const filterParam = ref({});
 const colLists = ref([
   {
     value: "model_instance_name",
@@ -363,23 +378,22 @@ const colLists = ref([
     type: "string",
     required: true,
   },
-  // {
-  //   value: "interface_available",
-  //   label: "接口可用性",
-  //   sort: true,
-  //   filter: true,
-  //   type: "string",
-  //   required: true,
-  // },
-  // {
-  //   value: "agent_installed",
-  //   label: "agent状态",
-  //   sort: true,
-  //   filter: true,
-  //   type: "string",
-  // },
 ]);
-// 过滤选项
+
+// 选择相关
+const multipleSelection = ref([]);
+
+// 字段类型字典
+const fieldOptions = ref([]);
+const validate_type = ref([]);
+
+// 模型管理
+const manageModelArr = ref([]);
+
+// SSE相关
+const eventSource = ref(null);
+
+// ========== 计算属性 ==========
 const filterOptions = computed(() => {
   let tempArr = [];
   colLists.value.forEach((item) => {
@@ -389,105 +403,34 @@ const filterOptions = computed(() => {
   });
   return tempArr;
 });
-// 表格字段
-// const tableCol = computed(() => {
-//   return colLists.value.map(item => {
-//     if (item.sort) {
-//       return { name: item.label, value: item.value }
-//     }
-//   })
-// })
-const formRef = ref("");
-// 表单字段
-// const formInline = reactive({
-//   name: null,
-//   verbose_name: null,
-//   field_type: "string",
-//   type: "regex",
-//   rule: null,
-//   description: null,
-// });
-const getStatusType = (status: number) => {
-  if (status === 1) {
-    return "success";
-  } else if (status === 0) {
-    return "danger";
-  } else {
-    return "info";
-  }
-};
-const getStatusText = (status: number) => {
-  if (status === 1) {
-    return "正常";
-  } else if (status === 0) {
-    return "异常";
-  } else {
-    return "未知";
-  }
-};
-// 监听更新校验类型的值,默认拿第一个
-// 分页
-const currentPage = ref(1);
-const pageSize = ref(10);
-const size = ref("default");
-const disabled = ref(false);
-const totalCount = ref(0);
-const pageChange = () => {
-  getNodesData();
-};
-// const handleCurrentChange = () => {
-//   getNodesData();
-// };
-// watch(currentPage, (n) => {
-//   getNodesData();
-// });
-// watch(pageSize, (n) => {
-//   getNodesData();
-// });
-const sortParam = ref({ ordering: "-model_instance_name" });
-const sortMethod = (data: any) => {
-  // console.log(data);
-  if (data.order === "ascending") {
-    sortParam.value["ordering"] = data.prop;
-  } else if (data.order === "descending") {
-    sortParam.value["ordering"] = "-" + data.prop;
-  } else {
-    sortParam.value = { ordering: "-model_instance_name" };
-  }
-  // 发起请求
-  getNodesData();
-};
-// 弹出框
-const dialogVisible = ref(false);
-const handleClose = () => {
-  dialogVisible.value = false;
-  resetForm(formRef.value);
-  nowRow.value = {};
-};
-const isAdd = ref(true);
-const addData = () => {
-  isAdd.value = true;
-  nextTick(() => {
-    dialogVisible.value = true;
-  });
-};
-const nowRow = ref({});
-const beforeEditFormData = ref({});
 
-const reInstall = (row) => {};
+// ========== 监听器 ==========
+watch(filterValue, (n) => {
+  // console.log(filterParam);
+  filterParam.value = { [colValue.value]: n };
+});
 
-const resetForm = (formEl) => {
-  if (!formEl) return;
-  formEl.resetFields();
-  tmpFormData.value = [{ name: "", value: "" }];
+// ========== API请求函数 ==========
+/**
+ * 获取管理模型配置数据
+ * 从后端获取模型配置信息，过滤出is_manage为true的模型，
+ * 并以{label:"名称",value:"name"}的形式组织数据后赋值给manageModelArr
+ */
+const getMangeModel = async () => {
+  let res = await proxy.$api.getModelConfig({ ordering: "create_time" });
+  if (res.status == 200) {
+    manageModelArr.value = res.data.results
+      .filter((item) => item.is_manage === true)
+      .map((item) => ({
+        label: item.model_verbose_name || item.model_name,
+        name: item.model_name,
+      }));
+  }
 };
-// 获取字段类型字典
-const fieldOptions = ref([]);
-const validate_type = ref([]);
-// 后端请求
 
 const getNodesData = async () => {
   let res = await proxy.$api.getNodes({
+    model_name: activeName.value,
     page: currentPage.value,
     page_size: pageSize.value,
     search: searchText.value,
@@ -500,8 +443,9 @@ const getNodesData = async () => {
   totalCount.value = res.data.count;
   isLoading.value = false;
 };
+
 // 更新状态
-const switchUpdate = async (row, key) => {
+const switchUpdate = async (row: object, key: string) => {
   let params = {};
   params[key] = row[key];
   // console.log(params);
@@ -520,39 +464,157 @@ const switchUpdate = async (row, key) => {
     });
   }
 };
-onMounted(() => {
-  getNodesData();
-});
 
-const multipleSelection = ref([]);
+const getZabbixStatus = async () => {
+  let res = await proxy.$api.updateZabbixAvailability();
+  // console.log(res);
+  if (res.status == 200) {
+    ElMessage({
+      type: "success",
+      message: "触发成功",
+    });
+  }
+};
+
+const syncToZabbix = async () => {
+  let res = await proxy.$api.syncZabbixHost({ model_name: activeName.value });
+  // console.log(res);
+  ElMessage({
+    type: "success",
+    message: "触发主机同步~",
+  });
+};
+const syncNodeToZabbix = async (params: { id: string }) => {
+  let res = await proxy.$api.syncZabbixHost({ node_id: params.id });
+  // console.log(res);
+  ElMessage({
+    type: "success",
+    message: "触发主机同步~",
+  });
+};
+// 安装agent
+const installAgentTask = async (params: object) => {
+  let res = await proxy.$api.installAgent(params);
+  if (res.status == 200) {
+    ElMessage({
+      type: "success",
+      message: "触发成功",
+    });
+    // openSse(`/api/v1/agent_status_sse/?cache_key=${res.data.cache_key}`);
+  } else {
+    ElMessage({
+      type: "error",
+      message: `触发失败:${res.data.message}`,
+    });
+  }
+
+  // if (params.all) {
+  //   openSse(`/api/v1/agent_status_sse/?all=true`);
+  // } else {
+  //   openSse(`/api/v1/agent_status_sse/?ids=${JSON.stringify(params.ids)}`);
+  // }
+};
+
+const assetInfoTask = async (params: object) => {
+  let res = await proxy.$api.get_inventory(params);
+  if (res.status == 200) {
+    ElMessage({
+      type: "success",
+      message: "触发成功",
+    });
+    // openSse(`/api/v1/agent_status_sse/?cache_key=${res.data.cache_key}`);
+  } else {
+    ElMessage({
+      type: "error",
+      message: `触发失败:${res.data.message}`,
+    });
+  }
+
+  // if (params.all) {
+  //   openSse(`/api/v1/agent_status_sse/?all=true`);
+  // } else {
+  //   openSse(`/api/v1/agent_status_sse/?ids=${JSON.stringify(params.ids)}`);
+  // }
+};
+
+// ========== 事件处理函数 ==========
+const handleClick = (tab: TabsPaneContext, event: Event) => {
+  console.log(tab, event);
+  nextTick(() => {
+    console.log(activeName.value);
+    getNodesData();
+  });
+  // 获取数据
+};
+
+const pageChange = () => {
+  getNodesData();
+};
+
+const sortParam = ref({ ordering: "-model_instance_name" });
+const sortMethod = (data: any) => {
+  // console.log(data);
+  if (data.order === "ascending") {
+    sortParam.value["ordering"] = data.prop;
+  } else if (data.order === "descending") {
+    sortParam.value["ordering"] = "-" + data.prop;
+  } else {
+    sortParam.value = { ordering: "-model_instance_name" };
+  }
+  // 发起请求
+  getNodesData();
+};
+
+const handleClose = () => {
+  dialogVisible.value = false;
+  resetForm(formRef.value);
+  nowRow.value = {};
+};
+
+const addData = () => {
+  isAdd.value = true;
+  nextTick(() => {
+    dialogVisible.value = true;
+  });
+};
+
+const reInstall = (row) => {};
+
+const resetForm = (formEl) => {
+  if (!formEl) return;
+  formEl.resetFields();
+  tmpFormData.value = [{ name: "", value: "" }];
+};
+
+const getStatusType = (status: number) => {
+  if (status === 1) {
+    return "success";
+  } else if (status === 0) {
+    return "danger";
+  } else {
+    return "info";
+  }
+};
+
+const getStatusText = (status: number) => {
+  if (status === 1) {
+    return "正常";
+  } else if (status === 0) {
+    return "异常";
+  } else {
+    return "未知";
+  }
+};
+
 const handleSelectionChange = (val) => {
   multipleSelection.value = val.map((item) => item.id);
 };
-
-// 可用性tag标签
-const avaiableTag = {
-  0: { level: "info", label: "未知" },
-  1: { level: "success", label: "可用" },
-  2: { level: "danger", label: "不可用" },
-};
-// 模糊检索
-const searchText = ref("");
 
 // 过滤
 const filterTag = (value, row) => {
   return row.tag === value;
 };
-const filterParam = ref({});
-watch(filterValue, (n) => {
-  // console.log(filterParam);
-  filterParam.value = { [colValue.value]: n };
-});
-// const filterMethod = (filters: object) => {
-//   console.log(filters);
-//
-// nextTick(() => {
-//   getNodesData();
-// });
+
 const filterMethod = (filters: object) => {
   console.log(filters);
 
@@ -611,25 +673,6 @@ const filterMethod = (filters: object) => {
   });
 };
 
-const getZabbixStatus = async () => {
-  let res = await proxy.$api.updateZabbixAvailability();
-  // console.log(res);
-  if (res.status == 200) {
-    ElMessage({
-      type: "success",
-      message: "触发成功",
-    });
-  }
-};
-const syncToZabbix = async () => {
-  let res = await proxy.$api.syncZabbixHost();
-  // console.log(res);
-  ElMessage({
-    type: "success",
-    message: "触发主机同步~",
-  });
-};
-const eventSource = ref(null);
 const openSse = (sseUrl) => {
   eventSource.value = new EventSource(sseUrl);
   eventSource.value.onmessage = (event) => {
@@ -646,52 +689,17 @@ const openSse = (sseUrl) => {
     }
   };
 };
+
 const closeSse = () => {
   eventSource.value?.close();
 };
-// 安装agent
-const installAgentTask = async (params: object) => {
-  let res = await proxy.$api.installAgent(params);
-  if (res.status == 200) {
-    ElMessage({
-      type: "success",
-      message: "触发成功",
-    });
-    // openSse(`/api/v1/agent_status_sse/?cache_key=${res.data.cache_key}`);
-  } else {
-    ElMessage({
-      type: "error",
-      message: `触发失败:${res.data.message}`,
-    });
-  }
 
-  // if (params.all) {
-  //   openSse(`/api/v1/agent_status_sse/?all=true`);
-  // } else {
-  //   openSse(`/api/v1/agent_status_sse/?ids=${JSON.stringify(params.ids)}`);
-  // }
-};
-const assetInfoTask = async (params: object) => {
-  let res = await proxy.$api.get_inventory(params);
-  if (res.status == 200) {
-    ElMessage({
-      type: "success",
-      message: "触发成功",
-    });
-    // openSse(`/api/v1/agent_status_sse/?cache_key=${res.data.cache_key}`);
-  } else {
-    ElMessage({
-      type: "error",
-      message: `触发失败:${res.data.message}`,
-    });
-  }
+// ========== 生命周期钩子 ==========
+onMounted(() => {
+  getNodesData();
+  getMangeModel();
+});
 
-  // if (params.all) {
-  //   openSse(`/api/v1/agent_status_sse/?all=true`);
-  // } else {
-  //   openSse(`/api/v1/agent_status_sse/?ids=${JSON.stringify(params.ids)}`);
-  // }
-};
 onUnmounted(() => {
   closeSse();
 });

@@ -49,7 +49,7 @@
       @selection-change="handleSelectionChange"
       @filter-change="filterMethod"
     >
-      <el-table-column type="selection" :reserve-selection="true" width="55" />
+      <!-- <el-table-column type="selection" :reserve-selection="true" width="55" /> -->
 
       <el-table-column property="name" label="代理名称" sortable="custom" />
       <el-table-column
@@ -82,10 +82,6 @@
         label="是否启用"
         sortable="custom"
         width="140"
-        :filters="[
-          { text: '启用', value: true },
-          { text: '禁用', value: false },
-        ]"
       >
         <template #default="scope">
           <el-switch
@@ -374,7 +370,7 @@ const filterOptions = computed(() => {
 //     }
 //   })
 // })
-const formRef = ref("");
+const proxyFormRef = ref("");
 // 表单字段
 const proxyForm = reactive({
   name: "",
@@ -457,7 +453,7 @@ const sortMethod = (data) => {
 const dialogVisible = ref(false);
 const handleClose = () => {
   dialogVisible.value = false;
-  resetForm(formRef.value);
+  resetForm(proxyFormRef.value);
   nowRow.value = {};
 };
 
@@ -469,7 +465,6 @@ const reInstall = (row) => {};
 const resetForm = (formEl) => {
   if (!formEl) return;
   formEl.resetFields();
-  tmpFormData.value = [{ name: "", value: "" }];
 };
 // 获取字段类型字典
 const fieldOptions = ref([]);
@@ -494,6 +489,8 @@ const getProxyData = async (params = null) => {
 const isAdd = ref(true);
 const addNew = () => {
   isAdd.value = true;
+  resetForm(proxyFormRef.value);
+
   nextTick(() => {
     dialogVisible.value = true;
   });
@@ -543,7 +540,7 @@ const deleteRow = async (row) => {
     } else {
       ElMessage({
         type: "error",
-        message: `删除失败: ${res.data}`,
+        message: `删除失败: ${JSON.stringify(res.data)}`,
       });
     }
   });
@@ -571,7 +568,7 @@ const updateAction = async () => {
     });
     dialogVisible.value = false;
     getProxyData();
-    resetForm(formRef.value);
+    resetForm(proxyFormRef.value);
   } else {
     ElMessage({
       type: "error",
@@ -631,7 +628,7 @@ const openDia = () => {
 };
 const closeDia = () => {
   dialogVisible.value = false;
-  resetForm(formRef.value);
+  resetForm(proxyFormRef.value);
 };
 
 onUnmounted(() => {});

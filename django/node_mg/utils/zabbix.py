@@ -2,9 +2,8 @@ from django.core.cache import cache
 import threading
 import requests
 import json
+from . import sys_config
 import logging
-from . import zabbix_config
-
 logger = logging.getLogger(__name__)
 
 # TODO: 添加zabbix可用性验证，避免失败调用
@@ -35,10 +34,10 @@ class ZabbixTokenManager:
 
     def initialize(self):
         """初始化 token 管理"""
-        if not zabbix_config.is_zabbix_sync_enabled():
+        if not sys_config.is_zabbix_sync_enabled():
             return
 
-        config = zabbix_config.get_all()
+        config = sys_config.get_all()
         self.url = config.get('zabbix_url')
         self.username = config.get('zabbix_username')
         self.password = config.get('zabbix_password')
@@ -93,11 +92,11 @@ class ZabbixAPI:
     _default_template_id = None
 
     def __init__(self):
-        self.url = zabbix_config.get('zabbix_url')
-        self.template = zabbix_config.get('zabbix_host_template')
-        self.template_host_name = zabbix_config.config.get('zabbix_host_template','Linux by Zabbix agent')
-        self.template_ipmi_name = zabbix_config.config.get('zabbix_ipmi_template','Chassis by IPMI')
-        self.template_network_name = zabbix_config.config.get('zabbix_network_template','Generic by SNMP')
+        self.url = sys_config.get('zabbix_url')
+        self.template = sys_config.get('zabbix_host_template')
+        self.template_host_name = sys_config.config.get('zabbix_host_template','Linux by Zabbix agent')
+        self.template_ipmi_name = sys_config.config.get('zabbix_ipmi_template','Chassis by IPMI')
+        self.template_network_name = sys_config.config.get('zabbix_network_template','Generic by SNMP')
         self.session = requests.Session()
         self.session.verify = False
         self.session.headers.update({"Content-Type": "application/json-rpc"})
@@ -212,13 +211,17 @@ class ZabbixAPI:
         }
         if proxy_id:
             data["params"]["proxy_hostid"] = proxy_id
-        #模板获取
-        template_ids = self.get_default_template_by_interfaces(interfaces)
         if template_names:
             get_template_ids = self.get_template(template_names)
             if get_template_ids:
-                template_ids.extend(get_template_ids)
-        data["params"]["templates"] = [ {"templateid": template_id } for template_id in list(set(template_ids)) ]   
+                data["params"]["templates"] = [ {"templateid": template_id } for template_id in get_template_ids ]
+        #模板获取
+        # template_ids = self.get_default_template_by_interfaces(interfaces)
+        # if template_names:
+        #     get_template_ids = self.get_template(template_names)
+        #     if get_template_ids:
+        #         template_ids.extend(get_template_ids)
+        # data["params"]["templates"] = [ {"templateid": template_id } for template_id in list(set(template_ids)) ]   
         # 根据接口类型，获取默认模板
         if other_args:
             for k, v in other_args.items():
@@ -245,10 +248,11 @@ class ZabbixAPI:
         if result.get('result'):
             return result["result"]
         return None
-    def create_interfaces(self, hostid,interface):
+    def create_interfaces(self, hostid,interface,template_names_by_type):
         """创建主机接口信息"""
         #根据interface类型，获取默认模板ID
-        template_id = self.get_default_template_by_interface(interface)
+        # template_id = self.get_default_template_by_interface(interface)
+        template_id = self.get_template(template_names_by_type[interface["type"]])
         data = {
             "jsonrpc": "2.0",
             "method": "hostinterface.create",
@@ -263,18 +267,20 @@ class ZabbixAPI:
         if result.get('result'):
             # 接口添加成功，则添加模板
             if template_id:
-                self.host_update(hostid,add_template=[template_id])
+                self.host_update(hostid,add_template=template_id)
             return result["result"]
         return None
-    def delete_interfaces(self, hostid,interface):
+    def delete_interfaces(self, hostid,interface,template_names_by_type):
 
         """删除主机接口信息"""
         # 只处理type=3，ipmi接口
         if str(interface["type"]) != "3":
             return None
         # 删除接口前，清理模板
-        template_id = self.get_default_template_by_interface(interface)
-        self.host_update(hostid,other_args={"templates_clear":[{"templateid":template_id}]})
+        template_id = self.get_template(template_names_by_type[interface["type"]])
+        #template_id = self.get_default_template_by_interface(interface)
+        if template_id:
+            self.host_update(hostid,other_args={"templates_clear":[{"templateid":template_id[0]}]})
         host_interfaces = self.host_get_interfaces(hostid=hostid)
         interface_id = None
         if host_interfaces:
@@ -506,11 +512,24 @@ class ZabbixAPI:
         if result.get("result"):
             return result["result"]
         return None
+
+    def host_massadd_proxy(self, hostids=[],proxy_id=None):
+        """清除主机代理"""
+        data = {
+            "params": {
+                "hosts": hostids,
+                "proxy_hostid": proxy_id
+            },
+        }
+        result = self._call("host.massupdate", data["params"])
+        if result.get("result"):
+            return result["result"]
+        return None   
     def host_massclear_proxy(self, hostids=[]):
         """清除主机代理"""
         data = {
             "params": {
-                "hostid": hostids,
+                "hosts": hostids,
                 "proxy_hostid": "0"
             },
         }
@@ -786,12 +805,12 @@ class ZabbixAPI:
         }
         result = self._call("proxy.delete", data["params"])
         if result.get("result"):
-            return result["result"][0]
+            return result["result"]
         return None
     def delete_proxy_by_name(self, proxy_name):
         proxy = self.get_proxy_by_name(proxy_name)
         if proxy:
-            return self.delete_proxy(proxy["proxyid"])
+            return self.delete_proxy([proxy["proxyid"]])
     def get_template_by_id(self,hostid,output=None,other_args=None):
         """获取主机关联的模板"""
         data = {
@@ -810,7 +829,7 @@ class ZabbixAPI:
         return None
 
     def get_template(self,template_names):
-        """获取所有模板"""
+        """获取指定模板"""
         data = {
             "jsonrpc": "2.0",
             "method": "template.get",
@@ -827,6 +846,21 @@ class ZabbixAPI:
         result = self._call("template.get", data["params"])
         if result.get("result"):
             return  [ i["templateid"] for i in result["result"] ]
+        return None
+    def get_all_templates(self):
+        """获取所有模板"""
+        data = {
+            "jsonrpc": "2.0",
+            "method": "template.get",
+            "params": {
+                "output": ["templateid", "host"],
+            },
+            "id": 1,
+            "auth": self.auth
+        }
+        result = self._call("template.get", data["params"])
+        if result.get("result"):
+            return  result["result"]
         return None
     def get_default_template_by_interfaces(self,interfaces):
         """根据多个接口类型获取默认模板"""

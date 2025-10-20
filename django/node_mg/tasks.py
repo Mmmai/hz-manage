@@ -1,9 +1,10 @@
 from celery import chain, shared_task,group
 from celery.result import AsyncResult
 
-from .models import Nodes,NodeInfoTask,NodeSyncZabbix
+from .models import Nodes,NodeInfoTask,NodeSyncZabbix,Proxy,ModelConfig
 from cmdb.models import (
     Models,
+    ModelFields,
     ModelInstance,
     ModelFieldMeta,
     ModelInstanceGroupRelation
@@ -14,7 +15,7 @@ import ping3
 import re
 from .utils.cmdb_tools import get_instance_field_value
 from .utils.zabbix import ZabbixAPI
-from .utils import zabbix_config
+from .utils import sys_config
 from .utils.commFunc import compare_interfaces
 from .utils.cmdb_tools import get_instance_field_value,get_instance_field_value_info,update_asset_info,node_inventory
 
@@ -39,7 +40,6 @@ def aggregate_results(results):
     failure_count = 0
     
     for res in results:
-        print(res)
         try:
             if res.get('status') == 'success':
                 success_count += 1
@@ -47,53 +47,97 @@ def aggregate_results(results):
                 failure_count += 1
         except Exception as e:
             failure_count += 1
-            print(f"Failed: Exception occurred - {str(e)}")
+            logger.error(f"Failed: Exception occurred - {str(e)}")
             
     return {"total":len(results),"success": success_count, "failure": failure_count}
 
 @shared_task(bind=True)
-def sync_node_mg(self):
-    """初始化加载node_mg"""
+def sync_node_mg(self,model_id=None):
+    """
+    同步节点管理信息的 Celery 任务
+    
+    该函数会遍历符合条件的模型实例，提取其中 IP 地址字段，并在 Nodes 表中创建或更新对应的节点记录。
+    
+    Args:
+        self: Celery 任务对象自身
+        model_id (int, optional): 指定要同步的模型 ID，如果不提供则同步所有符合条件的模型
+        
+    Returns:
+        str: 同步操作结果信息，格式为"同步成功"
+        
+    Raises:
+        Exception: 当发生异常时会自动重试，延迟60秒后重新执行任务
+    """
     try:
-        sync_model_list = [ i.id for i in Models.objects.filter(name__in=['hosts']) ]
-        all_instance = ModelInstance.objects.filter(model__in=sync_model_list)
-        node_create_counter = 0
-        node_update_counter = 0
-        fail_instance = []
-        for _instance in all_instance:   
-            try:
-                field_values = ModelFieldMeta.objects.filter(
-                    model_instance=_instance
-                ).select_related('model_fields')
-                ip_field = None
-                for field in field_values:
-                    if field.model_fields.name == 'ip':
-                        ip_field = field.data
-                        break
-                if not ip_field:
+        from django.db import transaction
+        # 获取所有包含 IP 字段的模型
+        modelFieldHasIp = [ i.model.id for i in ModelFields.objects.filter(name="ip") ] 
+        # sync_model_list = [ i.id for i in Models.objects.filter(name__in=['hosts']) ]
+        # 筛选出管理状态为 True 且包含 IP 字段的模型
+        sync_model_list = [ i.id for i in ModelConfig.objects.filter(is_manage=True) if i.id in modelFieldHasIp ]
+        if model_id:
+            models_to_process = Models.objects.filter(id=model_id)
+        else:
+            models_to_process = Models.objects.filter(id__in=sync_model_list)
+            
+        total_node_create_counter = 0
+        total_node_update_counter = 0
+        total_fail_count = 0
+        
+        # 按每个model单独处理
+        for model in models_to_process:
+            logger.info(f"开始处理模型: {model.name} ({model.id})")
+            node_create_counter = 0
+            node_update_counter = 0
+            fail_instance = []
+            
+            # 获取该model下的所有实例
+            all_instance = ModelInstance.objects.filter(model=model)
+            for _instance in all_instance:   
+                try:
+                    # 获取当前实例的所有字段元数据
+                    field_values = ModelFieldMeta.objects.filter(
+                        model_instance=_instance
+                    ).select_related('model_fields')
+                    ip_field = None
+                    for field in field_values:
+                        if field.model_fields.name == 'ip':
+                            ip_field = field.data
+                            break
+                    if not ip_field:
+                        fail_instance.append(_instance.instance_name)
+                        continue
+                    # 缓存IP字段值，避免重复查询
+                    ip_value = ip_field
+                except Exception as e:
                     fail_instance.append(_instance.instance_name)
-                    continue
-            except Exception as e:
-                fail_instance.append(_instance.instance_name)
-                continue         
-            node_obj,node_created = Nodes.objects.update_or_create(
-                model_instance=_instance,
-                defaults={
-                "ip_address": get_instance_field_value(_instance, 'ip') ,
-                "model": _instance.model,
-                "create_user": _instance.create_user,
-                "update_user": _instance.update_user
-                }
-            )
-            if node_created:
-                node_create_counter += 1
-            else:
-                node_update_counter += 1
-        print(f"创建[{node_create_counter}],更新[{node_update_counter},]失败[{len(fail_instance)}],失败实例[{','.join(fail_instance)}]")
+                    continue         
+                # 创建或更新节点记录
+                with transaction.atomic():
+                    node_obj,node_created = Nodes.objects.update_or_create(
+                        model_instance=_instance,
+                        defaults={
+                        "ip_address": ip_value,
+                        "model": _instance.model,
+                        "create_user": _instance.create_user,
+                        "update_user": _instance.update_user
+                        }
+                    )
+                    if node_created:
+                        node_create_counter += 1
+                    else:
+                        node_update_counter += 1
+                        
+            logger.info(f"模型 {model.name} 处理完成: 创建[{node_create_counter}],更新[{node_update_counter}]失败[{len(fail_instance)}],失败实例[{','.join(fail_instance)}]")
+            total_node_create_counter += node_create_counter
+            total_node_update_counter += node_update_counter
+            total_fail_count += len(fail_instance)
+            
+        logger.info(f"全部模型处理完成: 总创建[{total_node_create_counter}],总更新[{total_node_update_counter}]总失败[{total_fail_count}]")
     except Exception as exc:
-        # 自动重试
+        # 发生异常时自动重试，延迟60秒
         raise self.retry(exc=exc, countdown=60)
-    return f"同步成功"  
+    return f"同步成功"
 
 
 @shared_task(bind=True, max_retries=3)
@@ -272,7 +316,7 @@ def ansible_getinfo(self, node_id):
             logger.error(f"Error creating or updating node {node.ip_address} info task: {str(e)}")
 
         # 如果启用了资产自动更新，则更新资产信息
-        if zabbix_config.is_asset_auto_update_enabled():
+        if sys_config.is_asset_auto_update_enabled():
             logger.info(f"Updating asset info for node {node.ip_address}")
             try:
                 update_asset_info(node.model_instance, info)
@@ -310,7 +354,7 @@ def ansible_agent_install_batch(self, node_ids):
     results = {}
     
     # 使用 Celery 的 group 功能并行执行多个任务
-    print("node_ids:", node_ids)
+    # print("node_ids:", node_ids)
     # 创建子任务组
     job = group(ansible_agent_install.s(node_id) for node_id in node_ids)
     
@@ -369,7 +413,7 @@ def ansible_agent_install(self, node_id):
 
     try:
         inventory = node_inventory(node)
-        server_ip = zabbix_config.get('server')
+        server_ip = sys_config.get('server')
         extra_vars = {
             'hostIp': node.ip_address,
             'serverIp': server_ip,
@@ -432,76 +476,118 @@ def is_valid_ip(ip):
 
 def build_host_info(instance, ip):
     """根据模型类型构造 host_info"""
+    # zabbix_sync_info = ModelConfig.objects.get(model=instance.model).zabbix_sync_info
+    zabbix_sync_info = sys_config.get(instance.model.name)
     if instance.model.name == 'hosts':
         _host_info = get_instance_field_value_info(instance, ['mgmt_user', 'mgmt_password', 'mgmt_ip', 'device_status'])
         host_type = 1 if _host_info.get('mgmt_ip') else 0
-        return {**_host_info, 'ip': ip, 'hostname': instance.instance_name, 'type': host_type}
-    elif instance.model.name == 'switches':
+        return {**_host_info, 'ip': ip, 'hostname': instance.instance_name, 'type': host_type,'zabbix_sync_info': zabbix_sync_info}
+    # elif instance.model.name == 'switches':
+    else:
+        # 根据模型的config，获取接口
         return {
             'ip': ip,
             'hostname': instance.instance_name,
             'type': 2,
-            'device_status': get_instance_field_value(instance, 'device_status')
+            'device_status': get_instance_field_value(instance, 'device_status'),
+            'zabbix_sync_info': zabbix_sync_info
         }
     return None
 
 def build_interfaces_and_args(host_info):
+    print(host_info)
     """构造接口信息和主机其他参数"""
+    if host_info.get('zabbix_sync_info') is None:
+        raise None
+
+    type_map = {"agent":{"type":"1","port":"10050"},"snmp": {"type":"2","port":"161"},"ipmi":{"type":"3","port": "623"}}
     interfaces = []
     other_args = {}
-
-    if host_info.get('type') == 0:
-        interfaces = [{
-            "type": "1",
-            "main": "1",
-            "useip": "1",
-            "ip": host_info['ip'],
-            "dns": "",
-            "port": "10050"
-        }]
-    elif host_info.get('type') == 1:
-        interfaces = [{
-            "type": "1",
-            "main": "1",
-            "useip": "1",
-            "ip": host_info['ip'],
-            "dns": "",
-            "port": "10050"
-        }, {
-            "type": "3",
-            "main": "1",
-            "useip": "1",
-            "ip": host_info.get('mgmt_ip', ''),
-            "dns": "",
-            "port": "623"
-        }]
-        other_args = {
-            "ipmi_authtype": 6,
-            "ipmi_password": host_info.get('mgmt_password'),
-            "ipmi_username": host_info.get('mgmt_user'),
-            "ipmi_privilege": 2
-        }
-    elif host_info.get('type') == 2:
-        interfaces = [{
-            "type": "2",
-            "main": "1",
-            "useip": "1",
-            "ip": host_info['ip'],
-            "dns": "",
-            "port": "161",
-            "details": {
-                "version": "2",
-                "bulk": "0",
-                "community": "{$SNMP_COMMUNITY}"
+    template_names_by_type = {"1": "", "2": "", "3": ""}
+    for _zabbix_sync_info in host_info.get('zabbix_sync_info'):
+        if _zabbix_sync_info.get("type"):
+            _interface = {
+                "type": type_map[_zabbix_sync_info.get("type")]["type"],
+                "main": "1",
+                "useip": "1",
+                "ip": host_info.get("ip"),
+                "dns": "",
+                "port": type_map[_zabbix_sync_info.get("type")]["port"]
             }
-        }]
+            if _zabbix_sync_info.get("type") == "snmp":
+                _interface["details"] = {
+                    "version": "2",
+                    "bulk": "0",
+                    "community": "{$SNMP_COMMUNITY}"
+                }
+                template_names_by_type['2'] = _zabbix_sync_info.get("template")
+            elif _zabbix_sync_info.get("type") == "ipmi":
+                if not host_info.get('mgmt_ip'):
+                    continue
+                _interface["ip"] = host_info.get('mgmt_ip')
+                other_args = {
+                    "ipmi_authtype": 6,
+                    "ipmi_password": host_info.get('mgmt_password'),
+                    "ipmi_username": host_info.get('mgmt_user'),
+                    "ipmi_privilege": 2
+                }
+                template_names_by_type['3'] = _zabbix_sync_info.get("template")
+            elif _zabbix_sync_info.get("type") == "agent":
+                template_names_by_type['1'] = _zabbix_sync_info.get("template")
+            interfaces.append(_interface)
+            
+    # if host_info.get('type') == 0:
+    #     interfaces = [{
+    #         "type": "1",
+    #         "main": "1",
+    #         "useip": "1",
+    #         "ip": host_info['ip'],
+    #         "dns": "",
+    #         "port": "10050"
+    #     }]
+    # elif host_info.get('type') == 1:
+    #     interfaces = [{
+    #         "type": "1",
+    #         "main": "1",
+    #         "useip": "1",
+    #         "ip": host_info['ip'],
+    #         "dns": "",
+    #         "port": "10050"
+    #     }, {
+    #         "type": "3",
+    #         "main": "1",
+    #         "useip": "1",
+    #         "ip": host_info.get('mgmt_ip', ''),
+    #         "dns": "",
+    #         "port": "623"
+    #     }]
+    #     other_args = {
+    #         "ipmi_authtype": 6,
+    #         "ipmi_password": host_info.get('mgmt_password'),
+    #         "ipmi_username": host_info.get('mgmt_user'),
+    #         "ipmi_privilege": 2
+    #     }
+    # elif host_info.get('type') == 2:
+    #     interfaces = [{
+    #         "type": "2",
+    #         "main": "1",
+    #         "useip": "1",
+    #         "ip": host_info['ip'],
+    #         "dns": "",
+    #         "port": "161",
+    #         "details": {
+    #             "version": "2",
+    #             "bulk": "0",
+    #             "community": "{$SNMP_COMMUNITY}"
+    #         }
+    #     }]
 
     if host_info.get('device_status','in-use') not in ['in-use', 'standby']:
         other_args["status"] = 1
     else:
         other_args["status"] = 0
 
-    return interfaces, other_args
+    return interfaces, other_args,template_names_by_type
 
 
 @shared_task(bind=True)
@@ -604,7 +690,7 @@ def zabbix_sync(self, instance_id=None, ip=None, is_delete=False):
                 # proxy_info["proxy_id"] = nodeObj.proxy.id
                 proxy_info["proxy_name"] = nodeObj.proxy.name
                 proxy_info["proxy_ip"] = nodeObj.proxy.ip_address
-
+                proxy_info["proxy_id"] = zabbix_api.get_proxy_by_name(proxy_name=nodeObj.proxy.name).get("proxyid")
         host_info = build_host_info(instance, ip)
         if not host_info:
             return {
@@ -646,8 +732,8 @@ def zabbix_sync(self, instance_id=None, ip=None, is_delete=False):
         host_status = result[0].get('status') if result else None
         host_id = result[0].get('hostid') if result else None
 
-        interfaces, other_args = build_interfaces_and_args(host_info)
-
+        interfaces, other_args ,template_names_by_type = build_interfaces_and_args(host_info)
+        template_names = [ v for k,v in template_names_by_type.items()]
         # 更新主机
         if host_id:
             # 对比接口
@@ -657,10 +743,10 @@ def zabbix_sync(self, instance_id=None, ip=None, is_delete=False):
             try:
                 if added:
                     for _added in added:
-                        zabbix_api.create_interfaces(hostid=host_id, interface=_added)
+                        zabbix_api.create_interfaces(hostid=host_id, interface=_added,template_names_by_type=template_names_by_type)
                 if removed:
                     for __removed in removed:
-                        zabbix_api.delete_interfaces(hostid=host_id, interface=__removed)
+                        zabbix_api.delete_interfaces(hostid=host_id, interface=__removed,template_names_by_type=template_names_by_type)
                 if modified:
                     zabbix_api.update_interfaces(hostid=host_id, interfaces=modified)
 
@@ -670,7 +756,7 @@ def zabbix_sync(self, instance_id=None, ip=None, is_delete=False):
                     result[0].get('ipmi_password', '') != other_args.get('ipmi_password', '') or
                     result[0].get('ipmi_username', '') != other_args.get('ipmi_username', '') or
                     host_status != other_args.get('status', '') or
-                    result[0].get('proxy_hostid', '') != other_args.get('proxy_hostid', '')
+                    result[0].get('proxy_hostid', '') != proxy_info.get('proxy_hostid', '')
 
                 ):
                     update_result = zabbix_api.host_update(
@@ -678,6 +764,7 @@ def zabbix_sync(self, instance_id=None, ip=None, is_delete=False):
                         host=ip,
                         name=host_info.get('hostname'),
                         interfaces=interfaces,
+                        proxy_id=proxy_info.get("proxy_id",None),
                         other_args=other_args
                     )
                     if update_result:
@@ -732,6 +819,8 @@ def zabbix_sync(self, instance_id=None, ip=None, is_delete=False):
                     name=host_info.get('hostname'),
                     interfaces=interfaces,
                     groups=group_ids,
+                    template_names=template_names,
+                    proxy_id=proxy_info.get("proxy_id",None),
                     other_args=other_args
                 )
                 if result:
@@ -798,8 +887,8 @@ def zabbix_sync_batch(self, instance_ids):
 @shared_task(bind=True)
 def zabbix_proxy_sync(self,proxy_info,action,node_ids=None):
     zabbix_api = ZabbixAPI()
-    proxy_name = proxy_info.get('proxy_name')
-    proxy_ip = proxy_info.get('proxy_ip')
+    proxy_name = proxy_info.get('proxy_name',None)
+    proxy_ip = proxy_info.get('proxy_ip',None)
     if action == 'delete':
         result = zabbix_api.delete_proxy_by_name(proxy_name=proxy_name)
         if result:
@@ -808,67 +897,89 @@ def zabbix_proxy_sync(self,proxy_info,action,node_ids=None):
         else:
             logger.error(f"Failed to delete Zabbix Proxy {proxy_name},response:{result}")
             return {'status': 'failed', 'detail': f"Failed to delete Zabbix Proxy {proxy_name},response:{result}"}
-
-    elif action in ['update','create']:
-        # proxy_zabbix = zabbix_api.get_proxy_by_name(proxy_name=proxy_name)
-        proxy_zabbix = zabbix_api.get_proxy_by_proxy_address(ip_address=proxy_ip)
+    elif action == 'create':
+        proxy_zabbix = zabbix_api.get_proxy_by_name(proxy_name=proxy_name)
         if not proxy_zabbix:
             logger.info(f"Zabbix Proxy {proxy_name} does not exist, creating...")
             result = zabbix_api.create_proxy(proxy_ip=proxy_ip,proxy_name=proxy_name)
             if result:
+                #获取到proxyid，更新Proxy 表
+                proxyid = result.get("proxyids")[0]
+                Proxy.objects.filter(id=proxy_info.get("proxy_id")).update(zbx_proxyid=proxyid)
                 logger.info(f"Zabbix Proxy created for {proxy_name},response:{result}")
                 return {'status': 'success', 'detail': f"Zabbix Proxy created for {proxy_name},response:{result}"}
             else:
                 logger.error(f"Failed to create Zabbix Proxy {proxy_name},response:{result}")
                 return {'status': 'failed', 'detail': f"Failed to create Zabbix Proxy {proxy_name},response:{result}"}
         else:
-            result = zabbix_api.update_proxy(proxyId=proxy_zabbix.get("proxyid"),proxy_name=proxy_name,proxy_ip=proxy_ip)
-            if result:
-                logger.info(f"Zabbix Proxy updated for {proxy_name},response:{result}")
-                return {'status': 'success', 'detail': f"Zabbix Proxy updated for {proxy_name},response:{result}"}
-            else:
-                logger.error(f"Failed to update Zabbix Proxy {proxy_name},response:{result}")
-                return {'status': 'failed', 'detail': f"Failed to update Zabbix Proxy {proxy_name},response:{result}"}
+            proxyid = proxy_zabbix.get("proxyid")
+            logger.info(f"Zabbix Proxy {proxy_name} already exists, updating...")
+            Proxy.objects.filter(id=proxy_info.get("proxy_id")).update(zbx_proxyid=proxyid)
+
+    elif action == 'update':
+        # proxy_zabbix = zabbix_api.get_proxy_by_proxy_address(ip_address=proxy_ip)
+        result = zabbix_api.update_proxy(proxyId=proxy_info.get("zbx_proxyid"),proxy_name=proxy_name,proxy_ip=proxy_ip)
+        if result:
+            logger.info(f"Zabbix Proxy updated for {proxy_name},response:{result}")
+            return {'status': 'success', 'detail': f"Zabbix Proxy updated for {proxy_name},response:{result}"}
+        else:
+            logger.error(f"Failed to update Zabbix Proxy {proxy_name},response:{result}")
+            return {'status': 'failed', 'detail': f"Failed to update Zabbix Proxy {proxy_name},response:{result}"}
     elif action == 'associate_host':
         proxy_zabbix = zabbix_api.get_proxy_by_name(proxy_name=proxy_name)
         # 根据node_id获取host_id
-        nodes = Nodes.objects.get(id__in=node_ids)
+        nodes = Nodes.objects.filter(id__in=node_ids).all()
         associate_hosts = []
+        node_ips = []
         for node in nodes:
             result = zabbix_api.host_get(
                 host=node.ip_address,
                 output=["hostid"],
             )
+            node_ips.append(node.ip_address)
             host_id = result[0].get('hostid') if result else None
             if host_id:              
-                associate_hosts.append(host_id)
+                associate_hosts.append({"hostid":host_id})
             else:
                 logger.error(f"Failed to get host id for {node.ip_address}")
                 # 触发同步任务,添加主机，并且由zabbix_sync任务处理添加proxy
                 zabbix_sync.delay(instance_id=node.model_instance.id,ip=node.ip_address)
-        result = zabbix_api.update_proxy(proxyId=proxy_zabbix.proxy_id,proxy_name=proxy_name,proxy_ip=proxy_ip,hosts=associate_hosts)
+
+        #关联node，应该从host侧更新
+        # result = zabbix_api.update_proxy(proxyId=proxy_zabbix.get("proxyid"),proxy_name=proxy_name,proxy_ip=proxy_ip,hosts=associate_hosts)
+        result = zabbix_api.host_massadd_proxy(hostids=associate_hosts,proxy_id=proxy_zabbix.get("proxyid"))
+
+        if result:
+            logger.info(f"Zabbix host {','.join(node_ips)} has been associated on {proxy_name},response:{result}")
+            # 触发修改proxy的剧本
+            return {'status': 'success', 'detail': f"Zabbix host {','.join(node_ips)} has been associated on {proxy_name},response:{result}"}
+        else:
+            logger.error(f"Failed to associate host {','.join(node_ips)} on {proxy_name},response:{result}")
+            return {'status': 'failed', 'detail': f"Failed to associate host on {proxy_name},response:{result}"}
     elif action == 'dissociate_host':
         #proxy_zabbix = zabbix_api.get_proxy_by_name(proxy_name=proxy_name)
-        nodes = Nodes.objects.get(id__in=node_ids)
+        nodes = Nodes.objects.filter(id__in=node_ids).all()
         dissociate_hosts = []
+        node_ips = []
         for node in nodes:
             result = zabbix_api.host_get(
                 host=node.ip_address,
                 output=["hostid"],
             )
+            node_ips.append(node.ip_address)
             host_id = result[0].get('hostid') if result else None
             if host_id:              
-                dissociate_hosts.append(host_id)
+                dissociate_hosts.append({"hostid":host_id})
             else:
                 pass     
         # result = zabbix_api.update_proxy(proxyId=proxy_zabbix.proxy_id,proxy_name=proxy_name,proxy_ip=proxy_ip)
         if dissociate_hosts:
-            result = zabbix_api.host_massclear_proxy(hostids=node_ids)
+            result = zabbix_api.host_massclear_proxy(hostids=dissociate_hosts)
             if result:
-                logger.info(f"Zabbix host {dissociate_hosts.join(',')} has been dissociated on {proxy_name},response:{result}")
+                logger.info(f"Zabbix host {','.join(node_ips)} has been dissociated on {proxy_name},response:{result}")
                 return {'status': 'success', 'detail': f"Zabbix Proxy dissociated for {proxy_name},response:{result}"}
             else:
-                logger.error(f"Failed to dissociate Zabbix Proxy {proxy_name},response:{result}")
+                logger.error(f"Failed to dissociate host {','.join(node_ips)} from Zabbix Proxy {proxy_name},response:{result}")
                 return {'status': 'failed', 'detail': f"Failed to dissociate Zabbix Proxy"
             }
         else:

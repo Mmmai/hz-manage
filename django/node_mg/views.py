@@ -3,13 +3,14 @@ from django.shortcuts import render
 from django.http import HttpResponse,JsonResponse
 from rest_framework import filters,status
 from rest_framework.viewsets import ModelViewSet
-from .models import Nodes,Proxy,NodeInfoTask
+from rest_framework.views import APIView
+from .models import Nodes,Proxy,NodeInfoTask,ModelConfig
 from rest_framework.decorators import api_view
 from cmdb.models import ModelInstance
 from django.db.models import Q,OuterRef,Subquery
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .serializers import NodesSerializer,ProxySerializer,ProxyDetailSerializer
+from .serializers import NodesSerializer,ProxySerializer,ProxyDetailSerializer,ModelConfigSerializer
 from .tasks import (
     ansible_getinfo,
     ansible_getinfo_batch,
@@ -186,37 +187,57 @@ class NodesViewSet(ModelViewSet):
     def sync_zabbix(self, request):
         """触发资产信息同步zabbix"""
         instance_data_list = []
-        model_names = ["hosts", "Switches"]
         
-        # 预取所有相关关系避免N+1查询
-        queryset = ModelInstance.objects.filter(
-            model__name__in=model_names
-        )
-        try:
+        # 获取请求参数
+        node_id = request.data.get('node_id')
+        model_name = request.data.get('model_name')
+        
+        # 如果提供了node_id，则只同步单个节点
+        if node_id:
+            try:
+                node = Nodes.objects.select_related('model_instance__model').get(id=node_id)
+                if node.enable_sync:
+                    instance_data_list.append({
+                        "instance_id": node.model_instance.id,
+                        "ip": node.ip_address
+                    })
+            except Nodes.DoesNotExist:
+                return HttpResponse("Node not found", status=404)
+        # 如果提供了model_name，则同步整个模型的所有节点
+        elif model_name:
+            model_names = [model_name]
+            queryset = ModelInstance.objects.filter(
+                model__name__in=model_names
+            ).prefetch_related('nodes')
+            
             for instance in queryset:
                 node = instance.nodes.all().first()
-                if instance.model.name == "hosts":
-                    if node.enable_sync:
-                        try:
-                            # 安全访问nodes关系和ip_address属性
-                            instance_data_list.append({
-                                "instance_id": instance.id, 
-                                "ip": node.ip_address
-                            })
-                        except AttributeError:
-                            # 处理nodes或ip_address不存在的情况
-                            continue
-                else:
-                    ip = get_instance_field_value(instance, 'ip')
-                    instance_data_list.append({"instance_id": instance.id,"ip":ip})
-            zabbix_sync_batch.delay(instance_data_list)
-            # print(instance_data_list)
-        except Exception as e:
-            # 记录异常但不暴露给前端
-            print(f"Sync zabbix failed: {str(e)}")
-            return HttpResponse("Internal Server Error", status=500)
+                if node.enable_sync:
+                    instance_data_list.append({
+                        "instance_id": node.model_instance.id,
+                        "ip": node.ip_address
+                    })
+        # 如果没有提供参数，则同步默认模型的所有节点
+        else:
+            model_names = [ i.model.name for i in ModelConfig.objects.filter(is_manage=True) ]
+            queryset = ModelInstance.objects.filter(
+                model__name__in=model_names
+            ).prefetch_related('nodes')
+            
+            for instance in queryset:
+                node = instance.nodes.all().first()
+                if node.enable_sync:
+                    instance_data_list.append({
+                        "instance_id": node.model_instance.id,
+                        "ip": node.ip_address
+                    })
         
-        return HttpResponse("xxx")
+        if instance_data_list:
+            zabbix_sync_batch.delay(instance_data_list)
+        else:
+            return HttpResponse("No instances to sync", status=400)
+        
+        return HttpResponse("Sync task triggered successfully")
     @action(detail=False, methods=['post'])
     def associate_proxy(self, request):
         """
@@ -290,16 +311,25 @@ class NodesViewSet(ModelViewSet):
         }
         """
         node_ids = request.data.get('ids', [])
-        
+        proxy_id = request.data.get('proxy_id')
+
         if not node_ids:
             return JsonResponse(
                 {'error': 'ids参数不能为空'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+        print(proxy_id)
+        proxy = Proxy.objects.get(id=proxy_id)
+        proxy_info = {
+            "proxy_name": proxy.name,
+            "proxy_ip": proxy.ip_address,
+            "proxy_type": proxy.proxy_type,
+            "proxy_status": proxy.enabled,
+        }
         # 批量将Nodes的proxy字段设为NULL
         updated_count = Nodes.objects.filter(id__in=node_ids).update(proxy=None)
-        
+        zabbix_proxy_sync.delay(proxy_info=proxy_info,action="dissociate_host",node_ids=node_ids)
+
         return JsonResponse(
             {
                 'message': f'成功为{updated_count}个节点解除代理关联',
@@ -314,3 +344,57 @@ class ProxyViewSet(ModelViewSet):
         if self.action == 'retrieve':  # 单个对象查询
             return ProxyDetailSerializer
         return ProxySerializer
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # 检查是否有节点关联到此代理
+        if instance.nodes.exists():
+            return JsonResponse(
+                {"error": "无法删除代理，因为还有节点关联到此代理"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return super().destroy(request, *args, **kwargs)
+class ModelConfigViewSet(ModelViewSet):
+    queryset = ModelConfig.objects.all()
+    filter_backends = [filters.OrderingFilter,filters.SearchFilter,DjangoFilterBackend]
+    serializer_class = ModelConfigSerializer
+    filterset_fields = ['model']
+    ordering_fields = ['id', 'model', 'create_time', 'updated_time']
+
+
+class zabbixApi(APIView):
+    """
+    Zabbix API接口类
+    """    
+    def get(self, request):
+        """
+        获取Zabbix模板列表
+        """
+        try:
+            # 导入ZabbixAPI工具类
+            from .utils.zabbix import ZabbixAPI
+            # 创建ZabbixAPI实例
+            zapi = ZabbixAPI()
+            result = zapi.get_all_templates()
+            if result:
+            # 检查结果并返回
+                templates = [ {"label":i["host"],"value":i["templateid"]} for i in result]
+                templates = [ {"label":i["host"],"value":i["host"]} for i in result]
+
+                return JsonResponse({
+                    'code': 200,
+                    'data': templates,
+                    'message': 'success'
+                },status=status.HTTP_200_OK)
+            else:
+                return JsonResponse({
+                    'code': 500,
+                    'message': 'Failed to get templates from Zabbix',
+                    'data': result.get('error', {})
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+        except Exception as e:
+            return JsonResponse({
+                'code': 500,
+                'message': f'Error occurred: {str(e)}',
+                'data': None
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

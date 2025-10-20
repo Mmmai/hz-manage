@@ -3,7 +3,7 @@ import threading
 import requests
 import json
 import logging
-from . import zabbix_config
+from . import sys_config
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +35,10 @@ class ZabbixTokenManager:
 
     def initialize(self):
         """初始化 token 管理"""
-        if not zabbix_config.is_zabbix_sync_enabled():
+        if not sys_config.is_zabbix_sync_enabled():
             return
 
-        config = zabbix_config.get_all()
+        config = sys_config.get_all()
         self.url = config.get('zabbix_url')
         self.username = config.get('zabbix_username')
         self.password = config.get('zabbix_password')
@@ -93,8 +93,8 @@ class ZabbixAPI:
     _default_template_id = None
 
     def __init__(self):
-        self.url = zabbix_config.get('zabbix_url')
-        self.template = zabbix_config.get('zabbix_host_template')
+        self.url = sys_config.get('zabbix_url')
+        self.template = sys_config.get('zabbix_host_template')
         self.session = requests.Session()
         self.session.verify = False
         self.session.headers.update({"Content-Type": "application/json-rpc"})

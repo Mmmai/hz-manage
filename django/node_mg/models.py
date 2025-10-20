@@ -19,6 +19,7 @@ class Proxy(models.Model):
     port = models.PositiveIntegerField(default=22, verbose_name="代理端口")
     auth_user = models.CharField(max_length=100, blank=True, verbose_name="认证用户")
     auth_pass = models.CharField(max_length=100, blank=True, verbose_name="认证密码")
+    zbx_proxyid = models.CharField(max_length=50, null=True, blank=True, verbose_name="Zabbix代理ID")
     description = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -111,5 +112,23 @@ class NodeSyncZabbix(models.Model):
     completed_at = models.DateTimeField(auto_now=True,null=True)
     class Meta:
         db_table = 'tb_node_sync_zabbix'
+        managed = True
+        app_label = 'node_mg'
+
+class ModelConfig(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    model = models.OneToOneField(
+        "cmdb.Models", 
+        on_delete=models.CASCADE,
+        related_name="model_config",
+        verbose_name="资产模型"
+    )    
+    built_in = models.BooleanField(default=False)
+    is_manage = models.BooleanField(default=False)
+    zabbix_sync_info = models.JSONField(default=dict)
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    class Meta:
+        db_table = 'tb_model_config'
         managed = True
         app_label = 'node_mg'

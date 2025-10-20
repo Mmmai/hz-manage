@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import (Nodes,NodeInfoTask,NodeSyncZabbix,Proxy)
+from .models import (Nodes,NodeInfoTask,NodeSyncZabbix,Proxy,ModelConfig)
 from cmdb.models import ModelInstance,Models,ModelFieldMeta
 
 
@@ -137,3 +137,10 @@ class ProxyDetailSerializer(serializers.ModelSerializer):
     
     def get_node_count(self,obj):
         return Nodes.objects.filter(proxy=obj).count()
+class ModelConfigSerializer(serializers.ModelSerializer):
+    model_name = serializers.CharField(source='model.name', read_only=True)
+    model_verbose_name = serializers.CharField(source='model.verbose_name', read_only=True)
+    class Meta:
+        model = ModelConfig
+        # 可以自定义需要返回的字段
+        fields = '__all__'

@@ -373,7 +373,10 @@ const associate = async (ids: TransferKey[]) => {
 // 节点取消关联
 const cancelAssociate = async (ids: TransferKey[]) => {
   // 发起删除请求
-  let res = await proxy.$api.batchDissociateProxy({ ids: ids });
+  let res = await proxy.$api.batchDissociateProxy({
+    ids: ids,
+    proxy_id: proxyId.value,
+  });
   if (res.status == 200) {
     ElMessage({
       type: "success",

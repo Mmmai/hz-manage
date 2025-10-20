@@ -55,7 +55,7 @@ class ModelGroups(models.Model):
         if not self.editable:
             raise PermissionDenied('Non-editable model group cannot be deleted')
         with transaction.atomic():
-            default_group = self.__class__.get_default_group()
+            default_group = self.__class__.get_default_model_group()
             Models.objects.filter(model_group=self).update(model_group=default_group)
             super().delete(*args, **kwargs)
 

@@ -89,81 +89,81 @@ class UserInfoModelSerializer(serializers.ModelSerializer):
     # depth = 1
 
 class UserGroupModelSerializer(serializers.ModelSerializer):
-  # id = serializers.IntegerField()
-  # users_id = serializers.ListField()
-  # users_id = serializers.ListField(
-  #       child=serializers.IntegerField(), write_only=True, required=False
-  #   )
-  # users = UserInfoModelSerializer(many=True,read_only=True)
-  users = UserInfoModelSerializer(many=True,read_only=True)
-  roles = RoleForSer(many=True,read_only=True)
-  role_ids = serializers.ListField(
-        child=serializers.CharField(),
-        write_only=True,
-        required=False
-    )
-  user_ids = serializers.ListField(
-        child=serializers.CharField(),
-        write_only=True,
-        required=False
-    )
-  user_count = serializers.SerializerMethodField()
-  class Meta:
-    # 表名
-    model = UserGroup
-    # fields = "__all__"
-    fields = ["id","group_name","user_count","roles","users","role_ids","user_ids"]
-
-  def get_user_count(self,obj):
-    """获取角色关联的用户总数"""
-    try:
-      return UserInfo.objects.filter(groups=obj).count()
-    except Exception as e:
-      return 0
-  def create(self, validated_data):
-     role_ids = validated_data.pop('role_ids',[])
-     user_ids = validated_data.pop('user_ids',[])
-     newObj = UserGroup.objects.create(**validated_data)
-     # 处理角色列表
-     for i in role_ids:
-        try:
-            i_obj = Role.objects.get(id=i)
-            newObj.roles.add(i_obj)
-        except Role.DoesNotExist:
-          pass
-     # 处理角色列表
-     for i in user_ids:
-        try:
-            i_obj = UserInfo.objects.get(id=i)
-            newObj.roles.add(i_obj)
-        except UserInfo.DoesNotExist:
-          pass        
-     return newObj      
-  def update(self, instance, validated_data):
-      print(validated_data)
-      role_ids = validated_data.pop('role_ids',[])
-      user_ids = validated_data.pop('user_ids',[])
-      for attr, value in validated_data.items():
-          setattr(instance, attr, value)
-      # 处理多对多关系
-      if len(role_ids) > 0:
-          instance.roles.clear()
-          for i in role_ids:
-              try:
-                  i_obj = Role.objects.get(id=i)
-                  instance.roles.add(i_obj)
-              except Role.DoesNotExist:
-                  pass
-      if len(user_ids) > 0:
-          instance.users.clear()
-          for i in user_ids:
-              try:
-                  i_obj = UserInfo.objects.get(id=i)
-                  instance.users.add(i_obj)
-              except UserInfo.DoesNotExist:
-                  pass
-      instance.save()
-      return instance
+    # id = serializers.IntegerField()
+    # users_id = serializers.ListField()
+    # users_id = serializers.ListField(
+    #       child=serializers.IntegerField(), write_only=True, required=False
+    #   )
+    # users = UserInfoModelSerializer(many=True,read_only=True)
+    users = UserInfoModelSerializer(many=True,read_only=True)
+    roles = RoleForSer(many=True,read_only=True)
+    role_ids = serializers.ListField(
+          child=serializers.CharField(),
+          write_only=True,
+          required=False
+      )
+    user_ids = serializers.ListField(
+          child=serializers.CharField(),
+          write_only=True,
+          required=False
+      )
+    user_count = serializers.SerializerMethodField()
+    class Meta:
+      # 表名
+      model = UserGroup
+      # fields = "__all__"
+      fields = ["id","group_name","user_count","roles","users","role_ids","user_ids"]   
+    def get_user_count(self,obj):
+      """获取角色关联的用户总数"""
+      try:
+        return UserInfo.objects.filter(groups=obj).count()
+      except Exception as e:
+        return 0
+    def create(self, validated_data):
+       role_ids = validated_data.pop('role_ids',[])
+       user_ids = validated_data.pop('user_ids',[])
+       newObj = UserGroup.objects.create(**validated_data)
+       # 处理角色列表
+       for i in role_ids:
+          try:
+              i_obj = Role.objects.get(id=i)
+              newObj.roles.add(i_obj)
+          except Role.DoesNotExist:
+            pass
+       # 处理角色列表
+       for i in user_ids:
+          try:
+              i_obj = UserInfo.objects.get(id=i)
+              newObj.users.add(i_obj)
+          except UserInfo.DoesNotExist:
+            pass        
+       return newObj      
+    def update(self, instance, validated_data):
+        #   print(validated_data)
+        role_ids = validated_data.pop('role_ids',[])
+        user_ids = validated_data.pop('user_ids',[])
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.roles.clear()
+        # 处理多对多关系
+        if len(role_ids) > 0:
+            
+            for i in role_ids:
+                try:
+                    i_obj = Role.objects.get(id=i)
+                    instance.roles.add(i_obj)
+                except Role.DoesNotExist:
+                    pass
+        instance.users.clear()
+        if len(user_ids) > 0:
+            for i in user_ids:
+                try:
+                    i_obj = UserInfo.objects.get(id=i)
+                    instance.users.add(i_obj)
+                except UserInfo.DoesNotExist:
+                    pass
+        instance.save()
+        return instance
     # depth = 1
 # RoleModelSerializer  
 class RoleModelSerializer(serializers.ModelSerializer):

@@ -3,7 +3,6 @@ import uuid
 import ansible_runner
 import os,time,json
 from django.conf import settings
-# from . import zabbix_config
 from django.utils import timezone
 from datetime import datetime
 import logging
@@ -158,7 +157,7 @@ class AnsibleAPI:
                 }
             }
         }
-        server = zabbix_config.get('zabbix_server')
+        server = sys_config.get('zabbix_server')
         extra_vars = {
             'hostIp': host_ip,
             'serverIp': server,
@@ -247,7 +246,6 @@ class AnsibleAPI:
                         try:
                             # 提取 msg 字段并解析 JSON
                             res = event["event_data"]["res"]
-                            print(type(res))
                             # res = json.loads(res)
                             return json.loads(res["msg"])
                         except json.JSONDecodeError:

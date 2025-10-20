@@ -1,11 +1,14 @@
 import axios from '../utils/request'
 import commonFunc from '../utils/common'
-import { add, method } from 'lodash'
+import { add, get, method } from 'lodash'
 import { del } from 'vue-demi'
+import { de } from 'element-plus/es/locale/index.mjs'
 // import path from './path'
 const path = {
   nodes: "/api/v1/node_mg/nodes/",
   proxy: "/api/v1/node_mg/proxy/",
+  modelConfig: "/api/v1/node_mg/modelConfig/",
+  zabbixApi: "/api/v1/node_mg/zabbixApi/",
   // node_mg: "/api/v1/node_mg
 
 }
@@ -68,5 +71,21 @@ export default {
   },
   updateProxy(params) {
     return axios.request({ url: path.proxy + params.id + '/', method: 'patch', data: params })
+  },
+  getModelConfig(params) {
+    return axios.request({ url: path.modelConfig, method: 'get', params: params })
+  },
+  addModelConfig(params) {
+    return axios.request({ url: path.modelConfig, method: 'post', data: params })
+  },
+  updateModelConfig(params) {
+    return axios.request({ url: path.modelConfig + params.id + '/', method: 'patch', data: params })
+  },
+  deleteModelConfig(params) {
+    return axios.request({ url: path.modelConfig + params.id + '/', method: 'delete' })
+  },
+  // zabbix模板接口
+  getZabbixTemplate(params) {
+    return axios.request({ url: path.zabbixApi, method: 'get', params: params })
   },
 }

@@ -82,6 +82,13 @@
             ref="ciModelTemplateRef"
           />
         </el-tab-pane>
+        <el-tab-pane label="同步管理" name="model_node_sync">
+          <ciModelConfig
+            :modelId="modelId"
+            :modelFieldLists="modelFieldLists"
+            ref="ciModelConfigRef"
+          />
+        </el-tab-pane>
         <!--             @getCiModel="getModelInfo"
  -->
         <!-- <el-tab-pane label="Role" verbose_name="third">Role</el-tab-pane>
@@ -169,6 +176,7 @@ import type { ComponentSize, FormInstance, FormRules } from "element-plus";
 import ciModelField from "../../components/cmdb/ciModelField.vue";
 import ciModelUnique from "../../components/cmdb/ciModelUnique.vue";
 import ciModelTemplate from "../../components/cmdb/ciModelTemplateName.vue";
+import ciModelConfig from "../../components/cmdb/ciModelConfig.vue";
 import useCiStore from "@/store/cmdb/ci";
 // defineOptions({ name: "model" });
 
@@ -184,6 +192,8 @@ const goto_ciData = () => {
 const ciModelUniqueRef = ref("");
 const ciModelFieldRef = ref("");
 const ciModelTemplateRef = ref("");
+const ciModelConfigRef = ref("");
+
 const router = useRouter();
 const store = useStore();
 const { proxy } = getCurrentInstance();
@@ -209,13 +219,10 @@ const getModelInfo = async () => {
 // 子组件传递模型字段给父组件
 // const modelFieldLists = ref([]);
 const modelFieldLists = computed(() => {
-  let tempArr = new Array();
-  ciModel.value.field_groups?.forEach((item) => {
-    item.fields.forEach((item2) => {
-      tempArr.push(item2);
-    });
-  });
-  return tempArr;
+  if (!ciModel.value || !ciModel.value.field_groups) {
+    return [];
+  }
+  return ciModel.value.field_groups.flatMap((group) => group.fields || []);
 });
 // const setModelField = (params) => {
 //   modelFieldLists.value = params;
@@ -235,6 +242,10 @@ const handleClick = (tab: TabsPaneContext, event: Event) => {
     // ciModelFieldRef.value!.getModelField();
   } else if (tab.props.name === "instance_name_temp") {
     ciModelTemplateRef.value!.getModel();
+  } else if (tab.props.name === "model_node_sync") {
+    // ciModelGroupRef.value!.getModelGroup();
+    ciModelConfigRef.value!.getConfigData();
+    ciModelConfigRef.value!.getZabbixTemplates();
   }
 };
 const tabName = ref("field");
