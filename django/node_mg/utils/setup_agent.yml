@@ -1,0 +1,47 @@
+---
+- name: practise
+  gather_facts: false
+  hosts: all
+
+  tasks:
+    - name: get conf path
+      shell: grep "using configuration file:" /tmp/zabbix_agentd.log  | tail -1 | awk -F " " '{ print $5 }'
+      register: conf_path
+
+    - name: get ServerActive
+      shell: grep "^ServerActive=" "{{ conf_path.stdout }}" | grep -v "{{ server_ip }}," | grep -v "{{ server_ip }}$" 
+      register: ServerActive
+      failed_when: false
+
+    - name: setup ServerActive
+      lineinfile:
+        dest: "{{ conf_path.stdout }}"
+        state: present
+        regexp: "{{ ServerActive.stdout }}"
+        line: "{{ServerActive.stdout}},{{server_ip}}"
+      when: ServerActive.stdout
+
+    - name: get Server
+      shell: grep "^Server=" "{{ conf_path.stdout }}" | grep -v "{{ server_ip }}," | grep -v "{{ server_ip }}$"
+      register: Server
+      failed_when: false
+
+    - name: setup Server
+      lineinfile:
+        dest: "{{ conf_path.stdout }}"
+        state: present
+        regexp: "{{ Server.stdout }}"
+        line: "{{ Server.stdout }},{{server_ip}}"
+      when: Server.stdout
+
+    - name: check service file
+      stat:
+        path: /etc/systemd/system/zabbix_agentd.service
+      register: zabbix_agentd.service
+
+    - name: restart agentd
+      service:
+        name: zabbix_agentd
+        enabled: yes
+        state: restart
+      when: zabbix_agentd.service.stdout

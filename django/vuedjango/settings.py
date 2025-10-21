@@ -127,13 +127,13 @@ DATABASES = {
     # },
 }
 # 多数据库配置
-DATABASE_ROUTERS = ['vuedjango.db_router.database_router']
-DATABASE_APPS_MAPPING = {
-    'mlog': 'default',
-    'mapi': 'default',
-    'cmdb': 'default',
-    'node_mg': 'default'
-}
+#DATABASE_ROUTERS = ['vuedjango.db_router.database_router']
+# DATABASE_APPS_MAPPING = {
+#     'mlog': 'default',
+#     'mapi': 'default',
+#     'cmdb': 'default',
+#     'node_mg': 'default'
+# }
 
 CACHEOPS_REDIS = {
     'host': REDIS_HOST,

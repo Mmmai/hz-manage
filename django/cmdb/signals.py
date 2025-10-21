@@ -297,11 +297,6 @@ def _initialize_model_groups():
 def initialize_cmdb(sender, **kwargs):
     """初始化 CMDB 应用"""
     # 仅允许通过 migrate cmdb 命令触发初始化
-<<<<<<< HEAD
-=======
-    # if not all([kw in sys.argv for kw in ['cmdb', 'migrate']]) or sender.name != 'cmdb':
-    #     return
->>>>>>> hz-manager/cmdb_audit
     if sender.name != 'cmdb':
         return
     logger.info(f'Initializing CMDB application')

@@ -18,6 +18,7 @@ const path = {
   cmdbModelRef: "/api/v1/cmdb/model_ref/",
   cmdbReEncrypt: "/api/v1/cmdb/password_manage/re_encrypt/",
   cmdbSyncZabbix: "/api/v1/cmdb/zabbix_sync_host/",
+  auditLog: "/api/v1/cmdb/audit/logs/",
 }
 export default {
   // cmdb
