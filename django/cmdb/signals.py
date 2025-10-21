@@ -1,4 +1,7 @@
 import time
+import sys
+import traceback
+import logging
 from django.dispatch import receiver, Signal
 from django.db.models.signals import post_save, post_delete, pre_save, pre_delete, post_migrate
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -13,23 +16,8 @@ from node_mg.utils import sys_config
 from .utils.zabbix import ZabbixAPI
 from .constants import ValidationType
 from .message import instance_group_relation_updated
-from .models import (
-    ModelGroups,
-    Models,
-    ModelFieldGroups,
-    ValidationRules,
-    ModelFields,
-    UniqueConstraint,
-    ModelInstance,
-    ModelFieldMeta,
-    ModelInstanceGroup,
-    ModelInstanceGroupRelation,
-    RelationDefinition,
-    Relations,
-)
-import sys
-import traceback
-import logging
+from .models import *
+from audit.context import audit_context
 logger = logging.getLogger(__name__)
 
 
@@ -300,25 +288,32 @@ def initialize_cmdb(sender, **kwargs):
     if sender.name != 'cmdb':
         return
     logger.info(f'Initializing CMDB application')
-    try:
-        # 创建模型分组
-        _initialize_model_groups()
+    with audit_context(
+        request_id='migrate_cmdb_init',
+        correlation_id='migrate_cmdb_init',
+        operator='system',
+        operator_ip='127.0.0.1',
+        comment='初始化 CMDB 应用'
+    ):
+        try:
+            # 创建模型分组
+            _initialize_model_groups()
 
-        # 创建验证规则
-        _initialize_validation_rules()
+            # 创建验证规则
+            _initialize_validation_rules()
 
-        # 创建内置模型及其字段配置
-        model_groups = {group.name: group for group in ModelGroups.objects.all()}
-        for model_name, model_config in BUILT_IN_MODELS.items():
-            group_name = model_config.get('model_group')
-            model_group = model_groups.get(group_name, model_groups['others'])
-            _create_model_and_fields(model_name, model_config, model_group)
+            # 创建内置模型及其字段配置
+            model_groups = {group.name: group for group in ModelGroups.objects.all()}
+            for model_name, model_config in BUILT_IN_MODELS.items():
+                group_name = model_config.get('model_group')
+                model_group = model_groups.get(group_name, model_groups['others'])
+                _create_model_and_fields(model_name, model_config, model_group)
 
-        logger.info(f'CMDB application initialized successfully')
-    except OperationalError:
-        logger.warning("Database not ready, skipping initialization")
-    except Exception as e:
-        logger.error(f"Error during CMDB initialization: {traceback.format_exc()}")
+            logger.info(f'CMDB application initialized successfully')
+        except OperationalError:
+            logger.warning("Database not ready, skipping initialization")
+        except Exception as e:
+            logger.error(f"Error during CMDB initialization: {traceback.format_exc()}")
 
 
 @receiver(post_save, sender=ModelFieldMeta)

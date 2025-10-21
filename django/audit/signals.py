@@ -102,7 +102,7 @@ def log_changes(sender, instance, created, **kwargs):
         return
 
     context_snapshot = get_audit_context()
-    logger.info(f"Context snapshot captured: {context_snapshot}")
+    # logger.debug(f"Context snapshot captured: {context_snapshot}")
 
     new_static_snapshot = get_static_field_snapshot(instance)
     
@@ -110,7 +110,7 @@ def log_changes(sender, instance, created, **kwargs):
     old_dynamic_snapshot = getattr(instance, '_old_dynamic_fields_snapshot', {})
 
     def delayed_process(context=context_snapshot):
-        logger.info(f"Context for delayed process: {context}")
+        # logger.debug(f"Context for delayed process: {context}")
         action = 'CREATE' if created else 'UPDATE'
 
         new_dynamic_snapshot = get_dynamic_field_snapshot(instance)
