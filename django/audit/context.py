@@ -5,12 +5,11 @@ from typing import Dict, Any
 
 # 默认的上下文状态
 DEFAULT_CONTEXT: Dict[str, Any] = {
-    "operator_id": None,
-    "operator_name": None,
     "channel": "api",
     "request_id": None,
     "correlation_id": None,
-    "source_ip": None,
+    "operator": "anonymous",
+    "operator_ip": None,
     "comment": ""
 }
 
