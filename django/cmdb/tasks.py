@@ -15,7 +15,6 @@ from .excel import ExcelHandler
 from .utils.zabbix import ZabbixAPI
 from .utils.name_generator import generate_instance_name
 from .utils.assign_proxy import ProxyAssignment as pa
-from .message import instance_name_batch_update_audit
 from audit.context import audit_context
 
 logger = logging.getLogger(__name__)
