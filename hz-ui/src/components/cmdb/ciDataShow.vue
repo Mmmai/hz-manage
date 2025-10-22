@@ -265,7 +265,7 @@
 
       <!-- <el-table-column label="Date" width="120" @row-click="editCiData">
                   <template #default="scope">{{ scope.row.date }}</template>
-</el-table-column> -->
+      </el-table-column> -->
       <el-table-column
         v-for="(data, index) in hasConfigField"
         :property="data.name"

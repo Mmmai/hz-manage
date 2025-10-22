@@ -42,7 +42,7 @@
         </div>
       </div>
     </div>
-    <div class="card table-container">
+    <div class="card table-container table-main" style="width: 100%">
       <!-- 审计日志表格 -->
       <el-table :data="auditLogs" style="width: 100%" border height="900">
         <el-table-column prop="target_type" label="操作对象" width="120">
@@ -302,7 +302,7 @@ const fetchAuditLogs = async () => {
         timeRange.value && timeRange.value[0] ? timeRange.value[0] : undefined,
       time_before:
         timeRange.value && timeRange.value[1] ? timeRange.value[1] : undefined,
-      keyword: searchKeyword.value || undefined,
+      search: searchKeyword.value || undefined,
     };
 
     // 调用API获取数据

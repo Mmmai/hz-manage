@@ -3,9 +3,7 @@
 mysql:8
 docker run -p 3306:3306 --name mysql -e MYSQL_ROOT_PASSWORD=(密码与setting.py中的一致) -d mysql:8.0
 
-create database teligen-ui;
-
-create database cmdb;
+create database autoOps;
 
 python-3.7.9
 
@@ -14,6 +12,7 @@ python-3.7.9
 docker run --restart=always -p 6379:6379 --name redis -d redis:latest
 
 根据django/vuedjango/settings.py中的database访问信息创建数据库。
+默认settings.py中的mysql和redis地址为域名访问，按需修改或者本机添加hosts中的域名映射即可
 
 # 后端部署
 

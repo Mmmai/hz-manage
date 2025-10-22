@@ -74,9 +74,15 @@
         </div>
       </div>
     </div>
-    <div class="card table-container">
+    <div class="card table-container table-main" style="width: 100%">
       <!-- 审计日志表格 -->
-      <el-table :data="auditLogs" style="width: 100%" border height="900">
+      <el-table
+        :data="auditLogs"
+        style="flex: 1"
+        border
+        table-layout="fixed"
+        highlight-current-row
+      >
         <el-table-column prop="target_type" label="操作对象" width="120">
           <template #default="scope">
             <el-tooltip content="查看详情" placement="right" effect="dark">
@@ -243,11 +249,10 @@ const shortcuts = [
 // 设置默认时间范围为当天00:00到23:59
 const setDefaultTimeRange = () => {
   const start = new Date();
-  start.setHours(0, 0, 0, 0); // 设置为当天00:00:00
-
   const end = new Date();
   end.setHours(23, 59, 59, 999); // 设置为当天23:59:59
-
+  start.setTime(end.getTime() - 3600 * 1000 * 24 * 30); //设置为一个月前的时间
+  start.setHours(0, 0, 0, 0); // 设置为当天00:00:00
   // 转换为北京时间字符串格式
   const formatDate = (date) => {
     const year = date.getFullYear();
@@ -381,7 +386,7 @@ const fetchAuditLogs = async () => {
         timeRange.value && timeRange.value[0] ? timeRange.value[0] : undefined,
       time_before:
         timeRange.value && timeRange.value[1] ? timeRange.value[1] : undefined,
-      keyword: searchKeyword.value || undefined,
+      search: searchKeyword.value || undefined,
     };
 
     // 调用API获取数据
@@ -431,7 +436,7 @@ onMounted(() => {
 
 .table-container {
   flex: 1;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .filter-container {
