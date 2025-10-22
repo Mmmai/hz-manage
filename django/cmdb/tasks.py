@@ -15,6 +15,8 @@ from .excel import ExcelHandler
 from .utils.zabbix import ZabbixAPI
 from .utils.name_generator import generate_instance_name
 from .utils.assign_proxy import ProxyAssignment as pa
+from .message import instance_name_batch_update_audit
+from audit.context import audit_context
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +157,7 @@ def process_import_data(self, excel_data, model_id, request):
 
 
 @shared_task(bind=True)
-def update_instance_names_for_model_template_change(self, model_id, old_template, new_template):
+def update_instance_names_for_model_template_change(self, model_id, old_template, new_template, context):
     logger.info(f"Starting update of instance_name for model {model_id}")
     cache_key = f'rename_task_{self.request.id}'
     logger.info(f"Cache key for task {self.request.id}: {cache_key}")
@@ -189,7 +191,7 @@ def update_instance_names_for_model_template_change(self, model_id, old_template
             return
 
         logger.info(f"Found {instances.count()} instances to update for model {model.name}")
-
+        # logger.debug(f'Audit context passed to task: {context}')
         # 收集所有需要更改的实例和新名称，在提交事务前进行唯一性检查
         name_updates = []
         name_conflicts = []
@@ -232,17 +234,18 @@ def update_instance_names_for_model_template_change(self, model_id, old_template
                 name_conflicts.append((instance.id, new_name))
                 result_dict['conflict'] += 1
                 continue
-
+                
             # 名称有变化且无冲突
             if new_name != instance.instance_name:
-                try:
-                    instance = ModelInstance.objects.get(id=instance.id)
-                    instance.instance_name = new_name
-                    instance.save(update_fields=['instance_name', 'update_time'])
-                    result_dict['updated'] += 1
-                except Exception as e:
-                    logger.error(f"Error updating instance {instance.id}: {str(e)}")
-                    result_dict['failed'] += 1
+                with audit_context(**context):
+                    try:
+                        instance = ModelInstance.objects.get(id=instance.id)
+                        instance.instance_name = new_name
+                        instance.save(update_fields=['instance_name', 'update_time'])
+                        result_dict['updated'] += 1
+                    except Exception as e:
+                        logger.error(f"Error updating instance {instance.id}: {str(e)}")
+                        result_dict['failed'] += 1
             else:
                 result_dict['skipped'] += 1
 

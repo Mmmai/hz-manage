@@ -27,7 +27,7 @@ class AuditContextMixin:
             "operator_ip": source_ip,
         }
         # logger.debug(f"Context data prepared in initial(): {context_data}")
-
+        self.audit_context = context_data
         self._audit_context_manager = audit_context(**context_data)
         self._audit_context_manager.__enter__()
         # logger.debug(f"--- Entering Audit Context via initial(): {context_data} ---")
@@ -39,3 +39,7 @@ class AuditContextMixin:
             if hasattr(self, '_audit_context_manager'):
                 self._audit_context_manager.__exit__(None, None, None)
                 # logger.debug("--- Exiting Audit Context ---")
+                
+    def get_audit_context(self):
+        """获取当前请求的审计上下文。"""
+        return getattr(self, 'audit_context', {})

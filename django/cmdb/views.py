@@ -165,11 +165,14 @@ class ModelsViewSet(CmdbBaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        audit_context = self.get_audit_context()
+        # logger.debug(f'Audit context for instance name change: {audit_context}')
         # 触发异步任务
         task = update_instance_names_for_model_template_change.delay(
             str(model.id),
             [],
-            list(model.instance_name_template)
+            list(model.instance_name_template),
+            context=audit_context
         )
 
         cache_key = f"rename_task_{task.id}"
