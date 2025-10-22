@@ -2,9 +2,11 @@ import logging
 from rest_framework import viewsets, pagination
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.filters import SearchFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Case, When, Value, CharField
+from django.db import transaction
 
 from .models import AuditLog
 from .serializers import AuditLogSerializer
@@ -19,13 +21,37 @@ class AuditLogPagination(pagination.PageNumberPagination):
     page_size_query_param = 'page_size'
     max_page_size = 100
 
+class CustomAuditSearchFilter(SearchFilter):
+    def get_search_fields(self, view, request):
+        search_fields = super().get_search_fields(view, request)
+        return search_fields + ['action_display']
+
+    def filter_queryset(self, request, queryset, view):
+        annotated_queryset = queryset.annotate(
+            action_display=Case(
+                When(action='CREATE', then=Value('创建')),
+                When(action='UPDATE', then=Value('更新')),
+                When(action='DELETE', then=Value('删除')),
+                default=Value(''), # 提供一个默认值
+                output_field=CharField()
+            )
+        )
+        
+        return super().filter_queryset(request, annotated_queryset, view)
+
 
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):    
     queryset = AuditLog.objects.all().select_related('content_type').prefetch_related('details')
     serializer_class = AuditLogSerializer
     pagination_class = AuditLogPagination
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [DjangoFilterBackend, CustomAuditSearchFilter]
     filterset_class = AuditLogFilter
+    search_fields = [
+        'operator',
+        'operator_ip',
+        'comment',
+        'action',
+    ]
     ordering_fields = ['timestamp', 'operator', 'operator_ip','action']
     ordering = ['-timestamp']
         
@@ -33,6 +59,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     def history(self, request):
         public_name = request.query_params.get('target_type')
         obj_id = request.query_params.get('object_id')
+        include_init = request.query_params.get('include_init', 'false').lower() == 'true'
 
         if not public_name or not obj_id:
             return Response({"Error": "Parameter target_type and object_id are required."}, status=400)
@@ -73,9 +100,12 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             field_ids = [str(field_id) for field_id in field_ids]
             combined_query |= Q(content_type=field_ct, object_id__in=field_ids)
 
-        # logger.debug(f"Constructed combined query for history: {combined_query}")
+        if not include_init:
+            combined_query &= ~Q(correlation_id='migrate_cmdb_init')
+
+        logger.debug(f"Constructed combined query for history: {combined_query}")
         final_query = AuditLog.objects.filter(combined_query).distinct().order_by('-timestamp')
-        # logger.debug(f"Final query for history has {final_query.count()} records.")
+        logger.debug(f"Final query for history has {final_query.count()} records.")
         page = self.paginate_queryset(final_query)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
@@ -83,5 +113,3 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
 
         serializer = self.get_serializer(final_query, many=True)
         return Response(serializer.data)
-    
-    
