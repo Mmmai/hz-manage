@@ -8,7 +8,7 @@ from cmdb.utils import password_handler, sys_config
 import os,json
 import logging
 logger = logging.getLogger(__name__)
-
+from audit.context import audit_context
 def get_instance_field_value(obj, field_name):
     """获取节点关联的实例IP"""
     field_values = ModelFieldMeta.objects.filter(
@@ -28,6 +28,7 @@ def get_instance_field_value_info(obj, field_name_list):
     field_values = ModelFieldMeta.objects.filter(
         model_instance=obj
     ).select_related('model_fields')
+
     # print(field_values)
     for field in field_values:
         if field.model_fields.name in field_name_list:
@@ -38,11 +39,11 @@ def get_instance_field_value_info(obj, field_name_list):
             else:
                 # print(field.model_fields.name,field.data)
                 res[field.model_fields.name] = field.data
-        else:
-            res[field.model_fields.name] = None
+        # else:
+        #     res[field.model_fields.name] = None
     return res
 
-def update_asset_info(instance, info):
+def update_asset_info(instance, info,context):
     """
     更新资产信息
     
@@ -79,27 +80,28 @@ def update_asset_info(instance, info):
                 logger.debug(f"字段更新: {k},旧{v},新{info_value}")
                 update_fields[k] = info_value
     # 如果有需要更新的字段且实例存在，则执行更新操作
-    if update_fields and instance:
-        serializer = ModelInstanceSerializer(
-            instance=instance,
-            data={
-                "model": instance.model.id,
-                "fields": update_fields
-            },
-            partial=True,
-            context={
-                'request': None,
-                'from_excel': False
-            }
-        )
-        if serializer.is_valid(raise_exception=True):
-            try:
-                serializer.save()
-                logger.info(f"update field success. update_fields: {update_fields}")
-            except Exception as e:
-                logger.error(f"Failed to save updated fields: {e}")
-    else:
-        logger.debug(f"{instance.instance_name} has no fields to update")
+    with audit_context(**context):
+        if update_fields and instance:
+            serializer = ModelInstanceSerializer(
+                instance=instance,
+                data={
+                    "model": instance.model.id,
+                    "fields": update_fields
+                },
+                partial=True,
+                context={
+                    'request': None,
+                    'from_excel': False
+                }
+            )
+            if serializer.is_valid(raise_exception=True):
+                try:
+                    serializer.save()
+                    logger.info(f"update field success. update_fields: {update_fields}")
+                except Exception as e:
+                    logger.error(f"Failed to save updated fields: {e}")
+        else:
+            logger.debug(f"{instance.instance_name} has no fields to update")
 def node_inventory(node):
     """
     获取节点的配置信息，生成Ansible inventory格式的字典

@@ -3,40 +3,8 @@
     <div class="card filter-card">
       <!-- 筛选区域 -->
       <div class="filter-container">
-        <!-- 模型筛选 -->
-        <div class="filter-row">
-          <div class="filter-item">
-            <span class="filter-label">操作对象：</span>
-            <el-tag
-              v-for="(label, value, index) in targetTypeMap"
-              :key="index"
-              :type="selectedModels.includes(value) ? 'primary' : 'info'"
-              @click="toggleModel(value)"
-              class="filter-tag"
-            >
-              {{ label }}
-            </el-tag>
-          </div>
-        </div>
-
         <!-- 其他筛选条件 -->
         <div class="filter-row filter-row-flex">
-          <!-- 操作类型筛选 -->
-          <div class="filter-item">
-            <span class="filter-label">操作类型：</span>
-            <el-tag
-              v-for="tag in operationTags"
-              :key="tag.value"
-              :type="
-                selectedOperations.includes(tag.value) ? 'primary' : 'info'
-              "
-              @click="toggleOperation(tag.value)"
-              class="filter-tag"
-            >
-              {{ tag.label }}
-            </el-tag>
-          </div>
-
           <!-- 时间筛选 -->
           <div class="filter-item">
             <span class="filter-label">时间范围：</span>
@@ -94,7 +62,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="operator" label="操作人" width="120" />
-        <el-table-column prop="operator_ip" label="操作人IP" width="120" />
+        <el-table-column prop="operator_ip" label="操作人IP" width="150" />
 
         <el-table-column
           prop="comment"
@@ -136,42 +104,21 @@
     </el-drawer>
   </div>
 </template>
+
 <script lang="ts" setup>
-import {
-  ref,
-  computed,
-  watch,
-  getCurrentInstance,
-  onMounted,
-  reactive,
-  nextTick,
-} from "vue";
+import { ref, computed, watch, getCurrentInstance, onMounted } from "vue";
 import { Search } from "@element-plus/icons-vue";
 import { ElDrawer } from "element-plus";
 import { JsonViewer } from "vue3-json-viewer";
 import "vue3-json-viewer/dist/vue3-json-viewer.css";
 const { proxy } = getCurrentInstance();
-
-// 模型标签选项
-const modelTags = ref([
-  { value: "host", label: "主机" },
-  { value: "switch", label: "交换机" },
-  // 可以根据实际需求添加更多模型
-]);
-
-// 操作类型标签选项
-const operationTags = ref([
-  { value: "CREATE", label: "添加" },
-  { value: "DELETE", label: "删除" },
-  { value: "UPDATE", label: "修改" },
-]);
-
-// 已选中的模型
-const selectedModels = ref([]);
-
-// 已选中的操作类型
-const selectedOperations = ref([]);
-
+// 组件参数
+const props = defineProps({
+  instanceId: {
+    type: String,
+    default: "",
+  },
+});
 // 时间范围
 const timeRange = ref([]);
 const shortcuts = [
@@ -240,13 +187,13 @@ const shortcuts = [
   },
 ];
 
-// 设置默认时间范围为当天00:00到23:59
+// 设置默认时间范围为1个月当天00:00到23:59
 const setDefaultTimeRange = () => {
   const start = new Date();
-  start.setHours(0, 0, 0, 0); // 设置为当天00:00:00
-
   const end = new Date();
   end.setHours(23, 59, 59, 999); // 设置为当天23:59:59
+  start.setTime(end.getTime() - 3600 * 1000 * 24 * 30); //设置为一个月前的时间
+  start.setHours(0, 0, 0, 0); // 设置为当天00:00:00
 
   // 转换为北京时间字符串格式
   const formatDate = (date) => {
@@ -265,30 +212,6 @@ const setDefaultTimeRange = () => {
 
 // 搜索关键词
 const searchKeyword = ref("");
-
-// 切换模型筛选条件
-const toggleModel = (model) => {
-  const index = selectedModels.value.indexOf(model);
-  if (index === -1) {
-    selectedModels.value.push(model);
-  } else {
-    selectedModels.value.splice(index, 1);
-  }
-  // 触发筛选
-  fetchAuditLogs();
-};
-
-// 切换操作类型筛选条件
-const toggleOperation = (operation) => {
-  const index = selectedOperations.value.indexOf(operation);
-  if (index === -1) {
-    selectedOperations.value.push(operation);
-  } else {
-    selectedOperations.value.splice(index, 1);
-  }
-  // 触发筛选
-  fetchAuditLogs();
-};
 
 // 处理时间范围变化
 const handleTimeChange = (val) => {
@@ -335,11 +258,12 @@ const targetTypeMap = {
   model_field_group: "模型字段组",
   validation_rule: "校验规则",
   model_instance_group: "实例组",
-  // 可以根据实际需求添加更多模型
 };
+
 const formatTargetType = (type) => {
   return targetTypeMap[type] || type;
 };
+
 const actionTypeMap = {
   CREATE: "添加",
   UPDATE: "修改",
@@ -350,6 +274,7 @@ const actionTypeMap = {
 const formatActionType = (action) => {
   return actionTypeMap[action] || action;
 };
+
 const formatActionTag = (action: string) => {
   // CREATE -> return primary
   // UPDATE -> return success
@@ -370,13 +295,9 @@ const fetchAuditLogs = async () => {
     const params = {
       page: currentPage.value,
       page_size: pageSize.value,
-      // 添加筛选条件
-      target_type: selectedModels.value.length
-        ? selectedModels.value.join(",")
-        : undefined,
-      action: selectedOperations.value.length
-        ? selectedOperations.value.join(",")
-        : undefined,
+      // 固定筛选target_type为model_instance
+      target_type: "model_instance",
+      object_id: props.instanceId,
       time_after:
         timeRange.value && timeRange.value[0] ? timeRange.value[0] : undefined,
       time_before:
@@ -385,8 +306,7 @@ const fetchAuditLogs = async () => {
     };
 
     // 调用API获取数据
-    // 这里需要替换为实际的API调用
-    const res = await proxy.$api.getAuditLog(params);
+    const res = await proxy.$api.getCiAuditLog(params);
 
     auditLogs.value = res.data.results;
     total.value = res.data.count;
@@ -398,8 +318,6 @@ const fetchAuditLogs = async () => {
 
 // 重置筛选条件
 const resetFilters = () => {
-  selectedModels.value = [];
-  selectedOperations.value = [];
   timeRange.value = [];
   searchKeyword.value = "";
   setDefaultTimeRange();
@@ -408,22 +326,31 @@ const resetFilters = () => {
 };
 
 // 当筛选条件变化时重新获取数据
-// watch(
-//   [selectedModels, selectedOperations, timeRange],
-//   () => {
-//     fetchAuditLogs();
-//   },
-//   { deep: true }
-// );
+watch(
+  [timeRange],
+  () => {
+    fetchAuditLogs();
+  },
+  { deep: true }
+);
+
 // 页面加载时获取数据
 onMounted(() => {
   setDefaultTimeRange();
   fetchAuditLogs();
 });
+// 定义方法给组件调用
+const getData = () => {
+  setDefaultTimeRange();
+  fetchAuditLogs();
+};
+defineExpose({
+  getData,
+});
 </script>
 <style scoped lang="scss">
 .filter-card {
-  height: 100px;
+  height: 60px;
   padding: 10px 15px;
   overflow-y: auto;
   flex: none;

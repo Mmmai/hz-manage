@@ -235,7 +235,7 @@ def ansible_task(self, node, module, args):
         }
 
 @shared_task(bind=True)
-def ansible_getinfo_batch(self, node_ids):
+def ansible_getinfo_batch(self, node_ids,context):
     """
     批量执行 Ansible 获取系统信息任务
     
@@ -249,14 +249,14 @@ def ansible_getinfo_batch(self, node_ids):
     results = {}
     
     # 使用 Celery 的 group 功能并行执行多个任务
-    job = group(ansible_getinfo.s(node_id) for node_id in node_ids)
+    job = group(ansible_getinfo.s(node_id,context) for node_id in node_ids)
     
     # 执行并等待结果
     # result = job.apply_async()
     chord_result = job | aggregate_results.s()
     return chord_result.apply_async()     
 @shared_task(bind=True, max_retries=2)
-def ansible_getinfo(self, node_id):
+def ansible_getinfo(self, node_id,context):
     """
     执行 Ansible 获取系统信息的异步任务。
 
@@ -319,7 +319,7 @@ def ansible_getinfo(self, node_id):
         if sys_config.is_asset_auto_update_enabled():
             logger.info(f"Updating asset info for node {node.ip_address}")
             try:
-                update_asset_info(node.model_instance, info)
+                update_asset_info(node.model_instance, info,context)
             except Exception as e:
                 logger.error(f"Failed to update asset info for node {node.ip_address}: {str(e)}")
 

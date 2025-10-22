@@ -9,7 +9,8 @@ from rest_framework.decorators import api_view
 from cmdb.models import ModelInstance
 from django.db.models import Q,OuterRef,Subquery
 from django_filters.rest_framework import DjangoFilterBackend
-
+from audit.context import audit_context
+from audit.mixins import AuditContextMixin
 from .serializers import NodesSerializer,ProxySerializer,ProxyDetailSerializer,ModelConfigSerializer
 from .tasks import (
     ansible_getinfo,
@@ -39,7 +40,7 @@ def test(request):
  
 
  
-class NodesViewSet(ModelViewSet):
+class NodesViewSet(AuditContextMixin,ModelViewSet):
     """
     节点信息视图集，用于管理节点信息的增删改查操作
     
@@ -164,14 +165,16 @@ class NodesViewSet(ModelViewSet):
     @action(detail=False, methods=['post'])
     def get_inventory(self, request):
         """触发资产信息获取"""
+        # 
+        audit_context = self.get_audit_context()
         node_id = request.data.get('id', None)
         # all_failed = request.data.get('all', False)
         if node_id:
             # 判断id是否为列表
             if isinstance(node_id, list):
-                task = ansible_getinfo_batch.delay(node_id)
+                task = ansible_getinfo_batch.delay(node_id,audit_context)
             else:
-                task = ansible_getinfo.delay(node_id)
+                task = ansible_getinfo.delay(node_id,audit_context)
             #task = ansible_getinfo.delay(node_id)
             return JsonResponse({
                     'status': 'success',

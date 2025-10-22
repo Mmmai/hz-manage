@@ -277,13 +277,15 @@
       >
         <!-- 新增管理口跳转 -->
         <template #default="scope" v-if="data.name === 'mgmt_ip'">
-          <el-link
-            :href="`https://${scope.row[data.name]}`"
-            type="primary"
-            target="_blank"
-          >
-            {{ scope.row[data.name] }}</el-link
-          >
+          <el-tooltip content="跳转管理口" placement="right" effect="dark">
+            <el-link
+              :href="`https://${scope.row[data.name]}`"
+              type="primary"
+              target="_blank"
+            >
+              {{ scope.row[data.name] }}<el-icon><TopRight /></el-icon
+            ></el-link>
+          </el-tooltip>
         </template>
         <!-- 列表显示布尔值按钮，以及模型关联、枚举类的label值 -->
         <template
@@ -1136,13 +1138,13 @@
           v-if="!commitActionAdd"
           >222</el-tab-pane
         >
-        <el-tab-pane
-          label="变更记录"
-          name="changelog"
-          disabled
-          v-if="!commitActionAdd"
-          >Role</el-tab-pane
-        >
+        <el-tab-pane label="变更记录" name="changelog" v-if="!commitActionAdd">
+          <ciDataAudit
+            ref="ciDataAuditRef"
+            v-if="currentRow && currentRow.id"
+            :instanceId="currentRow.id"
+          />
+        </el-tab-pane>
       </el-tabs>
     </template>
     <template #footer>
@@ -1581,6 +1583,8 @@
 import ciDataUpload from "./ciDataUpload.vue";
 import ciDataTableCol from "./ciDataTableCol.vue";
 import ciDataShowPass from "./ciDataShowPass.vue";
+import ciDataAudit from "./ciDataAudit.vue";
+
 import ciDataqCode from "./ciDataqCode.vue";
 import {
   Check,
@@ -1634,6 +1638,9 @@ import { useRoute } from "vue-router";
 const route = useRoute();
 const store = useStore();
 const emit = defineEmits(["getTree"]);
+// 审计功能
+const ciDataAuditRef = ref("");
+
 const props = defineProps(["ciModelId", "treeData", "currentNodeId"]);
 const showTree = defineModel("showTree");
 // const treeData = defineModel("treeData");
@@ -2986,6 +2993,9 @@ const activeName = ref("modelField");
 const handleClick = (tab: TabsPaneContext, event: Event) => {
   // console.log(tab, event);
   console.log(activeName.value);
+  if (tab.props.name == "changelog") {
+    ciDataAuditRef.value!.getData();
+  }
 };
 defineExpose({
   getHasConfigField,

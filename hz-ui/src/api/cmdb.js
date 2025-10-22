@@ -57,7 +57,7 @@ export default {
   },
   // 模型唯一标识更新
   updateInstanceName(params) {
-    return axios.request({ url: path.cmdbCiModel + params + 'rename_instances/', method: 'post' })
+    return axios.request({ url: path.cmdbCiModel + params + '/rename_instances/', method: 'post' })
   },
   updateInstanceNameTask(params) {
     return axios.request({ url: path.cmdbCiModel + 'rename_status/', method: 'get', params: params })

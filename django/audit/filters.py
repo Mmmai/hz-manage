@@ -11,7 +11,7 @@ class AuditLogFilter(filters.FilterSet):
     operator_ip = filters.CharFilter(field_name='operator_ip', lookup_expr='icontains')
     action = filters.CharFilter(field_name='action', lookup_expr='exact')
     object_id = filters.CharFilter(field_name='object_id', lookup_expr='exact')
-    time_from_to = filters.DateTimeFromToRangeFilter(field_name='timestamp')
+    time = filters.DateTimeFromToRangeFilter(field_name='timestamp')
     
     
     class Meta:
