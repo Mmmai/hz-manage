@@ -29,7 +29,7 @@ else:
 
 
 @shared_task(bind=True)
-def process_import_data(self, excel_data, model_id, request):
+def process_import_data(self, excel_data, model_id, request, _audit_context):
     try:
         task_id = self.request.id
         cache_key = f'import_task_{task_id}'
@@ -95,9 +95,10 @@ def process_import_data(self, excel_data, model_id, request):
                                 'from_excel': True
                             }
                         )
-                        if serializer.is_valid(raise_exception=True):
-                            serializer.save()
-                            results['updated'] += 1
+                        with audit_context(**_audit_context):
+                            if serializer.is_valid(raise_exception=True):
+                                serializer.save()
+                                results['updated'] += 1
                     else:
                         # TODO: get user name from request
                         data.update({
@@ -113,9 +114,10 @@ def process_import_data(self, excel_data, model_id, request):
                                 'from_excel': True
                             }
                         )
-                        if serializer.is_valid(raise_exception=True):
-                            serializer.save()
-                            results['created'] += 1
+                        with audit_context(**_audit_context):
+                            if serializer.is_valid(raise_exception=True):
+                                serializer.save()
+                                results['created'] += 1
 
                 except Exception as e:
                     logger.error(f"Error preparing data for instance: {traceback.format_exc()}")
