@@ -1268,6 +1268,46 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
         except Exception as e:
             logger.error(f"Error deleting group: {str(e)}")
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+    @action(detail=False, methods=['get'])
+    def tree(self, request):
+        model_id = request.query_params.get('model')
+        if not model_id:
+            return Response({'detail': 'Missing model parameter'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            root_groups = ModelInstanceGroup.objects.filter(model_id=model_id, parent=None).order_by('order')
+            context = self.get_serializer_context()
+            
+            # 获取所有分组与实例的关联关系
+            all_group_ids = ModelInstanceGroup.objects.filter(model_id=model_id).values_list('id', flat=True)
+            relations = ModelInstanceGroupRelation.objects.filter(
+                group_id__in=all_group_ids
+            ).values('group_id', 'instance_id')
+
+            relation_map = {}
+            instance_ids = set()
+            for r in relations:
+                gid = str(r['group_id'])
+                iid = str(r['instance_id'])
+                relation_map.setdefault(gid, []).append(iid)
+                instance_ids.add(iid)
+            context['relation_map'] = relation_map
+
+            # 获取instance_name
+            instance_map = {}
+            if instance_ids:
+                inst_qs = ModelInstance.objects.filter(id__in=instance_ids).values('id', 'instance_name')
+                instance_map = {str(row['id']): row['instance_name'] for row in inst_qs}
+            context['instance_map'] = instance_map
+
+            serializer = ModelInstanceGroupTreeSerializer(root_groups, many=True, context=context)
+            
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error building instance group tree for model {model_id}: {str(e)}", exc_info=True)
+            return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @model_instance_group_relation_schema
@@ -1281,6 +1321,8 @@ class ModelInstanceGroupRelationViewSet(CmdbBaseViewSet):
     def get_serializer_class(self):
         if self.action == 'create_relations':
             return BulkInstanceGroupRelationSerializer
+        elif self.action == 'tree':
+            return ModelInstanceGroupTreeSerializer
         return ModelInstanceGroupRelationSerializer
 
     @action(detail=False, methods=['post'])

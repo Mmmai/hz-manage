@@ -1709,6 +1709,48 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
             raise
 
 
+class ModelInstanceGroupTreeSerializer(ModelInstanceGroupSerializer):
+    instances = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ModelInstanceGroup
+        fields = ['id', 'label', 'children', 'count', 'built_in', 'level', 'model', 'parent', 'instances']
+
+    def get_children(self, obj):
+        children = ModelInstanceGroup.objects.filter(parent=obj).order_by('order')
+        return ModelInstanceGroupTreeSerializer(children, many=True, context=self.context).data
+    
+    def get_instances(self, obj):
+        # 检查是否为叶子节点
+        if not ModelInstanceGroup.objects.filter(parent=obj).exists():
+            instance_map = self.context.get('instance_map', {})
+            instance_ids = self.context.get('relation_map', {}).get(str(obj.id), [])
+            
+            instances_data = []
+            for iid in instance_ids:
+                instance_name = instance_map.get(iid)
+                if instance_name is not None:
+                    instances_data.append({'id': iid, 'instance_name': instance_name})
+            return instances_data
+        
+        return None
+    
+    def to_representation(self, instance):
+        representation = {
+            'id': str(instance.id),
+            'label': instance.label,
+            'instance_count': self.get_count(instance),
+            'built_in': instance.built_in,
+            'level': instance.level,
+            'children': self.get_children(instance),
+        }
+        
+        instances_data = self.get_instances(instance)
+        if instances_data is not None:
+            representation['instances'] = instances_data
+            
+        return representation
+
 class ModelInstanceBasicViewSerializer(ModelInstanceSerializer):
     class Meta:
         model = ModelInstance

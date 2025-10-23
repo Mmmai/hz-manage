@@ -375,7 +375,7 @@ class ModelFieldMeta(models.Model):
     update_user = models.CharField(max_length=20, null=False, blank=False)
 
 @register_audit(
-    snapshot_fields={'id', 'label', 'parent', 'path'},
+    snapshot_fields={'id', 'label', 'path'},
     ignore_fields={'update_time', 'create_time'},
     public_name='model_instance_group'
 )
@@ -399,21 +399,28 @@ class ModelInstanceGroup(models.Model):
     update_user = models.CharField(max_length=20, null=False, blank=False)
 
     def save(self, *args, **kwargs):
-        self._skip_signal = kwargs.pop('skip_signal', getattr(self, '_skip_signal', False))
+        skip_signal = kwargs.pop('_skip_signal', False)
+        self.path = self.get_path()
+        
+        if skip_signal:
+            self._skip_signal = True
+            
         super().save(*args, **kwargs)
+        
+        if hasattr(self, '_skip_signal'):
+            delattr(self, '_skip_signal')
 
     def get_path(self):
         if self.parent:
             return f'{self.parent.path}/{self.label}'
         return self.label
 
-    # 弃用该函数，统一由post_save信号触发更新
     def update_child_path(self):
         """更新子分组的path"""
         children = self.__class__.objects.filter(parent=self)
         for child in children:
             child.path = child.get_path()
-            child.save()
+            child.save(update_fields=['path', 'update_time'], _skip_signal=True)
             child.update_child_path()
 
     @classmethod
