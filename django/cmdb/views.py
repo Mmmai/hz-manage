@@ -857,10 +857,12 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             if not celery_manager.check_heartbeat():
                 raise ValidationError({'detail': 'Celery worker is not available'})
 
+            audit_context = self.get_audit_context()
             task = process_import_data.delay(
                 excel_data,
                 model_id,
-                request_context
+                request_context,
+                audit_context
             )
             results['cache_key'] = f'import_task_{task.id}'
             cache_results = {
