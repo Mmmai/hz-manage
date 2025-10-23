@@ -574,6 +574,9 @@ class UniqueConstraintSerializer(serializers.ModelSerializer):
         """自定义验证方法"""
         model = data.get('model')
         field_ids = data.get('fields', [])
+        
+        if not model:
+            model = self.instance.model if self.instance else None
 
         existing = UniqueConstraint.objects.filter(model=model)
 
@@ -590,7 +593,6 @@ class UniqueConstraintSerializer(serializers.ModelSerializer):
             model=model,
             id__in=field_ids
         ).values_list('id', flat=True))
-
         # 找出不存在的字段ID
         invalid_field_ids = set(str(id) for id in field_ids) - set(str(id) for id in valid_field_ids)
         if invalid_field_ids:
@@ -1708,6 +1710,48 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
             raise
 
 
+class ModelInstanceGroupTreeSerializer(ModelInstanceGroupSerializer):
+    instances = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ModelInstanceGroup
+        fields = ['id', 'label', 'children', 'count', 'built_in', 'level', 'model', 'parent', 'instances']
+
+    def get_children(self, obj):
+        children = ModelInstanceGroup.objects.filter(parent=obj).order_by('order')
+        return ModelInstanceGroupTreeSerializer(children, many=True, context=self.context).data
+    
+    def get_instances(self, obj):
+        # 检查是否为叶子节点
+        if not ModelInstanceGroup.objects.filter(parent=obj).exists():
+            instance_map = self.context.get('instance_map', {})
+            instance_ids = self.context.get('relation_map', {}).get(str(obj.id), [])
+            
+            instances_data = []
+            for iid in instance_ids:
+                instance_name = instance_map.get(iid)
+                if instance_name is not None:
+                    instances_data.append({'id': iid, 'instance_name': instance_name})
+            return instances_data
+        
+        return None
+    
+    def to_representation(self, instance):
+        representation = {
+            'id': str(instance.id),
+            'label': instance.label,
+            'instance_count': self.get_count(instance),
+            'built_in': instance.built_in,
+            'level': instance.level,
+            'children': self.get_children(instance),
+        }
+        
+        instances_data = self.get_instances(instance)
+        if instances_data is not None:
+            representation['instances'] = instances_data
+            
+        return representation
+
 class ModelInstanceBasicViewSerializer(ModelInstanceSerializer):
     class Meta:
         model = ModelInstance
@@ -1884,6 +1928,7 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
                     existing_query.delete()
 
                     # 创建新的关联关系
+                    new_relations = []
                     logger.info(f'Creating new relations for instance {instance_id}')
                     for group in groups:
                         logger.info(f'Creating relation for group {group.label}')
@@ -1895,6 +1940,7 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
                         )
                         hostgroups.append(group.path)
                         created_relations.append(relation)
+                        new_relations.append(relation)
                     invalidate_obj(instance)
                     new_groups_snapshot = [
                         {
@@ -1902,7 +1948,7 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
                             'label': relation.group.label,
                             'path': relation.group.path
                         }
-                        for relation in created_relations
+                        for relation in new_relations
                     ]
                     instance_group_relations_audit.send(
                         sender=ModelInstanceGroupRelation,

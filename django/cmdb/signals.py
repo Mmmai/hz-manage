@@ -484,8 +484,8 @@ def prepare_delete_zabbix_host(sender, instance, **kwargs):
 #     b = time.perf_counter()
 #     logger.info(f'Deleting Zabbix host for instance {instance.id} completed in {b - a}s')
 
-
-@receiver(post_save, sender=ModelInstanceGroup)
+# 此信号弃用，实例自身path由模型方法主动计算，子节点path更新由update_descendant_paths处理
+# @receiver(post_save, sender=ModelInstanceGroup)
 def handle_group_path(sender, instance, created, **kwargs):
     """
     处理实例分组path更新和Zabbix主机组同步
@@ -537,6 +537,39 @@ def handle_group_path(sender, instance, created, **kwargs):
     except Exception as e:
         logger.error(f"Update group path error: {str(e)}")
 
+@receiver(pre_save, sender=ModelInstanceGroup)
+def cache_old_path(sender, instance, **kwargs):
+    """在保存前缓存旧的path值"""
+    if not instance.pk or getattr(instance, '_skip_signal', False):
+        return
+    try:
+        old_instance = sender.objects.get(pk=instance.pk)
+        instance._old_path = old_instance.path
+    except sender.DoesNotExist:
+        instance._old_path = None
+            
+@receiver(post_save, sender=ModelInstanceGroup)
+def update_descendant_paths(sender, instance, created, **kwargs):
+    """
+    当一个 ModelInstanceGroup 的 path 发生变化时，
+    异步或在独立事务中递归更新其所有后代分组的 path。
+    """
+    if created:
+        return
+    if getattr(instance, '_skip_signal', False) or kwargs.get('_skip_path_update', False):
+        return
+
+    old_path = getattr(instance, '_old_path', None)
+    new_path = instance.path
+
+    # 只有在 path 确实发生变化时才执行更新
+    if old_path != new_path:
+        # logger.debug(f"Path for group '{instance.label}' changed from '{old_path}' to '{new_path}'. Triggering descendant path update.")
+
+        def do_update():
+            instance.update_child_path()
+
+        transaction.on_commit(do_update)
 
 @receiver(pre_delete, sender=ModelInstanceGroup)
 def prepare_delete_instance_group(sender, instance, **kwargs):

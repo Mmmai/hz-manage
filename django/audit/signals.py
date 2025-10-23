@@ -12,6 +12,7 @@ from .snapshots import (
     get_dynamic_field_snapshot,
     get_prefetched_snapshot,
     get_static_field_snapshot,
+    get_field_value_snapshot
 )
 from cmdb.message import instance_group_relations_audit
 
@@ -121,8 +122,12 @@ def log_changes(sender, instance, created, **kwargs):
             old_val = old_static_snapshot.get(key)
             new_val = new_static_snapshot.get(key)
             if old_val != new_val:
-                static_changes[key] = [old_val, new_val]
+                static_changes[key] = [
+                    get_field_value_snapshot(old_val),
+                    get_field_value_snapshot(new_val)
+                ]
 
+        resolver = registry.get_dynamic_value_resolver(sender)
         dynamic_changes = []
         all_dynamic_keys = old_dynamic_snapshot.keys() | new_dynamic_snapshot.keys()
         for key in all_dynamic_keys:
@@ -132,6 +137,11 @@ def log_changes(sender, instance, created, **kwargs):
             new_val = new_field_data.get('value')
 
             if old_val != new_val:
+                if resolver:
+                    model_field = new_field_data.get('model_field') or old_field_data.get('model_field')
+                    if model_field:
+                        old_val = resolver(model_field, old_val)
+                        new_val = resolver(model_field, new_val)
                 dynamic_changes.append({
                     'name': key,
                     'verbose_name': new_field_data.get('verbose_name') or old_field_data.get('verbose_name', ''),
@@ -140,17 +150,21 @@ def log_changes(sender, instance, created, **kwargs):
                 })
 
         if created:
-            static_changes = {key: [None, val] for key, val in new_static_snapshot.items()}
+            static_changes = {
+                key: [None, get_field_value_snapshot(val)]
+                for key, val in new_static_snapshot.items()
+            }
             dynamic_changes = [{
                 'name': key,
                 'verbose_name': data.get('verbose_name', ''),
                 'old_value': None,
-                'new_value': data.get('value'),
+                'new_value': resolver(data.get('model_field'), data.get('value')) if resolver and data.get('model_field') else data.get('value')
             } for key, data in new_dynamic_snapshot.items()]
 
         if not created and not static_changes and not dynamic_changes:
             return
         
+        # 不记录 ModelFields 仅 order 字段的变更
         if not created and sender.__name__ == 'ModelFields' and \
             static_changes.keys() == {'order'} and not dynamic_changes:
             return
@@ -193,14 +207,21 @@ def log_deletion(sender, instance, **kwargs):
     static_snapshot = get_static_field_snapshot(instance)
     dynamic_snapshot = get_dynamic_field_snapshot(instance)
 
-    static_changes = {key: [val, None] for key, val in static_snapshot.items()}
-    dynamic_changes = [{
-        'name': key,
-        'verbose_name': data.get('verbose_name', ''),
-        'old_value': data.get('value'),
-        'new_value': None,
-    } for key, data in dynamic_snapshot.items()]
-    
+    resolver = registry.get_dynamic_value_resolver(sender)
+
+    static_changes = {key: [get_field_value_snapshot(val), None] for key, val in static_snapshot.items()}
+    dynamic_changes = []
+    for key, data in dynamic_snapshot.items():
+        old_val = data.get('value')
+        model_field = data.get('model_field')
+        if resolver and model_field:
+            old_val = resolver(model_field, old_val)
+        dynamic_changes.append({
+            'name': key,
+            'verbose_name': data.get('verbose_name', ''),
+            'old_value': old_val,
+            'new_value': None,
+        })
     
     comment = context.get("comment") or build_audit_comment("DELETE", instance)
 

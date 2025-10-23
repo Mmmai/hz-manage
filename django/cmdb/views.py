@@ -401,55 +401,66 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
     ordering_fields = ['create_time', 'update_time']
     search_fields = ['model', 'instance_name', 'create_user', 'update_user']
 
+    def _get_serializer_context_for_instances(self, instances):
+        """
+        为一个实例列表构建并返回序列化器所需的完整上下文。
+        这个方法统一了 list 和 retrieve 的上下文准备逻辑。
+        """
+        context = self.get_serializer_context()
+        instance_ids = [instance.id for instance in instances]
+
+        # 获取字段元数据
+        field_meta_map = {}
+        meta_qs = ModelFieldMeta.objects.filter(
+            model_instance_id__in=instance_ids
+        ).select_related('model_fields', 'model_fields__validation_rule')
+        for meta in meta_qs:
+            field_meta_map.setdefault(str(meta.model_instance_id), []).append(meta)
+        context['field_meta'] = field_meta_map
+
+        # 获取分组信息
+        instance_group_map = {}
+        group_relations = ModelInstanceGroupRelation.objects.filter(
+            instance_id__in=instance_ids
+        ).select_related('group').values('instance_id', 'group_id', 'group__path')
+        for rel in group_relations:
+            instance_group_map.setdefault(str(rel['instance_id']), []).append({
+                'group_id': str(rel['group_id']),
+                'group_path': rel['group__path']
+            })
+        context['instance_group'] = instance_group_map
+
+        # 获取引用实例的名称
+        ref_model_ids = set(
+            meta_qs.filter(
+                model_fields__type=FieldType.MODEL_REF
+            ).values_list('data', flat=True)
+        )
+        ref_instances_map = {}
+        if ref_model_ids:
+            ref_instances = ModelInstance.objects.filter(id__in=ref_model_ids).values('id', 'instance_name')
+            ref_instances_map = {str(inst['id']): inst['instance_name'] for inst in ref_instances}
+        context['ref_instances'] = ref_instances_map
+        
+        return context
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        context = self._get_serializer_context_for_instances([instance])
+        serializer = self.get_serializer(instance, context=context)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
-        ref_model_ids = set()
-        field_meta = {}
-        instance_group = {}
         if page is not None:
-            instance_ids_on_page = [instance.id for instance in page]
-
-            # 获取全部字段元数据
-            meta_qs = ModelFieldMeta.objects.filter(
-                model_instance_id__in=instance_ids_on_page
-            ).select_related('model_fields', 'model_fields__validation_rule')
-            for meta in meta_qs:
-                field_meta.setdefault(str(meta.model_instance_id), []).append(meta)
-            # 获取引用类型的id
-            ref_model_qs = meta_qs.filter(
-                model_fields__type=FieldType.MODEL_REF
-            ).exclude(
-                model_fields__ref_model_id__isnull=True
-            ).values_list('model_fields__ref_model_id', flat=True)
-            for ref_model_id in ref_model_qs:
-                ref_model_ids.add(str(ref_model_id))
-            # 获取分组
-            instance_group_data = ModelInstanceGroupRelation.objects.filter(
-                instance__in=instance_ids_on_page
-            ).select_related('group').values('instance_id', 'group_id', 'group__path')
-            for group in instance_group_data:
-                instance_group.setdefault(str(group['instance_id']), []).append({
-                    'group_id': str(group['group_id']),
-                    'group_path': group['group__path']
-                })
-
-        ref_instances = {}
-        if ref_model_ids:
-            instances = ModelInstance.objects.filter(
-                model_id__in=ref_model_ids
-            ).values('id', 'instance_name')
-            ref_instances = {str(instance['id']): instance['instance_name'] for instance in instances}
-
-        context = self.get_serializer_context()
-        context['field_meta'] = field_meta
-        context['ref_instances'] = ref_instances
-        context['instance_group'] = instance_group
-
-        serializer = self.get_serializer(page, many=True, context=context)
-
-        if page is not None:
+            context = self._get_serializer_context_for_instances(page)
+            serializer = self.get_serializer(page, many=True, context=context)
             return self.get_paginated_response(serializer.data)
+
+        context = self._get_serializer_context_for_instances(queryset)
+        serializer = self.get_serializer(queryset, many=True, context=context)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def _apply_filters(self, queryset, model, filter_params):
@@ -1258,6 +1269,46 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
         except Exception as e:
             logger.error(f"Error deleting group: {str(e)}")
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+    @action(detail=False, methods=['get'])
+    def tree(self, request):
+        model_id = request.query_params.get('model')
+        if not model_id:
+            return Response({'detail': 'Missing model parameter'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            root_groups = ModelInstanceGroup.objects.filter(model_id=model_id, parent=None).order_by('order')
+            context = self.get_serializer_context()
+            
+            # 获取所有分组与实例的关联关系
+            all_group_ids = ModelInstanceGroup.objects.filter(model_id=model_id).values_list('id', flat=True)
+            relations = ModelInstanceGroupRelation.objects.filter(
+                group_id__in=all_group_ids
+            ).values('group_id', 'instance_id')
+
+            relation_map = {}
+            instance_ids = set()
+            for r in relations:
+                gid = str(r['group_id'])
+                iid = str(r['instance_id'])
+                relation_map.setdefault(gid, []).append(iid)
+                instance_ids.add(iid)
+            context['relation_map'] = relation_map
+
+            # 获取instance_name
+            instance_map = {}
+            if instance_ids:
+                inst_qs = ModelInstance.objects.filter(id__in=instance_ids).values('id', 'instance_name')
+                instance_map = {str(row['id']): row['instance_name'] for row in inst_qs}
+            context['instance_map'] = instance_map
+
+            serializer = ModelInstanceGroupTreeSerializer(root_groups, many=True, context=context)
+            
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error building instance group tree for model {model_id}: {str(e)}", exc_info=True)
+            return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @model_instance_group_relation_schema
@@ -1271,6 +1322,8 @@ class ModelInstanceGroupRelationViewSet(CmdbBaseViewSet):
     def get_serializer_class(self):
         if self.action == 'create_relations':
             return BulkInstanceGroupRelationSerializer
+        elif self.action == 'tree':
+            return ModelInstanceGroupTreeSerializer
         return ModelInstanceGroupRelationSerializer
 
     @action(detail=False, methods=['post'])

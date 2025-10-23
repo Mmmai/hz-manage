@@ -19,6 +19,7 @@ class AuditRegistry:
         """统一的注册方法。"""
         kwargs['ignore_fields'] = set(kwargs.get('ignore_fields', []))
         self._config[model] = kwargs
+        
         public_name = kwargs.get('public_name')
         if public_name:
             if public_name in self._public_name_map:
@@ -47,4 +48,16 @@ class AuditRegistry:
         """通过模型类获取公开名称"""
         return self._model_map.get(model)
     
+    def get_snapshot_fields(self, model: Type[models.Model]) -> set:
+        """获取模型的快照字段配置"""
+        return set(self.config(model).get('snapshot_fields', {'id'}))
+
+    def get_field_resolver(self, model: Type[models.Model], field_name: str) -> callable:
+        """获取模型的字段解析器配置"""
+        return self.config(model).get('field_resolvers', {}).get(field_name)
+
+    def get_dynamic_value_resolver(self, model: Type[models.Model]) -> callable:
+        """获取模型的动态值解析器配置"""
+        return self.config(model).get('dynamic_value_resolver')
+
 registry = AuditRegistry()
