@@ -12,13 +12,17 @@ import uuid
 import logging
 import functools
 from .constants import ValidationType
-
+from .resolver import resolve_model_field_id_list, resolve_dynamic_value
 from audit.decorators import register_audit
-from audit.snapshots import get_field_definition_snapshot, get_dynamic_field_snapshot
+from audit.snapshots import get_dynamic_field_snapshot
 
 logger = logging.getLogger(__name__)
 
-@register_audit(ignore_fields={'update_time', 'create_time'}, public_name='model_group')
+@register_audit(
+    snapshot_fields={'id', 'name', 'verbose_name'},
+    ignore_fields={'update_time', 'create_time'}, 
+    public_name='model_group'
+)
 class ModelGroups(models.Model):
     class Meta:
         db_table = 'model_groups'
@@ -62,7 +66,14 @@ class ModelGroups(models.Model):
             Models.objects.filter(model_group=self).update(model_group=default_group)
             super().delete(*args, **kwargs)
 
-@register_audit(ignore_fields={'update_time', 'create_time'}, public_name='model')
+@register_audit(
+    snapshot_fields={'id', 'name', 'verbose_name'},
+    ignore_fields={'update_time', 'create_time'}, 
+    public_name='model',
+    field_resolvers={
+        'instance_name_template': resolve_model_field_id_list
+    }
+)
 class Models(models.Model):
     class Meta:
         db_table = 'models'
@@ -112,7 +123,11 @@ class Models(models.Model):
                 update_user='system'
             )
 
-@register_audit(ignore_fields={'update_time', 'create_time'}, public_name='model_field_group')
+@register_audit(
+    snapshot_fields={'id', 'name', 'verbose_name'},
+    ignore_fields={'update_time', 'create_time'}, 
+    public_name='model_field_group'
+)
 class ModelFieldGroups(models.Model):
     class Meta:
         db_table = 'model_field_groups'
@@ -150,7 +165,11 @@ class ModelFieldGroups(models.Model):
         )
         return default_field_group
 
-@register_audit(ignore_fields={'update_time', 'create_time'}, public_name='validation_rule')
+@register_audit(
+    snapshot_fields={'id', 'name', 'verbose_name', 'field_type', 'type', 'rule'},
+    ignore_fields={'update_time', 'create_time'}, 
+    public_name='validation_rule'
+)
 class ValidationRules(models.Model):
     """验证规则表"""
     class Meta:
@@ -174,7 +193,6 @@ class ValidationRules(models.Model):
 
     # @classmethod
     # def get_enum_dict(cls, rule_id):
-
     #     @cached_as(ValidationRules, timeout=60 * 60)
     #     def _get_enum_dict(rule_id):
     #         """获取枚举规则字典"""
@@ -185,7 +203,6 @@ class ValidationRules(models.Model):
     #         except (cls.DoesNotExist, json.JSONDecodeError):
     #             pass
     #         return {}
-
     #     return _get_enum_dict(rule_id)
 
     @staticmethod
@@ -215,7 +232,11 @@ class ValidationRules(models.Model):
         ValidationRules.get_enum_dict.cache_clear()
 
 
-@register_audit(ignore_fields={'update_time', 'create_time'}, public_name='model_field')
+@register_audit(
+    snapshot_fields={'id', 'name', 'verbose_name', 'type', 'unit', 'ref_model'},
+    ignore_fields={'update_time', 'create_time'},
+    public_name='model_field'
+)
 class ModelFields(models.Model):
     class Meta:
         db_table = 'model_fields'
@@ -257,7 +278,14 @@ class ModelFieldPreference(models.Model):
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
 
-@register_audit(ignore_fields={'update_time', 'create_time'}, public_name='unique_constraint')
+@register_audit(
+    snapshot_fields={'id', 'fields', 'validate_null'},
+    ignore_fields={'update_time', 'create_time'}, 
+    public_name='unique_constraint',
+    field_resolvers={
+        'fields': resolve_model_field_id_list
+    }
+)
 class UniqueConstraint(models.Model):
     class Meta:
         db_table = 'unique_constraint'
@@ -278,8 +306,10 @@ class UniqueConstraint(models.Model):
 @register_audit(
     is_field_aware=True,
     dynamic_snapshot_func=get_dynamic_field_snapshot,
+    snapshot_fields={'id', 'instance_name', 'input_mode'},
     ignore_fields={'update_time'},
-    public_name='model_instance'
+    public_name='model_instance',
+    dynamic_value_resolver=resolve_dynamic_value
 )
 class ModelInstance(models.Model):
     class Meta:
@@ -344,7 +374,11 @@ class ModelFieldMeta(models.Model):
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
 
-@register_audit(ignore_fields={'update_time', 'create_time'}, public_name='model_instance_group')
+@register_audit(
+    snapshot_fields={'id', 'label', 'parent', 'path'},
+    ignore_fields={'update_time', 'create_time'},
+    public_name='model_instance_group'
+)
 class ModelInstanceGroup(models.Model):
     class Meta:
         db_table = 'model_instance_group'

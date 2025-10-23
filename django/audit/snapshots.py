@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 from threading import local
-
+from django.db.models import Model, QuerySet, ForeignKey, ManyToManyField, JSONField
 from django.forms.models import model_to_dict
 
 from .registry import registry
@@ -13,14 +13,35 @@ def get_static_field_snapshot(instance):
         return {}
     config = registry.config(instance.__class__)
     ignore_fields = set(config.get('ignore_fields', ()))
-    if instance._meta.pk:
-        ignore_fields.add(instance._meta.pk.name)
-    data = {}
-    for field in instance._meta.fields:
-        if field.name in ignore_fields:
+    ignore_fields.add(instance._meta.pk.name)
+    
+    snapshot = {}
+    
+    # TODO: 使用 select_related 和 prefetch_related 来优化查询
+
+    for field in instance._meta.get_fields():
+        # 跳过反向关系、多对多关系和需要忽略的字段
+        if not field.concrete or field.many_to_many or field.name in ignore_fields:
             continue
-        data.update(model_to_dict(instance, fields=[field.name]))
-    return data
+
+        field_name = field.name
+        field_value = getattr(instance, field_name)
+
+
+        resolver = registry.get_field_resolver(instance.__class__, field_name)
+        if resolver:
+            # 如果有注册的解析器，使用它来处理值
+            snapshot[field_name] = resolver(field_value)
+            continue
+
+        # 如果没有解析器，则执行默认逻辑
+        if isinstance(field, ForeignKey):
+            snapshot[field_name] = field_value
+            continue
+            
+        snapshot[field_name] = field_value
+
+    return snapshot
 
 
 def get_dynamic_field_snapshot(instance):
@@ -30,6 +51,7 @@ def get_dynamic_field_snapshot(instance):
         fv.model_fields.name: {
             "value": fv.data,
             "verbose_name": fv.model_fields.verbose_name,
+            "model_field": fv.model_fields
         }
         for fv in instance.field_values.all().select_related('model_fields')
     }
@@ -104,3 +126,33 @@ def get_field_definition_snapshot(model):
             "order": field.order,
         }
     return snapshot
+
+
+def get_field_value_snapshot(value):
+    """
+    为给定的值创建一个详细的、可序列化的快照。
+    - 如果值是模型实例，则根据注册表的配置生成快照字典。
+    - 如果值是 QuerySet 或列表，则为其中每个实例生成快照。
+    - 否则，返回原始值。
+    """
+    if isinstance(value, Model):
+        model_class = value.__class__
+        if not registry.is_registered(model_class):
+            return str(value.pk) # 如果模型未注册，则回退到只存主键
+
+        snapshot_fields = registry.get_snapshot_fields(model_class)
+        snapshot = {}
+        for field in snapshot_fields:
+            if hasattr(value, field):
+                snapshot[field] = getattr(value, field)
+        # 确保主键总是存在
+        if 'id' not in snapshot and hasattr(value, 'id'):
+            snapshot['id'] = value.id
+        return snapshot
+
+    if isinstance(value, (QuerySet, list, tuple)):
+        # 递归地为列表或QuerySet中的每个项目创建快照
+        return [get_field_value_snapshot(item) for item in value]
+
+    # 对于基本类型（字符串、数字、布尔值等），直接返回
+    return value
