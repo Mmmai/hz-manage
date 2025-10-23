@@ -378,7 +378,7 @@
               link
               type="primary"
               :icon="Edit"
-              @click="editCiData(scope.row, true)"
+              @click="goToEdit(scope.row)"
             ></el-button>
           </el-tooltip>
           <el-tooltip
@@ -1634,7 +1634,8 @@ import ciDataFilter from "./ciDataFilter.vue";
 import { useStore } from "vuex";
 import { useClipboard } from "vue-clipboard3";
 import { debounce } from "lodash";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
+const router = useRouter();
 const route = useRoute();
 const store = useStore();
 const emit = defineEmits(["getTree"]);
@@ -2608,6 +2609,11 @@ const addCiData = () => {
 
 const currentRow = ref({});
 const beforeEditCiDataForm = ref({});
+
+const goToEdit = (params) => {
+  router.push({ path: route.path + "/" + params.id });
+};
+
 const editCiData = (params, edit = false) => {
   isCopy.value = false;
   ciDrawer.value = true;

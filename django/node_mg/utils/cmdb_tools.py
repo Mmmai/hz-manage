@@ -5,7 +5,7 @@ from cmdb.models import (
     )
 from cmdb.serializers import ModelInstanceSerializer
 from cmdb.utils import password_handler, sys_config
-import os,json
+import os,json,uuid
 import logging
 logger = logging.getLogger(__name__)
 from audit.context import audit_context
@@ -43,7 +43,7 @@ def get_instance_field_value_info(obj, field_name_list):
         #     res[field.model_fields.name] = None
     return res
 
-def update_asset_info(instance, info,context):
+def update_asset_info(instance, info,context=None):
     """
     更新资产信息
     
@@ -80,6 +80,15 @@ def update_asset_info(instance, info,context):
                 logger.debug(f"字段更新: {k},旧{v},新{info_value}")
                 update_fields[k] = info_value
     # 如果有需要更新的字段且实例存在，则执行更新操作
+    if not context:
+        correlation_id = str(uuid.uuid4())
+        context = {                    
+            "request_id":correlation_id,
+            "correlation_id":correlation_id,
+            "operator":'system',
+            "operator_ip":'127.0.0.1',
+            "comment":'首次添加时，自动获取并更新资产信息'
+            }    
     with audit_context(**context):
         if update_fields and instance:
             serializer = ModelInstanceSerializer(

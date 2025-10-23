@@ -121,9 +121,12 @@ const currentMenIndex = ref("name");
   /* border-right: 1px; */
   /* color: var(--el-text-color-regular); */
   /* background-color: var(--el-color-primary-light-5) !important; */
+  background-color: var(--color-background, #ffffff) !important;
 }
 .el-aside {
   /* background-color: var(--el-color-primary-light-5) !important; */
+  background-color: var(--color-background, #ffffff) !important;
+  border-right: solid 1px var(--el-border-color, #dcdfe6) !important;
 }
 h3 {
   line-height: 40px;
@@ -163,4 +166,123 @@ h3 {
   color: #fff;
   background-color: var(--el-color-primary-light-3);
 } */
+</style>
+
+<style>
+/* 确保子菜单也能正确应用主题背景色 */
+.el-menu--vertical,
+.el-menu--popup,
+.el-sub-menu .el-menu {
+  background-color: var(--color-background, #ffffff) !important;
+}
+
+.el-menu--vertical .el-menu-item,
+.el-menu--popup .el-menu-item,
+.el-sub-menu .el-menu-item {
+  background-color: var(--color-background, #ffffff) !important;
+}
+
+.el-menu--vertical .el-menu-item:hover,
+.el-menu--popup .el-menu-item:hover,
+.el-sub-menu .el-menu-item:hover {
+  background-color: var(--el-fill-color-light, #f5f7fa) !important;
+}
+
+.el-menu--vertical .el-sub-menu__title,
+.el-menu--popup .el-sub-menu__title,
+.el-sub-menu .el-sub-menu__title {
+  background-color: var(--color-background, #ffffff) !important;
+}
+
+.el-menu--vertical .el-sub-menu__title:hover,
+.el-menu--popup .el-sub-menu__title:hover,
+.el-sub-menu .el-sub-menu__title:hover {
+  background-color: var(--el-fill-color-light, #f5f7fa) !important;
+}
+
+/* 暗黑模式下的特殊处理 */
+html.dark .el-menu--vertical,
+html.dark .el-menu--popup,
+html.dark .el-sub-menu .el-menu,
+html.dark .el-menu--vertical .el-menu-item,
+html.dark .el-menu--popup .el-menu-item,
+html.dark .el-sub-menu .el-menu-item,
+html.dark .el-menu--vertical .el-sub-menu__title,
+html.dark .el-menu--popup .el-sub-menu__title,
+html.dark .el-sub-menu .el-sub-menu__title,
+html.dark .el-menu,
+html.dark .el-aside {
+  background-color: var(--color-background, #181818) !important;
+}
+
+/* 自定义主题处理 */
+html.theme-blue .el-menu--vertical,
+html.theme-blue .el-menu--popup,
+html.theme-blue .el-sub-menu .el-menu,
+html.theme-blue .el-menu--vertical .el-menu-item,
+html.theme-blue .el-menu--popup .el-menu-item,
+html.theme-blue .el-sub-menu .el-menu-item,
+html.theme-blue .el-menu--vertical .el-sub-menu__title,
+html.theme-blue .el-menu--popup .el-sub-menu__title,
+html.theme-blue .el-sub-menu .el-sub-menu__title,
+html.theme-blue .el-menu,
+html.theme-blue .el-aside {
+  background-color: var(--color-background, #f0f8ff) !important;
+}
+
+html.theme-green .el-menu--vertical,
+html.theme-green .el-menu--popup,
+html.theme-green .el-sub-menu .el-menu,
+html.theme-green .el-menu--vertical .el-menu-item,
+html.theme-green .el-menu--popup .el-menu-item,
+html.theme-green .el-sub-menu .el-menu-item,
+html.theme-green .el-menu--vertical .el-sub-menu__title,
+html.theme-green .el-menu--popup .el-sub-menu__title,
+html.theme-green .el-sub-menu .el-sub-menu__title,
+html.theme-green .el-menu,
+html.theme-green .el-aside {
+  background-color: var(--color-background, #f0fff8) !important;
+}
+
+html.theme-purple .el-menu--vertical,
+html.theme-purple .el-menu--popup,
+html.theme-purple .el-sub-menu .el-menu,
+html.theme-purple .el-menu--vertical .el-menu-item,
+html.theme-purple .el-menu--popup .el-menu-item,
+html.theme-purple .el-sub-menu .el-menu-item,
+html.theme-purple .el-menu--vertical .el-sub-menu__title,
+html.theme-purple .el-menu--popup .el-sub-menu__title,
+html.theme-purple .el-sub-menu .el-sub-menu__title,
+html.theme-purple .el-menu,
+html.theme-purple .el-aside {
+  background-color: var(--color-background, #fcf0ff) !important;
+}
+
+html.theme-pink .el-menu--vertical,
+html.theme-pink .el-menu--popup,
+html.theme-pink .el-sub-menu .el-menu,
+html.theme-pink .el-menu--vertical .el-menu-item,
+html.theme-pink .el-menu--popup .el-menu-item,
+html.theme-pink .el-sub-menu .el-menu-item,
+html.theme-pink .el-menu--vertical .el-sub-menu__title,
+html.theme-pink .el-menu--popup .el-sub-menu__title,
+html.theme-pink .el-sub-menu .el-sub-menu__title,
+html.theme-pink .el-menu,
+html.theme-pink .el-aside {
+  background-color: var(--color-background, #fff0f5) !important;
+}
+
+html.theme-orange .el-menu--vertical,
+html.theme-orange .el-menu--popup,
+html.theme-orange .el-sub-menu .el-menu,
+html.theme-orange .el-menu--vertical .el-menu-item,
+html.theme-orange .el-menu--popup .el-menu-item,
+html.theme-orange .el-sub-menu .el-menu-item,
+html.theme-orange .el-menu--vertical .el-sub-menu__title,
+html.theme-orange .el-menu--popup .el-sub-menu__title,
+html.theme-orange .el-sub-menu .el-sub-menu__title,
+html.theme-orange .el-menu,
+html.theme-orange .el-aside {
+  background-color: var(--color-background, #fff8f0) !important;
+}
 </style>

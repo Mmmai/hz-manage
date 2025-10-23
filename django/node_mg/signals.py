@@ -20,6 +20,8 @@ from .tasks import (
 )
 from cmdb.signals import model_instance_signal,model_signal
 from cmdb.models import ModelInstanceGroupRelation
+from audit.context import audit_context
+import uuid
 import logging
 logger = logging.getLogger(__name__)
 

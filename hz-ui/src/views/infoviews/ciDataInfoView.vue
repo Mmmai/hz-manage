@@ -1,14 +1,28 @@
 <template>
-  <div class="edit-page">
-    <div class="header">
+  <div class="divVertical gap-5">
+    <div class="header card">
       <el-page-header @back="goBack">
         <template #content>
-          <span>编辑实例</span>
+          <span>{{ `${model_name}【${instanceData.instance_name}】` }}</span>
         </template>
       </el-page-header>
     </div>
 
-    <div class="content">
+    <div class="content card">
+      <el-descriptions title="实例信息" border :column="2" style="width: 40%">
+        <el-descriptions-item label="唯一标识">
+          {{ editForm.instance_name }}11111111111111
+        </el-descriptions-item>
+        <el-descriptions-item label="所属分组">
+          <el-text
+            :key="igIndex"
+            v-for="(igItem, igIndex) in instanceData?.instance_group"
+          >
+            {{ igItem.group_path }} </el-text
+          >1111111111111
+        </el-descriptions-item>
+      </el-descriptions>
+
       <el-tabs v-model="activeName" type="card" class="demo-tabs">
         <el-tab-pane label="资产信息" name="modelField">
           <el-form
@@ -20,20 +34,6 @@
             label-position="top"
             require-asterisk-position="right"
           >
-            <el-descriptions title="实例信息" :column="2">
-              <el-descriptions-item label="唯一标识">
-                {{ editForm.instance_name }}
-              </el-descriptions-item>
-              <el-descriptions-item label="所属分组">
-                <el-text
-                  :key="igIndex"
-                  v-for="(igItem, igIndex) in instanceData?.instance_group"
-                >
-                  {{ igItem.group_path }}
-                </el-text>
-              </el-descriptions-item>
-            </el-descriptions>
-
             <el-form-item
               prop="instance_name"
               required
@@ -444,14 +444,25 @@
         >
           <ciDataAudit ref="ciDataAuditRef" :instanceId="instanceData.id" />
         </el-tab-pane>
+        <el-tab-pane label="监控信息" name="monitor" disabled>111</el-tab-pane>
+        <el-tab-pane label="关联关系" name="relations" disabled
+          >222222dd</el-tab-pane
+        >
+        <el-tab-pane label="变更记录" name="changelog">
+          <ciDataAudit
+            ref="ciDataAuditRef"
+            v-if="instanceData && instanceData.id"
+            :instanceId="instanceData.id"
+          />
+        </el-tab-pane>
       </el-tabs>
     </div>
 
-    <div class="footer">
+    <!-- <div class="footer">
       <el-button @click="goBack">取消</el-button>
       <el-button type="danger" @click="deleteInstance">删除</el-button>
       <el-button type="primary" @click="saveInstance">保存</el-button>
-    </div>
+    </div> -->
   </div>
 </template>
 
@@ -462,7 +473,7 @@ import { ElMessageBox, ElMessage, ElLoading } from "element-plus";
 import type { FormInstance } from "element-plus";
 import { encrypt_sm4, decrypt_sm4 } from "@/utils/gmCrypto.ts";
 import useConfigStore from "@/store/config";
-import ciDataAudit from "./ciDataAudit.vue";
+import ciDataAudit from "@/components/cmdb/ciDataAudit.vue";
 
 const { proxy } = getCurrentInstance();
 const route = useRoute();
@@ -483,24 +494,8 @@ const instanceData = ref({});
 const modelInfo = ref({});
 const enumOptionObj = ref({});
 const modelRefOptions = ref({});
-
-// 获取路由参数
-onMounted(() => {
-  try {
-    const data = JSON.parse(route.query.data);
-    instanceData.value = data;
-
-    modelInfo.value = JSON.parse(route.query.modelInfo);
-    enumOptionObj.value = JSON.parse(route.query.enumOptionObj);
-    modelRefOptions.value = JSON.parse(route.query.modelRefOptions);
-
-    // 初始化表单
-    initEditForm();
-  } catch (e) {
-    ElMessage.error("数据加载失败");
-    router.back();
-  }
-});
+const instanceId = ref(null);
+// const props = defineProps(["instanceId"])
 
 // 初始化表单
 const initEditForm = () => {
@@ -677,13 +672,35 @@ const goBack = () => {
     type: "warning",
   })
     .then(() => {
-      window.close();
+      router.push({
+        path: "/cmdb/cidata",
+      });
     })
     .catch(() => {
       // 取消
     });
 };
-
+// 请求
+const getCiDataInfo = async () => {
+  const res = await proxy.$api.getCiModelInstanceInfo({
+    id: instanceId.value,
+  });
+  if (res.status === 200) {
+    instanceData.value = res.data;
+  }
+};
+// 获取路由参数
+onMounted(() => {
+  try {
+    instanceId.value = route.path.split("/").at(-1);
+    getCiDataInfo();
+    // 初始化表单
+    initEditForm();
+  } catch (e) {
+    ElMessage.error("数据加载失败");
+    router.back();
+  }
+});
 // 暴露方法给父组件
 defineExpose({
   initEditForm,
@@ -693,29 +710,31 @@ defineExpose({
 <style scoped lang="scss">
 .edit-page {
   padding: 20px;
-  background-color: #f5f5f5;
+  // background-color: #f5f5f5;
   min-height: 100vh;
 }
 
 .header {
-  background: white;
-  padding: 16px 24px;
-  margin-bottom: 20px;
+  // background: white;
+  flex: none;
+  padding: 10px 20px;
+  // margin-bottom: 20px;
   border-radius: 4px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
 }
 
 .content {
-  background: white;
-  padding: 24px;
+  // background: white;
+  padding: 20px;
   border-radius: 4px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
+  // margin-bottom: 20px;
+  height: 100%;
 }
 
 .footer {
-  background: white;
-  padding: 16px 24px;
+  // background: white;
+  padding: 10px 20px;
   border-radius: 4px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
   display: flex;

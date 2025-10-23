@@ -255,8 +255,8 @@ def ansible_getinfo_batch(self, node_ids,context):
     # result = job.apply_async()
     chord_result = job | aggregate_results.s()
     return chord_result.apply_async()     
-@shared_task(bind=True, max_retries=2)
-def ansible_getinfo(self, node_id,context):
+@shared_task(bind=True, max_retries=1)
+def ansible_getinfo(self, node_id,context=None):
     """
     执行 Ansible 获取系统信息的异步任务。
 

@@ -119,7 +119,7 @@ header {
     // overflow: hidden;
     flex: 1;
     /* border: 2px solid #DCDCDC; */
-    background-color: var(--el-bg-color-page);
+    background-color: var(--color-background, var(--el-bg-color-page));
     display: flex;
     gap: 10px;
   }

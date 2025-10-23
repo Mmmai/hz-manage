@@ -55,7 +55,7 @@ export const useTabsStore = defineStore(
         return
       }
       // 详情页在本tab内
-      if (tabItem.name === 'proxyManage_info') {
+      if (tabItem.isInfo) {
         return
       }
 

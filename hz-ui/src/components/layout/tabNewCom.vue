@@ -123,6 +123,7 @@ watch(
       fullPath: route.fullPath,
       isKeepAlive: route.meta.isKeepAlive,
       menuPath: route.meta.menuPath,
+      isInfo: route.meta.isInfo,
       //   close: !route.meta.isAffix,
       //   isKeepAlive: route.meta.isKeepAlive as boolean
     };

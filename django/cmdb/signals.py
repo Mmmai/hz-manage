@@ -445,44 +445,44 @@ def prepare_delete_zabbix_host(sender, instance, **kwargs):
         logger.error(f"Failed to prepare delete Zabbix host: {str(e)}")
 
 
-@receiver(post_delete, sender=ModelInstance)
-def delete_zabbix_host(sender, instance, **kwargs):
-    """删除Zabbix主机"""
-    if not sys_config.is_zabbix_sync_enabled():
-        return
-    a = time.perf_counter()
+# @receiver(post_delete, sender=ModelInstance)
+# def delete_zabbix_host(sender, instance, **kwargs):
+#     """删除Zabbix主机"""
+#     if not sys_config.is_zabbix_sync_enabled():
+#         return
+#     a = time.perf_counter()
 
-    def delayed_process():
-        logger.debug(f'Delayed process started for instance {instance.id}')
-        try:
-            model = Models.objects.get(id=instance.model_id)
-            if model.name != 'hosts':
-                return
+#     def delayed_process():
+#         logger.debug(f'Delayed process started for instance {instance.id}')
+#         try:
+#             model = Models.objects.get(id=instance.model_id)
+#             if model.name != 'hosts':
+#                 return
 
-            # 获取主机信息
-            cache_key = f'delete_zabbix_host_{instance.id}'
-            cache_data = cache.get(cache_key)
-            if not cache_data:
-                logger.warning(f"Missing required host information for instance {instance.id}")
-                return
+#             # 获取主机信息
+#             cache_key = f'delete_zabbix_host_{instance.id}'
+#             cache_data = cache.get(cache_key)
+#             if not cache_data:
+#                 logger.warning(f"Missing required host information for instance {instance.id}")
+#                 return
 
-            logger.info(f"Deleting Zabbix host for IP: {cache_data.get('ip')} instance: {instance.id}")
-            # 异步删除Zabbix主机
-            setup_host_monitoring.delay(
-                instance_id=str(instance.id),
-                instance_name=instance.instance_name,
-                ip=cache_data.get('ip'),
-                password=None,
-                delete=True
-            )
+#             logger.info(f"Deleting Zabbix host for IP: {cache_data.get('ip')} instance: {instance.id}")
+#             # 异步删除Zabbix主机
+#             setup_host_monitoring.delay(
+#                 instance_id=str(instance.id),
+#                 instance_name=instance.instance_name,
+#                 ip=cache_data.get('ip'),
+#                 password=None,
+#                 delete=True
+#             )
 
-        except Exception as e:
-            logger.error(f"Failed to delete Zabbix host: {str(e)}")
+#         except Exception as e:
+#             logger.error(f"Failed to delete Zabbix host: {str(e)}")
 
-    logger.debug(f'Scheduling delayed process for instance {instance.id}')
-    transaction.on_commit(delayed_process)
-    b = time.perf_counter()
-    logger.info(f'Deleting Zabbix host for instance {instance.id} completed in {b - a}s')
+#     logger.debug(f'Scheduling delayed process for instance {instance.id}')
+#     transaction.on_commit(delayed_process)
+#     b = time.perf_counter()
+#     logger.info(f'Deleting Zabbix host for instance {instance.id} completed in {b - a}s')
 
 
 @receiver(post_save, sender=ModelInstanceGroup)
@@ -689,7 +689,6 @@ model_instance_signal = Signal(providing_args=["instance","action"])
 # 创建或更新时，信号同步给node
 @receiver(post_save, sender=ModelInstance,dispatch_uid="sync_to_nodes")
 def send_model_instance_signal(sender, instance, created, **kwargs):
-
     model_instance_signal.send(sender=sender, instance=instance,action=created)
 #删除时，信号同步给node
 @receiver(pre_delete, sender=ModelInstance,dispatch_uid="delete_to_nodes")
