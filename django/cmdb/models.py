@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 @register_audit(
     snapshot_fields={'id', 'name', 'verbose_name'},
-    ignore_fields={'update_time', 'create_time'}, 
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
     public_name='model_group'
 )
 class ModelGroups(models.Model):
@@ -68,7 +68,7 @@ class ModelGroups(models.Model):
 
 @register_audit(
     snapshot_fields={'id', 'name', 'verbose_name'},
-    ignore_fields={'update_time', 'create_time'}, 
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
     public_name='model',
     field_resolvers={
         'instance_name_template': resolve_model_field_id_list
@@ -125,7 +125,7 @@ class Models(models.Model):
 
 @register_audit(
     snapshot_fields={'id', 'name', 'verbose_name'},
-    ignore_fields={'update_time', 'create_time'}, 
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
     public_name='model_field_group'
 )
 class ModelFieldGroups(models.Model):
@@ -167,7 +167,7 @@ class ModelFieldGroups(models.Model):
 
 @register_audit(
     snapshot_fields={'id', 'name', 'verbose_name', 'field_type', 'type', 'rule'},
-    ignore_fields={'update_time', 'create_time'}, 
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
     public_name='validation_rule'
 )
 class ValidationRules(models.Model):
@@ -234,7 +234,7 @@ class ValidationRules(models.Model):
 
 @register_audit(
     snapshot_fields={'id', 'name', 'verbose_name', 'type', 'unit', 'ref_model'},
-    ignore_fields={'update_time', 'create_time'},
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
     public_name='model_field'
 )
 class ModelFields(models.Model):
@@ -280,7 +280,7 @@ class ModelFieldPreference(models.Model):
 
 @register_audit(
     snapshot_fields={'id', 'fields', 'validate_null'},
-    ignore_fields={'update_time', 'create_time'}, 
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
     public_name='unique_constraint',
     field_resolvers={
         'fields': resolve_model_field_id_list
@@ -307,7 +307,7 @@ class UniqueConstraint(models.Model):
     is_field_aware=True,
     dynamic_snapshot_func=get_dynamic_field_snapshot,
     snapshot_fields={'id', 'instance_name', 'input_mode'},
-    ignore_fields={'update_time'},
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
     public_name='model_instance',
     dynamic_value_resolver=resolve_dynamic_value
 )
@@ -376,7 +376,7 @@ class ModelFieldMeta(models.Model):
 
 @register_audit(
     snapshot_fields={'id', 'label', 'path'},
-    ignore_fields={'update_time', 'create_time'},
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
     public_name='model_instance_group'
 )
 class ModelInstanceGroup(models.Model):
@@ -502,7 +502,11 @@ class ModelInstanceGroupRelation(models.Model):
     create_user = models.CharField(max_length=20, null=False, blank=False)
     update_user = models.CharField(max_length=20, null=False, blank=False)
 
-
+@register_audit(
+    snapshot_fields={'id', 'name', 'source_model', 'target_model'},
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
+    public_name='relation_definition'
+)
 class RelationDefinition(models.Model):
     class Meta:
         db_table = 'relation_definition'
@@ -511,22 +515,34 @@ class RelationDefinition(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50, db_index=True, null=False, blank=False)
-    type = models.CharField(max_length=50, null=False, blank=False)
+    source_to_target_verbose = models.CharField(max_length=100, null=True, blank=True)
+    target_to_source_verbose = models.CharField(max_length=100, null=True, blank=True)
+    source_model = models.ForeignKey('Models', on_delete=models.SET_NULL, null=True, blank=True, related_name='source_relations')
+    target_model = models.ForeignKey('Models', on_delete=models.SET_NULL, null=True, blank=True, related_name='target_relations')
+    attribute_schema = models.JSONField(default=dict, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
 
-
+@register_audit(
+    snapshot_fields={'id', 'source_instance', 'target_instance', 'relation'},
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
+    public_name='relation'
+)
 class Relations(models.Model):
     class Meta:
         db_table = 'relations'
         managed = True
         app_label = 'cmdb'
+        unique_together = ('source_instance', 'target_instance', 'relation')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     source_instance = models.ForeignKey('ModelInstance', related_name='source_instance', on_delete=models.CASCADE)
     target_instance = models.ForeignKey('ModelInstance', related_name='target_instance', on_delete=models.CASCADE)
     relation = models.ForeignKey('RelationDefinition', on_delete=models.CASCADE)
+    target_attributes = models.JSONField(default=dict, blank=True, null=True)
+    source_attributes = models.JSONField(default=dict, blank=True, null=True)
+    relation_attributes = models.JSONField(default=dict, blank=True, null=True)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
     create_user = models.CharField(max_length=20, null=False, blank=False)

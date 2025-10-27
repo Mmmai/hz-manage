@@ -15,6 +15,7 @@ class AuditContextMixin:
 
         if request.user:
             operator_name = request.user.username
+        self.request.username = operator_name
         
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         source_ip = x_forwarded_for.split(',')[0] if x_forwarded_for else request.META.get('REMOTE_ADDR')

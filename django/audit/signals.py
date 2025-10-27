@@ -27,13 +27,15 @@ def build_audit_comment(action, instance):
         model_name = instance.__class__.__name__.lower()
 
     if model_name == "models":
+        name = getattr(instance, "name", str(instance))
         model_label = getattr(instance, "verbose_name", str(instance))
-        return f"{verb}了模型：{model_label}"
+        return f"{verb}了模型：{model_label} ({name})"
 
     if model_name == 'modelfields':
         field_name = getattr(instance, "name", str(instance))
+        field_verbose_name = getattr(instance, "verbose_name", field_name)
         model_label = getattr(getattr(instance, "model", None), "verbose_name", "模型")
-        return f"{verb}了{model_label}的字段：{field_name}"
+        return f"{verb}了{model_label}的字段: {field_verbose_name} ({field_name})"
     
     if model_name == "modelinstance":
         # model_label = getattr(getattr(instance, "model", None), "name", "模型")
@@ -65,8 +67,9 @@ def build_audit_comment(action, instance):
         return f"{verb}了校验规则：{rule_name}"
     
     if model_name == "uniqueconstraint":
+        _model_name = getattr(getattr(instance, "model", None), "verbose_name", "模型")
         model_label = getattr(getattr(instance, "model", None), "verbose_name", "模型")
-        return f"{verb}了{model_label}的唯一约束"
+        return f"{verb}了{model_label}({_model_name})的唯一约束"
 
     readable = getattr(instance.__class__, "__name__", model_name)
     return f"{verb}了{readable}"

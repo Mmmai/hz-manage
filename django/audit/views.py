@@ -98,8 +98,9 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
             field_ct = ContentType.objects.get(app_label='cmdb', model='modelfields')
             field_ids = target_obj.model.fields.values_list('pk', flat=True)
             field_ids = [str(field_id) for field_id in field_ids]
-            combined_query |= Q(content_type=field_ct, object_id__in=field_ids)
+            combined_query |= Q(content_type=field_ct, object_id__in=field_ids, action__in=['CREATE', 'DELETE'])
 
+        # 排除系统初始化审计信息
         if not include_init:
             combined_query &= ~Q(correlation_id='migrate_cmdb_init')
 
