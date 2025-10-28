@@ -232,7 +232,7 @@ class ModelInstanceFilter(filters.FilterSet):
 
 class ModelInstanceBasicFilter(filters.FilterSet):
     model = filters.UUIDFilter(field_name='model')
-    name = filters.CharFilter(field_name='name', lookup_expr='icontains')
+    instance_name = filters.CharFilter(field_name='instance_name', lookup_expr='icontains')
     create_time_after = filters.DateTimeFilter(field_name='create_time', lookup_expr='gte')
     create_time_before = filters.DateTimeFilter(field_name='create_time', lookup_expr='lte')
     update_time_after = filters.DateTimeFilter(field_name='update_time', lookup_expr='gte')
@@ -242,7 +242,7 @@ class ModelInstanceBasicFilter(filters.FilterSet):
         model = ModelInstance
         fields = [
             'model',
-            'name',
+            'instance_name',
             'create_time_after',
             'create_time_before',
             'update_time_after',

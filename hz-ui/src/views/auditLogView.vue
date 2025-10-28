@@ -107,6 +107,37 @@
           label="操作描述"
           show-overflow-tooltip
         />
+        <el-table-column label="变更内容">
+          <template #default="scope">
+            <div class="change-content">
+              <div
+                v-if="scope.row.action == 'UPDATE'"
+                v-for="(change, index) in formatChanges(scope.row)"
+                :key="index"
+                class="change-item"
+              >
+                <el-text tag="b">{{ change.field }}: </el-text>
+                <span v-if="change.oldValue !== undefined" class="old-value">{{
+                  change.oldValue !== null ? change.oldValue : "null"
+                }}</span>
+                <el-text v-else>null</el-text>
+                <el-text
+                  v-if="
+                    change.oldValue !== undefined &&
+                    change.newValue !== undefined
+                  "
+                  tag="b"
+                  type="warning"
+                >
+                  →
+                </el-text>
+                <span v-if="change.newValue !== undefined" class="new-value">{{
+                  change.newValue !== null ? change.newValue : "null"
+                }}</span>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="timestamp" label="操作时间" width="300" />
       </el-table>
 
@@ -157,6 +188,11 @@ import { ElDrawer } from "element-plus";
 import { JsonViewer } from "vue3-json-viewer";
 import "vue3-json-viewer/dist/vue3-json-viewer.css";
 const { proxy } = getCurrentInstance();
+import { encrypt_sm4, decrypt_sm4 } from "@/utils/gmCrypto.ts";
+
+import useConfigStore from "@/store/config";
+const configStore = useConfigStore();
+const gmConfig = computed(() => configStore.gmCry);
 
 // 模型标签选项
 const modelTags = ref([
@@ -167,7 +203,7 @@ const modelTags = ref([
 
 // 操作类型标签选项
 const operationTags = ref([
-  { value: "CREATE", label: "添加" },
+  { value: "CREATE", label: "创建" },
   { value: "DELETE", label: "删除" },
   { value: "UPDATE", label: "修改" },
 ]);
@@ -346,7 +382,7 @@ const formatTargetType = (type) => {
   return targetTypeMap[type] || type;
 };
 const actionTypeMap = {
-  CREATE: "添加",
+  CREATE: "创建",
   UPDATE: "修改",
   DELETE: "删除",
 };
@@ -366,7 +402,122 @@ const formatActionTag = (action: string) => {
   };
   return tagMap[action] || "";
 };
+// 获取变更内容
+// ... existing code ...
+const changeMap = {
+  groups: "实例组",
+  instance_name: "实例名称",
+  order: "排序",
+  verbose_name: "字段名称",
+  model_field_group: "字段组",
+  instance_name_template: "实例名称模板",
+  // update_user: "更新用户",
+};
+const formatChanges = (row) => {
+  const changes = [];
 
+  // 处理 changed_fields 字段
+  if (row.changed_fields) {
+    Object.keys(row.changed_fields).forEach((field) => {
+      const values = row.changed_fields[field];
+      if (field === "update_user") {
+        return;
+      } else if (field === "groups") {
+        changes.push({
+          field: changeMap[field],
+          oldValue: values[0].map((item) => item.path).join(","),
+          newValue: values[1].map((item) => item.path).join(","),
+        });
+      } else if (field === "instance_name_template") {
+        // console.log(
+        //   "instance_name_template:",
+        //   values[0].map((item) => item.verbose_name).join("-") ? 111 : 222
+        // );
+        changes.push({
+          field: changeMap[field],
+          oldValue:
+            values[0].length >> 0
+              ? values[0].map((item) => item.verbose_name).join("-")
+              : null,
+          newValue:
+            values[1].length >> 0
+              ? values[1].map((item) => item.verbose_name).join("-")
+              : null,
+        });
+      } else {
+        changes.push({
+          field: changeMap.hasOwnProperty(field) ? changeMap[field] : field,
+          oldValue: formatDetails(values[0]),
+          newValue: formatDetails(values[1]),
+        });
+      }
+    });
+  }
+
+  // 处理 details 字段
+  if (row.details) {
+    row.details.forEach((detail) => {
+      changes.push({
+        field: detail.verbose_name || detail.name,
+        oldValue: formatDetails(detail.old_value),
+        newValue: formatDetails(detail.new_value),
+      });
+    });
+  }
+
+  return changes;
+};
+// 处理enum,model_ref
+const formatDetails = (text) => {
+  const processObject = (parsed) => {
+    if (typeof parsed === "object" && parsed !== null) {
+      if (parsed.hasOwnProperty("label") && parsed.label !== undefined) {
+        return parsed.label;
+      } else if (
+        parsed.hasOwnProperty("instance_name") &&
+        parsed.instance_name !== undefined
+      ) {
+        return parsed.instance_name;
+      } else if (
+        parsed.hasOwnProperty("verbose_name") &&
+        parsed.verbose_name !== undefined
+      ) {
+        return parsed.verbose_name;
+      } else if (
+        parsed.hasOwnProperty("password") &&
+        parsed.password !== undefined
+      ) {
+        if (!configStore.isShowPass) {
+          return decrypt_sm4(
+            gmConfig.value.key,
+            gmConfig.value.mode,
+            parsed.password
+          );
+        } else {
+          return "******";
+        }
+      }
+    }
+  };
+  if (text === null) return text;
+
+  // 如果是对象，直接处理
+  if (typeof text === "object") {
+    return processObject(text);
+  }
+
+  // 如果是字符串，尝试解析为对象后再处理
+  else if (typeof text === "string") {
+    try {
+      const parsed = JSON.parse(text);
+      return processObject(parsed);
+    } catch (e) {
+      // 解析失败则按普通字符串处理
+      return text;
+    }
+  }
+  return text;
+};
 // 请求
 // 获取审计日志数据
 const fetchAuditLogs = async () => {

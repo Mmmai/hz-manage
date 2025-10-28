@@ -1,100 +1,102 @@
 <template>
   <div class="card">
-    <el-scrollbar>
-      <el-row class="cimodelinfo" justify="space-between">
-        <el-col :span="20">
-          <el-space :size="30">
-            <el-button size="large" circle disabled style="margin: 10px">
-              <!-- <Icon :icon="ciModelInfo.icon"></Icon> -->
-              <iconifyOffline :icon="ciModelInfo?.icon" />
-            </el-button>
+    <el-row class="cimodelinfo" justify="space-between">
+      <el-col :span="20">
+        <el-page-header @back="goBack">
+          <template #content>
+            <el-space :size="30">
+              <el-button size="large" circle disabled style="margin: 10px">
+                <!-- <Icon :icon="ciModelInfo.icon"></Icon> -->
+                <iconifyOffline :icon="ciModelInfo?.icon" />
+              </el-button>
 
-            <!-- </div> -->
+              <!-- </div> -->
 
-            <el-text
-              >唯一标识: &nbsp;&nbsp;<el-text tag="b">
-                {{ ciModelInfo.name }}</el-text
-              >
-            </el-text>
+              <el-text
+                >唯一标识: &nbsp;&nbsp;<el-text tag="b">
+                  {{ ciModelInfo.name }}</el-text
+                >
+              </el-text>
 
-            <el-text
-              >名称:&nbsp;&nbsp;
-              <el-text tag="b">{{ ciModelInfo.verbose_name }}</el-text>
-            </el-text>
+              <el-text
+                >名称:&nbsp;&nbsp;
+                <el-text tag="b">{{ ciModelInfo.verbose_name }}</el-text>
+              </el-text>
 
-            <el-text style="display: flex"
-              >实例数:&nbsp;&nbsp;
-              <el-link type="primary" tag="b" @click="goto_ciData()">{{
-                ciModelInfo.instance_count
-              }}</el-link>
-            </el-text>
-            <!--                 :href="`/#/cmdb/cidata/?model=${ciModelInfo.id}`"
+              <el-text style="display: flex"
+                >实例数:&nbsp;&nbsp;
+                <el-link type="primary" tag="b" @click="goto_ciData()">{{
+                  ciModelInfo.instance_count
+                }}</el-link>
+              </el-text>
+              <!--                 :href="`/#/cmdb/cidata/?model=${ciModelInfo.id}`"
  -->
-          </el-space>
-        </el-col>
-        <el-col
-          :span="2"
-          style="display: flex; align-items: center; justify-content: center"
-        >
-          <el-space alignment="flex-end">
-            <el-button
-              v-permission="`${route.name?.replace('_info', '')}:delete`"
-              :disabled="ciModelInfo.built_in"
-              icon="Delete"
-              @click="deleteCiModel(ciModelInfo.id)"
-              circle
-            />
-            <el-button
-              v-permission="`${route.name?.replace('_info', '')}:edit`"
-              :disabled="ciModelInfo.built_in"
-              icon="Edit"
-              @click="editCiModel(ciModelInfo)"
-              circle
-            />
-
-            <!-- <el-icon :size="20" :disabled="ciModelInfo.built_in" ><Delete /></el-icon>
-        <el-icon :size="20"  ><Edit /></el-icon> -->
-          </el-space>
-        </el-col>
-      </el-row>
-      <el-tabs
-        v-model="tabName"
-        type="card"
-        class="demo-tabs"
-        @tab-click="handleClick"
+            </el-space>
+          </template>
+        </el-page-header>
+      </el-col>
+      <el-col
+        :span="2"
+        style="display: flex; align-items: center; justify-content: center"
       >
-        <el-tab-pane label="模型字段" name="field">
-          <ciModelField ref="ciModelFieldRef" />
-          <!-- @getModelField="setModelField" -->
-        </el-tab-pane>
-        <el-tab-pane label="唯一校验" name="verification">
-          <ciModelUnique
-            :modelId="modelId"
-            :modelFieldLists="modelFieldLists"
-            ref="ciModelUniqueRef"
+        <el-space alignment="flex-end">
+          <el-button
+            v-permission="`${route.name?.replace('_info', '')}:delete`"
+            :disabled="ciModelInfo.built_in"
+            icon="Delete"
+            @click="deleteCiModel(ciModelInfo.id)"
+            circle
           />
-        </el-tab-pane>
-        <el-tab-pane label="唯一标识命名" name="instance_name_temp">
-          <ciModelTemplate
-            :modelId="modelId"
-            :ciModelInfo="ciModelInfo"
-            :modelFieldLists="modelFieldLists"
-            ref="ciModelTemplateRef"
+          <el-button
+            v-permission="`${route.name?.replace('_info', '')}:edit`"
+            :disabled="ciModelInfo.built_in"
+            icon="Edit"
+            @click="editCiModel(ciModelInfo)"
+            circle
           />
-        </el-tab-pane>
-        <el-tab-pane label="同步管理" name="model_node_sync">
-          <ciModelConfig
-            :modelId="modelId"
-            :modelFieldLists="modelFieldLists"
-            ref="ciModelConfigRef"
-          />
-        </el-tab-pane>
-        <!--             @getCiModel="getModelInfo"
+
+          <!-- <el-icon :size="20" :disabled="ciModelInfo.built_in" ><Delete /></el-icon>
+        <el-icon :size="20"  ><Edit /></el-icon> -->
+        </el-space>
+      </el-col>
+    </el-row>
+    <el-tabs
+      v-model="tabName"
+      type="card"
+      class="demo-tabs"
+      @tab-click="handleClick"
+    >
+      <el-tab-pane label="模型字段" name="field">
+        <ciModelField ref="ciModelFieldRef" />
+        <!-- @getModelField="setModelField" -->
+      </el-tab-pane>
+      <el-tab-pane label="唯一校验" name="verification">
+        <ciModelUnique
+          :modelId="modelId"
+          :modelFieldLists="modelFieldLists"
+          ref="ciModelUniqueRef"
+        />
+      </el-tab-pane>
+      <el-tab-pane label="唯一标识命名" name="instance_name_temp">
+        <ciModelTemplate
+          :modelId="modelId"
+          :ciModelInfo="ciModelInfo"
+          :modelFieldLists="modelFieldLists"
+          ref="ciModelTemplateRef"
+        />
+      </el-tab-pane>
+      <el-tab-pane label="同步管理" name="model_node_sync">
+        <ciModelConfig
+          :modelId="modelId"
+          :modelFieldLists="modelFieldLists"
+          ref="ciModelConfigRef"
+        />
+      </el-tab-pane>
+      <!--             @getCiModel="getModelInfo"
  -->
-        <!-- <el-tab-pane label="Role" verbose_name="third">Role</el-tab-pane>
+      <!-- <el-tab-pane label="Role" verbose_name="third">Role</el-tab-pane>
     <el-tab-pane label="Task" verbose_name="fourth">Task</el-tab-pane> -->
-      </el-tabs>
-    </el-scrollbar>
+    </el-tabs>
   </div>
 
   <el-dialog
@@ -181,6 +183,12 @@ import useCiStore from "@/store/cmdb/ci";
 // defineOptions({ name: "model" });
 
 const ciStore = useCiStore();
+const goBack = () => {
+  router.push({
+    path: "/cmdb/cimodelManage/model",
+  });
+};
+
 const goto_ciData = () => {
   // console.log(ciModelInfo);
   ciStore.setCiLastModel(ciModelInfo.value.id);
@@ -211,7 +219,7 @@ const getCiModelGroupList = async () => {
 const ciModel = ref({});
 const ciModelInfo = ref({});
 const getModelInfo = async () => {
-  let res = await proxy.$api.getCiModel(route.query, route.query.id);
+  let res = await proxy.$api.getCiModel({}, nowModelId.value);
   ciModelInfo.value = res.data.model;
   ciModel.value = res.data;
   console.log(ciModelInfo.value);
@@ -490,10 +498,11 @@ const getModelField = async () => {
 // })
 
 onMounted(async () => {
-  console.log("onMount");
+  nowModelId.value = route.path.split("/").at(-1);
+
   // await getCiModelInfo(route.query, route.query.id)
   await getModelInfo();
-  await ciModelFieldRef.value!.getModelField();
+  await ciModelFieldRef.value!.getModelField(ciModel.value);
   await ciModelFieldRef.value!.getCiModelList();
   await ciModelFieldRef.value!.getRules();
   await ciModelFieldRef.value!.getModelFieldType();
@@ -544,6 +553,7 @@ onBeforeMount(() => {
 }
 
 .cimodelinfo {
+  padding-left: 10px;
   background-color: var(--el-color-primary-light-9);
   /* margin: 0 10px 0 10px; */
 }

@@ -601,20 +601,32 @@ const validationRulesTypeOptions = computed(() => {
 //   return _tempArr
 // })
 // 获取模型字段信息
-const getModelField = async () => {
-  let res = await proxy.$api.getCiModel(route.query, route.query.id);
-  modelInfo.value = res.data.model;
-  ciModelFieldsList.value = res.data.field_groups;
-  activeArr.value = res.data.field_groups?.map((item) => item.name);
-  // let tempArr = [];
-  // ciModelFieldsList.value.forEach((item, index) => {
-  //   activeArr.value.push(item.verbose_name);
-  //   item.fields?.forEach((item2) => {
-  //     tempArr.push(item2);
-  //   });
-  // });
-  // emits("getModelField", tempArr);
+const getModelField = async (params) => {
+  if (params != null) {
+    modelInfo.value = params.model;
+    ciModelFieldsList.value = params.field_groups;
+    activeArr.value = params.field_groups?.map((item) => item.name);
+  } else {
+    let res = await proxy.$api.getCiModel({}, modelInfo.value.id);
+    modelInfo.value = res.data.model;
+    ciModelFieldsList.value = res.data.field_groups;
+    activeArr.value = res.data.field_groups?.map((item) => item.name);
+  }
 };
+// const getModelField = async () => {
+//   let res = await proxy.$api.getCiModel(route.query, route.query.id);
+//   modelInfo.value = res.data.model;
+//   ciModelFieldsList.value = res.data.field_groups;
+//   activeArr.value = res.data.field_groups?.map((item) => item.name);
+//   // let tempArr = [];
+//   // ciModelFieldsList.value.forEach((item, index) => {
+//   //   activeArr.value.push(item.verbose_name);
+//   //   item.fields?.forEach((item2) => {
+//   //     tempArr.push(item2);
+//   //   });
+//   // });
+//   // emits("getModelField", tempArr);
+// };
 const fieldOptions = ref([]);
 const disableNameList = ref([]);
 const getModelFieldType = async () => {
@@ -648,12 +660,7 @@ const getCiModelList = async () => {
 //   await getModelFieldType();
 //   // getModelField()
 // })
-defineExpose({
-  getModelField,
-  getCiModelList,
-  getRules,
-  getModelFieldType,
-});
+
 // const ciModelFieldsListAdd = computed(()=>{
 //   ciModelFieldsList.push()
 // })
@@ -1160,6 +1167,12 @@ const onAdd = async (e, group) => {
   }
   getModelField();
 };
+defineExpose({
+  getModelField,
+  getCiModelList,
+  getRules,
+  getModelFieldType,
+});
 </script>
 <style lang="less" scoped>
 .modelFieldCard {

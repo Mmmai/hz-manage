@@ -69,6 +69,35 @@
           label="操作描述"
           show-overflow-tooltip
         />
+        <el-table-column label="变更内容">
+          <template #default="scope">
+            <div class="change-content">
+              <div
+                v-for="(change, index) in formatChanges(scope.row)"
+                :key="index"
+                class="change-item"
+              >
+                <el-text tag="b">{{ change.field }}: </el-text>
+                <span v-if="change.oldValue !== undefined" class="old-value">{{
+                  change.oldValue !== null ? change.oldValue : "null"
+                }}</span>
+                <el-text
+                  v-if="
+                    change.oldValue !== undefined &&
+                    change.newValue !== undefined
+                  "
+                  tag="b"
+                  type="warning"
+                >
+                  →
+                </el-text>
+                <span v-if="change.newValue !== undefined" class="new-value">{{
+                  change.newValue !== null ? change.newValue : "null"
+                }}</span>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="timestamp" label="操作时间" width="300" />
       </el-table>
 
@@ -108,9 +137,10 @@
 <script lang="ts" setup>
 import { ref, computed, watch, getCurrentInstance, onMounted } from "vue";
 import { Search } from "@element-plus/icons-vue";
-import { ElDrawer } from "element-plus";
+import { ElDrawer, valueEquals } from "element-plus";
 import { JsonViewer } from "vue3-json-viewer";
 import "vue3-json-viewer/dist/vue3-json-viewer.css";
+
 const { proxy } = getCurrentInstance();
 // 组件参数
 const props = defineProps({
@@ -216,7 +246,7 @@ const searchKeyword = ref("");
 // 处理时间范围变化
 const handleTimeChange = (val) => {
   timeRange.value = val;
-  console.log("时间范围:", val);
+  // console.log("时间范围:", val);
   // 触发筛选
   fetchAuditLogs();
 };
@@ -235,7 +265,103 @@ const total = ref(0);
 const pageChange = () => {
   fetchAuditLogs();
 };
+// 获取变更内容
+// ... existing code ...
+const changeMap = {
+  groups: "实例组",
+  instance_name: "实例名称",
+  order: "排序",
+  verbose_name: "字段名称",
+  model_field_group: "字段组",
+  // update_user: "更新用户",
+};
+const formatChanges = (row) => {
+  const changes = [];
 
+  // 处理 changed_fields 字段
+  if (row.changed_fields) {
+    Object.keys(row.changed_fields).forEach((field) => {
+      const values = row.changed_fields[field];
+      if (field === "groups") {
+        changes.push({
+          field: changeMap[field],
+          oldValue: values[0].map((item) => item.path).join(","),
+          newValue: values[1].map((item) => item.path).join(","),
+        });
+      } else if (field === "model_field_group") {
+        changes.push({
+          field: changeMap[field],
+          oldValue: values[0].verbose_name,
+          newValue: values[1].verbose_name,
+        });
+      } else {
+        changes.push({
+          field: changeMap[field],
+          oldValue: values[0],
+          newValue: values[1],
+        });
+      }
+    });
+  }
+
+  // 处理 details 字段
+  if (row.details) {
+    row.details.forEach((detail) => {
+      changes.push({
+        field: detail.verbose_name || detail.name,
+        oldValue: formatDetails(detail.old_value),
+        newValue: formatDetails(detail.new_value),
+      });
+    });
+  }
+
+  return changes;
+};
+// 处理enum,model_ref
+const formatDetails = (text) => {
+  if (text === null) return text;
+
+  // 如果是对象，直接处理
+  if (typeof text === "object") {
+    if (text.hasOwnProperty("label") && text.label !== undefined) {
+      return text.label;
+    } else if (
+      text.hasOwnProperty("instance_name") &&
+      text.instance_name !== undefined
+    ) {
+      return text.instance_name;
+    } else if (
+      text.hasOwnProperty("verbose_name") &&
+      text.verbose_name !== undefined
+    ) {
+      return text;
+    }
+    return text;
+  }
+
+  // 如果是字符串，尝试解析为对象后再处理
+  if (typeof text === "string") {
+    try {
+      const parsed = JSON.parse(text);
+      if (typeof parsed === "object" && parsed !== null) {
+        if (parsed.hasOwnProperty("label") && parsed.label !== undefined) {
+          return parsed.label;
+        } else if (
+          parsed.hasOwnProperty("instance_name") &&
+          parsed.instance_name !== undefined
+        ) {
+          return parsed.instance_name;
+        }
+      }
+    } catch (e) {
+      // 解析失败则按普通字符串处理
+    }
+    return text;
+  }
+
+  return text;
+};
+// ... existing code ...
 // 抽屉相关变量
 const drawerVisible = ref(false);
 const currentRowData = ref({});
@@ -265,7 +391,7 @@ const formatTargetType = (type) => {
 };
 
 const actionTypeMap = {
-  CREATE: "添加",
+  CREATE: "创建",
   UPDATE: "修改",
   DELETE: "删除",
 };
@@ -325,20 +451,20 @@ const resetFilters = () => {
   fetchAuditLogs();
 };
 
-// 当筛选条件变化时重新获取数据
-watch(
-  [timeRange],
-  () => {
-    fetchAuditLogs();
-  },
-  { deep: true }
-);
+// // 当筛选条件变化时重新获取数据
+// watch(
+//   [timeRange],
+//   () => {
+//     fetchAuditLogs();
+//   },
+//   { deep: true }
+// );
 
 // 页面加载时获取数据
-onMounted(() => {
-  setDefaultTimeRange();
-  fetchAuditLogs();
-});
+// onMounted(() => {
+//   setDefaultTimeRange();
+//   fetchAuditLogs();
+// });
 // 定义方法给组件调用
 const getData = () => {
   setDefaultTimeRange();

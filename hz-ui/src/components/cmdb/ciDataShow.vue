@@ -277,15 +277,18 @@
       >
         <!-- 新增管理口跳转 -->
         <template #default="scope" v-if="data.name === 'mgmt_ip'">
-          <el-tooltip content="跳转管理口" placement="right" effect="dark">
-            <el-link
-              :href="`https://${scope.row[data.name]}`"
-              type="primary"
-              target="_blank"
-            >
-              {{ scope.row[data.name] }}<el-icon><TopRight /></el-icon
-            ></el-link>
-          </el-tooltip>
+          <div v-if="scope.row[data.name] !== null">
+            <el-tooltip content="跳转管理口" placement="right" effect="dark">
+              <el-link
+                :href="`https://${scope.row[data.name]}`"
+                type="primary"
+                target="_blank"
+              >
+                {{ scope.row[data.name] }}<el-icon><TopRight /></el-icon
+              ></el-link>
+            </el-tooltip>
+          </div>
+          <div v-else></div>
         </template>
         <!-- 列表显示布尔值按钮，以及模型关联、枚举类的label值 -->
         <template

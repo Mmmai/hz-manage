@@ -33,7 +33,12 @@ export const useTabsStore = defineStore(
     const updateCurrentTitle = async (params) => {
       currentTitle.value = params.title
       currentMenu.value = params.name.split('_')[0]
-      currentBreadcrumb.value = params.menuPath
+      if (params.name === 'home') {
+        currentBreadcrumb.value = []
+      } else {
+        currentBreadcrumb.value = params.menuPath
+
+      }
       // console.log("currentBreadcrumb:", currentBreadcrumb)
     }
 

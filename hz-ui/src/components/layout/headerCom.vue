@@ -71,13 +71,13 @@
           </template>
         </el-dropdown>
 
-        <el-switch
+        <!-- <el-switch
           v-model="isDark"
           :active-icon="Moon"
           :inactive-icon="Sunny"
           inline-prompt
           @change="toggleDark"
-        />
+        /> -->
         <el-dropdown trigger="click">
           <span class="el-dropdown-link">
             <el-icon>

@@ -3,27 +3,40 @@
     <div class="header card">
       <el-page-header @back="goBack">
         <template #content>
-          <span>{{ `${model_name}【${instanceData.instance_name}】` }}</span>
+          <span>{{
+            `${modelInfo.model?.verbose_name}【${instanceData.instance_name}】`
+          }}</span>
         </template>
       </el-page-header>
     </div>
 
     <div class="content card">
-      <el-descriptions title="实例信息" border :column="2" style="width: 40%">
+      <el-descriptions
+        border
+        :column="2"
+        style="width: 40%; margin-bottom: 10px"
+        label-width="100px"
+      >
         <el-descriptions-item label="唯一标识">
-          {{ editForm.instance_name }}11111111111111
+          {{ instanceData.instance_name }}
         </el-descriptions-item>
-        <el-descriptions-item label="所属分组">
-          <el-text
+        <el-descriptions-item label="所属分组" width="55%">
+          <div
             :key="igIndex"
             v-for="(igItem, igIndex) in instanceData?.instance_group"
+            class="group-item"
           >
-            {{ igItem.group_path }} </el-text
-          >1111111111111
+            {{ igItem.group_path }}
+          </div>
         </el-descriptions-item>
       </el-descriptions>
 
-      <el-tabs v-model="activeName" type="card" class="demo-tabs">
+      <el-tabs
+        v-model="activeName"
+        type="card"
+        class="demo-tabs"
+        @tab-click="handleClick"
+      >
         <el-tab-pane label="资产信息" name="modelField">
           <el-form
             ref="editFormRef"
@@ -34,31 +47,55 @@
             label-position="top"
             require-asterisk-position="right"
           >
-            <el-form-item
-              prop="instance_name"
-              required
-              style="margin-left: 30px"
-            >
-              <template #label>
-                <el-space :size="2">
-                  <el-text tag="b">唯一标识</el-text>
-                  <el-tooltip
-                    content="唯一命名标识"
-                    placement="right"
-                    effect="dark"
+            <el-row :gutter="20" justify="space-between">
+              <el-form-item
+                prop="instance_name"
+                required
+                style="margin-left: 30px"
+              >
+                <template #label>
+                  <el-space :size="2">
+                    <el-text tag="b">唯一标识</el-text>
+                    <el-tooltip
+                      content="唯一命名标识"
+                      placement="right"
+                      effect="dark"
+                    >
+                      <el-icon>
+                        <Warning />
+                      </el-icon>
+                    </el-tooltip>
+                  </el-space>
+                </template>
+
+                <el-input
+                  v-model="editForm.instance_name"
+                  style="width: 240px"
+                  v-if="isEdit"
+                />
+                <el-text v-else>{{ editForm.instance_name }}</el-text>
+              </el-form-item>
+              <div
+                style="
+                  width: 200px;
+                  display: flex;
+                  justify-content: flex-end;
+                  margin-right: 20px;
+                "
+              >
+                <div v-if="!isEdit">
+                  <el-button type="primary" @click="editAction">编辑</el-button>
+                </div>
+                <div v-else>
+                  <el-button type="primary" @click="cancelAction"
+                    >取消</el-button
                   >
-                    <el-icon>
-                      <Warning />
-                    </el-icon>
-                  </el-tooltip>
-                </el-space>
-              </template>
-              <el-input
-                v-model="editForm.instance_name"
-                style="width: 240px"
-                :disabled="true"
-              />
-            </el-form-item>
+                  <el-button type="primary" @click="submitAction"
+                    >保存</el-button
+                  >
+                </div>
+              </div>
+            </el-row>
 
             <el-collapse v-model="activeArr">
               <el-collapse-item
@@ -71,8 +108,16 @@
                     item.verbose_name
                   }}</el-text>
                 </template>
-                <el-row style="margin-left: 30px">
-                  <el-col v-for="(fitem, findex) in item.fields" :span="12">
+                <el-row :gutter="20" style="margin-left: 30px">
+                  <el-col
+                    v-for="(fitem, findex) in item.fields"
+                    :key="findex"
+                    :xs="24"
+                    :sm="24"
+                    :md="12"
+                    :lg="8"
+                    :xl="6"
+                  >
                     <el-form-item
                       :label="fitem.verbose_name"
                       :prop="fitem.name"
@@ -99,7 +144,11 @@
                         v-model="editForm[fitem.name]"
                         style="width: 240px"
                         :disabled="!fitem.editable"
+                        v-if="isEdit"
                       ></el-input>
+                      <el-text v-else>
+                        {{ editForm[fitem.name] }}
+                      </el-text>
                     </el-form-item>
                     <el-form-item
                       :label="fitem.verbose_name"
@@ -133,7 +182,11 @@
                         style="width: 240px"
                         autosize
                         type="textarea"
+                        v-if="isEdit"
                       ></el-input>
+                      <el-text v-else>
+                        {{ editForm[fitem.name] }}
+                      </el-text>
                     </el-form-item>
                     <el-form-item
                       :label="fitem.verbose_name"
@@ -161,7 +214,9 @@
                         style="width: 240px"
                         autosize
                         type="textarea"
+                        v-if="isEdit"
                       ></el-input>
+                      <el-text v-else> {{ editForm[fitem.name] }} </el-text>
                     </el-form-item>
                     <el-form-item
                       :label="fitem.verbose_name"
@@ -190,6 +245,7 @@
                           --el-switch-on-color: #13ce66;
                           --el-switch-off-color: #ff4949;
                         "
+                        :disabled="!isEdit"
                       />
                     </el-form-item>
                     <el-form-item
@@ -226,7 +282,11 @@
                         v-model="editForm[fitem.name]"
                         :precision="2"
                         :step="1"
+                        v-if="isEdit"
                       />
+                      <el-text v-else>
+                        {{ editForm[fitem.name] }}
+                      </el-text>
                     </el-form-item>
                     <!-- 密码类型 -->
                     <el-form-item
@@ -259,7 +319,25 @@
                         auto-complete="new-password"
                         show-password
                         clearable
+                        v-if="isEdit"
                       ></el-input>
+                      <div v-else>
+                        <el-text v-if="useConfigStore.isShowPass">
+                          {{
+                            decrypt_sm4(
+                              gmConfig.key,
+                              gmConfig.mode,
+                              editForm[fitem.name]
+                            )
+                          }}
+                        </el-text>
+                        <div v-else>
+                          <el-text v-if="editForm[fitem.name]?.length >> 0">{{
+                            "*".repeat(editForm[fitem.name]?.length)
+                          }}</el-text>
+                          <el-text v-else></el-text>
+                        </div>
+                      </div>
                     </el-form-item>
                     <el-form-item
                       :label="fitem.verbose_name"
@@ -296,7 +374,11 @@
                       <el-input-number
                         v-model="editForm[fitem.name]"
                         :step="1"
+                        v-if="isEdit"
                       />
+                      <el-text v-else>
+                        {{ editForm[fitem.name] }}
+                      </el-text>
                     </el-form-item>
                     <el-form-item
                       :label="fitem.verbose_name"
@@ -325,7 +407,11 @@
                         placeholder="Pick a Date"
                         format="YYYY-MM-DD"
                         value-format="YYYY-MM-DD"
+                        v-if="isEdit"
                       />
+                      <el-text v-else>
+                        {{ editForm[fitem.name] }}
+                      </el-text>
                     </el-form-item>
                     <el-form-item
                       :label="fitem.verbose_name"
@@ -356,7 +442,11 @@
                         placeholder="Pick a Date"
                         format="YYYY/MM/DD hh:mm:ss"
                         value-format="YYYY-MM-DD hh:mm:ss"
+                        v-if="isEdit"
                       />
+                      <el-text v-else>
+                        {{ editForm[fitem.name] }}
+                      </el-text>
                     </el-form-item>
                     <el-form-item
                       :label="fitem.verbose_name"
@@ -383,6 +473,7 @@
                         v-model="editForm[fitem.name]"
                         placeholder="请选择"
                         style="width: 240px"
+                        v-if="isEdit"
                       >
                         <el-option
                           v-for="item in enumOptionObj[fitem.validation_rule]"
@@ -391,6 +482,9 @@
                           :value="item.value"
                         />
                       </el-select>
+                      <el-text v-else>
+                        {{ instanceData.fields[fitem.name]?.label }}
+                      </el-text>
                     </el-form-item>
                     <el-form-item
                       :label="fitem.verbose_name"
@@ -421,14 +515,22 @@
                         placeholder="请选择"
                         style="width: 240px"
                         filterable
+                        remote
+                        :remote-method="
+                          (query) => filterModelRefCiData(query, fitem.name)
+                        "
+                        v-if="isEdit"
                       >
                         <el-option
                           v-for="(citem, cIndex) in modelRefOptions[fitem.name]"
                           :key="cIndex"
-                          :label="citem.label"
-                          :value="citem.value"
+                          :label="citem.instance_name"
+                          :value="citem.id"
                         />
                       </el-select>
+                      <el-text v-else>
+                        {{ instanceData.fields[fitem.name]?.instance_name }}
+                      </el-text>
                     </el-form-item>
                   </el-col>
                 </el-row>
@@ -437,13 +539,6 @@
           </el-form>
         </el-tab-pane>
 
-        <el-tab-pane
-          label="变更记录"
-          name="changelog"
-          v-if="instanceData && instanceData.id"
-        >
-          <ciDataAudit ref="ciDataAuditRef" :instanceId="instanceData.id" />
-        </el-tab-pane>
         <el-tab-pane label="监控信息" name="monitor" disabled>111</el-tab-pane>
         <el-tab-pane label="关联关系" name="relations" disabled
           >222222dd</el-tab-pane
@@ -467,69 +562,91 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, computed, getCurrentInstance, onMounted } from "vue";
+import {
+  ref,
+  reactive,
+  computed,
+  getCurrentInstance,
+  onMounted,
+  nextTick,
+} from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessageBox, ElMessage, ElLoading } from "element-plus";
 import type { FormInstance } from "element-plus";
 import { encrypt_sm4, decrypt_sm4 } from "@/utils/gmCrypto.ts";
 import useConfigStore from "@/store/config";
 import ciDataAudit from "@/components/cmdb/ciDataAudit.vue";
-
+import { el, id } from "element-plus/es/locale/index.mjs";
+import { useStore } from "vuex";
+import instance from "../../utils/request";
+const store = useStore();
 const { proxy } = getCurrentInstance();
 const route = useRoute();
 const router = useRouter();
 const configStore = useConfigStore();
+const isEdit = ref(false);
+const gmConfig = computed(() => configStore.gmCry);
 
 // 表单相关
 const editFormRef = ref<FormInstance>();
 const editForm = reactive({
+  id: null,
   instance_name: null,
 });
-
+const ciDataAuditRef = ref(null);
 const activeName = ref("modelField");
+const handleClick = (tab: TabsPaneContext, event: Event) => {
+  console.log(tab, event);
+  if (tab.props.name == "changelog") {
+    console.log(1111);
+    ciDataAuditRef.value!.getData();
+  }
+};
 const activeArr = ref([0]);
 
 // 数据
 const instanceData = ref({});
 const modelInfo = ref({});
-const enumOptionObj = ref({});
 const modelRefOptions = ref({});
 const instanceId = ref(null);
 // const props = defineProps(["instanceId"])
 
 // 初始化表单
 const initEditForm = () => {
-  Object.keys(instanceData.value).forEach((item) => {
-    if (item === "id" || item === "instance_group") return;
-
-    if (modelInfo.value.field_groups) {
-      const modelFieldType = getModelFieldType();
-
-      if (modelFieldType.model_ref.indexOf(item) !== -1) {
-        if (instanceData.value[item] !== null) {
-          editForm[item] = instanceData.value[item].id;
-        } else {
-          editForm[item] = instanceData.value[item];
-        }
-      } else if (modelFieldType.password.indexOf(item) !== -1) {
-        if (configStore.showAllPass) {
-          editForm[item] = decrypt_sm4(
-            configStore.gmCry.key,
-            configStore.gmCry.mode,
-            instanceData.value[item]
-          );
-        } else {
-          editForm[item] = instanceData.value[item];
-        }
+  editForm.id = instanceData.value.id;
+  editForm.instance_name = instanceData.value.instance_name;
+  Object.keys(instanceData.value.fields).forEach((item) => {
+    if (modelFieldType.value.enum.includes(item)) {
+      if (instanceData.value.fields[item] !== null) {
+        editForm[item] = instanceData.value.fields[item].value;
       } else {
-        editForm[item] = instanceData.value[item];
+        editForm[item] = null;
       }
+    } else if (modelFieldType.value.model_ref.includes(item)) {
+      if (instanceData.value.fields[item] !== null) {
+        // 未点击时，赋予实例初始值
+        modelRefOptions.value[item] = [instanceData.value.fields[item]];
+        editForm[item] = instanceData.value.fields[item].id;
+      } else {
+        editForm[item] = null;
+      }
+    } else if (modelFieldType.value.password.includes(item)) {
+      if (configStore.showAllPass) {
+        editForm[item] = decrypt_sm4(
+          configStore.gmCry.key,
+          instanceData.value.fields[item]
+        );
+      } else {
+        editForm[item] = instanceData.value.fields[item];
+      }
+    } else {
+      editForm[item] = instanceData.value.fields[item];
     }
   });
 };
 
 // 获取字段类型
-const getModelFieldType = () => {
+const modelFieldType = computed(() => {
   let tempObj = {
     enum: [],
     boolean: [],
@@ -554,8 +671,7 @@ const getModelFieldType = () => {
   }
 
   return tempObj;
-};
-
+});
 // 表单验证规则
 const setFormItemRule = (rule) => {
   if (rule == "" || rule == null) return;
@@ -571,31 +687,133 @@ const setFormItemRule = (rule) => {
 
 // 处理需要加密的字段
 const processFieldsForSubmit = computed(() => {
-  let tmpObj = Object.assign({}, editForm);
-  delete tmpObj.instance_name;
+  // 判断此次编辑有没有字段数据变更，只提交有变更的字段
+  let tmpObj = {};
 
-  const modelFieldType = getModelFieldType();
+  // 遍历editForm中的所有字段
+  for (let [key, value] of Object.entries(editForm)) {
+    // 跳过id字段
+    if (["id", "instance_name"].includes(key)) continue;
 
-  for (let [ckey, cvalue] of Object.entries(tmpObj)) {
-    if (cvalue === null || cvalue === "") continue;
-    if (modelFieldType.password.indexOf(ckey) !== -1) {
-      // 加密密码字段
-      tmpObj[ckey] = encrypt_sm4(
-        configStore.gmCry.key,
-        configStore.gmCry.mode,
-        cvalue
-      );
+    // 比较当前值与原始值是否不同
+    let originalValue = instanceData.value.fields[key];
+
+    // 对于枚举类型字段，需要特殊处理
+    if (modelFieldType.value.enum.includes(key)) {
+      originalValue =
+        instanceData.value.fields[key] === null
+          ? null
+          : instanceData.value.fields[key].value;
+    }
+    // 对于模型引用类型字段，需要特殊处理
+    else if (modelFieldType.value.model_ref.includes(key)) {
+      originalValue =
+        instanceData.value.fields[key] === null
+          ? null
+          : instanceData.value.fields[key].id;
+    }
+    // 对于密码字段，如果显示的是解密后的值，则需要获取原始加密值进行比较
+    else if (modelFieldType.value.password.includes(key)) {
+      // 如果配置允许显示明文密码，则originalValue已经是解密后的值
+      // 否则就是原始的加密值
+      if (!configStore.showAllPass) {
+        originalValue = instanceData.value.fields[key];
+      }
+    }
+
+    // 比较值是否发生变化（考虑null、undefined和空字符串的情况）
+    if (
+      value !== originalValue ||
+      (value === null &&
+        originalValue !== null &&
+        originalValue !== undefined) ||
+      (value === "" &&
+        originalValue !== "" &&
+        originalValue !== null &&
+        originalValue !== undefined)
+    ) {
+      // 只有当值发生变化时才添加到提交对象中
+      // console.log(key, value, originalValue);
+
+      // 如果是密码字段且有值，则进行加密
+      if (
+        modelFieldType.value.password.includes(key) &&
+        value !== null &&
+        value !== ""
+      ) {
+        tmpObj[key] = encrypt_sm4(
+          configStore.gmCry.key,
+          configStore.gmCry.mode,
+          value
+        );
+      } else {
+        tmpObj[key] = value;
+      }
     }
   }
+
   return tmpObj;
 });
+const allModelFieldByNameObj = computed<any>(() => {
+  return (modelInfo.value?.field_groups || []).reduce((acc, group) => {
+    (group.fields || []).forEach((field) => {
+      acc[field.name] = field;
+    });
+    return acc;
+  }, {});
+});
+// model_ref过滤
+const filterModelRefCiData = async (query, fieldName) => {
+  // console.log(query, fieldName);
+  const fieldConfig = allModelFieldByNameObj.value[fieldName];
+  // if (query === "") return;
+  // console.log(fieldConfig);
 
+  if (!fieldConfig || !fieldConfig.ref_model) return;
+
+  try {
+    let res = await proxy.$api.getModelRefCi({
+      model: fieldConfig.ref_model,
+      instance_name: query ? query : undefined, // 搜索关键字
+      page: 1,
+      page_size: query ? 100 : 20,
+    });
+
+    // 更新对应字段的选项
+    modelRefOptions.value[fieldName] = res.data.results;
+  } catch (error) {
+    console.error("获取model_ref数据失败:", error);
+  }
+};
+// 编辑实例
+const editAction = () => {
+  isEdit.value = true;
+};
+const cancelAction = () => {
+  isEdit.value = false;
+  // 判断是否有编辑，没有则删除
+  nextTick(() => {
+    initEditForm();
+  });
+};
 // 保存实例
-const saveInstance = async () => {
+const submitAction = async () => {
   if (!editFormRef.value) return;
 
   await editFormRef.value.validate(async (valid, fields) => {
     if (valid) {
+      if (
+        Object.keys(processFieldsForSubmit.value).length === 0 &&
+        editForm.instance_name === instanceData.value.instance_name
+      ) {
+        ElMessage({
+          showClose: true,
+          message: "没有数据发生变更",
+          type: "warning",
+        });
+        isEdit.value = false;
+        return;
+      }
       const loading = ElLoading.service({
         lock: true,
         text: "保存中...",
@@ -605,15 +823,22 @@ const saveInstance = async () => {
       try {
         let res = await proxy.$api.updateCiModelInstance({
           id: instanceData.value.id,
-          model: route.params.modelId,
-          update_user: proxy.$store.state.username,
+          model: modelInfo.value.id,
+          instance_name:
+            editForm.instance_name === instanceData.value.instance_name
+              ? null
+              : editForm.instance_name,
+          update_user: store.state.username,
           fields: processFieldsForSubmit.value,
         });
 
         if (res.status == "200") {
           ElMessage({ type: "success", message: "保存成功" });
-          router.back();
+          isEdit.value = false;
+          getCiDataInfo();
+          // router.back();
         } else {
+          console.log(res);
           ElMessage({
             showClose: true,
             message: "保存失败:" + JSON.stringify(res.data),
@@ -621,6 +846,7 @@ const saveInstance = async () => {
           });
         }
       } catch (error) {
+        console.log(error);
         ElMessage({
           showClose: true,
           message: "保存失败，请稍后重试",
@@ -666,6 +892,12 @@ const deleteInstance = () => {
 
 // 返回
 const goBack = () => {
+  if (!isEdit.value) {
+    router.push({
+      path: "/cmdb/cidata",
+    });
+    return;
+  }
   ElMessageBox.confirm("确定要离开页面吗？未保存的数据将会丢失", "提示", {
     confirmButtonText: "确定",
     cancelButtonText: "取消",
@@ -681,23 +913,89 @@ const goBack = () => {
     });
 };
 // 请求
-const getCiDataInfo = async () => {
-  const res = await proxy.$api.getCiModelInstanceInfo({
-    id: instanceId.value,
+// 枚举类的字段下拉框
+// 获取所有枚举类的字典
+const validationRulesObj = ref({});
+const getRules = async (params = null) => {
+  let res = await proxy.$api.getValidationRules({
+    ...params,
+    page: 1,
+    page_size: 10000,
   });
+  // validationRules.value = res.data
+  res.data.results.forEach((item) => {
+    validationRulesObj.value[item.id] = item;
+    // validationRulesByNameObj.value[item.name] = item
+  });
+  // console.log(1111111);
+  // console.log(validationRulesObj.value);
+};
+// 生成以规则ID为key，枚举类的选项为value的对象字典
+const enumOptionObj = computed(() => {
+  let tempList = {};
+  modelInfo.value?.field_groups?.forEach((item) => {
+    item.fields.forEach((field) => {
+      if (field.type === "enum") {
+        // let ruleObj = JSON.parse(validationRulesObj.value[params].rule)
+        // JSON.parse(validationRulesObj.value[params].rule)
+        // console.log(field);
+        if (field.validation_rule === null) {
+          return;
+        }
+        if (validationRulesObj.value[field.validation_rule] === undefined) {
+          // console.log(validationRulesObj.value);
+          // console.log(field.name, field.validation_rule);
+          // console.log(validationRulesObj.value[field.validation_rule]);
+          return;
+        }
+        let ruleObj = JSON.parse(
+          validationRulesObj?.value[field?.validation_rule]?.rule
+        );
+        let tmpList = [];
+        Object.keys(ruleObj).forEach((ritem) => {
+          tmpList.push({ value: ritem, label: ruleObj[ritem] });
+        });
+        tempList[field.validation_rule] = tmpList;
+      }
+    });
+  });
+  return tempList;
+});
+// 获取model_ref的信息
+const getModelRefCiData = async (params) => {
+  let res = await proxy.$api.getModelRefCi({
+    model: params,
+    page: 1,
+    page_size: 10000,
+  });
+};
+const getCiDataInfo = async () => {
+  const res = await proxy.$api.getCiModelInstanceInfo(instanceId.value);
   if (res.status === 200) {
     instanceData.value = res.data;
   }
 };
+const getCiModelInfo = async () => {
+  // console.log(instanceData.value.model);
+  const res = await proxy.$api.getCiModel({}, instanceData.value.model);
+  if (res.status === 200) {
+    modelInfo.value = res.data;
+  }
+  // console.log(modelInfo.value);
+};
 // 获取路由参数
-onMounted(() => {
+onMounted(async () => {
   try {
     instanceId.value = route.path.split("/").at(-1);
-    getCiDataInfo();
+    await getCiDataInfo();
+    // 获取模型信息
+    await getCiModelInfo();
+    getRules();
     // 初始化表单
     initEditForm();
   } catch (e) {
-    ElMessage.error("数据加载失败");
+    console.log(e);
+    ElMessage.error("数据加载失败", e);
     router.back();
   }
 });
@@ -741,7 +1039,15 @@ defineExpose({
   justify-content: flex-end;
   gap: 12px;
 }
+.group-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 
+.group-item {
+  line-height: 1.5;
+}
 .el-drawer__header {
   margin-bottom: 0px !important;
 }

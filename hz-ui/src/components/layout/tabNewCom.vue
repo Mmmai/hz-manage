@@ -134,7 +134,8 @@ watch(
         tabsParams.title = route.meta.title;
         nowTab.value = route.path.replace(/\/[^/]*$/, "");
       } else {
-        tabsParams.title = route.meta.title + "-" + route.query.verbose_name;
+        nowTab.value = route.meta.title;
+        tabsParams.title = route.meta.title;
       }
     }
     // console.log("tabsParams", tabsParams);
