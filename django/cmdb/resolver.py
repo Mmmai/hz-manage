@@ -1,6 +1,7 @@
 import logging
 import json
-from .constants import ValidationType
+from .constants import FieldType
+from .utils import password_handler
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ def resolve_dynamic_value(model_field, value):
     if value is None:
         return None
 
-    if model_field.type == ValidationType.ENUM and model_field.validation_rule:
+    if model_field.type == FieldType.ENUM and model_field.validation_rule:
         try:
             enum_dict = ValidationRules.get_enum_dict(model_field.validation_rule.id)
             return json.dumps({
@@ -38,7 +39,7 @@ def resolve_dynamic_value(model_field, value):
             logger.error(f"Failed to resolve enum value for field '{model_field.name}' with value: {value}", exc_info=True)
             return value
 
-    if model_field.type == ValidationType.MODEL_REF:
+    if model_field.type == FieldType.MODEL_REF:
         try:
             ref_instance = ModelInstance.objects.get(id=value)
             return json.dumps({
@@ -53,5 +54,17 @@ def resolve_dynamic_value(model_field, value):
         except Exception:
             logger.error(f"Failed to resolve model reference value for field '{model_field.name}' with value: {value}", exc_info=True)
             return value
+        
+    if model_field.type == FieldType.PASSWORD:
+        try:
+            decrypted_value = password_handler.decrypt(value)
+            return {
+                'password': decrypted_value,
+            }
+        except Exception:
+            logger.error(f"Failed to decrypt password for field '{model_field.name}'", exc_info=True)
+            return {
+                'password': 'Unable to decrypt password',
+            }
 
     return value

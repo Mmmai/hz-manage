@@ -70,6 +70,21 @@ class CmdbBaseViewSet(AuditContextMixin, viewsets.ModelViewSet):
     都会被置于审计上下文中。
     """
     pagination_class = StandardResultsSetPagination
+    
+    def get_current_user(self):
+        if self.request and hasattr(self.request, 'user'):
+            return self.request.username
+        return 'unknown'
+
+    def perform_create(self, serializer):
+        """在创建对象时，自动设置 create_user 和 update_user。"""
+        username = self.get_current_user()
+        serializer.save(create_user=username, update_user=username)
+
+    def perform_update(self, serializer):
+        """在更新对象时，自动设置 update_user。"""
+        username = self.get_current_user()
+        serializer.save(update_user=username)
 
 class CmdbReadOnlyBaseViewSet(AuditContextMixin, viewsets.ReadOnlyModelViewSet):
     """
@@ -102,8 +117,10 @@ class ModelsViewSet(CmdbBaseViewSet):
 
     def perform_create(self, serializer):
         unique_id = self.generate_unique_id()
-        instance = serializer.save(id=unique_id)
+        user = self.get_current_user()
+        instance = serializer.save(id=unique_id, create_user=user, update_user=user)
         logger.info(f"New model created: {instance.name} (ID: {unique_id})")
+
 
         default_group, created = ModelFieldGroups.objects.get_or_create(
             name='basic',
@@ -117,8 +134,7 @@ class ModelsViewSet(CmdbBaseViewSet):
                 'update_user': 'system'
             }
         )
-
-        return instance
+        # return instance
 
     def perform_destroy(self, instance):
         if instance.built_in:
@@ -370,11 +386,6 @@ class UniqueConstraintViewSet(CmdbBaseViewSet):
     filterset_class = UniqueConstraintFilter
     ordering_fields = ['model', 'create_time', 'update_time']
 
-    def perform_create(self, serializer):
-        instance = serializer.save()
-        logger.info(f"New unique constraint created: {instance.fields}")
-        return instance
-
     def perform_destroy(self, instance):
         if instance.built_in:
             logger.warning(f"Attempt to delete built-in unique constraint denied: {instance}")
@@ -606,7 +617,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
         instance_ids = request.data.get('instances', [])
         model_id = request.data.get('model')
         fields_data = request.data.get('fields', {})
-        update_user = request.data.get('update_user')
+        update_user = self.get_current_user()
         filter_by_params = request.data.get('all', False)
         params = request.data.get('params', {})
         group_id = request.data.get('group')
@@ -1351,15 +1362,55 @@ class ModelInstanceGroupRelationViewSet(CmdbBaseViewSet):
             raise ValidationError(str(e))
 
 
-# class RelationDefinitionViewSet(viewsets.ModelViewSet):
-#     queryset = RelationDefinition.objects.all().order_by('-create_time')
-#     serializer_class = RelationDefinitionSerializer
+class RelationDefinitionViewSet(CmdbBaseViewSet):
+    queryset = RelationDefinition.objects.all().order_by('name')
+    serializer_class = RelationDefinitionSerializer
+    filterset_class = RelationDefinitionFilter
+    search_fields = ['name', 'source_to_target_verbose', 'target_to_source_verbose', 'description']
+    ordering_fields = ['name', 'create_time', 'update_time']
+
+    def perform_destroy(self, instance):
+        # 检查关系定义是否已被使用
+        if Relations.objects.filter(relation=instance).exists():
+            logger.warning(f"尝试删除一个正在被使用的关系定义: {instance.name}")
+            raise PermissionDenied("该关系定义已被至少一个关系实例使用，无法删除。")
+        logger.info(f"关系定义 '{instance.name}' 已被删除。")
+        super().perform_destroy(instance)
 
 
-# class RelationsViewSet(viewsets.ModelViewSet):
-#     queryset = Relations.objects.all().order_by('-create_time')
-#     serializer_class = RelationsSerializer
+class RelationsViewSet(CmdbBaseViewSet):
+    queryset = Relations.objects.select_related(
+        'source_instance__model', 'target_instance__model', 'relation'
+    ).order_by('-create_time')
+    serializer_class = RelationsSerializer
+    filterset_class = RelationsFilter
+    search_fields = [
+        'source_instance__instance_name',
+        'target_instance__instance_name',
+        'relation__name'
+    ]
+    ordering_fields = ['create_time', 'update_time']
 
+    @action(detail=False, methods=['get'], url_path='topology')
+    def get_topology(self, request):
+        """
+        获取拓扑数据。
+        接收一个或多个实例ID作为起点，递归查询指定深度的关系。
+        """
+        start_nodes = request.query_params.getlist('start_nodes', [])
+        depth = int(request.query_params.get('depth', 2))
+
+        if not start_nodes:
+            return Response({"detail": "必须提供 'start_nodes' 参数。"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # TODO: with networkx
+        
+        logger.info(f"正在为节点 {start_nodes} 生成深度为 {depth} 的拓扑数据。")
+        # 示例返回，实际应实现查询逻辑
+        return Response({
+            "nodes": [], 
+            "edges": []
+        }, status=status.HTTP_200_OK)
 
 @password_manage_schema
 class PasswordManageViewSet(CmdbBaseViewSet):

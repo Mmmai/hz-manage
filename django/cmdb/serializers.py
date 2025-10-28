@@ -1978,12 +1978,108 @@ class RelationDefinitionSerializer(serializers.ModelSerializer):
         model = RelationDefinition
         fields = '__all__'
 
+    def validate_attribute_schema(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Schema必须是一个JSON对象。")
+        for scope in ['source', 'target', 'relation']:
+            if scope in value and not isinstance(value[scope], dict):
+                raise serializers.ValidationError(f"Schema中的'{scope}'必须是一个JSON对象。")
+        return value
+
 
 class RelationsSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = Relations
-        fields = '__all__'
+        fields = [
+            'id', 'source_instance', 'target_instance', 'relation',
+            'source_attributes', 'target_attributes', 'relation_attributes',
+            'create_time', 'update_time', 'create_user', 'update_user'
+        ]
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Relations.objects.all(),
+                fields=('source_instance', 'target_instance', 'relation'),
+                message="Source instance, target instance and relation must be unique together."
+            )
+        ]
 
+    def _validate_attributes_against_schema(self, attributes, schema_part, scope_name):
+        if not isinstance(attributes, dict):
+            raise serializers.ValidationError(f"{scope_name} must be a JSON object.")
+
+        # 检查是否提供了Schema中未定义的属性
+        for attr_key in attributes:
+            if attr_key not in schema_part:
+                logger.warning(f"Provided attribute '{attr_key}' is not defined in {scope_name} schema and will be ignored.")
+
+        for key, rule in schema_part.items():
+            value = attributes.get(key)
+            verbose_name = rule.get('verbose_name', key)
+
+            if value is None and 'default' in rule:
+                value = rule['default']
+                attributes[key] = value
+
+            if rule.get('required') and (value is None or str(value).strip() == ''):
+                raise serializers.ValidationError(f"{scope_name} attribute '{verbose_name}' is required.")
+
+            if value is not None and str(value).strip() != '':
+                try:
+                    if rule.get('type') == FieldType.ENUM:
+                        options = rule.get('options', [])
+                        valid_values = [opt['value'] for opt in options]
+                        if value not in valid_values:
+                            raise ValueError(f"Value '{value}' is not in the valid range: {valid_values}")
+
+                    temp_field_config = SimpleNamespace(
+                        name=key,
+                        verbose_name=verbose_name,
+                        type=rule.get('type'),
+                        # 如果schema中有validation_rule的定义，也一并传入
+                        validation_rule=None # 此处可以扩展，从schema中获取更复杂的规则
+                    )
+                    
+                    FieldValidator.validate(value, temp_field_config)
+
+                except ValueError as e:
+                    raise serializers.ValidationError({
+                        "field": f"{scope_name}.{key}",
+                        "detail": f"{scope_name} attribute '{verbose_name}' is invalid: {str(e)}"
+                    })
+        return attributes
+
+    def validate(self, data):
+        source_instance = data.get('source_instance')
+        target_instance = data.get('target_instance')
+        relation_def = data.get('relation')
+
+        # 校验模型约束
+        if relation_def.source_model and source_instance.model != relation_def.source_model:
+            raise serializers.ValidationError(f"Model of source instance must be '{relation_def.source_model.verbose_name}'.")
+        if relation_def.target_model and target_instance.model != relation_def.target_model:
+            raise serializers.ValidationError(f"Model of target instance must be '{relation_def.target_model.verbose_name}'.")
+
+        schema = relation_def.attribute_schema or {}
+        
+        data['source_attributes'] = self._validate_attributes_against_schema(
+            data.get('source_attributes', {}), schema.get('source', {}), '源端'
+        )
+        data['target_attributes'] = self._validate_attributes_against_schema(
+            data.get('target_attributes', {}), schema.get('target', {}), '目标端'
+        )
+        data['relation_attributes'] = self._validate_attributes_against_schema(
+            data.get('relation_attributes', {}), schema.get('relation', {}), '关系'
+        )
+
+        return data
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        representation['source_instance'] = ModelInstanceBasicViewSerializer(instance.source_instance).data
+        representation['target_instance'] = ModelInstanceBasicViewSerializer(instance.target_instance).data
+        representation['relation'] = RelationDefinitionSerializer(instance.relation).data
+        return representation
 
 class ZabbixSyncHostSerializer(serializers.ModelSerializer):
 

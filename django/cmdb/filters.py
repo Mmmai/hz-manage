@@ -326,23 +326,17 @@ class ModelInstanceGroupRelationFilter(filters.FilterSet):
 
 class RelationDefinitionFilter(filters.FilterSet):
     name = filters.CharFilter(field_name='name', lookup_expr='icontains')
-    type = filters.CharFilter(field_name='type', lookup_expr='exact')
+    source_model = filters.UUIDFilter(field_name='source_model')
+    target_model = filters.UUIDFilter(field_name='target_model')
     description = filters.CharFilter(field_name='description', lookup_expr='icontains')
-    create_time_after = filters.DateTimeFilter(field_name='create_time', lookup_expr='gte')
-    create_time_before = filters.DateTimeFilter(field_name='create_time', lookup_expr='lte')
-    update_time_after = filters.DateTimeFilter(field_name='update_time', lookup_expr='gte')
-    update_time_before = filters.DateTimeFilter(field_name='update_time', lookup_expr='lte')
 
     class Meta:
         model = RelationDefinition
         fields = [
             'name',
-            'type',
+            'source_model',
+            'target_model',
             'description',
-            'create_time_after',
-            'create_time_before',
-            'update_time_after',
-            'update_time_before',
         ]
 
 
@@ -350,10 +344,9 @@ class RelationsFilter(filters.FilterSet):
     source_instance = filters.UUIDFilter(field_name='source_instance')
     target_instance = filters.UUIDFilter(field_name='target_instance')
     relation = filters.UUIDFilter(field_name='relation')
-    create_time_after = filters.DateTimeFilter(field_name='create_time', lookup_expr='gte')
-    create_time_before = filters.DateTimeFilter(field_name='create_time', lookup_expr='lte')
-    update_time_after = filters.DateTimeFilter(field_name='update_time', lookup_expr='gte')
-    update_time_before = filters.DateTimeFilter(field_name='update_time', lookup_expr='lte')
+    # 增加按属性查询的示例 (需要数据库支持JSON查询)
+    source_port = filters.CharFilter(field_name='source_attributes__port', lookup_expr='exact')
+    target_port = filters.CharFilter(field_name='target_attributes__port', lookup_expr='exact')
 
     class Meta:
         model = Relations
@@ -361,11 +354,10 @@ class RelationsFilter(filters.FilterSet):
             'source_instance',
             'target_instance',
             'relation',
-            'create_time_after',
-            'create_time_before',
-            'update_time_after',
-            'update_time_before',
+            'source_port',
+            'target_port',
         ]
+
 
 
 class ZabbixSyncHostFilter(filters.FilterSet):
