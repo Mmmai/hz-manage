@@ -326,6 +326,7 @@ class ModelInstanceGroupRelationFilter(filters.FilterSet):
 
 class RelationDefinitionFilter(filters.FilterSet):
     name = filters.CharFilter(field_name='name', lookup_expr='icontains')
+    topology_type = filters.CharFilter(field_name='topology_type', lookup_expr='exact')
     source_model = filters.UUIDFilter(field_name='source_model')
     target_model = filters.UUIDFilter(field_name='target_model')
     description = filters.CharFilter(field_name='description', lookup_expr='icontains')

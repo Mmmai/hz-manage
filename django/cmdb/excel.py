@@ -122,7 +122,7 @@ class ExcelHandler:
         dv.add(f'{name_col_letter}4:{name_col_letter}1048576')
 
         # 设置列宽
-        template_sheet.column_dimensions[name_col_letter].width = 15
+        template_sheet.column_dimensions[name_col_letter].width = 18
 
         # 创建枚举值工作表
         enum_sheet = wb.create_sheet("枚举类型可选值")

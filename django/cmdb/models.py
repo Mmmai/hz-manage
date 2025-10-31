@@ -12,7 +12,7 @@ import uuid
 import logging
 import functools
 from .constants import ValidationType
-from .resolver import resolve_model_field_id_list, resolve_dynamic_value
+from .resolver import resolve_model_field_id_list, resolve_dynamic_value, resolve_model
 from audit.decorators import register_audit
 from audit.snapshots import get_dynamic_field_snapshot
 
@@ -37,8 +37,8 @@ class ModelGroups(models.Model):
     description = models.TextField(blank=True, null=True)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
     @classmethod
     def get_default_model_group(cls):
@@ -90,15 +90,14 @@ class Models(models.Model):
     icon = models.CharField(max_length=50, blank=True, null=True)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
     def save(self, *args, **kwargs):
         # 保存模型
         super().save(*args, **kwargs)
 
-        if self.instance_name_template:
-            self.sync_unique_constraint()
+        self.sync_unique_constraint()
 
     def sync_unique_constraint(self):
         constraint = UniqueConstraint.objects.filter(
@@ -107,21 +106,27 @@ class Models(models.Model):
             description='自动生成的实例名称唯一性约束'
         ).first()
 
-        if constraint:
-            # 更新现有约束
-            constraint.fields = self.instance_name_template
-            constraint.save()
+        if self.instance_name_template:
+            if constraint:
+                # 更新现有约束
+                constraint.fields = self.instance_name_template
+                constraint.save()
+            else:
+                # 创建新约束
+                UniqueConstraint.objects.create(
+                    model=self,
+                    fields=self.instance_name_template,
+                    built_in=True,
+                    validate_null=False,
+                    description='自动生成的实例名称唯一性约束',
+                    create_user='system',
+                    update_user='system'
+                )
         else:
-            # 创建新约束
-            UniqueConstraint.objects.create(
-                model=self,
-                fields=self.instance_name_template,
-                built_in=True,
-                validate_null=False,
-                description='自动生成的实例名称唯一性约束',
-                create_user='system',
-                update_user='system'
-            )
+            if constraint:
+                constraint.delete()
+
+
 
 @register_audit(
     snapshot_fields={'id', 'name', 'verbose_name'},
@@ -143,8 +148,8 @@ class ModelFieldGroups(models.Model):
     description = models.TextField(blank=True, null=True)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
     @classmethod
     def get_default_field_group(cls, model):
@@ -188,8 +193,8 @@ class ValidationRules(models.Model):
     description = models.TextField(blank=True, null=True, help_text='规则描述')
     create_time = models.DateTimeField(auto_now_add=True)
     update_time = models.DateTimeField(auto_now=True)
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
     # @classmethod
     # def get_enum_dict(cls, rule_id):
@@ -208,7 +213,7 @@ class ValidationRules(models.Model):
     @staticmethod
     @functools.lru_cache(maxsize=128)  # maxsize 可根据枚举规则的数量调整
     def get_enum_dict(rule_id):
-        logger.info(
+        logger.debug(
             f"LRU Cache MISS for get_enum_dict(rule_id={rule_id})."
             f"Executing function body. Cache info: {ValidationRules.get_enum_dict.cache_info()}")
         try:
@@ -260,8 +265,8 @@ class ModelFields(models.Model):
     order = models.IntegerField(blank=True, null=True, db_index=True)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
 
 class ModelFieldPreference(models.Model):
@@ -275,8 +280,8 @@ class ModelFieldPreference(models.Model):
     fields_preferred = models.JSONField(default=list, blank=True, null=True)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
 @register_audit(
     snapshot_fields={'id', 'fields', 'validate_null'},
@@ -300,8 +305,8 @@ class UniqueConstraint(models.Model):
     description = models.TextField(blank=True, null=True)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
 @register_audit(
     is_field_aware=True,
@@ -334,8 +339,8 @@ class ModelInstance(models.Model):
     ], default='manual', db_index=True)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
     def generate_name(self, field_values=None):
         """根据模型模板生成实例名称"""
@@ -371,8 +376,8 @@ class ModelFieldMeta(models.Model):
     data = models.TextField(blank=True, null=True)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
 @register_audit(
     snapshot_fields={'id', 'label', 'path'},
@@ -395,8 +400,8 @@ class ModelInstanceGroup(models.Model):
     built_in = models.BooleanField(default=False, null=False, blank=False)
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
     def save(self, *args, **kwargs):
         skip_signal = kwargs.pop('_skip_signal', False)
@@ -499,13 +504,17 @@ class ModelInstanceGroupRelation(models.Model):
     group = models.ForeignKey('ModelInstanceGroup', on_delete=models.CASCADE)
     create_time = models.DateTimeField(auto_now_add=True)
     update_time = models.DateTimeField(auto_now=True)
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
 @register_audit(
-    snapshot_fields={'id', 'name', 'source_model', 'target_model'},
+    snapshot_fields={'id', 'name', 'source_model', 'target_model', 'topology_type'},
     ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
-    public_name='relation_definition'
+    public_name='relation_definition',
+    field_resolvers={
+        'source_model': resolve_model,
+        'target_model': resolve_model
+    }
 )
 class RelationDefinition(models.Model):
     class Meta:
@@ -514,15 +523,28 @@ class RelationDefinition(models.Model):
         app_label = 'cmdb'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=50, db_index=True, null=False, blank=False)
-    source_to_target_verbose = models.CharField(max_length=100, null=True, blank=True)
-    target_to_source_verbose = models.CharField(max_length=100, null=True, blank=True)
+    name = models.CharField(max_length=50, db_index=True, unique=True, null=False, blank=False)
+    topology_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('directed', '有向图'),
+            ('undirected', '无向图'),
+            ('daggered', '有向无环图'),
+        ],
+        default='daggered',
+        null=False,
+        blank=False
+    )
+    forward_verb = models.CharField(max_length=50, null=False, blank=False)
+    reverse_verb = models.CharField(max_length=50, null=False, blank=False)
     source_model = models.ForeignKey('Models', on_delete=models.SET_NULL, null=True, blank=True, related_name='source_relations')
     target_model = models.ForeignKey('Models', on_delete=models.SET_NULL, null=True, blank=True, related_name='target_relations')
     attribute_schema = models.JSONField(default=dict, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
     create_time = models.DateTimeField(auto_now_add=True)
     update_time = models.DateTimeField(auto_now=True)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
 @register_audit(
     snapshot_fields={'id', 'source_instance', 'target_instance', 'relation'},
@@ -543,10 +565,10 @@ class Relations(models.Model):
     target_attributes = models.JSONField(default=dict, blank=True, null=True)
     source_attributes = models.JSONField(default=dict, blank=True, null=True)
     relation_attributes = models.JSONField(default=dict, blank=True, null=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
 
 class ZabbixProxy(models.Model):
@@ -562,8 +584,8 @@ class ZabbixProxy(models.Model):
     user = models.CharField(default='root', max_length=50, null=False, blank=False)
     password = models.CharField(max_length=50, null=False, blank=False)
     proxy_id = models.CharField(max_length=50, null=False, blank=False)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
 
 
 class ZabbixSyncHost(models.Model):
@@ -581,8 +603,8 @@ class ZabbixSyncHost(models.Model):
     installation_error = models.TextField(null=True, blank=True)
     interface_available = models.IntegerField(default=0)
     proxy = models.ForeignKey('ZabbixProxy', on_delete=models.CASCADE, null=True, blank=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
 
 
 class ProxyAssignRule(models.Model):
@@ -607,5 +629,5 @@ class ProxyAssignRule(models.Model):
     type = models.CharField(max_length=50, choices=RULE_TYPES, null=False, blank=False)
     rule = models.TextField()
     active = models.BooleanField(default=True, null=False, blank=False)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
