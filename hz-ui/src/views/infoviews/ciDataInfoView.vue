@@ -70,7 +70,7 @@
 
                 <el-input
                   v-model="editForm.instance_name"
-                  style="width: 240px"
+                  style="min-width: 400px"
                   v-if="isEdit"
                 />
                 <el-text v-else>{{ editForm.instance_name }}</el-text>
@@ -90,6 +90,25 @@
                     v-permission="`${route.name?.replace('_info', '')}:edit`"
                     >编辑</el-button
                   >
+                  <el-tooltip
+                    :content="
+                      !hasUnassignedPool
+                        ? '实例不在空闲池，无法删除!'
+                        : '删除实例'
+                    "
+                    placement="top"
+                    effect="dark"
+                  >
+                    <el-button
+                      type="danger"
+                      @click="deleteInstance"
+                      v-permission="
+                        `${route.name?.replace('_info', '')}:delete`
+                      "
+                      :disabled="!hasUnassignedPool"
+                      >删除</el-button
+                    >
+                  </el-tooltip>
                 </div>
                 <div v-else>
                   <el-button type="primary" @click="cancelAction"
@@ -586,6 +605,7 @@ import ciDataAudit from "@/components/cmdb/ciDataAudit.vue";
 import { el, id } from "element-plus/es/locale/index.mjs";
 import { useStore } from "vuex";
 import instance from "../../utils/request";
+import { it } from "node:test";
 const store = useStore();
 const { proxy } = getCurrentInstance();
 const route = useRoute();
@@ -603,9 +623,7 @@ const editForm = reactive({
 const ciDataAuditRef = ref(null);
 const activeName = ref("modelField");
 const handleClick = (tab: TabsPaneContext, event: Event) => {
-  console.log(tab, event);
   if (tab.props.name == "changelog") {
-    console.log(1111);
     ciDataAuditRef.value!.getData();
   }
 };
@@ -651,6 +669,11 @@ const initEditForm = () => {
     }
   });
 };
+const hasUnassignedPool = computed(() => {
+  return instanceData.value?.instance_group?.some((item) =>
+    item.group_path.includes("空闲池")
+  );
+});
 
 // 获取字段类型
 const modelFieldType = computed(() => {
@@ -884,12 +907,12 @@ const deleteInstance = () => {
         let res = await proxy.$api.deleteCiModelInstance(instanceData.value.id);
         if (res.status == 204) {
           ElMessage.success("删除成功");
-          router.back();
+          goBack();
         } else {
-          ElMessage.error("删除失败");
+          ElMessage.error(`删除失败,${JSON.stringify(res.data)}`);
         }
       } catch (error) {
-        ElMessage.error("删除失败，请稍后重试");
+        ElMessage.error("删除失败，error");
       }
     })
     .catch(() => {
@@ -899,6 +922,12 @@ const deleteInstance = () => {
 
 // 返回
 const goBack = () => {
+  if (route.name.includes("cmdb_only")) {
+    router.push({
+      path: "/cmdb_only/cmdb/cidata",
+    });
+    return;
+  }
   if (!isEdit.value) {
     router.push({
       path: "/cmdb/cidata",
@@ -989,6 +1018,38 @@ const getCiModelInfo = async () => {
     modelInfo.value = res.data;
   }
   // console.log(modelInfo.value);
+};
+const ciDataDelete = (params = null) => {
+  ElMessageBox.confirm("是否确认删除?", "实例删除", {
+    confirmButtonText: "确认删除",
+    cancelButtonText: "取消",
+    type: "warning",
+    draggable: true,
+  })
+    .then(async () => {
+      // 发起删除请求
+      let res = await proxy.$api.deleteCiModelInstance(currentRow.value.id);
+      //
+      // let res = {status:204}
+      if (res.status == 204) {
+        ElMessage({
+          type: "success",
+          message: "删除成功",
+        });
+        goBack();
+      } else {
+        ElMessage({
+          type: "error",
+          message: "删除失败",
+        });
+      }
+    })
+    .catch(() => {
+      ElMessage({
+        type: "info",
+        message: "取消删除",
+      });
+    });
 };
 // 获取路由参数
 onMounted(async () => {

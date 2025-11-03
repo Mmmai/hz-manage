@@ -210,6 +210,12 @@ import TreeTransfer from "@/components/common/treeTransfer.vue";
 const proxyId = ref(null);
 
 const goBack = () => {
+  if (route.name.includes("cmdb_only")) {
+    router.push({
+      path: "/cmdb_only/cmdb/cidata",
+    });
+    return;
+  }
   router.push({
     path: "/node_control/proxyManage",
   });
