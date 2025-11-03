@@ -131,13 +131,25 @@
       </el-row>
     </div>
     <div class="card">
+      <el-tabs
+        v-model="activeName"
+        type="card"
+        class="demo-tabs"
+        @tab-click="handleClick"
+      >
+        <el-tab-pane
+          :label="item.label"
+          :name="item.name"
+          :key="index"
+          v-for="(item, index) in manageModelArr"
+        >
+        </el-tab-pane>
+      </el-tabs>
       <el-row justify="center">
         <h3>节点关联配置</h3>
       </el-row>
       <div style="text-align: center">
-        <!-- :left-default-checked="[2, 3]"
-          :right-default-checked="[1]" -->
-        <el-transfer
+        <!-- <el-transfer
           v-model="hasConfigNodes"
           style="text-align: left; display: inline-block"
           filterable
@@ -162,17 +174,15 @@
             </el-tooltip>
             <span v-else>{{ option.label }}</span>
           </template>
-          <!-- <template #left-footer>
-            <el-button class="transfer-footer" size="small"
-              >Operation</el-button
-            >
-          </template>
-          <template #right-footer>
-            <el-button class="transfer-footer" size="small"
-              >Operation</el-button
-            >
-          </template> -->
-        </el-transfer>
+        </el-transfer> -->
+        <TreeTransfer
+          v-model="selectedKeys"
+          :data="treeData"
+          :leaf-only="true"
+          :titles="['可选节点', '已选节点']"
+          :check-strictly="false"
+          @change="handleChange"
+        />
       </div>
     </div>
   </div>
@@ -194,6 +204,8 @@ import { has } from "lodash";
 const router = useRouter();
 const route = useRoute();
 const { proxy } = getCurrentInstance();
+import TreeTransfer from "@/components/common/treeTransfer.vue";
+
 // proxyId
 const proxyId = ref(null);
 
@@ -273,26 +285,54 @@ import type {
   renderContent,
 } from "element-plus";
 import { ca } from "element-plus/es/locale/index.mjs";
-const handleChange = (
-  value: TransferKey[],
-  direction: TransferDirection,
-  movedKeys: TransferKey[]
-) => {
-  console.log(value, direction, movedKeys);
-  if (direction == "right") {
-    // 添加关联
-    associate(movedKeys);
-  } else {
-    cancelAssociate(movedKeys);
+// const handleChange = (
+//   value: TransferKey[],
+//   direction: TransferDirection,
+//   movedKeys: TransferKey[]
+// ) => {
+//   console.log(value, direction, movedKeys);
+//   if (direction == "right") {
+//     // 添加关联
+//     associate(movedKeys);
+//   } else {
+//     cancelAssociate(movedKeys);
+//   }
+// };
+// 多模型管理
+// 模型管理
+const activeName = ref("hosts");
+const manageModelArr = ref([]);
+const manageModelNameMap = computed(() => {
+  return manageModelArr.value.reduce((acc, cur) => {
+    acc[cur.name] = cur;
+    return acc;
+  }, {});
+});
+const handleClick = (tab, event) => {
+  // console.log(tab, event);
+  nextTick(() => {
+    getNodesData();
+    getHostTreeData();
+  });
+};
+// 请求
+// 模型同步列表
+const getMangeModel = async () => {
+  let res = await proxy.$api.getModelConfig({ ordering: "create_time" });
+  if (res.status == 200) {
+    manageModelArr.value = res.data.results
+      .filter((item) => item.is_manage === true)
+      .map((item) => ({
+        label: item.model_verbose_name || item.model_name,
+        name: item.model_name,
+        model_id: item.model,
+      }));
   }
 };
-
-// 请求
 // 获取单个proxy信息
 const getProxyData = async () => {
   let res = await proxy.$api.getProxyInfo(proxyId.value);
   if (res.status == 200) {
-    console.log(res.data);
     // 赋值给表单
     proxyForm.name = res.data.name;
     proxyForm.verbose_name = res.data.verbose_name;
@@ -305,25 +345,27 @@ const getProxyData = async () => {
     proxyForm.description = res.data.description;
   }
   // 获取proxy已关联的node节点
-  hasConfigNodes.value = res.data.nodes.map((item) => {
+  selectedKeys.value = res.data.nodes.map((item) => {
     // return {
     //   value: item.instance_name,
     //   key: item.id,
     //   disabled: false,
     // };
-    return item.id;
+    return item.model_instance;
   });
-  // console.log("hasConfigNodes:", hasConfigNodes.value);
+  console.log("hasConfigNodes:", hasConfigNodes.value);
 };
 // 获取所有nodes
 const getNodesData = async () => {
-  let res = await proxy.$api.getNodesArray();
+  let res = await proxy.$api.getNodesArray({
+    model: manageModelNameMap.value[activeName.value]?.model_id,
+  });
   if (res.status == 200) {
-    console.log(res.data);
     allNodes.value = res.data.map((item) => {
       return {
         label: item.instance_name,
-        key: item.id,
+        id: item.id,
+        instanceId: item.model_instance,
         disabled:
           item.proxy_id === proxyId.value || item.proxy_id == null
             ? false
@@ -333,6 +375,13 @@ const getNodesData = async () => {
   }
   // console.log("allNodes:", allNodes.value);
 };
+const instanceNodeMap = computed(() => {
+  let map = {};
+  allNodes.value.forEach((item) => {
+    map[item.instanceId] = item;
+  });
+  return map;
+});
 // 更新方法
 const updateAction = async () => {
   let res = await proxy.$api.updateProxy({ id: proxyId.value, ...proxyForm });
@@ -391,15 +440,108 @@ const cancelAssociate = async (ids: TransferKey[]) => {
     });
   }
 };
+
+const treeData = ref([]);
+
+const selectedKeys = ref([]);
+function convertToTreeFormat(treeData) {
+  /**
+   * 递归转换节点
+   * @param {Object} node - 原始节点
+   * @returns {Object|null} 转换后的节点，如果应该被剔除则返回null
+   */
+  function convertNode(node) {
+    const newNode = {
+      id: node.id,
+      label: node.label,
+    };
+
+    // 处理子节点
+    let validChildren = [];
+    if (node.children && node.children.length > 0) {
+      validChildren = node.children
+        .map(convertNode)
+        .filter((child) => child !== null);
+    }
+
+    // 处理实例
+    let instanceNodes = [];
+    if (node.instances && node.instances.length > 0) {
+      // 将instances转换为叶子节点
+      instanceNodes = node.instances.map((instance) => ({
+        id: instance.id,
+        label: instance.instance_name,
+        disabled: instanceNodeMap.value[instance.id]?.disabled || false,
+        disabledTooltip:
+          instanceNodeMap.value[instance.id]?.disabledTooltip ||
+          "已被其它proxy关联",
+      }));
+    }
+
+    // 合并子节点和实例节点
+    const allChildren = [...validChildren, ...instanceNodes];
+
+    if (allChildren.length > 0) {
+      newNode.children = allChildren;
+    } else if (
+      (!node.instances || node.instances.length === 0) &&
+      (!node.children || node.children.length === 0)
+    ) {
+      // 如果既没有子节点也没有实例，则剔除此节点
+      return null;
+    }
+
+    return newNode;
+  }
+
+  // 处理根节点数组并过滤掉null节点
+  const result = treeData.map(convertNode).filter((node) => node !== null);
+  return result;
+}
+
+// 获取主机模型
+// const hostModel = ref(null);
+// const getCiModel = async () => {
+//   let res = await proxy.$api.getCiModel({
+//     name: "hosts",
+//   });
+//   hostModel.value = res.data.results[0];
+// };
+
+// 获取主机树数据
+const getHostTreeData = async () => {
+  let res = await proxy.$api.getCiModelTreeNode({
+    model: manageModelNameMap.value[activeName.value]?.model_id,
+  });
+  treeData.value = convertToTreeFormat(res.data);
+};
+
+//
+const handleChange = (newVal, direction, movedKeys) => {
+  // console.log("值变化:", newVal);
+  // console.log("移动方向:", direction);
+  // console.log("移动的keys:", movedKeys);
+  if (direction == "right") {
+    // 添加
+    associate(movedKeys);
+  } else {
+    // 删除
+    cancelAssociate(movedKeys);
+  }
+};
+onMounted(async () => {
+  proxyId.value = route.path.split("/").at(-1);
+  // console.log("proxyId:", proxyId.value);
+  await getMangeModel();
+  await getProxyData();
+  await getNodesData();
+  await getHostTreeData();
+  // await updateTreeDataWithDisabledStatus(treeData.value, allNodes.value);
+});
 onMounted(() => {
   // 截取路由的id
   // console.log(route.path);
   // console.log(route.path.split("/"));
-
-  proxyId.value = route.path.split("/").at(-1);
-  // console.log("proxyId:", proxyId.value);
-  getProxyData();
-  getNodesData();
 });
 </script>
 <style scoped lang="scss">

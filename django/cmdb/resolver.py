@@ -58,13 +58,13 @@ def resolve_dynamic_value(model_field, value):
     if model_field.type == FieldType.PASSWORD:
         try:
             decrypted_value = password_handler.decrypt(value)
-            return {
+            return json.dumps({
                 'password': decrypted_value,
-            }
+            })
         except Exception:
             logger.error(f"Failed to decrypt password for field '{model_field.name}'", exc_info=True)
-            return {
+            return json.dumps({
                 'password': 'Unable to decrypt password',
-            }
+            })
 
     return value

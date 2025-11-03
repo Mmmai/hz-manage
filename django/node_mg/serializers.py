@@ -117,7 +117,7 @@ class NodeForProxySerializer(serializers.ModelSerializer):
     instance_name = serializers.CharField(source='model_instance.instance_name', read_only=True)
     class Meta:
         model = Nodes
-        fields = ['id','ip_address','instance_name']
+        fields = ['id','ip_address','model_instance','instance_name']
 class ProxySerializer(serializers.ModelSerializer):
     node_count = serializers.SerializerMethodField()
     

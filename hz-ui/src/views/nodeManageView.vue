@@ -37,6 +37,7 @@
           placement="top"
         >
           <el-button
+            v-if="activeName === 'hosts'"
             v-permission="`${route.name?.replace('_info', '')}:add`"
             type="primary"
             :disabled="multipleSelection.length >>> 0 ? false : true"
@@ -539,9 +540,9 @@ const assetInfoTask = async (params: object) => {
 
 // ========== 事件处理函数 ==========
 const handleClick = (tab: TabsPaneContext, event: Event) => {
-  console.log(tab, event);
+  // console.log(tab, event);
   nextTick(() => {
-    console.log(activeName.value);
+    // console.log(activeName.value);
     getNodesData();
   });
   // 获取数据
@@ -616,7 +617,7 @@ const filterTag = (value, row) => {
 };
 
 const filterMethod = (filters: object) => {
-  console.log(filters);
+  // console.log(filters);
 
   const filterKey = Object.keys(filters)[0];
   const filterValues = Object.values(filters)[0];
@@ -669,14 +670,14 @@ const filterMethod = (filters: object) => {
   // console.log(filterParam.value);
   nextTick(() => {
     getNodesData();
-    console.log(filterParam.value);
+    // console.log(filterParam.value);
   });
 };
 
 const openSse = (sseUrl) => {
   eventSource.value = new EventSource(sseUrl);
   eventSource.value.onmessage = (event) => {
-    console.log(event);
+    // console.log(event);
     // if (JSON.parse(event.data).status === "SUCCESS") {
     //   eventSource.value.close();
     // }

@@ -16,7 +16,14 @@ const permission: Directive = {
         el.style.display = 'auto'
       }
       else {
-        el.style.display = 'none'
+        // 添加单独给数瞳页面展示的按钮权限.
+        if (value.includes('cmdb_only')) {
+          el.style.display = 'auto'
+        } else {
+          el.style.display = 'none'
+
+        }
+
       }
     } else if (typeof value === "object") {
 
@@ -24,7 +31,9 @@ const permission: Directive = {
         el.classList.add("is-disabled")
       }
     }
+
     // 可根据自己的业务修改此处实现逻辑
+    // vaule 匹配cmdb_only...
 
   },
 }

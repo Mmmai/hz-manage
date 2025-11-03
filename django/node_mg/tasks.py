@@ -13,11 +13,10 @@ import os,time,logging
 from django.utils import timezone
 import ping3
 import re
-from .utils.cmdb_tools import get_instance_field_value
 from .utils.zabbix import ZabbixAPI
 from .utils import sys_config
 from .utils.commFunc import compare_interfaces
-from .utils.cmdb_tools import get_instance_field_value,get_instance_field_value_info,update_asset_info,node_inventory
+from .utils.cmdb_tools import get_instance_field_value,get_instance_field_value_info,update_asset_info,node_inventory,nodes_inventory
 
 logger = logging.getLogger(__name__)
 
@@ -464,6 +463,49 @@ def ansible_agent_install(self, node_id):
         return {
             'status': 'failed',
             'node': node.ip_address,
+            'error': str(exc),
+            'timestamp': timezone.now().isoformat()
+        }
+@shared_task(bind=True)
+def ansible_config_agent(self, proxy_ip,node_ids):
+    ansible_api = AnsibleAPI()
+    start = time.perf_counter()
+    nodes = Nodes.objects.filter(id__in=node_ids).all()
+    try:
+        inventory = nodes_inventory(nodes)
+        extra_vars = {
+            'server_ip': proxy_ip,
+        }
+        playbook_path = '/opt/setup_agent.yml'
+        result = ansible_api.run_playbook(playbook_path, inventory, extra_vars=extra_vars)
+        end_time = time.perf_counter()
+        cost_time = float(f"{end_time - start:.2f}")
+        defaults = {
+            "results": str(result),
+            "error_message": result.get('error', ''),
+            "cost_time": cost_time,
+        }
+
+        if result['rc'] != 0:
+            logger.error(f"Ansible playbook failed with return code {result['rc']}, took {cost_time} seconds")
+            return {
+                'status': 'failed',
+                'result': result,
+                'timestamp': timezone.now().isoformat()
+            }
+        logger.info(f"Ansible playbook completed in {cost_time} seconds")
+
+        return {
+            'status': 'success',
+            'result': result,
+            'timestamp': timezone.now().isoformat()
+        }
+
+    except Exception as exc:
+        end_time = time.perf_counter()
+        logger.exception(f"Unexpected error during Ansible execution for proxy {proxy_ip}")
+        return {
+            'status': 'failed',
             'error': str(exc),
             'timestamp': timezone.now().isoformat()
         }
@@ -952,6 +994,7 @@ def zabbix_proxy_sync(self,proxy_info,action,node_ids=None):
         if result:
             logger.info(f"Zabbix host {','.join(node_ips)} has been associated on {proxy_name},response:{result}")
             # 触发修改proxy的剧本
+            ansible_config_agent.delay(proxy_ip=proxy_info.get("proxy_ip"),node_ids=node_ids)
             return {'status': 'success', 'detail': f"Zabbix host {','.join(node_ips)} has been associated on {proxy_name},response:{result}"}
         else:
             logger.error(f"Failed to associate host {','.join(node_ips)} on {proxy_name},response:{result}")

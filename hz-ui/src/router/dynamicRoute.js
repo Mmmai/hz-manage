@@ -2,12 +2,14 @@
 //dealWithRoute.js
 
 import {
-  pa
+  pa,
+  ro
 } from 'element-plus/es/locale/index.mjs';
 import router from './index';
 import {
   RouterView
 } from "vue-router";
+import { includes } from 'lodash';
 let modules =
   import.meta.glob('../views/*.vue')
 let infoModules =
@@ -51,6 +53,26 @@ const dealWithRoute1 = (data, parent = 'main') => {
   }
 };
 
+// 递归处理菜单，为每个菜单项的name添加cmdb_only前缀
+const processCmdbMenus = (menus, prefix = 'cmdb_only_') => {
+  return menus.map(menu => {
+    // 创建新对象以避免修改原始数据
+    const newMenu = { ...menu };
+
+    // 为name添加前缀
+    if (newMenu.name && newMenu.is_menu) {
+      newMenu.name = prefix + newMenu.name;
+    }
+
+    // 如果有子菜单，递归处理
+    if (newMenu.children && newMenu.children.length > 0) {
+      newMenu.children = processCmdbMenus(newMenu.children, prefix);
+    }
+
+    return newMenu;
+  });
+};
+
 const forMenuRoute = (data, mainObject, parent = '') => {
   for (let item of data) {
     let pstr = parent + '/' + item.name
@@ -58,29 +80,47 @@ const forMenuRoute = (data, mainObject, parent = '') => {
     if (item.is_menu) {
       if (item.is_iframe) {
         mainObject.children.push({
-          path: '/iframe',
+          path: '/formOther',
           name: item.name,
-          component: modules[`../views/iframeView.vue`],
+          component: modules[`../views/formOtherView.vue`],
           // component: () => import(`../views/${item.component}`),
           meta: item.meta
         })
       } else {
-        mainObject.children.push({
-          path: pstr,
-          name: item.name,
-          component: modules[`../views/${item.name}View.vue`],
-          // component: () => import(`../views/${item.component}`),
-          meta: item.meta
-        })
+        if (pstr.includes('cmdb_only')) {
+          mainObject.children.push({
+            path: pstr,
+            name: 'cmdb_only_' + item.name,
+            component: modules[`../views/${item.name}View.vue`],
+            // component: () => import(`../views/${item.component}`),
+            meta: item.meta
+          })
+        } else {
+          mainObject.children.push({
+            path: pstr,
+            name: item.name,
+            component: modules[`../views/${item.name}View.vue`],
+            // component: () => import(`../views/${item.component}`),
+            meta: item.meta
+          })
+        }
+
       }
 
       if (item.has_info) {
         // let _tempMeta = item.meta
         // _tempMeta.title = item.meta.title + ''
+        let name = ''
+        if (pstr.includes('cmdb_only')) {
+          name = 'cmdb_only_' + item.name
+        }
+        else {
+          name = item.name
 
+        }
         mainObject.children.push({
           path: pstr + '/:id',
-          name: item.name + '_info',
+          name: name + '_info',
           // name: item.name,
 
           component: infoModules[`../views/infoviews/${item.info_view_name}View.vue`],
@@ -108,11 +148,19 @@ const dealWithRoute = (data, obj) => {
   //   children: [],
   // }
   let mainObject = obj.filter(item => item.name === 'main')[0]
+  let cmdbForUosObject = obj.filter(item => item.name === 'cmdb_only')[0]
   // forMenuRoute(data,mainObject,'main')
   forMenuRoute(data, mainObject)
+  // 将data过滤出cmdb相关的,并且为每个子菜单的name，添加cmdb_only前缀
+  let cmdbData = data.filter(item => item.name === 'cmdb')
+
+
+  forMenuRoute(cmdbData, cmdbForUosObject, "/cmdb_only")
   // console.log("获取路由后",mainObject)
+  router.addRoute(cmdbForUosObject)
   router.addRoute(mainObject)
-  console.log("router", router, router.getRoutes());
+  // console.log("router", router, router.getRoutes());
+  console.log("获取路由后", router.getRoutes())
 }
 
 export default dealWithRoute;

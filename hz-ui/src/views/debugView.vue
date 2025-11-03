@@ -8,7 +8,8 @@
     "
   >
     <el-button @click="drawer2 = true">打开</el-button>
-    <ZtTreeTransfer
+
+    <!-- <ZtTreeTransfer
       :default-props="transferProps"
       :default-selection-keys="toData"
       :left-data="fromData"
@@ -18,7 +19,17 @@
       is-sort
       @check-val="checkVal"
       >111111</ZtTreeTransfer
-    >
+    > -->
+    <div class="example-container">
+      <TreeTransfer
+        v-model="selectedKeys"
+        :data="treeData"
+        :titles="['可选节点', '已选节点']"
+        :leaf-only="true"
+        :check-strictly="false"
+        @change="handleChange"
+      />
+    </div>
   </div>
   <el-drawer v-model="drawer2" direction="rtl" size="50%">
     <template #header>
@@ -89,9 +100,12 @@ import {
   Delete,
 } from "@element-plus/icons-vue";
 import { ElMessageBox } from "element-plus";
-import { computed, ref, onMounted, watch } from "vue";
+import { computed, ref, onMounted, watch, getCurrentInstance } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
 import ZtTreeTransfer from "../components/common/treeToTree.vue";
+import TreeTransfer from "../components/common/treeTransfer.vue";
+const { proxy } = getCurrentInstance();
+
 const drawer2 = ref(false);
 
 const radio1 = ref("Option 1");
@@ -251,5 +265,88 @@ const transferProps = ref({
 
 const checkVal = (val: any) => {
   console.log(val);
+};
+const treeData = ref([]);
+
+const selectedKeys = ref([]);
+function convertToTreeFormat(treeData) {
+  /**
+   * 递归转换节点
+   * @param {Object} node - 原始节点
+   * @returns {Object|null} 转换后的节点，如果应该被剔除则返回null
+   */
+  function convertNode(node) {
+    const newNode = {
+      id: node.id,
+      label: node.label,
+    };
+
+    // 处理子节点
+    let validChildren = [];
+    if (node.children && node.children.length > 0) {
+      validChildren = node.children
+        .map(convertNode)
+        .filter((child) => child !== null);
+    }
+
+    // 处理实例
+    let instanceNodes = [];
+    if (node.instances && node.instances.length > 0) {
+      // 将instances转换为叶子节点
+      instanceNodes = node.instances.map((instance) => ({
+        id: instance.id,
+        label: instance.instance_name,
+      }));
+    }
+
+    // 合并子节点和实例节点
+    const allChildren = [...validChildren, ...instanceNodes];
+
+    if (allChildren.length > 0) {
+      newNode.children = allChildren;
+    } else if (
+      (!node.instances || node.instances.length === 0) &&
+      (!node.children || node.children.length === 0)
+    ) {
+      // 如果既没有子节点也没有实例，则剔除此节点
+      return null;
+    }
+
+    return newNode;
+  }
+
+  // 处理根节点数组并过滤掉null节点
+  const result = treeData.map(convertNode).filter((node) => node !== null);
+  return result;
+}
+
+// 获取主机模型
+const hostModel = ref(null);
+const getCiModel = async () => {
+  let res = await proxy.$api.getCiModel({
+    name: "hosts",
+  });
+  hostModel.value = res.data.results[0];
+};
+
+// 获取主机树数据
+const getHostTreeData = async () => {
+  console.log(hostModel.value);
+  let res = await proxy.$api.getCiModelTreeNode({
+    model: hostModel.value?.id,
+  });
+  treeData.value = convertToTreeFormat(res.data);
+  console.log(treeData.value);
+};
+
+onMounted(async () => {
+  await getCiModel();
+  await getHostTreeData();
+});
+//
+const handleChange = (newVal, direction, movedKeys) => {
+  console.log("值变化:", newVal);
+  console.log("移动方向:", direction);
+  console.log("移动的keys:", movedKeys);
 };
 </script>

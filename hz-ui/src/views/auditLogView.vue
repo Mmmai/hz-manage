@@ -409,8 +409,9 @@ const changeMap = {
   instance_name: "实例名称",
   order: "排序",
   verbose_name: "字段名称",
-  model_field_group: "字段组",
+  model_field_group: "字段分组",
   instance_name_template: "实例名称模板",
+  fields: "字段组合",
   // update_user: "更新用户",
 };
 const formatChanges = (row) => {
@@ -487,7 +488,7 @@ const formatDetails = (text) => {
         parsed.hasOwnProperty("password") &&
         parsed.password !== undefined
       ) {
-        if (!configStore.isShowPass) {
+        if (configStore.isShowPass) {
           return decrypt_sm4(
             gmConfig.value.key,
             gmConfig.value.mode,
@@ -496,6 +497,9 @@ const formatDetails = (text) => {
         } else {
           return "******";
         }
+      } else if (typeof parsed === "object") {
+        // console.log("text:", parsed);
+        return parsed.map((item) => item.verbose_name).join("-");
       }
     }
   };

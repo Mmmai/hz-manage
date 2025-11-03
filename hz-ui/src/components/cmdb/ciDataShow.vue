@@ -367,10 +367,10 @@
               link
               type="primary"
               :icon="View"
-              @click="editCiData(scope.row)"
+              @click="goToEdit(scope.row)"
             ></el-button>
           </el-tooltip>
-          <el-tooltip
+          <!-- <el-tooltip
             class="box-item"
             effect="dark"
             content="编辑"
@@ -383,7 +383,7 @@
               :icon="Edit"
               @click="goToEdit(scope.row)"
             ></el-button>
-          </el-tooltip>
+          </el-tooltip> -->
           <el-tooltip
             class="box-item"
             effect="dark"
@@ -1320,10 +1320,11 @@
                 v-model="multipleForm.updateParams[item]"
                 placeholder="请选择"
                 style="width: 180px"
+                clearable
               >
                 <el-option
                   v-for="ritem in enumOptionObj[
-                    allModelFieldByNameObj[item].validation_rule
+                    allModelFieldByNameObj[item]?.validation_rule
                   ]"
                   :key="ritem.value"
                   :label="ritem.label"
@@ -1343,6 +1344,7 @@
                 placeholder="请选择"
                 style="width: 240px"
                 filterable
+                clearable
               >
                 <!--                 @visible-change="
                   getModelRefCiData($event, {
@@ -1641,7 +1643,7 @@ import { useRoute, useRouter } from "vue-router";
 const router = useRouter();
 const route = useRoute();
 const store = useStore();
-const emit = defineEmits(["getTree"]);
+const emit = defineEmits(["getTree", "show-info"]);
 // 审计功能
 const ciDataAuditRef = ref("");
 

@@ -126,6 +126,7 @@
             style="width: 240px"
             :autosize="{ minRows: 2, maxRows: 4 }"
             type="textarea"
+            :disabled="nowRow.built_in ? true : false"
           />
         </el-form-item>
       </el-form>

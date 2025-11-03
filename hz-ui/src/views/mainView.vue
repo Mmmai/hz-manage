@@ -27,9 +27,7 @@
                 /> -->
           <router-view>
             <template #default="{ Component, route }">
-              <KeepAlive :include="keepAliveName">
-                <component :is="Component" :key="route.path" />
-              </KeepAlive>
+              <component :is="Component" :key="route.path" />
             </template>
           </router-view>
           <!-- <iframe-view v-show="route.meta.is_iframe"></iframe-view>
@@ -49,12 +47,11 @@
 import headerCom from "../components/layout/headerCom.vue";
 import asideCom from "../components/layout/asideCom.vue";
 import tabNewCom from "../components/layout/tabNewCom.vue";
-import iframeView from "./iframeView.vue";
+import iframeView from "./fromOtherView.vue";
 import { onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { getCurrentInstance, ref, nextTick, provide } from "vue";
 const { proxy } = getCurrentInstance();
-import { useKeepAliveStore } from "@/store/keepAlive";
 // import router from '../router';
 // proxy.$api.test().then(res => {
 //   console.log(res)
@@ -64,9 +61,11 @@ import { useStore } from "vuex";
 import { computed } from "@vue/reactivity";
 import useConfigStore from "@/store/config";
 const configStore = useConfigStore();
+import { useKeepAliveStore } from "@/store/keepAlive";
 const keepAliveStore = useKeepAliveStore();
-const { appVersion } = storeToRefs(configStore);
 const { keepAliveName } = storeToRefs(keepAliveStore);
+
+const { appVersion } = storeToRefs(configStore);
 const store = useStore();
 // const appVersion = ref(process.env.APP_VERSION);
 const route = useRoute();
@@ -101,6 +100,7 @@ header {
   padding: 0px 5px;
   border-bottom: 1px solid #dcdcdc;
   height: $headerHeight;
+  background-color: var(--el-bg-color);
 }
 
 .common-layout {
@@ -119,7 +119,7 @@ header {
     // overflow: hidden;
     flex: 1;
     /* border: 2px solid #DCDCDC; */
-    background-color: var(--color-background, var(--el-bg-color-page));
+    background-color: var(--el-bg-color);
     display: flex;
     gap: 10px;
   }
@@ -127,6 +127,7 @@ header {
 
 .el-footer {
   height: 20px;
+  background-color: var(--el-bg-color);
 }
 
 .l-container {

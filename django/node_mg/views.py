@@ -115,14 +115,20 @@ class NodesViewSet(AuditContextMixin,ModelViewSet):
             ...
         ]
         """
+        model = request.query_params.get('model', None)
+        if not model:
+            return JsonResponse({"status": "error", "message": "请指定模型"}, status=status.HTTP_400_BAD_REQUEST)
+        # 指定model获取node
+        queryset = Nodes.objects.filter(model=model)
         # 获取所有节点数据
         queryset = self.filter_queryset(self.get_queryset())
-        
         # 选择需要的字段
         nodes_data = queryset.values(
             'id',
             'ip_address',
             'model_instance__instance_name',
+            'model_instance',
+            'model',
             'proxy'
         )
         
@@ -132,8 +138,11 @@ class NodesViewSet(AuditContextMixin,ModelViewSet):
             result.append({
                 'id': node['id'],
                 'ip_address': node['ip_address'],
+                'model_instance': node['model_instance'],
                 'instance_name': node['model_instance__instance_name'],
+                "model_id": node['model'],
                 "proxy_id": node['proxy'],
+
             })
         
         return JsonResponse(result, safe=False)
@@ -257,10 +266,10 @@ class NodesViewSet(AuditContextMixin,ModelViewSet):
             "proxy_id": "proxy_id"
         }
         """
-        node_ids = request.data.get('ids', [])
+        instance_ids = request.data.get('ids', [])
         proxy_id = request.data.get('proxy_id')
         
-        if not node_ids:
+        if not instance_ids:
             return JsonResponse(
                 {'error': 'ids参数不能为空'}, 
                 status=status.HTTP_400_BAD_REQUEST
@@ -282,7 +291,11 @@ class NodesViewSet(AuditContextMixin,ModelViewSet):
             )
         
         # 批量更新Nodes的proxy字段
-        updated_count = Nodes.objects.filter(id__in=node_ids).update(proxy=proxy)
+        # updated_count = Nodes.objects.filter(id__in=node_ids).update(proxy=proxy)
+        nodesObj = Nodes.objects.filter(model_instance__id__in=instance_ids)
+        # 获取node_ids
+        node_ids = list(nodesObj.values_list('id', flat=True))
+        updated_count = nodesObj.update(proxy=proxy)
         # 批量更新zabbix的proxy
         proxy_info = {
             "proxy_name": proxy.name,
@@ -313,15 +326,14 @@ class NodesViewSet(AuditContextMixin,ModelViewSet):
             "ids": ["node_id_1", "node_id_2", "..."]
         }
         """
-        node_ids = request.data.get('ids', [])
+        instance_ids = request.data.get('ids', [])
         proxy_id = request.data.get('proxy_id')
 
-        if not node_ids:
+        if not instance_ids:
             return JsonResponse(
                 {'error': 'ids参数不能为空'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
-        print(proxy_id)
         proxy = Proxy.objects.get(id=proxy_id)
         proxy_info = {
             "proxy_name": proxy.name,
@@ -330,7 +342,10 @@ class NodesViewSet(AuditContextMixin,ModelViewSet):
             "proxy_status": proxy.enabled,
         }
         # 批量将Nodes的proxy字段设为NULL
-        updated_count = Nodes.objects.filter(id__in=node_ids).update(proxy=None)
+        #updated_count = Nodes.objects.filter(id__in=node_ids).update(proxy=None)
+        nodesObj = Nodes.objects.filter(model_instance__id__in=instance_ids)
+        node_ids = list(nodesObj.values_list('id', flat=True))
+        updated_count = nodesObj.update(proxy=None)
         zabbix_proxy_sync.delay(proxy_info=proxy_info,action="dissociate_host",node_ids=node_ids)
 
         return JsonResponse(

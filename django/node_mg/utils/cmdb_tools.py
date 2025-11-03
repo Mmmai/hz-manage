@@ -143,6 +143,55 @@ def node_inventory(node):
             jump_port = proxy.port
             inventory['all']['hosts'][node.ip_address]['ansible_ssh_common_args'] += f" -o ProxyCommand=\"sshpass -p '{jump_pass}' ssh -W %h:%p -p {jump_port} {jump_user}@{jump_host}\""
     return inventory
+def nodes_inventory(nodes):
+    """
+    获取多个节点的配置信息，生成Ansible inventory格式的字典
+    
+    参数:
+        nodes: 节点对象列表，每个节点包含IP地址、代理信息和模型实例等属性
+        
+    返回值:
+        dict: 包含所有节点SSH连接配置的inventory字典，格式为Ansible所需格式
+    """
+    if not nodes:
+        return {}
+    
+    hosts = {}
+    
+    # 遍历所有节点，为每个节点构建inventory配置
+    for node in nodes:
+        proxy = node.proxy
+        ssh_user = get_instance_field_value(node.model_instance, 'system_user') or 'root'
+        ssh_pass = get_instance_field_value(node.model_instance, 'system_password') or ''
+        ssh_port = get_instance_field_value(node.model_instance, 'ssh_port') or 22
+        
+        # 为当前节点构建inventory配置
+        host_config = {
+            'ansible_ssh_user': ssh_user,
+            'ansible_ssh_pass': ssh_pass,
+            'ansible_ssh_port': ssh_port,
+        }
+        
+        # 如果存在代理节点，则添加代理跳转配置
+        if proxy:
+            if proxy.proxy_type != 'zabbix' and proxy.enabled:
+                jump_host = proxy.ip_address
+                jump_user = proxy.auth_user
+                jump_pass = proxy.auth_pass
+                jump_port = proxy.port
+                host_config['ansible_ssh_common_args'] = f" -o StrictHostKeyChecking=no -o ProxyCommand=\"sshpass -p '{jump_pass}' ssh -W %h:%p -p {jump_port} {jump_user}@{jump_host}\""
+        
+        # 将当前节点配置添加到hosts字典中
+        hosts[node.ip_address] = host_config
+    
+    # 构建完整的inventory结构
+    inventory = {
+        'all': {
+            'hosts': hosts
+        }
+    }
+    
+    return inventory
 if __name__ == "__main__":
     # print(123)
     # info = {"hostname": "localhost", "ip": "192.168.163.160", "kernel": "3.10.0-693.el7.x86_64", "os_arch": "x86_64", "os_type": "Linux", "os_name": "RedHat 7.4", "os_version": "7.4", "cpu_info": {"model": "AMD Ryzen 7 8845HS w/ Radeon 780M Graphics", "cores": 8}, "memory_info": {"total_mb": "3.685546875"}, "disk_size": ["40.00 GB"], "hardware_info": {"name": "VMware Virtual Platform", "vendor": "VMware, Inc.", "serial_number": "VMware-56 4d 4c 32 e1 91 70 bb-b5 68 c2 d9 aa 2a 8d 91"}}

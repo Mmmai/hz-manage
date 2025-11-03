@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'channels',
     'django_celery_beat',
     'node_mg',
+    'jobflow'
 
 ]
 
@@ -400,6 +401,12 @@ LOGGING = {
             'filename': os.path.join(LOG_DIR, 'cmdb.log'),
             'formatter': 'standard',
         },
+        'jobflow_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'jobflow.log'),
+            'formatter': 'standard',
+        },
     },
     'loggers': {
         'django': {
@@ -433,11 +440,16 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': False,
         },
-        '': {
-            'handlers': ['console', 'file'],
+        'jobflow': {
+            'handlers': ['jobflow_file', 'console'],
             'level': 'DEBUG',
             'propagate': True,
         },
+        # '': {
+        #     'handlers': ['console', 'file'],
+        #     'level': 'DEBUG',
+        #     'propagate': True,
+        # },
     },
 }
 

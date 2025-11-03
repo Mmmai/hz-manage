@@ -230,7 +230,7 @@ const props: TreeTransferProps = defineProps({
 }); // 又侧筛选条件
 
 /* 定义emit */
-const emit = defineEmits(["checkVal"]);
+const emit = defineEmits(["check-val"]);
 
 /**
  * 定义props类型
@@ -687,7 +687,7 @@ const handleRightAllCheck = () => {
 // 返回已选数据给父组件
 const checkVal = () => {
   emit(
-    "checkVal",
+    "check-val",
     props.isToList ? rightData.value : leftTreeRef.value.getCheckedNodes(true)
   );
 };

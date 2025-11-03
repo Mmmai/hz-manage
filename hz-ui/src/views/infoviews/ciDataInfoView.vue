@@ -84,7 +84,12 @@
                 "
               >
                 <div v-if="!isEdit">
-                  <el-button type="primary" @click="editAction">编辑</el-button>
+                  <el-button
+                    type="primary"
+                    @click="editAction"
+                    v-permission="`${route.name?.replace('_info', '')}:edit`"
+                    >编辑</el-button
+                  >
                 </div>
                 <div v-else>
                   <el-button type="primary" @click="cancelAction"
@@ -470,6 +475,8 @@
                         </el-space>
                       </template>
                       <el-select
+                        clearable
+                        filterable
                         v-model="editForm[fitem.name]"
                         placeholder="请选择"
                         style="width: 240px"

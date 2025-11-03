@@ -5,6 +5,8 @@ import asyncio
 from asgiref.sync import sync_to_async
 import subprocess
 import ansible_runner
+import logging
+logger = logging.getLogger(__name__)
 class ws_test(AsyncWebsocketConsumer):
     async def connect(self):
         await self.accept()
@@ -15,7 +17,8 @@ class ws_test(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         data = json.loads(text_data)
         command = data.get('command')
-        
+        print(123)
+        logger.info("开始执行命令...")
         # 使用subprocess执行Ansible命令
         process = await sync_to_async(subprocess.Popen)(
             command,
@@ -84,7 +87,7 @@ class ws_ansible(AsyncWebsocketConsumer):
         # 创建临时目录
         task_dir = os.path.join(private_data_dir, str(uuid.uuid4()))
         os.makedirs(task_dir, exist_ok=True)
-
+        print(inventory_data)
         thread, runner = ansible_runner.run_async(
             private_data_dir=task_dir,
             module="shell",
@@ -96,8 +99,8 @@ class ws_ansible(AsyncWebsocketConsumer):
 
         try:
             for event in runner.events:
-                # print(event)
-
+                print(event)
+                print(123)
                 if 'stdout' in event and event['stdout']:
                     # print(event['stdout'])  
                     await self.send(text_data=json.dumps({

@@ -165,6 +165,11 @@ export default {
   getCiModelTree(params) {
     return axios.request({ url: path.cmdbCiDataTree, method: 'get', params: params })
   },
+  // 实例树节点
+  getCiModelTreeNode(params) {
+    // params: {model:id}
+    return axios.request({ url: path.cmdbCiDataTree + 'tree/', method: 'get', params: params })
+  },
   // 从CI树节点查询ci实例
   getCiDataFromModelTree(params) {
     return axios.request({ url: path.cmdbCiDataTree + params + '/search_instances', method: 'get' })
