@@ -68,3 +68,16 @@ def resolve_dynamic_value(model_field, value):
             })
 
     return value
+
+def resolve_model(value):
+    """
+    一个“值解析器”，专门用于处理 snapshot fields 中属于外键 snapshot fields 的 Model 的字段用来截断递归引用。
+    它接收一个 Model 对象并返回其 id、name 和 verbose_name 的 JSON 字符串表示。
+    """
+    if value:
+        return json.dumps({
+            'id': str(value.id),
+            'name': value.name,
+            'verbose_name': value.verbose_name
+        }, ensure_ascii=False)
+    return None

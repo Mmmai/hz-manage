@@ -14,7 +14,7 @@ from .snapshots import (
     get_static_field_snapshot,
     get_field_value_snapshot
 )
-from cmdb.message import instance_group_relations_audit
+from cmdb.message import instance_group_relations_audit, instance_bulk_update_audit
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +70,19 @@ def build_audit_comment(action, instance):
         _model_name = getattr(getattr(instance, "model", None), "verbose_name", "模型")
         model_label = getattr(getattr(instance, "model", None), "verbose_name", "模型")
         return f"{verb}了{model_label}({_model_name})的唯一约束"
+
+    if model_name == 'relationdefinition':
+        relation_name = getattr(instance, "name", str(instance))
+        return f"{verb}了关联关系定义：{relation_name}"
+
+    if model_name == 'relations':
+        relation = getattr(instance, "relation", None)
+        relation_name = getattr(relation, "name", str(relation))
+        source = getattr(instance, "source_instance", str(instance))
+        target = getattr(instance, "target_instance", str(instance))
+        source_name = getattr(source, "instance_name", str(source))
+        target_name = getattr(target, "instance_name", str(target))
+        return f"{verb}了关联关系：{relation_name}，源实例：{source_name}，目标实例：{target_name}"
 
     readable = getattr(instance.__class__, "__name__", model_name)
     return f"{verb}了{readable}"
@@ -173,7 +186,7 @@ def log_changes(sender, instance, created, **kwargs):
             return
 
         comment = context.get("comment") or build_audit_comment(action, instance)
-
+        logger.info(f'{static_changes}, {dynamic_changes}, {comment}')
         log = AuditLog.objects.create(
             content_object=instance,
             action=action,
@@ -277,3 +290,97 @@ def log_instance_group_relation_audit(sender, instance, old_groups, new_groups, 
         )
 
     transaction.on_commit(delayed_audit_log)
+    
+@receiver(instance_bulk_update_audit)
+def log_instance_bulk_update_audit(sender, snapshots_list, **kwargs):
+    if not snapshots_list:
+        return
+
+    context_snapshot = get_audit_context()
+
+    first_instance_class = snapshots_list[0]['instance'].__class__
+    if not registry.is_registered(first_instance_class):
+        return
+        
+    resolver = registry.get_dynamic_value_resolver(first_instance_class)
+
+    def delayed_process(context=context_snapshot):
+        logs_with_details = []
+
+        for info in snapshots_list:
+            logger.info(f'{info}')
+            instance = info['instance']
+            old_snapshot = info['old_snapshot']
+            new_snapshot = info['new_snapshot']
+            update_fields = info.get('update_fields', [])
+            
+            dynamic_changes = []
+
+            all_keys = set(old_snapshot.keys()) | set(new_snapshot.keys())
+            
+            for field_name in all_keys:
+                if field_name not in update_fields:
+                    continue
+
+                old_field_data = old_snapshot.get(field_name, {})
+                new_field_data = new_snapshot.get(field_name, {})
+                old_val = old_field_data.get('value')
+                new_val = new_field_data.get('value')
+
+                if old_val != new_val:
+                    model_field = new_field_data.get('model_field') or old_field_data.get('model_field')
+                    if resolver and model_field:
+                        old_val = resolver(model_field, old_val)
+                        new_val = resolver(model_field, new_val)
+                    
+                    dynamic_changes.append({
+                        'name': field_name,
+                        'verbose_name': new_field_data.get('verbose_name') or old_field_data.get('verbose_name', ''),
+                        'old_value': old_val,
+                        'new_value': new_val,
+                    })
+
+            if not dynamic_changes:
+                continue
+
+            comment = context.get("comment") or build_audit_comment('UPDATE', instance)
+            
+            log = AuditLog(
+                content_object=instance,
+                action='UPDATE',
+                changed_fields={},
+                operator=context.get('operator', ''),
+                operator_ip=context.get('operator_ip', None),
+                request_id=context.get('request_id', ''),
+                correlation_id=context.get('correlation_id', ''),
+                comment=comment
+            )
+            
+            details = []
+            
+            for change in dynamic_changes:
+                details.append(FieldAuditDetail(
+                    name=change['name'],
+                    verbose_name=change['verbose_name'],
+                    old_value=str(change['old_value']) if change['old_value'] is not None else None,
+                    new_value=str(change['new_value']) if change['new_value'] is not None else None,
+                ))
+
+            logs_with_details.append((log, details))
+
+        all_logs_to_create = [item[0] for item in logs_with_details]
+        if not all_logs_to_create:
+            return
+
+        AuditLog.objects.bulk_create(all_logs_to_create)
+
+        all_details_to_create = []
+        for log, details in logs_with_details:
+            for detail in details:
+                detail.audit_log_id = log.id
+            all_details_to_create.extend(details)
+
+        if all_details_to_create:
+            FieldAuditDetail.objects.bulk_create(all_details_to_create)
+
+    transaction.on_commit(delayed_process)

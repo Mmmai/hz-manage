@@ -1,11 +1,11 @@
 import logging
-from pyexpat import model
 import time
 import uuid
 import traceback
 import re
 import io
 import tempfile
+import networkx as nx
 from celery import shared_task
 from functools import reduce
 from django.conf import settings
@@ -84,7 +84,8 @@ class CmdbBaseViewSet(AuditContextMixin, viewsets.ModelViewSet):
     def perform_update(self, serializer):
         """在更新对象时，自动设置 update_user。"""
         username = self.get_current_user()
-        serializer.save(update_user=username)
+        serializer.instance.update_user = username
+        # serializer.save()
 
 class CmdbReadOnlyBaseViewSet(AuditContextMixin, viewsets.ReadOnlyModelViewSet):
     """
@@ -413,10 +414,6 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
     search_fields = ['model', 'instance_name', 'create_user', 'update_user']
 
     def _get_serializer_context_for_instances(self, instances):
-        """
-        为一个实例列表构建并返回序列化器所需的完整上下文。
-        这个方法统一了 list 和 retrieve 的上下文准备逻辑。
-        """
         context = self.get_serializer_context()
         instance_ids = [instance.id for instance in instances]
 
@@ -511,7 +508,6 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
                 all_instance_ids = set(meta_query.values_list('model_instance_id', flat=True))
                 exclude_ids = set()
 
-                # 处理各种过滤条件逻辑（从现有的get_queryset复制过来的代码）
                 if isinstance(field_value, str):
                     if field_value.startswith('like:'):
                         value = field_value[5:]
@@ -637,31 +633,21 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
         if not instances.exists():
             raise ValidationError("No instances found with the provided criteria.")
 
+        model_count = instances.values('model').distinct().count()
+        if model_count > 1:
+            raise ValidationError("Instances belong to multiple models; bulk update requires a single model.")
+
         correlation_id = str(uuid.uuid4())
-        
         with audit_context(correlation_id=correlation_id):
-            serializer = self.get_serializer(
-                instance=instances.first(),
-                data={
-                    'fields': fields_data,
-                    'update_user': update_user
-                },
-                partial=True,
-                context={
-                    'request': request,
-                    'bulk_update': True,
-                    'instances': instances
-                }
+            updated_count = self.get_serializer_class().bulk_update_instances(
+                instances_qs=instances,
+                fields_data=fields_data,
+                context=self.get_serializer_context()
             )
-            logger.info(f'Updating {len(instances)} instances with fields: {fields_data}')
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            logger.debug(f'Serializer data: {serializer.data}')
-            logger.info(f'Instances updated successfully')
 
         return Response({
             'status': 'success',
-            'updated_instances_count': instances.count()
+            'updated_instances_count': updated_count
         }, status=status.HTTP_200_OK)
 
     def get_renderers(self):
@@ -1393,24 +1379,161 @@ class RelationsViewSet(CmdbBaseViewSet):
 
     @action(detail=False, methods=['get'], url_path='topology')
     def get_topology(self, request):
-        """
-        获取拓扑数据。
-        接收一个或多个实例ID作为起点，递归查询指定深度的关系。
-        """
-        start_nodes = request.query_params.getlist('start_nodes', [])
-        depth = int(request.query_params.get('depth', 2))
+        try:
+            start_node_ids = request.query_params.getlist('start_nodes')
+            end_node_ids = request.query_params.getlist('end_nodes', [])
+            depth = int(request.query_params.get('depth', 3))
+            direction = request.query_params.get('direction', 'both')
+            mode = request.query_params.get('mode', 'blast')
 
-        if not start_nodes:
-            return Response({"detail": "必须提供 'start_nodes' 参数。"}, status=status.HTTP_400_BAD_REQUEST)
+            if not start_node_ids:
+                return Response({"detail": "必须提供 'start_nodes' 参数。"}, status=status.HTTP_400_BAD_REQUEST)
+            if mode == 'path' and not end_node_ids:
+                return Response({"detail": "路径模式(path)下必须提供 'end_nodes' 参数。"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # TODO: with networkx
+            # 1. 按需构建图对象
+            G, involved_nodes, involved_edges = self._build_graph_on_demand(
+                start_node_ids, end_node_ids, depth, direction, mode
+            )
+
+            # 2. 序列化返回
+            # 从图中提取已加载的实例和关系对象
+            node_objects = [data['instance'] for _, data in G.nodes(data=True)]
+            edge_objects = [data['relation'] for u, v, data in G.edges(data=True)]
+
+            node_serializer = ModelInstanceBasicViewSerializer(node_objects, many=True)
+            edge_serializer = RelationsSerializer(edge_objects, many=True)
+
+            return Response({
+                "nodes": node_serializer.data,
+                "edges": edge_serializer.data
+            })
+
+        except Exception as e:
+            logger.error(f"获取拓扑数据时发生错误: {e}", exc_info=True)
+            return Response({"detail": "处理拓扑查询时发生内部错误。"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def _build_graph_on_demand(self, start_node_ids, end_node_ids, depth, direction, mode):
+        """
+        按需从数据库查询数据来构建图，避免一次性加载所有数据。
+        """
+        G = nx.DiGraph()
         
-        logger.info(f"正在为节点 {start_nodes} 生成深度为 {depth} 的拓扑数据。")
-        # 示例返回，实际应实现查询逻辑
-        return Response({
-            "nodes": [], 
-            "edges": []
-        }, status=status.HTTP_200_OK)
+        # 待处理的节点队列，初始为起始节点
+        queue = set(start_node_ids)
+        # 已处理过的节点，防止重复查询
+        seen_nodes = set()
+        
+        all_involved_nodes = set(start_node_ids) | set(end_node_ids)
+
+        # 在路径模式下，我们需要找到从起点到终点的路径
+        if mode == 'path':
+            # 为了找到路径，我们需要一个足够大的图，这里可以先构建一个包含所有相关节点的子图
+            # 这是一个简化的策略：获取起点和终点之间所有关系，构建图，然后查找路径
+            # 注意：对于超大图，这里仍有优化空间，比如使用双向BFS等算法
+            relations_qs = Relations.objects.filter(
+                Q(source_instance_id__in=start_node_ids) | Q(target_instance_id__in=start_node_ids) |
+                Q(source_instance_id__in=end_node_ids) | Q(target_instance_id__in=end_node_ids)
+            ).select_related('source_instance', 'target_instance', 'relation')
+            
+            # 这是一个更广泛的查询，获取可能路径上的所有关系
+            # 实际应用中可能需要更复杂的算法来限制查询范围
+            
+            self._add_edges_to_graph(G, relations_qs)
+            
+            path_nodes = set()
+            for start_node in start_node_ids:
+                for end_node in end_node_ids:
+                    if G.has_node(start_node) and G.has_node(end_node):
+                        try:
+                            # 根据方向查找路径
+                            graph_to_search = G if direction != 'up' else G.reverse(copy=True)
+                            paths = nx.all_simple_paths(graph_to_search, source=start_node, target=end_node, cutoff=depth)
+                            for path in paths:
+                                path_nodes.update(path)
+                        except nx.NetworkXNoPath:
+                            continue
+            all_involved_nodes.update(path_nodes)
+
+        # 在爆炸/影响模式下，我们从起点开始逐层遍历
+        elif mode == 'blast':
+            for i in range(depth):
+                if not queue:
+                    break
+                
+                current_level_nodes = list(queue)
+                seen_nodes.update(current_level_nodes)
+                queue.clear()
+
+                q_filter = Q()
+                if direction in ('down', 'both'):
+                    q_filter |= Q(source_instance_id__in=current_level_nodes)
+                if direction in ('up', 'both'):
+                    q_filter |= Q(target_instance_id__in=current_level_nodes)
+
+                relations_qs = Relations.objects.filter(q_filter).select_related(
+                    'source_instance', 'target_instance', 'relation'
+                )
+                
+                newly_found_nodes = self._add_edges_to_graph(G, relations_qs)
+                
+                # 将新发现的、且未处理过的节点加入下一次循环的队列
+                queue.update(newly_found_nodes - seen_nodes)
+                all_involved_nodes.update(newly_found_nodes)
+
+        # 最后，根据收集到的所有相关节点ID，构建最终的子图
+        final_relations = Relations.objects.filter(
+            Q(source_instance_id__in=all_involved_nodes) & Q(target_instance_id__in=all_involved_nodes)
+        ).select_related('source_instance', 'target_instance', 'relation')
+
+        final_graph = nx.DiGraph()
+        self._add_edges_to_graph(final_graph, final_relations)
+        
+        return final_graph, all_involved_nodes, final_relations
+
+    def _add_edges_to_graph(self, G, relations_qs):
+        """
+        将查询到的关系添加到图中，并根据topology_type处理边的方向。
+        返回本次添加操作中新发现的所有节点的ID集合。
+        """
+        new_nodes = set()
+        
+        # 预加载所有涉及的实例对象，减少循环内查询
+        instance_ids = set()
+        for rel in relations_qs:
+            instance_ids.add(rel.source_instance_id)
+            instance_ids.add(rel.target_instance_id)
+        
+        instances = ModelInstance.objects.in_bulk([str(uuid) for uuid in instance_ids])
+        
+        for rel in relations_qs:
+            source_id = str(rel.source_instance_id)
+            target_id = str(rel.target_instance_id)
+            
+            source_inst = instances.get(rel.source_instance_id)
+            target_inst = instances.get(rel.target_instance_id)
+
+            if not source_inst or not target_inst:
+                continue
+
+            # 添加节点（如果不存在）
+            if source_id not in G:
+                G.add_node(source_id, instance=source_inst)
+                new_nodes.add(source_id)
+            if target_id not in G:
+                G.add_node(target_id, instance=target_inst)
+                new_nodes.add(target_id)
+
+            # 根据关系类型添加边
+            topology_type = rel.relation.topology_type
+            
+            if topology_type in ('directed', 'daggered'):
+                G.add_edge(source_id, target_id, relation=rel)
+            elif topology_type == 'undirected':
+                G.add_edge(source_id, target_id, relation=rel)
+                G.add_edge(target_id, source_id, relation=rel) # 添加反向边以模拟无向
+
+        return new_nodes
 
 @password_manage_schema
 class PasswordManageViewSet(CmdbBaseViewSet):

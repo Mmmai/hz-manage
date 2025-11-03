@@ -27,7 +27,6 @@ def get_static_field_snapshot(instance):
         field_name = field.name
         field_value = getattr(instance, field_name)
 
-
         resolver = registry.get_field_resolver(instance.__class__, field_name)
         if resolver:
             # 如果有注册的解析器，使用它来处理值
@@ -36,7 +35,7 @@ def get_static_field_snapshot(instance):
 
         # 如果没有解析器，则执行默认逻辑
         if isinstance(field, ForeignKey):
-            snapshot[field_name] = field_value
+            snapshot[field_name] = get_field_value_snapshot(field_value)
             continue
             
         snapshot[field_name] = field_value
@@ -143,8 +142,12 @@ def get_field_value_snapshot(value):
         snapshot_fields = registry.get_snapshot_fields(model_class)
         snapshot = {}
         for field in snapshot_fields:
+            resolver = registry.get_field_resolver(model_class, field)
             if hasattr(value, field):
-                snapshot[field] = getattr(value, field)
+                if resolver:
+                    snapshot[field] = resolver(getattr(value, field))
+                else:
+                    snapshot[field] = getattr(value, field)
         # 确保主键总是存在
         if 'id' not in snapshot and hasattr(value, 'id'):
             snapshot['id'] = value.id
