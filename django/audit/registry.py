@@ -14,6 +14,7 @@ class AuditRegistry:
         self._config: Dict[Type[models.Model], dict] = {}
         self._public_name_map: Dict[str, Type[models.Model]] = {}
         self._model_map: Dict[str, Type[models.Model]] = {}
+        self._m2m_fields_to_audit: list[tuple[Type[models.Model], str, Type[models.Model]]] = []
 
     def register(self, model: Type[models.Model], **kwargs):
         """统一的注册方法。"""
@@ -23,10 +24,17 @@ class AuditRegistry:
         public_name = kwargs.get('public_name')
         if public_name:
             if public_name in self._public_name_map:
-                raise ValueError(f"Public name '{public_name}' 已被注册给模型 {self._public_name_map[public_name].__name__}。")
+                raise ValueError(f"Public name '{public_name}' has been registered to model {self._public_name_map[public_name].__name__}。")
             self._public_name_map[public_name] = model
             self._model_map[model] = public_name
             logger.debug(f"Registered model {model} with public name '{public_name}' in AuditRegistry.")
+
+        m2m_fields = kwargs.get('m2m_fields', [])
+        for field_name in m2m_fields:
+            field = model._meta.get_field(field_name)
+            if not field.many_to_many:
+                raise ValueError(f"Field '{field_name}' is not a ManyToManyField in model {model.__name__}.")
+            self._m2m_fields_to_audit.append((model, field_name, field.remote_field.through))
 
     def is_registered(self, model: Type[models.Model]) -> bool:
         """检查一个模型是否已被注册"""
@@ -59,5 +67,9 @@ class AuditRegistry:
     def get_dynamic_value_resolver(self, model: Type[models.Model]) -> callable:
         """获取模型的动态值解析器配置"""
         return self.config(model).get('dynamic_value_resolver')
+    
+    def get_m2m_fields_to_audit(self):
+        """获取所有注册的多对多字段审计配置"""
+        return self._m2m_fields_to_audit
 
 registry = AuditRegistry()

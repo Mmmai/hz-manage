@@ -9,7 +9,7 @@ from django.core.cache import cache
 from cacheops import invalidate_model
 from django.db import transaction
 from django.db.utils import OperationalError
-from .config import BUILT_IN_MODELS, BUILT_IN_VALIDATION_RULES
+from .config import BUILT_IN_MODELS, BUILT_IN_RELATION_DEFINITION, BUILT_IN_VALIDATION_RULES
 from .tasks import setup_host_monitoring
 from .utils import password_handler, zabbix_config
 from .utils.zabbix import ZabbixAPI
@@ -280,6 +280,54 @@ def _initialize_model_groups():
             model_groups[group_config['name']] = group
 
 
+def _initialize_relation_definition():
+    """初始化关系定义"""
+    from .models import RelationDefinition, Models, ValidationRules
+    from .serializers import RelationDefinitionSerializer
+    models_dict = {model.name: str(model.id) for model in Models.objects.all()}
+
+    invalidate_model(RelationDefinition)
+    for relation_config in BUILT_IN_RELATION_DEFINITION:
+        try:
+            with transaction.atomic():
+                s_m = [models_dict.get(name) for name in relation_config['source_model']]
+                t_m = [models_dict.get(name) for name in relation_config['target_model']]
+                a_s = relation_config['attribute_schema']
+                for t, a in a_s.items():
+                    for attr_name, attr_config in a.items():
+                        if attr_config['type'] == 'enum' and 'validation_rule' in attr_config:
+                            vr = ValidationRules.objects.filter(name=attr_config['validation_rule']).first()
+                            if vr:
+                                attr_config['validation_rule'] = str(vr.id)
+                            else:
+                                logger.error(f"Validation rule {attr_config['validation_rule']} not found for relation attribute")
+                                raise ValueError(f"Validation rule {attr_config['validation_rule']} not found")
+                relation_data = {
+                    'name': relation_config['name'],
+                    'topology_type': relation_config['topology_type'],
+                    'forward_verb': relation_config['forward_verb'],
+                    'reverse_verb': relation_config['reverse_verb'],
+                    'source_model': s_m,
+                    'target_model': t_m,
+                    'description': relation_config['description'],
+                    'attribute_schema': a_s,
+                    'built_in': True,
+                    'create_user': 'system',
+                    'update_user': 'system'
+                }
+                if RelationDefinition.objects.filter(name=relation_config['name']).exists():
+                    # logger.info(f"Relation definition {relation_config['name']} already exists, skipping")
+                    continue
+                relation_serializer = RelationDefinitionSerializer(data=relation_data)
+                if relation_serializer.is_valid(raise_exception=True):
+                    relation_serializer.save()
+                    logger.info(f"Created relation definition: {relation_config['name']}")
+                else:
+                    logger.error(f"Relation definition validation failed: {relation_serializer.errors}")
+        except Exception as e:
+            logger.error(f"Error creating relation definition {relation_config['name']}: {str(e)}")
+            raise
+    
 @receiver(post_migrate)
 def initialize_cmdb(sender, **kwargs):
     """初始化 CMDB 应用"""
@@ -310,6 +358,8 @@ def initialize_cmdb(sender, **kwargs):
                 model_group = model_groups.get(group_name, model_groups['others'])
                 _create_model_and_fields(model_name, model_config, model_group)
 
+            _initialize_relation_definition()
+            
             logger.info(f'CMDB application initialized successfully')
         except OperationalError:
             logger.warning("Database not ready, skipping initialization")

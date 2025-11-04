@@ -1,5 +1,7 @@
 from weakref import proxy
 from django_filters import rest_framework as filters
+from django.db.models import Q
+from django.db.models.functions import Cast
 from .models import *
 
 
@@ -327,14 +329,30 @@ class ModelInstanceGroupRelationFilter(filters.FilterSet):
 class RelationDefinitionFilter(filters.FilterSet):
     name = filters.CharFilter(field_name='name', lookup_expr='icontains')
     topology_type = filters.CharFilter(field_name='topology_type', lookup_expr='exact')
-    source_model = filters.UUIDFilter(field_name='source_model')
-    target_model = filters.UUIDFilter(field_name='target_model')
+    source_model = filters.ModelMultipleChoiceFilter(field_name='source_model', queryset=Models.objects.all())
+    target_model = filters.ModelMultipleChoiceFilter(field_name='target_model', queryset=Models.objects.all())
+    attribute_schema_key = filters.CharFilter(method='filter_attribute_schema_key')
     description = filters.CharFilter(field_name='description', lookup_expr='icontains')
 
+    def filter_attribute_schema_key(self, queryset, name, value):
+        if not value:
+            return queryset
+        
+        key_to_search = f'"{value}"'
+        query = (
+            Q(source_text__icontains=key_to_search) |
+            Q(target_text__icontains=key_to_search) |
+            Q(relation_text__icontains=key_to_search)
+        )
+
+        return queryset.annotate(
+            text=Cast('attribute_schema', output_field=models.TextField()),
+        ).filter(query)
     class Meta:
         model = RelationDefinition
         fields = [
             'name',
+            'topology_type',
             'source_model',
             'target_model',
             'description',
@@ -345,18 +363,14 @@ class RelationsFilter(filters.FilterSet):
     source_instance = filters.UUIDFilter(field_name='source_instance')
     target_instance = filters.UUIDFilter(field_name='target_instance')
     relation = filters.UUIDFilter(field_name='relation')
-    # 增加按属性查询的示例 (需要数据库支持JSON查询)
-    source_port = filters.CharFilter(field_name='source_attributes__port', lookup_expr='exact')
-    target_port = filters.CharFilter(field_name='target_attributes__port', lookup_expr='exact')
-
+    
     class Meta:
         model = Relations
         fields = [
             'source_instance',
             'target_instance',
             'relation',
-            'source_port',
-            'target_port',
+            
         ]
 
 
