@@ -84,8 +84,7 @@ class CmdbBaseViewSet(AuditContextMixin, viewsets.ModelViewSet):
     def perform_update(self, serializer):
         """在更新对象时，自动设置 update_user。"""
         username = self.get_current_user()
-        serializer.instance.update_user = username
-        # serializer.save()
+        serializer.save(update_user=username)
 
 class CmdbReadOnlyBaseViewSet(AuditContextMixin, viewsets.ReadOnlyModelViewSet):
     """
@@ -1352,15 +1351,14 @@ class RelationDefinitionViewSet(CmdbBaseViewSet):
     queryset = RelationDefinition.objects.all().order_by('name')
     serializer_class = RelationDefinitionSerializer
     filterset_class = RelationDefinitionFilter
-    search_fields = ['name', 'source_to_target_verbose', 'target_to_source_verbose', 'description']
     ordering_fields = ['name', 'create_time', 'update_time']
 
     def perform_destroy(self, instance):
         # 检查关系定义是否已被使用
         if Relations.objects.filter(relation=instance).exists():
-            logger.warning(f"尝试删除一个正在被使用的关系定义: {instance.name}")
-            raise PermissionDenied("该关系定义已被至少一个关系实例使用，无法删除。")
-        logger.info(f"关系定义 '{instance.name}' 已被删除。")
+            logger.warning(f"Trying to delete a relation definition in use: {instance.name}")
+            raise PermissionDenied("This relation definition is in use by at least one relation instance and cannot be deleted.")
+        logger.info(f"Relation definition '{instance.name}' has been deleted.")
         super().perform_destroy(instance)
 
 

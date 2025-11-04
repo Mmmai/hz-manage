@@ -2052,6 +2052,8 @@ class RelationDefinitionSerializer(serializers.ModelSerializer):
             if not data.get('source_model') or not data.get('target_model'):
                 raise serializers.ValidationError("source_model and target_model cannot be null when creating a RelationDefinition.")
         else:
+            if 'name' in data and data['name'] != self.instance.name and self.instance.built_in:
+                raise serializers.ValidationError("Built-in RelationDefinition name cannot be changed.")
             if 'source_model' in data and data['source_model'] is None:
                 raise serializers.ValidationError("source_model cannot be set to null.")
             if 'target_model' in data and data['target_model'] is None:
@@ -2060,7 +2062,7 @@ class RelationDefinitionSerializer(serializers.ModelSerializer):
                 'target_model' in data and data['target_model'] != self.instance.target_model:
                 raise serializers.ValidationError("source_model and target_model cannot be changed once set.")
         return data
-
+    
 
 class RelationsSerializer(serializers.ModelSerializer):
 
@@ -2128,11 +2130,17 @@ class RelationsSerializer(serializers.ModelSerializer):
         relation_def = data.get('relation')
 
         # 校验模型约束
-        if relation_def.source_model and source_instance.model != relation_def.source_model:
-            raise serializers.ValidationError(f"Model of source instance must be '{relation_def.source_model.verbose_name}'.")
-        if relation_def.target_model and target_instance.model != relation_def.target_model:
-            raise serializers.ValidationError(f"Model of target instance must be '{relation_def.target_model.verbose_name}'.")
-
+        allowed_source_model = relation_def.source_model.all()
+        if source_instance.model not in allowed_source_model:
+            raise serializers.ValidationError({
+                "source_instance": f"Source instance model '{source_instance.model.name}' is not allowed for this relation."
+            })
+        allowed_target_model = relation_def.target_model.all()
+        if target_instance.model not in allowed_target_model:
+            raise serializers.ValidationError({
+                "target_instance": f"Target instance model '{target_instance.model.name}' is not allowed for this relation."
+            })
+            
         schema = relation_def.attribute_schema or {}
         
         data['source_attributes'] = self._validate_attributes_against_schema(

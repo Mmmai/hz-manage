@@ -1,6 +1,6 @@
 import logging
 from django.db import transaction
-from django.db.models.signals import pre_save, post_save, post_delete
+from django.db.models.signals import pre_save, post_save, post_delete, m2m_changed
 from django.dispatch import receiver
 from django.forms.models import model_to_dict
 from django.utils import timezone
@@ -121,7 +121,7 @@ def log_changes(sender, instance, created, **kwargs):
     context_snapshot = get_audit_context()
     # logger.debug(f"Context snapshot captured: {context_snapshot}")
 
-    new_static_snapshot = get_static_field_snapshot(instance)
+    # new_static_snapshot = get_static_field_snapshot(instance)
     
     old_static_snapshot = getattr(instance, '_old_instance_snapshot', {})
     old_dynamic_snapshot = getattr(instance, '_old_dynamic_fields_snapshot', {})
@@ -129,8 +129,14 @@ def log_changes(sender, instance, created, **kwargs):
     def delayed_process(context=context_snapshot):
         # logger.debug(f"Context for delayed process: {context}")
         action = 'CREATE' if created else 'UPDATE'
-
-        new_dynamic_snapshot = get_dynamic_field_snapshot(instance)
+        final_instance = None
+        try:
+            final_instance = sender.objects.get(pk=instance.pk)
+        except sender.DoesNotExist:
+            return
+        
+        new_static_snapshot = get_static_field_snapshot(final_instance)
+        new_dynamic_snapshot = get_dynamic_field_snapshot(final_instance)
 
         static_changes = {}
         all_static_keys = old_static_snapshot.keys() | new_static_snapshot.keys()
@@ -186,7 +192,7 @@ def log_changes(sender, instance, created, **kwargs):
             return
 
         comment = context.get("comment") or build_audit_comment(action, instance)
-        logger.info(f'{static_changes}, {dynamic_changes}, {comment}')
+        logger.debug(f'{static_changes}, {dynamic_changes}, {comment}')
         log = AuditLog.objects.create(
             content_object=instance,
             action=action,
@@ -384,3 +390,70 @@ def log_instance_bulk_update_audit(sender, snapshots_list, **kwargs):
             FieldAuditDetail.objects.bulk_create(all_details_to_create)
 
     transaction.on_commit(delayed_process)
+    
+@receiver(m2m_changed)
+def log_generic_m2m_changes(sender, instance, action, reverse, model, pk_set, **kwargs):
+    """
+    M2M字段变化处理器。
+    在相关M2M关系发生变化时，查找对应的注册字段，并将变更合并到主审计日志中。
+    """
+    # 不处理反向关系，且在关系添加/删除/清空之后
+    if reverse or action not in ["post_add", "post_remove", "post_clear"]:
+        return
+
+    if not registry.is_registered(instance.__class__):
+        return
+
+    context_snapshot = get_audit_context()
+    correlation_id = context_snapshot.get('correlation_id')
+
+    if not correlation_id:
+        logger.warning(f"M2M change for {instance} occurred outside of a request context. Skipping merge.")
+        return
+
+    # 从注册表中查找哪个字段使用了这个 'through' 模型
+    field_name = None
+    for registered_model, registered_field_name, through_model in registry.get_m2m_fields_to_audit():
+        if registered_model == instance.__class__ and through_model == sender:
+            field_name = registered_field_name
+            break
+    
+    # 没有查询到字段，或者字段没有配置resolver
+    if not field_name:
+        return
+    resolver = registry.get_field_resolver(instance.__class__, field_name)
+    if not resolver:
+        logger.warning(f"No resolver configured for M2M field '{field_name}' on model {instance.__class__.__name__}. Skipping merge.")
+        return
+
+    def delayed_merge(context=context_snapshot):
+        try:
+            manager = getattr(instance, field_name)
+            instance_id = instance.pk
+            main_log = AuditLog.objects.get(
+                correlation_id=correlation_id, 
+                object_id=str(instance_id), 
+                content_type__model=instance.__class__.__name__.lower()
+            )
+
+
+            new_value_snapshot = resolver(manager.all())
+            
+            old_value_snapshot = main_log.changed_fields.get(field_name, [None, None])[0]
+            if old_value_snapshot is None and action != 'post_clear':
+                old_value_snapshot = []
+
+            if main_log.changed_fields is None:
+                main_log.changed_fields = {}
+            
+            main_log.changed_fields[field_name] = [old_value_snapshot, new_value_snapshot]
+            
+            main_log.save(update_fields=['changed_fields', 'timestamp'])
+            logger.debug(f"Merged M2M change for field '{field_name}' into AuditLog {main_log.id}")
+
+        except AuditLog.DoesNotExist:
+            logger.warning(f"Could not find main AuditLog with correlation_id {correlation_id} to merge M2M changes. It might not have been created yet.")
+        except Exception as e:
+            logger.error(f"Failed to merge M2M audit changes: {e}", exc_info=True)
+
+    transaction.on_commit(delayed_merge)

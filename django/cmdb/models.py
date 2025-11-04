@@ -510,6 +510,7 @@ class ModelInstanceGroupRelation(models.Model):
 @register_audit(
     snapshot_fields={'id', 'name', 'source_model', 'target_model', 'topology_type'},
     ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
+    m2m_fields={'source_model', 'target_model'},
     public_name='relation_definition',
     field_resolvers={
         'source_model': resolve_model,
@@ -524,6 +525,7 @@ class RelationDefinition(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50, db_index=True, unique=True, null=False, blank=False)
+    built_in = models.BooleanField(default=False, null=False, blank=False)
     topology_type = models.CharField(
         max_length=50,
         choices=[
@@ -537,8 +539,16 @@ class RelationDefinition(models.Model):
     )
     forward_verb = models.CharField(max_length=50, null=False, blank=False)
     reverse_verb = models.CharField(max_length=50, null=False, blank=False)
-    source_model = models.ForeignKey('Models', on_delete=models.SET_NULL, null=True, blank=True, related_name='source_relations')
-    target_model = models.ForeignKey('Models', on_delete=models.SET_NULL, null=True, blank=True, related_name='target_relations')
+    source_model = models.ManyToManyField(
+        'Models', 
+        blank=True, 
+        related_name='relation_allowed_source_models'
+    )
+    target_model = models.ManyToManyField(
+        'Models', 
+        blank=True, 
+        related_name='relation_allowed_target_models'
+    )
     attribute_schema = models.JSONField(default=dict, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
     create_time = models.DateTimeField(auto_now_add=True)

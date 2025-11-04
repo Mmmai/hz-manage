@@ -2102,6 +2102,13 @@ BUILT_IN_VALIDATION_RULES = {
         'rule': "{\"master\": \"主设备\", \"slave\": \"从设备\", \"standalone\": \"独立设备\"}",
         'description': '高可用状态'
     },
+    'ha_type': {
+        'verbose_name': 'HA类型',
+        'field_type': 'enum',
+        'type': 'enum',
+        'rule': "{\"active-passive\": \"主从模式\", \"active-active\": \"主主模式\", \"clustered\": \"集群模式\", \"other\": \"其他类型\"}",
+        'description': '高可用类型'
+    },
     'vpn_type': {
         'verbose_name': 'VPN类型',
         'field_type': 'enum',
@@ -2273,5 +2280,197 @@ BUILT_IN_VALIDATION_RULES = {
         'type': 'enum',
         'rule': "{\"tomcat\": \"Tomcat\", \"weblogic\": \"WebLogic\", \"kingdee\": \"金蝶\", \"nginx\": \"Nginx\", \"httpd\": \"Httpd\", \"tongweb\": \"东方通\"}",
         'description': '中间件厂商列表'
+    },
+    'peer_type': {
+        'verbose_name': '互联类型',
+        'field_type': 'enum',
+        'type': 'enum',
+        "rule": "{\"mlag\": \"MLAG\", \"stack\": \"堆叠\", \"vrrp\": \"VRRP\", \"ha_sync\": \"主备同步\"}",
+        'description': '网络对等互联类型'
+    },
+    'link_state': {
+        'verbose_name': '链路状态',
+        'field_type': 'enum',
+        'type': 'enum',
+        'rule': "{\"forwarding\": \"转发\", \"blocking\": \"阻塞\", \"disabled\": \"禁用\"}",
+        'description': '描述链路的逻辑状态，如STP状态。'
+    },
+    'link_type': {
+        'verbose_name': '链路类型',
+        'field_type': 'enum',
+        'type': 'enum',
+        "rule": "{\"fiber\": \"光纤\", \"copper\": \"网线\", \"wireless\": \"无线\"}",
+        'description': '链路类型'
     }
 }
+
+
+BUILT_IN_RELATION_DEFINITION = [
+    {
+        "name": "主机上联",
+        "topology_type": "directed",
+        "forward_verb": "上联",
+        "reverse_verb": "下联",
+        "source_model": ['hosts'],
+        "target_model": ['switches', 'npb'],
+        "description": "描述主机网卡到交换机或汇聚分流端口的物理连接。",
+        "attribute_schema": {
+            "source": {
+                "nic": {"type": "string", "verbose_name": "源网卡", "required": False}
+            },
+            "target": {
+                "port": {"type": "string", "verbose_name": "目标端口", "required": True}
+            },
+            "relation": {
+                "bandwidth": {"type": "float", "verbose_name": "带宽", "required": False, "unit": "Mbps"},
+                "link_type": {"type": "enum", "verbose_name": "链路类型", "required": False, "validation_rule": "link_type"}
+            }
+        }
+    },
+    {
+        "name": "虚拟化承载",
+        "topology_type": "daggered",
+        "forward_verb": "运行在",
+        "reverse_verb": "承载",
+        "source_model": ['virtual_machines'],
+        "target_model": ['hosts'],
+        "description": "描述虚拟机与物理宿主机之间的承载关系。",
+        "attribute_schema": {}
+    },
+    {
+        "name": "网络对等互联",
+        "topology_type": "undirected",
+        "forward_verb": "互联",
+        "reverse_verb": "互联",
+        "source_model": ['switches', 'firewalls'],
+        "target_model": ['switches', 'firewalls'],
+        "description": "描述网络设备之间的互联关系。",
+        "attribute_schema": {
+            "source": {
+                "port": {"type": "string", "verbose_name": "本端端口", "required": False}
+            },
+            "target": {
+                "port": {"type": "string", "verbose_name": "对端端口", "required": False}
+            },
+            "relation": {
+                "peer_type": {"type": "enum", "verbose_name": "互联类型", "required": True, "default": "stack", "validation_rule": "peer_type"},
+                "link_type": {"type": "enum", "verbose_name": "链路类型", "required": False, "validation_rule": "link_type"},
+                "bandwidth": {"type": "float", "verbose_name": "带宽", "required": False, "unit": "Gbps"}
+            }
+        }
+    },
+    {
+        "name": "网络层级连接",
+        "topology_type": "daggered",
+        "forward_verb": "上联到",
+        "reverse_verb": "下联",
+        "source_model": ['switches', 'firewalls', 'npb', 'dwdm'],
+        "target_model": ['switches', 'firewalls', 'npb', 'dwdm'],
+        "description": "描述网络设备间的层级关系，如接入层上联到汇聚层，汇聚层上联到核心层。",
+        "attribute_schema": {
+            "source": {
+                "port": {"type": "string", "verbose_name": "本端上联口", "required": True}
+            },
+            "target": {
+                "port": {"type": "string", "verbose_name": "对端下联口", "required": True}
+            },
+            "relation": {
+                "bandwidth": {"type": "float", "verbose_name": "链路带宽", "required": False, "unit": "Gbps"},
+                "link_state": {"type": "enum", "verbose_name": "链路状态", "required": False, "validation_rule": "link_state"}
+            }
+        }
+    },
+    {
+        "name": "带外管理连接",
+        "topology_type": "directed",
+        "forward_verb": "被...管理",
+        "reverse_verb": "管理",
+        "source_model": ['hosts', 'switches', 'firewalls', 'npb', 'dwdm'],
+        "target_model": ['switches'],
+        "description": "描述设备（如核心交换机、服务器BMC）的管理口到带外管理网络的连接。",
+        "attribute_schema": {
+            "source": {
+                "mgmt_port": {"type": "string", "verbose_name": "设备管理口", "required": True, "default": "Mgmt0/0/0"}
+            },
+            "target": {
+                "access_port": {"type": "string", "verbose_name": "管理网接入端口", "required": True}
+            }
+        }
+    },
+    {
+        "name": "数据流向",
+        "topology_type": "directed",
+        "forward_verb": "数据流向",
+        "reverse_verb": "数据来源",
+        "source_model": ['databases', 'apps', 'clusters', 'middleware'],
+        "target_model": ['databases', 'apps', 'clusters', 'middleware'],
+        "description": "描述数据库或应用之间的数据流向关系。",
+        "attribute_schema": {
+            "source": {
+                "data_type": {"type": "string", "verbose_name": "数据类型", "required": True}
+            },
+            "target": {
+                "data_type": {"type": "string", "verbose_name": "数据类型", "required": True},
+                "port": {"type": "integer", "verbose_name": "接收端口", "required": False}
+            }
+        }
+    },
+    {
+        "name": "应用部署",
+        "topology_type": "daggered",
+        "forward_verb": "部署在",
+        "reverse_verb": "承载应用",
+        "source_model": ['databases', 'apps'],
+        "target_model": ['hosts', 'virtual_machines'],
+        "description": "描述应用部署在主机或虚拟机上的关系。",
+        "attribute_schema": {
+            "target": {
+                "directory": {"type": "string", "verbose_name": "部署目录", "required": False}
+            }
+        }
+    },
+    {
+        "name": "应用高可用",
+        "topology_type": "undirected",
+        "forward_verb": "互为主备",
+        "reverse_verb": "互为主备",
+        "source_model": ['apps', 'databases', 'middleware'],
+        "target_model": ['apps', 'databases', 'middleware'],
+        "description": "描述应用、数据库或中间件之间的主备、双活等高可用关系。",
+        "attribute_schema": {
+            "relation": {
+                "ha_type": {"type": "enum", "verbose_name": "高可用类型", "required": True, "validation_rule": "ha_type", "default": "active-passive"},
+                "vip": {"type": "string", "verbose_name": "虚拟IP (VIP)", "required": False, "validation_rule": "ip"}
+            }
+        }
+    },
+    {
+        "name": "应用依赖",
+        "topology_type": "directed",
+        "forward_verb": "依赖于",
+        "reverse_verb": "被...依赖",
+        "source_model": ['apps'],
+        "target_model": ['databases', 'apps'],
+        "description": "描述应用对数据库或其他应用（如API调用）的依赖关系。",
+        "attribute_schema": {
+            "relation": {
+                "access_port": {"type": "integer", "verbose_name": "访问端口", "required": False},
+                "dependency_type": {"type": "string", "verbose_name": "依赖类型", "required": False, "default": "数据访问"}
+            }
+        }
+    },
+    {
+        "name": "集群成员",
+        "topology_type": "undirected",
+        "forward_verb": "属于集群",
+        "reverse_verb": "包含成员",
+        "source_model": ['hosts', 'virtual_machines'],
+        "target_model": ['clusters'],
+        "description": "描述主机或虚拟机作为某个集群的成员节点。",
+        "attribute_schema": {
+            "source": {
+                "role": {"type": "string", "verbose_name": "节点角色", "required": False, "default": "worker"}
+            }
+        }
+    },
+]
