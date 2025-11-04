@@ -1,6 +1,6 @@
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save,post_migrate
 from django.dispatch import receiver
-from .models import Menu,Permission,Role,Button,sysConfigParams
+from .models import UserInfo,UserGroup,Role,Menu,sysConfigParams,Button,Permission
 from django.db import transaction
 from node_mg.utils.config_manager import ConfigManager
 import re

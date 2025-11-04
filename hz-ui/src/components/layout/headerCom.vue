@@ -167,14 +167,12 @@ const handleLogout = (done) => {
       // window.location.reload()
     })
     .catch((error) => {
-      console.log(123);
       // catch error
       console.error("发生错误: " + error);
     });
 };
 
 const handleThemeChange = (theme) => {
-  console.log("切换主题:", theme);
   layoutThemeColor.value = theme;
   changeTheme(theme);
 };

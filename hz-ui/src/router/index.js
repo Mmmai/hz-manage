@@ -76,19 +76,24 @@ router.beforeEach(async (to, from, next) => {
         store.commit("updateDynamicCreateRoute", true)
         // 获取动态路由
         // await store.dispatch('getRouteInfoAction', {role:store.state.role})
-        await store.dispatch('getRoleMenu', { role: store.state.role })
-        // console.log(store.state.menuInfo)
-        // const drouteinfo = store.state.routeInfo
-        console.log(store.state.menuInfo)
-        if (store.state.menuInfo.length === 0) {
+        try {
+          await store.dispatch('getRoleMenu', { role: store.state.role })
+          // console.log(store.state.menuInfo)
+          // const drouteinfo = store.state.routeInfo
+          if (store.state.menuInfo.length === 0) {
+            next('/login')
+            return
+          }
+
+          dealWithRoute(store.state.menuInfo, publicRoute)
+
+          // print()
+          next({ ...to, replace: true })
+        } catch (error) {
+          // 处理token认证失败的情况
           next('/login')
           return
         }
-
-        dealWithRoute(store.state.menuInfo, publicRoute)
-
-        // print()
-        next({ ...to, replace: true })
       } else {
         // 判断路由中的权限
         if (to.meta.role) {

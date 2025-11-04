@@ -18,6 +18,8 @@ const path = {
   cmdbModelRef: "/api/v1/cmdb/model_ref/",
   cmdbReEncrypt: "/api/v1/cmdb/password_manage/re_encrypt/",
   cmdbSyncZabbix: "/api/v1/cmdb/zabbix_sync_host/",
+  cmdbRelation: "/api/v1/cmdb/relations/",
+  cmdbRelationDefinition: "/api/v1/cmdb/relation_definition/",
   auditLog: "/api/v1/cmdb/audit/logs/",
 }
 export default {
@@ -129,7 +131,7 @@ export default {
     return axios.request({ url: path.cmdbCiModelInstance, method: 'get', params: params })
   },
   deleteCiModelInstance(params) {
-    return axios.delete(path.cmdbCiModelInstance + params)
+    return axios.delete(path.cmdbCiModelInstance + params + '')
   },
   bulkDeleteCiModelInstance(params, timeout = 30) {
     return axios.request({ url: path.cmdbCiModelInstance + 'bulk_delete/', method: 'post', data: params, timeout: timeout })
@@ -232,5 +234,21 @@ export default {
   // installAgent(params) {
   //   return axios.request({ url: path.cmdbSyncZabbix + 'install_agents/', method: 'post', data: params })
   // }
+  // 模型关联定义
+  getModelRelationDefine(params) {
+    return axios.request({ url: path.cmdbRelationDefinition, method: 'get', params: params })
+  },
+  getModelRelationDefineInfo(id) {
+    return axios.request({ url: path.cmdbRelationDefinition + id + '/', method: 'get' })
+  },
+  deleteModelRelationDefine(params) {
+    return axios.delete(path.cmdbRelationDefinition + params)
+  },
+  addModelRelationDefine(params) {
+    return axios.request({ url: path.cmdbRelationDefinition, method: 'post', data: params })
+  },
+  updateModelRelationDefine(params) {
+    return axios.request({ url: path.cmdbRelationDefinition + params.id + '/', method: 'patch', data: params })
+  },
 
 }

@@ -74,7 +74,7 @@
         </div>
       </div>
     </div>
-    <div class="card table-container table-main" style="width: 100%">
+    <div class="card table-container" style="width: 100%">
       <!-- 审计日志表格 -->
       <el-table
         :data="auditLogs"

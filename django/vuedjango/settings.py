@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'mlog',
     'mapi',
     'cacheops',
+    'node_mg',
     'cmdb',
     'rest_framework',
     'django_filters',
@@ -58,7 +59,6 @@ INSTALLED_APPS = [
     'drf_spectacular_sidecar',
     'channels',
     'django_celery_beat',
-    'node_mg',
     'jobflow'
 
 ]

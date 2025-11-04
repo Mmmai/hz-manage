@@ -122,6 +122,7 @@ header {
     background-color: var(--el-bg-color);
     display: flex;
     gap: 10px;
+    justify-content: center;
   }
 }
 

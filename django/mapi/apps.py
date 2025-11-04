@@ -26,8 +26,9 @@ class MapiConfig(AppConfig):
             raise 
     # 初始化数据
     def init_script(self,sender,**kwargs):
+        if sender.name != 'mapi':
+            return
         from mapi.models import UserInfo,UserGroup,Role,Menu,sysConfigParams,Button
-
         # 初始化用户、用户组和角色
         initList = UserInfo.objects.all()
         if len(initList) == 0:

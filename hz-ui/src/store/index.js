@@ -2,7 +2,7 @@ import {
   createStore
 } from "vuex"
 import api from '../api/index'
-
+import { ElMessage } from 'element-plus'
 // Vuex的核心作用就是管理组件之间的状态管理
 export default createStore({
   state: {
@@ -171,8 +171,18 @@ export default createStore({
       state
     }, config) {
       // let role = JSON.parse(localStorage.getItem('role'))
-      console.log(config)
+      // console.log(config)
       let res = await api.getMenuList(config)
+      if (res.status === 403) {
+        // 弹出提示没有认证
+        ElMessage.error('token认证失败,请重新登录')
+        // console.log(router.getRoutes())
+        // // 跳转到login页面
+        // router.push({ path: '/login' })
+        // 清除token
+        localStorage.clear();
+        return
+      }
       console.log(res.data.results)
       commit("setRoleMenu", res.data.results)
     }
