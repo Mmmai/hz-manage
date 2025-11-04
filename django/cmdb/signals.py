@@ -304,6 +304,7 @@ def _initialize_relation_definition():
                                 raise ValueError(f"Validation rule {attr_config['validation_rule']} not found")
                 relation_data = {
                     'name': relation_config['name'],
+                    'built_in': True,
                     'topology_type': relation_config['topology_type'],
                     'forward_verb': relation_config['forward_verb'],
                     'reverse_verb': relation_config['reverse_verb'],

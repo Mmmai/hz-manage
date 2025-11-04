@@ -192,7 +192,7 @@ def log_changes(sender, instance, created, **kwargs):
             return
 
         comment = context.get("comment") or build_audit_comment(action, instance)
-        logger.info(f'{static_changes}, {dynamic_changes}, {comment}')
+        logger.debug(f'{static_changes}, {dynamic_changes}, {comment}')
         log = AuditLog.objects.create(
             content_object=instance,
             action=action,

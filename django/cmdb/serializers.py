@@ -2051,6 +2051,8 @@ class RelationDefinitionSerializer(serializers.ModelSerializer):
             if not data.get('source_model') or not data.get('target_model'):
                 raise serializers.ValidationError("source_model and target_model cannot be null when creating a RelationDefinition.")
         else:
+            if 'name' in data and data['name'] != self.instance.name and self.instance.built_in:
+                raise serializers.ValidationError("Built-in RelationDefinition name cannot be changed.")
             if 'source_model' in data and data['source_model'] is None:
                 raise serializers.ValidationError("source_model cannot be set to null.")
             if 'target_model' in data and data['target_model'] is None:

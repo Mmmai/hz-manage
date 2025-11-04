@@ -525,6 +525,7 @@ class RelationDefinition(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50, db_index=True, unique=True, null=False, blank=False)
+    built_in = models.BooleanField(default=False, null=False, blank=False)
     topology_type = models.CharField(
         max_length=50,
         choices=[
