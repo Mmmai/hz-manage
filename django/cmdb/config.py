@@ -2362,7 +2362,7 @@ BUILT_IN_RELATION_DEFINITION = [
     {
         "name": "网络层级连接",
         "topology_type": "daggered",
-        "forward_verb": "上联到",
+        "forward_verb": "上联",
         "reverse_verb": "下联",
         "source_model": ['switches', 'firewalls', 'npb', 'dwdm'],
         "target_model": ['switches', 'firewalls', 'npb', 'dwdm'],

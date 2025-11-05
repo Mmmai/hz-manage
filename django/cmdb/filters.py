@@ -331,8 +331,17 @@ class RelationDefinitionFilter(filters.FilterSet):
     topology_type = filters.CharFilter(field_name='topology_type', lookup_expr='exact')
     source_model = filters.ModelMultipleChoiceFilter(field_name='source_model', queryset=Models.objects.all())
     target_model = filters.ModelMultipleChoiceFilter(field_name='target_model', queryset=Models.objects.all())
+    any_model = filters.CharFilter(method='filter_any_model')
     attribute_schema_key = filters.CharFilter(method='filter_attribute_schema_key')
     description = filters.CharFilter(field_name='description', lookup_expr='icontains')
+
+    def filter_any_model(self, queryset, name, value):
+        if not value:
+            return queryset
+        model_list = value.split(',')
+        return queryset.filter(
+            Q(source_model__id__in=model_list) | Q(target_model__id__in=model_list)
+        ).distinct()
 
     def filter_attribute_schema_key(self, queryset, name, value):
         if not value:
