@@ -183,6 +183,15 @@ def sync_node(sender,instance,action, **kwargs):
         else:
             if not sys_config.is_zabbix_sync_enabled():
                 return
+            obj,created = Nodes.objects.update_or_create(
+                model_instance=instance,
+                defaults={
+                        "ip_address": ip ,
+                        "model": instance.model,
+                        "create_user": instance.create_user,
+                        "update_user": instance.update_user
+                }
+            )
             zabbix_sync.delay(instance_id=instance.id,ip=ip)
             logger.info(f"节点[{instance.instance_name}]IP[{ip}]触发了zabbix同步任务")
     # 判断模型是否可管理

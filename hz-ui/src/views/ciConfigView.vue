@@ -108,106 +108,54 @@
         label-width="auto"
         ref="formRef"
       >
-        <el-form-item
-          :label="item.label"
-          :key="index"
-          v-for="(item, index) in colLists"
-          :required="item.required"
-          :prop="item.value"
-        >
-          <div v-if="item.value === 'rule'">
-            <div v-if="formInline.field_type === 'enum'">
-              <div v-for="(item, index) in tmpFormData" :key="index">
-                <li>
-                  <el-input
-                    v-model="item.name"
-                    style="width: 90px; margin-right: 10px"
-                  />
-                  <el-input
-                    v-model="item.value"
-                    style="width: 160px; margin-right: 10px"
-                  />
-                  <el-button
-                    circle
-                    type="danger"
-                    size="small"
-                    :icon="CircleClose"
-                    @click="rmField(index)"
-                    v-if="tmpFormData.length !== 1"
-                  ></el-button>
-                  <el-button
-                    circle
-                    type="primary"
-                    size="small"
-                    :icon="CirclePlus"
-                    @click="addField(index)"
-                  ></el-button>
-                </li>
-              </div>
-            </div>
-            <el-input
-              v-model="formInline[item.value]"
-              type="textarea"
-              clearable
-              v-else
-              style="width: 300px"
-              :disabled="nowRow.built_in"
-            />
-          </div>
-
+        <el-form-item label="规则名" prop="name">
           <el-input
-            v-model="formInline[item.value]"
-            type="textarea"
+            v-model="formInline.name"
             clearable
-            v-else-if="item.value === 'description'"
             style="width: 300px"
-          />
-
-          <el-input
-            v-model="formInline[item.value]"
-            clearable
-            v-else-if="item.value === 'name'"
             :disabled="nowRow.built_in || !isAdd ? true : false"
           />
+        </el-form-item>
+        <el-form-item label="规则名称" prop="verbose_name">
           <el-input
-            v-model="formInline[item.value]"
+            v-model="formInline.verbose_name"
             clearable
-            v-else-if="item.value === 'verbose_name'"
+            style="width: 300px"
           />
-          <div v-else>
-            <el-select
-              v-model="formInline.field_type"
-              placeholder="Select"
-              style="width: 120px"
-              v-if="item.value === 'field_type'"
-              :disabled="nowRow.built_in || !isAdd ? true : false"
-            >
-              <el-option
-                v-for="fItem in fieldOptions"
-                :key="fItem.value"
-                :label="fItem.label"
-                :value="fItem.value"
-              />
-            </el-select>
-            <el-select
-              v-model="formInline.type"
-              placeholder="Select"
-              style="width: 120px"
-              v-else
-              :disabled="nowRow.built_in || !isAdd ? true : false"
-            >
-              <el-option
-                v-for="vItem in validate_type[formInline.field_type]"
-                :key="vItem.type"
-                :label="vItem.description"
-                :value="vItem.type"
-              />
-            </el-select>
-          </div>
+        </el-form-item>
+        <el-form-item label="字段类型" prop="field_type">
+          <el-select
+            v-model="formInline.field_type"
+            placeholder="选择类型"
+            style="width: 120px"
+            :disabled="nowRow.built_in || !isAdd ? true : false"
+          >
+            <el-option
+              v-for="fItem in fieldOptions"
+              :key="fItem.value"
+              :label="fItem.label"
+              :value="fItem.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="规则类型" prop="type">
+          <el-select
+            v-model="formInline.type"
+            placeholder="选择类型"
+            style="width: 120px"
+            :disabled="nowRow.built_in || !isAdd ? true : false"
+          >
+            <el-option
+              v-for="vItem in validate_type[formInline.field_type]"
+              :key="vItem.type"
+              :label="vItem.description"
+              :value="vItem.type"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item
-          label="数组范围"
-          props="description"
+          label="数值范围"
+          prop="rule"
           v-if="formInline.type === 'length' || formInline.type === 'range'"
         >
           <div style="display: flex; align-items: center">
@@ -244,8 +192,8 @@
           </div>
         </el-form-item>
         <el-form-item
-          label="规则内容"
-          props="rule"
+          label="校验规则"
+          prop="rule"
           v-else-if="formInline.type === 'regex'"
           :required="true"
         >
@@ -278,8 +226,44 @@
             </el-icon>
           </div>
         </el-form-item>
-
-        <el-form-item label="描述" props="description">
+        <el-form-item
+          v-else-if="formInline.type === 'enum'"
+          label="枚举值"
+          prop="rule"
+        >
+          <div style="overflow: auto; max-height: 200px">
+            <div
+              v-for="(item, index) in tmpFormData"
+              :key="index"
+              style="margin-right: 10px"
+            >
+              <el-input
+                v-model="item.name"
+                style="width: 90px; margin-right: 10px"
+              />
+              <el-input
+                v-model="item.value"
+                style="width: 160px; margin-right: 10px"
+              />
+              <el-button
+                circle
+                type="danger"
+                size="small"
+                :icon="CircleClose"
+                @click="rmField(index)"
+                v-if="tmpFormData.length !== 1"
+              ></el-button>
+              <el-button
+                circle
+                type="primary"
+                size="small"
+                :icon="CirclePlus"
+                @click="addField(index)"
+              ></el-button>
+            </div>
+          </div>
+        </el-form-item>
+        <el-form-item label="描述" prop="description">
           <el-input
             v-model="formInline.description"
             type="textarea"
@@ -471,7 +455,7 @@ const filterOptions = computed(() => {
 //     }
 //   })
 // })
-const formRef = ref("");
+const formRef = ref(null);
 // 表单字段
 const formInline = reactive({
   name: null,
@@ -520,12 +504,16 @@ const sortMethod = (data) => {
 const dialogVisible = ref(false);
 const handleClose = () => {
   dialogVisible.value = false;
-  resetForm(formRef.value);
-  nowRow.value = {};
+  nextTick(() => {
+    resetForm(formRef.value);
+    nowRow.value = {};
+  });
 };
 const isAdd = ref(true);
 const addData = () => {
   isAdd.value = true;
+  resetForm(formRef.value);
+
   nextTick(() => {
     dialogVisible.value = true;
   });
@@ -537,20 +525,22 @@ const editRow = (row) => {
   nowRow.value = row;
   dialogVisible.value = true;
   isAdd.value = false;
-  nextTick(() => {
-    Object.keys(row).forEach(
-      (item) => {
-        // if (formInline.hasOwnProperty(item)) formInline[item] = params[item]
-        if (item === "id") return;
-        // if (item === "rule" && row.field_type === "enum") {
-        //   formInline[item] = JSON.parse(row[item]);
-        // } else {
-        //   formInline[item] = row[item];
+  Object.assign(formInline, row);
 
-        // }
-        formInline[item] = row[item];
-      } // isDisabled.value = params.built_in
-    );
+  nextTick(() => {
+    //   Object.keys(row).forEach(
+    //     (item) => {
+    //       // if (formInline.hasOwnProperty(item)) formInline[item] = params[item]
+    //       if (item === "id") return;
+    //       // if (item === "rule" && row.field_type === "enum") {
+    //       //   formInline[item] = JSON.parse(row[item]);
+    //       // } else {
+    //       //   formInline[item] = row[item];
+
+    //       // }
+    //       formInline[item] = row[item];
+    //     } // isDisabled.value = params.built_in
+    //   );
     if (row.field_type === "enum") {
       let tmpArr = [];
       Object.keys(JSON.parse(row.rule)).forEach((item) => {
@@ -576,7 +566,9 @@ const editRow = (row) => {
 
 const resetForm = (formEl) => {
   if (!formEl) return;
+  console.log(formEl);
   formEl.resetFields();
+  console.log(JSON.stringify(formInline));
   tmpFormData.value = [{ name: "", value: "" }];
   rangeMin.value = null;
   rangeMax.value = null;

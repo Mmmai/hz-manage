@@ -250,5 +250,20 @@ export default {
   updateModelRelationDefine(params) {
     return axios.request({ url: path.cmdbRelationDefinition + params.id + '/', method: 'patch', data: params })
   },
-
+  // 模型实例关联
+  getModelInstanceRelation(params) {
+    return axios.request({ url: path.cmdbRelation, method: 'get', params: params })
+  },
+  getModelInstanceRelationInfo(id) {
+    return axios.request({ url: path.cmdbRelation + id + '/', method: 'get' })
+  },
+  deleteModelInstanceRelation(params) {
+    return axios.delete(path.cmdbRelation + params)
+  },
+  updateModelInstanceRelation(params) {
+    return axios.request({ url: path.cmdbRelation + params.id + '/', method: 'patch', data: params })
+  },
+  addModelInstanceRelation(params) {
+    return axios.request({ url: path.cmdbRelation, method: 'post', data: params })
+  },
 }

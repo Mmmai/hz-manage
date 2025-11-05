@@ -1062,6 +1062,8 @@
                         v-else
                         v-model="ciDataForm[fitem.name]"
                         placeholder="请选择"
+                        filterable
+                        clearable
                         style="width: 240px"
                       >
                         <el-option
@@ -1321,6 +1323,7 @@
                 placeholder="请选择"
                 style="width: 180px"
                 clearable
+                filterable
               >
                 <el-option
                   v-for="ritem in enumOptionObj[

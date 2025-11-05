@@ -566,9 +566,13 @@
         </el-tab-pane>
 
         <el-tab-pane label="监控信息" name="monitor" disabled>111</el-tab-pane>
-        <el-tab-pane label="关联关系" name="relations" disabled
-          >222222dd</el-tab-pane
-        >
+        <el-tab-pane label="关联关系" name="relations">
+          <ciDataRelation
+            ref="ciDataRelationRef"
+            v-if="instanceData && instanceData.id"
+            :instanceId="instanceData.id"
+          />
+        </el-tab-pane>
         <el-tab-pane label="变更记录" name="changelog">
           <ciDataAudit
             ref="ciDataAuditRef"
@@ -602,11 +606,8 @@ import type { FormInstance } from "element-plus";
 import { encrypt_sm4, decrypt_sm4 } from "@/utils/gmCrypto.ts";
 import useConfigStore from "@/store/config";
 import ciDataAudit from "@/components/cmdb/ciDataAudit.vue";
-import { el, id } from "element-plus/es/locale/index.mjs";
-import { useStore } from "vuex";
+import ciDataRelation from "@/components/cmdb/ciDataRelation.vue";
 import instance from "../../utils/request";
-import { it } from "node:test";
-const store = useStore();
 const { proxy } = getCurrentInstance();
 const route = useRoute();
 const router = useRouter();

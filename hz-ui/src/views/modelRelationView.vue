@@ -10,23 +10,35 @@
         <el-table-column
           prop="name"
           label="关系名称"
-          min-width="150"
+          width="200"
         ></el-table-column>
-        <el-table-column prop="topology_type" label="拓扑类型" width="120">
+        <el-table-column prop="topology_type" label="拓扑类型" width="150">
           <template #default="scope">
             <el-tag :type="getTopologyTypeTagType(scope.row.topology_type)">
               {{ getTopologyTypeLabel(scope.row.topology_type) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="source_model" label="源模型" width="200">
+        <el-table-column prop="source_model" label="源模型" width="300">
           <template #default="scope">
-            {{ modelObjectById[scope.row.source_model]?.verbose_name }}
+            <el-space wrap :size="10">
+              <el-tag
+                v-for="(item, index) in scope.row.source_model"
+                :key="index"
+                >{{ modelObjectById[item]?.verbose_name }}</el-tag
+              >
+            </el-space>
           </template>
         </el-table-column>
-        <el-table-column prop="target_model" label="目标模型" width="200">
+        <el-table-column prop="target_model" label="目标模型" width="300">
           <template #default="scope">
-            {{ modelObjectById[scope.row.target_model]?.verbose_name }}
+            <el-space wrap :size="10">
+              <el-tag
+                v-for="(item, index) in scope.row.target_model"
+                :key="index"
+                >{{ modelObjectById[item]?.verbose_name }}</el-tag
+              >
+            </el-space>
           </template></el-table-column
         >
         <el-table-column
@@ -39,22 +51,40 @@
           label="反向动词"
           width="200"
         ></el-table-column>
-        <el-table-column prop="create_time" label="创建时间" width="280">
+        <el-table-column
+          prop="description"
+          label="描述"
+          min-width="200"
+        ></el-table-column>
+        <!-- <el-table-column prop="create_time" label="创建时间" width="280">
           <template #default="scope">
             {{ formatDate(scope.row.create_time) }}
           </template>
-        </el-table-column>
+        </el-table-column> -->
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="scope">
-            <el-button size="small" @click="handleEdit(scope.row)"
-              >编辑</el-button
+            <el-tooltip content="查看详情" placement="top">
+              <el-button
+                @click="handleEdit(scope.row)"
+                type="primary"
+                link
+                :icon="View"
+              ></el-button>
+            </el-tooltip>
+            <el-tooltip
+              :content="
+                scope.row.built_in ? '内置关联关系，无法删除!' : '删除关联关系'
+              "
+              placement="top"
             >
-            <el-button
-              size="small"
-              type="danger"
-              @click="handleDelete(scope.row)"
-              >删除</el-button
-            >
+              <el-button
+                type="danger"
+                link
+                :icon="Delete"
+                :disabled="scope.row.built_in"
+                @click="handleDelete(scope.row)"
+              ></el-button>
+            </el-tooltip>
           </template>
         </el-table-column>
       </el-table>
@@ -86,6 +116,7 @@ import {
 import { useRouter, useRoute } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import useModelStore from "@/store/cmdb/model";
+import { Delete, View } from "@element-plus/icons-vue";
 const modelConfigStore = useModelStore();
 const modelOptions = computed(() => modelConfigStore.modelOptions);
 const modelObjectById = computed(() => modelConfigStore.modelObjectById);
@@ -196,7 +227,7 @@ const relationList1 = ref([
 const pagination = reactive({
   currentPage: 1,
   pageSize: 10,
-  total: 3,
+  total: null,
 });
 
 const getTopologyTypeLabel = (type) => {
@@ -210,18 +241,18 @@ const getTopologyTypeLabel = (type) => {
 
 const getTopologyTypeTagType = (type) => {
   const tagTypeMap = {
-    directed: "primary",
+    directed: "danger",
     undirected: "success",
     daggered: "warning",
   };
   return tagTypeMap[type] || "info";
 };
 
-const formatDate = (dateString) => {
-  if (!dateString) return "";
-  const date = new Date(dateString);
-  return date.toLocaleString("zh-CN");
-};
+// const formatDate = (dateString) => {
+//   if (!dateString) return "";
+//   const date = new Date(dateString);
+//   return date.toLocaleString("zh-CN");
+// };
 
 const handleEdit = (row) => {
   // 跳转到详情页面
@@ -245,15 +276,17 @@ const handleDelete = (row) => {
       type: "warning",
     }
   )
-    .then(() => {
+    .then(async () => {
       // 执行删除操作
       // 这里应该是调用API删除
-      ElMessage.success("删除成功");
-      // 从列表中移除
-      const index = relationList.value.findIndex((item) => item.id === row.id);
-      if (index > -1) {
-        relationList.value.splice(index, 1);
+      let res = await proxy.$api.deleteModelRelationDefine(row.id);
+      if (res.status == 200) {
+        ElMessage.success("删除成功");
+        getRelationData();
+      } else {
+        ElMessage.error("删除失败");
       }
+      // 从列表中移除
     })
     .catch(() => {
       // 用户取消删除
@@ -272,6 +305,7 @@ const handleCurrentChange = (val) => {
 const getRelationData = async () => {
   const res = await proxy.$api.getModelRelationDefine();
   relationList.value = res.data.results;
+  pagination.total = res.data.count;
 };
 onMounted(() => {
   // 页面加载时可以请求API获取数据

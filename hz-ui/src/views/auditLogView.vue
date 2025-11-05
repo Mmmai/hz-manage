@@ -376,6 +376,7 @@ const targetTypeMap = {
   model_field_group: "模型字段组",
   validation_rule: "校验规则",
   model_instance_group: "实例组",
+  relation_definition: "关系定义",
   // 可以根据实际需求添加更多模型
 };
 const formatTargetType = (type) => {

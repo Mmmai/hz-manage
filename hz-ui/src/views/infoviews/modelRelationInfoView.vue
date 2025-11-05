@@ -9,9 +9,23 @@
             </template>
           </el-page-header>
           <div>
-            <el-button type="primary" @click="editMode = true" v-if="!editMode"
-              >编辑</el-button
+            <el-tooltip
+              :content="
+                relationData.built_in
+                  ? '内置关联关系,无法编辑!'
+                  : '编辑关联关系'
+              "
+              placement="top"
             >
+              <el-button
+                type="primary"
+                @click="editMode = true"
+                :disabled="relationData.built_in"
+                v-if="!editMode"
+                >编辑</el-button
+              >
+            </el-tooltip>
+
             <el-button type="success" @click="saveRelationType" v-if="editMode"
               >保存</el-button
             >
@@ -230,7 +244,6 @@ const saveRelationType = () => {
   targetSchemaRef.value.updateSchema();
   relationSchemaRef.value.updateSchema();
   nextTick(() => {
-    console.log("提交的数据", JSON.stringify(relationData));
     if (isAdd.value) {
       addRelationData();
     } else {
@@ -244,13 +257,13 @@ const cancelEdit = () => {
   Object.assign(relationData, originalData.value);
 };
 
-watch(
-  () => relationData,
-  (newVal) => {
-    Object.assign(relationData, newVal);
-  },
-  { deep: true }
-);
+// watch(
+//   () => relationData,
+//   (newVal) => {
+//     Object.assign(relationData, newVal);
+//   },
+//   { deep: true }
+// );
 const relationId = ref("");
 const isAdd = ref(false);
 // 请求
@@ -258,9 +271,6 @@ const getRelationData = async () => {
   const res = await proxy.$api.getModelRelationDefineInfo(relationId.value);
   if (res.status === 200) {
     Object.assign(relationData, res.data);
-    nextTick(() => {
-      console.log("relationData", relationData);
-    });
   }
 };
 const updateRelationData = async () => {

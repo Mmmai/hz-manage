@@ -120,6 +120,7 @@ const props = defineProps({
 const attributes = ref([]);
 
 const convertSchemaToArray = () => {
+  if (schema.value === undefined) return;
   attributes.value = Object.keys(schema.value).map((key) => ({
     key,
     value: { ...schema.value[key] },
@@ -127,13 +128,13 @@ const convertSchemaToArray = () => {
 };
 
 const convertArrayToSchema = () => {
-  const schema = {};
+  const _newSchema = {};
   attributes.value.forEach((attr) => {
     if (attr.key) {
-      schema[attr.key] = { ...attr.value };
+      _newSchema[attr.key] = { ...attr.value };
     }
   });
-  return schema;
+  return _newSchema;
 };
 
 const addAttribute = () => {
@@ -174,9 +175,7 @@ watch(
   () => schema.value,
   (newSchema, oldSchema) => {
     // 只有当 schema 真正发生变化时才更新 attributes
-    if (JSON.stringify(newSchema) !== JSON.stringify(oldSchema)) {
-      convertSchemaToArray();
-    }
+    convertSchemaToArray();
   },
   { deep: true, immediate: true }
 );
