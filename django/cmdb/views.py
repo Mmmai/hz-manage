@@ -961,20 +961,12 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
 
     @action(detail=False, methods=['post'])
     def bulk_delete(self, request):
-
         instance_ids = request.data.get('instances', [])
         model_id = request.data.get('model')
         filter_by_params = request.data.get('all', False)
         params = request.data.get('params', {})
         group_id = request.data.get('group')
-
-        a = time.perf_counter()
-
         instances = ModelInstance.objects.all()
-
-        b = time.perf_counter()
-
-        logger.info(f'Fetch all instances takes {b - a}s')
 
         if group_id:
             group = ModelInstanceGroup.objects.get(id=group_id)
@@ -985,9 +977,6 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             ).values_list('instance_id', flat=True)
             instances = instances.filter(id__in=instance_in_group)
 
-        c = time.perf_counter()
-        logger.info(f'Filter by group takes {c - b}s')
-
         if filter_by_params and (group_id or params):
             if params:
                 instances = self._apply_filters(instances, model_id, params)
@@ -997,9 +986,6 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             # 给定的查询参数不足
             raise ValidationError("Insufficient query parameters provided.")
 
-        d = time.perf_counter()
-        logger.info(f'Filter by params takes {d - c}s')
-
         if not instances.exists():
             raise ValidationError("No instances found with the provided criteria.")
 
@@ -1007,9 +993,6 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             model_id = instances.first().model_id
             if instances.filter(model_id=model_id).count() != instances.count():
                 raise ValidationError("Instances do not belong to the same model.")
-
-            e = time.perf_counter()
-            logger.info(f'Check model ID takes {e - d}s')
 
             valid_id = instances.values_list('id', flat=True)
             invalid_id = {}
@@ -1021,21 +1004,14 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             relations = ModelInstanceGroupRelation.objects.filter(instance__in=valid_id)
             group_invalid_ids = relations.exclude(group=unassigned_group).values_list('instance_id', flat=True)
             invalid_id = {instance_id: 'Instance is not in unassigned group' for instance_id in group_invalid_ids}
-            f = time.perf_counter()
-            logger.info(f'Check unassigned group takes {f - e}s')
 
             if ModelFields.objects.filter(ref_model_id=model_id).exists():
                 for instance in instances:
                     if ModelFieldMeta.objects.filter(data=str(instance.id)).exists():
                         invalid_id[instance.id] = 'Referenced by other model field meta'
-            g = time.perf_counter()
-            logger.info(f'Check unassigned group takes {g - f}s')
             valid_id = set(valid_id) - set(invalid_id.keys())
 
             ModelInstance.objects.filter(id__in=valid_id).delete()
-            h = time.perf_counter()
-            logger.info(f'Bulk delete operation takes {h - g}s')
-            logger.info(f'All operations take {h - a}s')
 
             return Response({
                 'success': len(valid_id),
@@ -1374,7 +1350,74 @@ class RelationsViewSet(CmdbBaseViewSet):
     ]
     ordering_fields = ['create_time', 'update_time']
 
-    @action(detail=False, methods=['get'], url_path='topology')
+    @action(detail=False, methods=['post'])
+    def bulk_associate(self, request, *args, **kwargs):
+        """
+        批量创建多对一或一对多的关联关系。
+        例如：将多个主机（多）关联到一个交换机（一）。
+        """
+        serializer = BulkAssociateRelationsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        instance_ids = data['instance_ids']
+        target_instance_id = data['target_instance_id']
+        relation_id = data['relation_id']
+        direction = data['direction']
+        attributes = data['relation_attributes']
+        user = self.get_current_user()
+
+        relations_to_create = []
+        for instance_id in instance_ids:
+            if direction == 'target-source':
+                source_id, target_id = instance_id, target_instance_id
+            elif direction == 'source-target':
+                source_id, target_id = target_instance_id, instance_id
+            else:
+                raise ValidationError(f"Invalid direction: {direction}. Must be 'source-target' or 'target-source'.")
+            
+            relations_to_create.append(
+                Relations(
+                    source_instance_id=source_id,
+                    target_instance_id=target_id,
+                    relation_id=relation_id,
+                    relation_attributes=attributes,
+                    create_user=user,
+                    update_user=user
+                )
+            )
+
+        try:
+            with capture_audit_snapshots(relations_to_create, created=True):
+                created_objects = Relations.objects.bulk_create(relations_to_create, ignore_conflicts=True)
+            
+            return Response(
+                {
+                    "detail": f"Successfully created {len(created_objects)} relations.",
+                },
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            logger.error(f"Error creating relations: {e}", exc_info=True)
+            raise ValidationError(f"Failed to create relations: {e}")
+
+    @action(detail=False, methods=['post'])
+    def bulk_delete(self, request, *args, **kwargs):
+        relation_ids = request.data.get('ids', [])
+        if not isinstance(relation_ids, list) or not relation_ids:
+            raise ValidationError("Require a non-empty list of relation IDs to delete.")
+
+        queryset = self.get_queryset().filter(id__in=relation_ids)
+        
+        with capture_audit_snapshots(list(queryset)):
+            deleted_count, _ = queryset.delete()
+
+        return Response(
+            {"deleted_count": deleted_count},
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=False, methods=['get'])
     def get_topology(self, request):
         try:
             start_node_ids = request.query_params.getlist('start_nodes')

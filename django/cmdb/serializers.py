@@ -2036,7 +2036,6 @@ class RelationDefinitionSerializer(serializers.ModelSerializer):
                 if 'type' not in rules:
                     raise serializers.ValidationError(f"Attribute {attr_key} in scope {scope} must have a 'type' field.")
                 field_type = rules['type']
-                # judge if field_type in enum FieldType
                 if field_type not in FieldType.__members__.values():
                     raise serializers.ValidationError(f"Attribute {attr_key} in scope {scope} has invalid type '{field_type}'.")
                 if field_type == FieldType.ENUM:
@@ -2050,16 +2049,35 @@ class RelationDefinitionSerializer(serializers.ModelSerializer):
         if not self.instance:
             if not data.get('source_model') or not data.get('target_model'):
                 raise serializers.ValidationError("source_model and target_model cannot be null when creating a RelationDefinition.")
-        else:
-            if 'name' in data and data['name'] != self.instance.name and self.instance.built_in:
-                raise serializers.ValidationError("Built-in RelationDefinition name cannot be changed.")
-            if 'source_model' in data and data['source_model'] is None:
-                raise serializers.ValidationError("source_model cannot be set to null.")
-            if 'target_model' in data and data['target_model'] is None:
-                raise serializers.ValidationError("target_model cannot be set to null.")
-            if 'source_model' in data and data['source_model'] != self.instance.source_model or \
-                'target_model' in data and data['target_model'] != self.instance.target_model:
-                raise serializers.ValidationError("source_model and target_model cannot be changed once set.")
+            return data
+        
+        if 'name' in data and data['name'] != self.instance.name and self.instance.built_in:
+            raise serializers.ValidationError("Built-in RelationDefinition name cannot be changed.")
+        
+        if 'source_model' in data:
+            if not data['source_model']:
+                raise serializers.ValidationError("source_model cannot be set to null or empty.")
+            cur_models = set([str(m.id) for m in self.instance.source_model.all()])
+            deleted_models = set(cur_models) - set(data['source_model'])
+            if deleted_models:
+                used_models = Relations.objects.filter(
+                    relation=self.instance
+                ).values_list('source_instance__model__id', flat=True).distinct()
+                if any(str(m) in deleted_models for m in used_models):
+                    raise serializers.ValidationError("Cannot remove source_model that is in use by existing Relations.")
+        
+        if 'target_model' in data:
+            if not data['target_model']:
+                raise serializers.ValidationError("target_model cannot be set to null or empty.")
+            cur_models = set([str(m.id) for m in self.instance.target_model.all()])
+            deleted_models = set(cur_models) - set(data['target_model'])
+            if deleted_models:
+                used_models = Relations.objects.filter(
+                    relation=self.instance
+                ).values_list('target_instance__model__id', flat=True).distinct()
+                if any(str(m) in deleted_models for m in used_models):
+                    raise serializers.ValidationError("Cannot remove target_model that is in use by existing Relations.")
+
         return data
     
 
@@ -2166,6 +2184,62 @@ class RelationsSerializer(serializers.ModelSerializer):
         representation['target_instance'] = ModelInstanceBasicViewSerializer(instance.target_instance).data
         representation['relation'] = RelationDefinitionSerializer(instance.relation).data
         return representation
+
+
+class BulkAssociateRelationsSerializer(serializers.Serializer):
+    instance_ids = serializers.ListField(allow_empty=False)
+    # 指定被关联的实例ID
+    target_instance_id = serializers.UUIDField()
+    relation_id = serializers.UUIDField()
+    direction = serializers.ChoiceField(choices=['source-target', 'target-source'])
+    relation_attributes = serializers.JSONField(required=False, default=dict)
+
+    def validate_relation_id(self, value):
+        if not RelationDefinition.objects.filter(id=value).exists():
+            raise serializers.ValidationError(f"Relation definition with id {value} does not exist.")
+        return value
+
+    def validate(self, data):
+        instance_ids = data['instance_ids']
+        target_instance_id = data['target_instance_id']
+        relation_id = data['relation_id']
+        relation_attributes = data.get('relation_attributes', {})
+        all_ids = set(instance_ids)
+        all_ids.add(target_instance_id)
+
+        if ModelInstance.objects.filter(id__in=all_ids).count() != len(all_ids):
+            raise serializers.ValidationError("One or more specified instance IDs do not exist.")
+            
+        relation = RelationDefinition.objects.get(id=relation_id)
+        models = ModelInstance.objects.filter(id__in=all_ids).values_list('model__id', flat=True).distinct()
+        multi_instance_models = relation.source_model if data['direction'] == 'source-target' else relation.target_model
+        single_instance_models = relation.target_model if data['direction'] == 'source-target' else relation.source_model
+        multi_instance_models = [str(m.id) for m in multi_instance_models]
+        single_instance_models = [str(m.id) for m in single_instance_models]
+        
+        # instance_ids中的实例必须全部属于multi_instance_models
+        if not all(model_id in multi_instance_models for model_id in models if model_id in multi_instance_models):
+            raise serializers.ValidationError("All instances in instance_ids must belong to the models defined in the relation.")
+        if not target_instance_id in single_instance_models:
+            raise serializers.ValidationError("The target_instance_id must belong to the model defined in the relation.")
+        
+        temp_relation_serializer = RelationsSerializer()
+        schema = relation.attribute_schema or {}
+        if schema:
+            try:
+                validated_attributes = temp_relation_serializer._validate_attributes_against_schema(
+                    relation_attributes, 
+                    schema.get('relation', {}), 
+                    '关系'
+                )
+                data['relation_attributes'] = validated_attributes
+            except serializers.ValidationError as e:
+                raise serializers.ValidationError({"relation_attributes": e.detail})
+        elif not schema and relation_attributes:
+            raise serializers.ValidationError("This relation does not define any attributes, but relation_attributes were provided.")
+        
+        return data
+
 
 class ZabbixSyncHostSerializer(serializers.ModelSerializer):
 
