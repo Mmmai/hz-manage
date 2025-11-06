@@ -115,8 +115,9 @@ import {
 } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
-import useModelStore from "@/store/cmdb/model";
 import { Delete, View } from "@element-plus/icons-vue";
+
+import useModelStore from "@/store/cmdb/model";
 const modelConfigStore = useModelStore();
 const modelOptions = computed(() => modelConfigStore.modelOptions);
 const modelObjectById = computed(() => modelConfigStore.modelObjectById);
@@ -280,11 +281,11 @@ const handleDelete = (row) => {
       // 执行删除操作
       // 这里应该是调用API删除
       let res = await proxy.$api.deleteModelRelationDefine(row.id);
-      if (res.status == 200) {
+      if (res.status == 204) {
         ElMessage.success("删除成功");
         getRelationData();
       } else {
-        ElMessage.error("删除失败");
+        ElMessage.error(`删除失败: ${JSON.stringify(res.data)}`);
       }
       // 从列表中移除
     })

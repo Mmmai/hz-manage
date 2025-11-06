@@ -502,7 +502,9 @@
                         v-if="isEdit"
                       >
                         <el-option
-                          v-for="item in enumOptionObj[fitem.validation_rule]"
+                          v-for="item in validationRulesEnumObject[
+                            fitem.validation_rule
+                          ]"
                           :key="item.value"
                           :label="item.label"
                           :value="item.value"
@@ -571,6 +573,7 @@
             ref="ciDataRelationRef"
             v-if="instanceData && instanceData.id"
             :instanceId="instanceData.id"
+            :modelId="instanceData.model"
           />
         </el-tab-pane>
         <el-tab-pane label="变更记录" name="changelog">
@@ -605,9 +608,19 @@ import { ElMessageBox, ElMessage, ElLoading } from "element-plus";
 import type { FormInstance } from "element-plus";
 import { encrypt_sm4, decrypt_sm4 } from "@/utils/gmCrypto.ts";
 import useConfigStore from "@/store/config";
+import useModelStore from "@/store/cmdb/model";
+
 import ciDataAudit from "@/components/cmdb/ciDataAudit.vue";
 import ciDataRelation from "@/components/cmdb/ciDataRelation.vue";
-import instance from "../../utils/request";
+const instanceId = ref(null);
+const instanceData = ref({});
+
+const modelConfigStore = useModelStore();
+
+const modelInfo = ref({});
+const validationRulesEnumObject = computed(
+  () => modelConfigStore.validationRulesEnumOptionsObject
+);
 const { proxy } = getCurrentInstance();
 const route = useRoute();
 const router = useRouter();
@@ -631,10 +644,7 @@ const handleClick = (tab: TabsPaneContext, event: Event) => {
 const activeArr = ref([0]);
 
 // 数据
-const instanceData = ref({});
-const modelInfo = ref({});
 const modelRefOptions = ref({});
-const instanceId = ref(null);
 // const props = defineProps(["instanceId"])
 
 // 初始化表单
@@ -952,52 +962,21 @@ const goBack = () => {
 // 请求
 // 枚举类的字段下拉框
 // 获取所有枚举类的字典
-const validationRulesObj = ref({});
-const getRules = async (params = null) => {
-  let res = await proxy.$api.getValidationRules({
-    ...params,
-    page: 1,
-    page_size: 10000,
-  });
-  // validationRules.value = res.data
-  res.data.results.forEach((item) => {
-    validationRulesObj.value[item.id] = item;
-    // validationRulesByNameObj.value[item.name] = item
-  });
-  // console.log(1111111);
-  // console.log(validationRulesObj.value);
-};
-// 生成以规则ID为key，枚举类的选项为value的对象字典
-const enumOptionObj = computed(() => {
-  let tempList = {};
-  modelInfo.value?.field_groups?.forEach((item) => {
-    item.fields.forEach((field) => {
-      if (field.type === "enum") {
-        // let ruleObj = JSON.parse(validationRulesObj.value[params].rule)
-        // JSON.parse(validationRulesObj.value[params].rule)
-        // console.log(field);
-        if (field.validation_rule === null) {
-          return;
-        }
-        if (validationRulesObj.value[field.validation_rule] === undefined) {
-          // console.log(validationRulesObj.value);
-          // console.log(field.name, field.validation_rule);
-          // console.log(validationRulesObj.value[field.validation_rule]);
-          return;
-        }
-        let ruleObj = JSON.parse(
-          validationRulesObj?.value[field?.validation_rule]?.rule
-        );
-        let tmpList = [];
-        Object.keys(ruleObj).forEach((ritem) => {
-          tmpList.push({ value: ritem, label: ruleObj[ritem] });
-        });
-        tempList[field.validation_rule] = tmpList;
-      }
-    });
-  });
-  return tempList;
-});
+// const validationRulesObj = ref({});
+// const getRules = async (params = null) => {
+//   let res = await proxy.$api.getValidationRules({
+//     ...params,
+//     page: 1,
+//     page_size: 10000,
+//   });
+//   // validationRules.value = res.data
+//   res.data.results.forEach((item) => {
+//     validationRulesObj.value[item.id] = item;
+//     // validationRulesByNameObj.value[item.name] = item
+//   });
+//   // console.log(1111111);
+//   // console.log(validationRulesObj.value);
+// };
 // 获取model_ref的信息
 const getModelRefCiData = async (params) => {
   let res = await proxy.$api.getModelRefCi({
@@ -1059,7 +1038,9 @@ onMounted(async () => {
     await getCiDataInfo();
     // 获取模型信息
     await getCiModelInfo();
-    getRules();
+    modelConfigStore.getModel();
+
+    modelConfigStore.getValidationRules();
     // 初始化表单
     initEditForm();
   } catch (e) {

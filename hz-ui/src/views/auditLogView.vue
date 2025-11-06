@@ -377,6 +377,7 @@ const targetTypeMap = {
   validation_rule: "校验规则",
   model_instance_group: "实例组",
   relation_definition: "关系定义",
+  relation: "关系关联",
   // 可以根据实际需求添加更多模型
 };
 const formatTargetType = (type) => {
@@ -413,6 +414,10 @@ const changeMap = {
   model_field_group: "字段分组",
   instance_name_template: "实例名称模板",
   fields: "字段组合",
+  relation_attributes: "关系属性",
+  source_attributes: "源属性",
+  target_attributes: "目标属性",
+  relation: "关联关系",
   // update_user: "更新用户",
 };
 const formatChanges = (row) => {
@@ -498,9 +503,8 @@ const formatDetails = (text) => {
         } else {
           return "******";
         }
-      } else if (typeof parsed === "object") {
-        // console.log("text:", parsed);
-        return parsed.map((item) => item.verbose_name).join("-");
+      } else {
+        return JSON.stringify(parsed);
       }
     }
   };

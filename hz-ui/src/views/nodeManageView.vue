@@ -332,7 +332,6 @@ import {
   rowContextKey,
 } from "element-plus";
 
-import { pa, tr } from "element-plus/es/locale/index.mjs";
 import { Row } from "element-plus/es/components/table-v2/src/components/index.mjs";
 defineOptions({ name: "ciSyncZabbix" });
 import type { TabsPaneContext } from "element-plus";
