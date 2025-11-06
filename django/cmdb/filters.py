@@ -371,7 +371,7 @@ class RelationDefinitionFilter(filters.FilterSet):
 class RelationsFilter(filters.FilterSet):
     source_instance = filters.UUIDFilter(field_name='source_instance')
     target_instance = filters.UUIDFilter(field_name='target_instance')
-    instances = filters.CharFilter(method='filter_instance')
+    instances = filters.CharFilter(method='filter_instances')
     relation = filters.UUIDFilter(field_name='relation')
     
     def filter_instances(self, queryset, name, value):
