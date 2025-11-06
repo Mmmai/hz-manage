@@ -1915,6 +1915,9 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
         """验证分组数据"""
         groups = ModelInstanceGroup.objects.filter(id__in=data['groups'])
 
+        if not groups:
+            raise serializers.ValidationError('No valid groups provided')
+        
         # 验证是否为底层分组
         non_leaf_groups = [
             g for g in groups
@@ -1951,7 +1954,7 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
         try:
             with transaction.atomic():
                 for instance_id in instances:
-                    logger.info(f'Processing instance {instance_id}')
+                    logger.debug(f'Processing instance {instance_id}')
                     instance = ModelInstance.objects.get(id=instance_id)
                     if instance.model.name == 'hosts':
                         hosts.append(ModelFieldMeta.objects.filter(

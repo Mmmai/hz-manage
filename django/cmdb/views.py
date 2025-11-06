@@ -25,6 +25,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q
 from django.db.models import Max, Case, When, Value, IntegerField
+from django_redis import get_redis_connection
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from celery.result import AsyncResult
 from .utils import password_handler, celery_manager, zabbix_config
@@ -1301,6 +1302,7 @@ class ModelInstanceGroupRelationViewSet(CmdbBaseViewSet):
     def create_relations(self, request):
         """批量创建或更新实例分组关联"""
         logger.info(f"Creating or updating instance group relations")
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         logger.debug(f"Data validated. Saving relations...")
@@ -1681,6 +1683,41 @@ class PasswordManageViewSet(CmdbBaseViewSet):
             logger.error(f"Error resetting passwords: {str(e)}")
             return Response({'status': 'fail', 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+
+class SystemCacheViewSet(CmdbBaseViewSet):
+    
+    @action(detail=False, methods=['post'])
+    def clear_cache(self, request):
+        """清理系统缓存"""
+        try:
+            conn = get_redis_connection("default")
+            key_prefix = settings.CACHES['default'].get('KEY_PREFIX', '')
+            
+            if not key_prefix:
+                return Response({
+                    'status': 'failed',
+                    'message': 'Cache key prefix is not set in settings.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            pattern = f'{key_prefix}*'
+            keys_to_delete = conn.keys(pattern)
+            
+            if keys_to_delete:
+                deleted_count = conn.delete(*keys_to_delete)
+            else:
+                deleted_count = 0
+            logger.warning(f'Manually cleared {deleted_count} cache keys with prefix {key_prefix}')
+            return Response({
+                'status': 'success',
+                'deleted_keys_count': deleted_count
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error clearing cache: {str(e)}")
+            return Response({
+                'status': 'failed',
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
 
 class ZabbixSyncHostViewSet(CmdbBaseViewSet):
     queryset = ZabbixSyncHost.objects.all().order_by('create_time')
