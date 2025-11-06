@@ -25,6 +25,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.db.models import Q
 from django.db.models import Max, Case, When, Value, IntegerField
+from django_redis import get_redis_connection
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from celery.result import AsyncResult
 from .utils import password_handler, celery_manager
@@ -1302,6 +1303,7 @@ class ModelInstanceGroupRelationViewSet(CmdbBaseViewSet):
     def create_relations(self, request):
         """批量创建或更新实例分组关联"""
         logger.info(f"Creating or updating instance group relations")
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         logger.debug(f"Data validated. Saving relations...")
@@ -1418,27 +1420,24 @@ class RelationsViewSet(CmdbBaseViewSet):
             status=status.HTTP_200_OK
         )
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['post'])
     def get_topology(self, request):
         try:
-            start_node_ids = request.query_params.getlist('start_nodes')
-            end_node_ids = request.query_params.getlist('end_nodes', [])
-            depth = int(request.query_params.get('depth', 3))
-            direction = request.query_params.get('direction', 'both')
-            mode = request.query_params.get('mode', 'blast')
+            start_node_ids = request.data.get('start_nodes', [])
+            end_node_ids = request.data.get('end_nodes', [])
+            depth = int(request.data.get('depth', 3))
+            direction = request.data.get('direction', 'both')
+            mode = request.data.get('mode', 'blast')
 
             if not start_node_ids:
-                return Response({"detail": "必须提供 'start_nodes' 参数。"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"detail": "Start nodes are required."}, status=status.HTTP_400_BAD_REQUEST)
             if mode == 'path' and not end_node_ids:
-                return Response({"detail": "路径模式(path)下必须提供 'end_nodes' 参数。"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"detail": "End nodes are required when using path mode."}, status=status.HTTP_400_BAD_REQUEST)
 
-            # 1. 按需构建图对象
             G, involved_nodes, involved_edges = self._build_graph_on_demand(
                 start_node_ids, end_node_ids, depth, direction, mode
             )
 
-            # 2. 序列化返回
-            # 从图中提取已加载的实例和关系对象
             node_objects = [data['instance'] for _, data in G.nodes(data=True)]
             edge_objects = [data['relation'] for u, v, data in G.edges(data=True)]
 
@@ -1451,54 +1450,92 @@ class RelationsViewSet(CmdbBaseViewSet):
             })
 
         except Exception as e:
-            logger.error(f"获取拓扑数据时发生错误: {e}", exc_info=True)
-            return Response({"detail": "处理拓扑查询时发生内部错误。"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Error occurred when processing topology query: {e}", exc_info=True)
+            return Response({"detail": "Internal server error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def _filter_path_edges(self, G, start_node, end_node, depth, subgraph):
+        paths = nx.all_simple_paths(G, source=start_node, target=end_node, cutoff=depth)
+        for path in paths:
+            for i in range(len(path) - 1):
+                u, v = path[i], path[i+1]
+                if not subgraph.has_node(u): 
+                    subgraph.add_node(u, **G.nodes[u])
+                if not subgraph.has_node(v): 
+                    subgraph.add_node(v, **G.nodes[v])
+                if not subgraph.has_edge(u, v): 
+                    subgraph.add_edge(u, v, **G.get_edge_data(u, v))
+        return subgraph
+
+    def _find_path_between_nodes(self, G, start_node_ids, end_node_ids, depth):
+        """
+        在给定的图G中查找从start_node_ids到end_node_ids的所有简单路径，路径长度不超过depth。
+        返回包含这些路径的子图。
+        """
+        subgraph = nx.DiGraph()
+
+        for start_node in start_node_ids:
+            for end_node in end_node_ids:
+                if G.has_node(start_node) and G.has_node(end_node):
+                    try:
+                        return self._filter_path_edges(G, start_node, end_node, depth, subgraph)
+                    except nx.NetworkXNoPath:
+                        continue
+        return subgraph
+
+    def _find_blast_neighbors(self, G, start_node_ids, end_node_ids, direction, depth):
+        """
+        在图G中查找从start_node_ids出发，按照direction方向，深度为depth的邻接节点。
+        如果提供了end_node_ids，则只返回包含这些终点的子图。
+        """
+        subgraph = nx.DiGraph()
+        queue = set(start_node_ids)
+        seen_nodes = set()
+
+        for _ in range(depth):
+            if not queue:
+                break
+
+            current_level_nodes = list(queue)
+            seen_nodes.update(current_level_nodes)
+            queue.clear()
+
+            q_filter = Q()
+            if direction in ('forward', 'both'):
+                q_filter |= Q(source_instance_id__in=current_level_nodes)
+            if direction in ('reverse', 'both'):
+                q_filter |= Q(target_instance_id__in=current_level_nodes)
+
+            relations_qs = Relations.objects.filter(q_filter).select_related('source_instance', 'target_instance', 'relation')
+            newly_found_nodes = self._add_edges_to_graph(G, relations_qs)
+            queue.update(newly_found_nodes - seen_nodes)
+
+        if not end_node_ids:
+            return subgraph
+        
+        final_subgraph = nx.DiGraph()
+        for start_node in start_node_ids:
+            for end_node in end_node_ids:
+                if subgraph.has_node(start_node) and subgraph.has_node(end_node):
+                    try:
+                        return self._filter_path_edges(subgraph, start_node, end_node, depth, final_subgraph)
+                    except nx.NetworkXNoPath:
+                        continue
+        return final_subgraph
 
     def _build_graph_on_demand(self, start_node_ids, end_node_ids, depth, direction, mode):
         """
         按需从数据库查询数据来构建图，避免一次性加载所有数据。
         """
         G = nx.DiGraph()
-        
-        # 待处理的节点队列，初始为起始节点
-        queue = set(start_node_ids)
-        # 已处理过的节点，防止重复查询
-        seen_nodes = set()
-        
-        all_involved_nodes = set(start_node_ids) | set(end_node_ids)
 
-        # 在路径模式下，我们需要找到从起点到终点的路径
+        # 路径查询
         if mode == 'path':
-            # 为了找到路径，我们需要一个足够大的图，这里可以先构建一个包含所有相关节点的子图
-            # 这是一个简化的策略：获取起点和终点之间所有关系，构建图，然后查找路径
-            # 注意：对于超大图，这里仍有优化空间，比如使用双向BFS等算法
-            relations_qs = Relations.objects.filter(
-                Q(source_instance_id__in=start_node_ids) | Q(target_instance_id__in=start_node_ids) |
-                Q(source_instance_id__in=end_node_ids) | Q(target_instance_id__in=end_node_ids)
-            ).select_related('source_instance', 'target_instance', 'relation')
+            initial_nodes = set(start_node_ids + end_node_ids)
+            temp_G = nx.DiGraph()
+            queue = set(initial_nodes)
+            seen_nodes = set()
             
-            # 这是一个更广泛的查询，获取可能路径上的所有关系
-            # 实际应用中可能需要更复杂的算法来限制查询范围
-            
-            self._add_edges_to_graph(G, relations_qs)
-            
-            path_nodes = set()
-            for start_node in start_node_ids:
-                for end_node in end_node_ids:
-                    if G.has_node(start_node) and G.has_node(end_node):
-                        try:
-                            # 根据方向查找路径
-                            graph_to_search = G if direction != 'up' else G.reverse(copy=True)
-                            paths = nx.all_simple_paths(graph_to_search, source=start_node, target=end_node, cutoff=depth)
-                            for path in paths:
-                                path_nodes.update(path)
-                        except nx.NetworkXNoPath:
-                            continue
-            all_involved_nodes.update(path_nodes)
-
-        # 在爆炸/影响模式下，我们从起点开始逐层遍历
-        elif mode == 'blast':
-            for i in range(depth):
+            for _ in range(depth + 1):
                 if not queue:
                     break
                 
@@ -1506,31 +1543,52 @@ class RelationsViewSet(CmdbBaseViewSet):
                 seen_nodes.update(current_level_nodes)
                 queue.clear()
 
+                relations_qs = Relations.objects.filter(
+                    Q(source_instance_id__in=current_level_nodes) | Q(target_instance_id__in=current_level_nodes)
+                ).select_related('source_instance', 'target_instance', 'relation')
+
+                new_nodes = self._add_edges_to_graph(temp_G, relations_qs)
+                queue.update(new_nodes - seen_nodes)
+            
+            G = self._find_path_between_nodes(temp_G, start_node_ids, end_node_ids, depth)
+                        
+        # 爆炸分析
+        elif mode == 'blast':
+            G = self._find_blast_neighbors(G, start_node_ids, end_node_ids, direction, depth)
+            
+        # 邻接查询
+        elif mode == 'neighbor':
+            for start_node in start_node_ids:
                 q_filter = Q()
-                if direction in ('down', 'both'):
-                    q_filter |= Q(source_instance_id__in=current_level_nodes)
-                if direction in ('up', 'both'):
-                    q_filter |= Q(target_instance_id__in=current_level_nodes)
+                if direction in ('forward', 'both'):
+                    q_filter |= Q(source_instance_id=start_node)
+                if direction in ('reverse', 'both'):
+                    q_filter |= Q(target_instance_id=start_node)
 
                 relations_qs = Relations.objects.filter(q_filter).select_related(
                     'source_instance', 'target_instance', 'relation'
                 )
-                
-                newly_found_nodes = self._add_edges_to_graph(G, relations_qs)
-                
-                # 将新发现的、且未处理过的节点加入下一次循环的队列
-                queue.update(newly_found_nodes - seen_nodes)
-                all_involved_nodes.update(newly_found_nodes)
+                self._add_edges_to_graph(G, relations_qs)
 
-        # 最后，根据收集到的所有相关节点ID，构建最终的子图
-        final_relations = Relations.objects.filter(
-            Q(source_instance_id__in=all_involved_nodes) & Q(target_instance_id__in=all_involved_nodes)
-        ).select_related('source_instance', 'target_instance', 'relation')
-
-        final_graph = nx.DiGraph()
-        self._add_edges_to_graph(final_graph, final_relations)
+        # 模式匹配
+        elif mode == 'pattern':
+            pass
         
-        return final_graph, all_involved_nodes, final_relations
+        # 孤立节点
+        elif mode == 'isolate':
+            instances = ModelInstance.objects.filter(id__in=start_node_ids).values_list('id', flat=True)
+            instance_id_map = {instance.id: instance for instance in instances}
+            in_rel_instances = Relations.objects.filter(
+                Q(source_instance_id__in=start_node_ids) | Q(target_instance_id__in=start_node_ids)
+            ).values_list('source_instance_id', 'target_instance_id')
+            in_rel_instance_ids = set(id for pair in in_rel_instances for id in pair)
+            isolated_ids = set(instance_id_map.keys()) - in_rel_instance_ids
+            for instance_id in isolated_ids:
+                instance = instance_id_map.get(instance_id)
+                if instance:
+                    G.add_node(str(instance.id), instance=instance)
+
+        return G
 
     def _add_edges_to_graph(self, G, relations_qs):
         """
@@ -1626,6 +1684,41 @@ class PasswordManageViewSet(CmdbBaseViewSet):
             logger.error(f"Error resetting passwords: {str(e)}")
             return Response({'status': 'fail', 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+
+class SystemCacheViewSet(CmdbBaseViewSet):
+    
+    @action(detail=False, methods=['post'])
+    def clear_cache(self, request):
+        """清理系统缓存"""
+        try:
+            conn = get_redis_connection("default")
+            key_prefix = settings.CACHES['default'].get('KEY_PREFIX', '')
+            
+            if not key_prefix:
+                return Response({
+                    'status': 'failed',
+                    'message': 'Cache key prefix is not set in settings.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            pattern = f'{key_prefix}*'
+            keys_to_delete = conn.keys(pattern)
+            
+            if keys_to_delete:
+                deleted_count = conn.delete(*keys_to_delete)
+            else:
+                deleted_count = 0
+            logger.warning(f'Manually cleared {deleted_count} cache keys with prefix {key_prefix}')
+            return Response({
+                'status': 'success',
+                'deleted_keys_count': deleted_count
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error clearing cache: {str(e)}")
+            return Response({
+                'status': 'failed',
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
 
 class ZabbixSyncHostViewSet(CmdbBaseViewSet):
     queryset = ZabbixSyncHost.objects.all().order_by('create_time')
