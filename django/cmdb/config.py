@@ -2316,10 +2316,10 @@ BUILT_IN_RELATION_DEFINITION = [
         "description": "描述主机网卡到交换机或汇聚分流端口的物理连接。",
         "attribute_schema": {
             "source": {
-                "nic": {"type": "string", "verbose_name": "源网卡", "required": False}
+                "nic": {"type": "string", "verbose_name": "网卡", "required": False}
             },
             "target": {
-                "port": {"type": "string", "verbose_name": "目标端口", "required": True}
+                "port": {"type": "string", "verbose_name": "端口", "required": True}
             },
             "relation": {
                 "bandwidth": {"type": "float", "verbose_name": "带宽", "required": False, "unit": "Mbps"},

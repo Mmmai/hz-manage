@@ -374,6 +374,14 @@ class RelationsFilter(filters.FilterSet):
     instances = filters.CharFilter(method='filter_instances')
     relation = filters.UUIDFilter(field_name='relation')
     
+    def filter_instances(self, queryset, name, value):
+        if not value:
+            return queryset
+        instance_ids = value.split(',')
+        return queryset.filter(
+            Q(source_instance__id__in=instance_ids) | Q(target_instance__id__in=instance_ids)
+        ).distinct()
+    
     class Meta:
         model = Relations
         fields = [
