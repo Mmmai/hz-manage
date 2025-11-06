@@ -561,6 +561,7 @@ const handleCommit = () => {
           await store.dispatch("getRoleMenu", {
             role: store.state.role,
           });
+          // 更新按钮权限
         } else {
           ElMessage({
             showClose: true,

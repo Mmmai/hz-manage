@@ -18,14 +18,19 @@ export function encrypt_sm4(key: string, mode: string, text: string): string {
 }
 // AES解密函数
 export function decrypt_sm4(key: string, mode: string, text: string): string {
-  if (text === undefined) return text
+  // console.log(key, text)
+  if (text === undefined || text === null || text === '') return text
   const encoder = new TextEncoder();
   const bytes = encoder.encode(key);
   try {
     const decryptedText = smCrypto.sm4.decrypt(text, bytes, { mode });
+    if (decryptedText === null || decryptedText === undefined || decryptedText === "") {
+      console.error(`解密失败,密文:${text}`);
+      return text
+    }
     return decryptedText
   } catch {
-    console.error("解密失败，，，")
+    console.error("解密失败")
     return text
   }
 

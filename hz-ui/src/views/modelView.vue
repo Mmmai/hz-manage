@@ -593,26 +593,28 @@ const route = useRoute();
 // console.log(route)
 // 跳转路由详情
 const goToModelInfo = (params) => {
-  console.log(params);
-  // console.log(store.state.getMenuInfo())
-  // // 获取详情页面的菜单信息
-  // let res = proxy.$api.getMenuList()
-  let modelInfoParam = {
-    name_id: params.id,
-    label: store.state.currentMenu + "-" + params.verbose_name,
-    name: route.name + "_info",
-    path: route.path + "/" + params.name,
-    is_info: true,
-    // query:{id:params.id,tab:'field'}
-    query: { id: params.id },
-  };
-  console.log(modelInfoParam);
-  // 路由跳转
-  router.push({
-    path: route.path + "/" + params.name,
-    query: { id: params.id, verbose_name: params.verbose_name },
-    // meta: {test:1,...route.meta}
-  });
+  router.push({ path: route.path + "/" + params.id });
+
+  // console.log(params);
+  // // console.log(store.state.getMenuInfo())
+  // // // 获取详情页面的菜单信息
+  // // let res = proxy.$api.getMenuList()
+  // let modelInfoParam = {
+  //   name_id: params.id,
+  //   label: store.state.currentMenu + "-" + params.verbose_name,
+  //   name: route.name + "_info",
+  //   path: route.path + "/" + params.name,
+  //   is_info: true,
+  //   // query:{id:params.id,tab:'field'}
+  //   query: { id: params.id },
+  // };
+  // console.log(modelInfoParam);
+  // // 路由跳转
+  // router.push({
+  //   path: route.path + "/" + params.name,
+  //   query: { id: params.id, verbose_name: params.verbose_name },
+  //   // meta: {test:1,...route.meta}
+  // });
   // store更新
 
   // store.commit("selectMenu", modelInfoParam)

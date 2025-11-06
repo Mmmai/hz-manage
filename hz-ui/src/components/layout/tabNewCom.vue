@@ -14,6 +14,21 @@
           :name="item.path"
           :closable="item.name !== 'home'"
         >
+          <template #label>
+            <el-icon v-if="item.name == 'home'">
+              <HomeFilled />
+            </el-icon>
+            <div v-else class="flexJbetween gap-2">
+              <el-icon>
+                <iconifyOffline :icon="item.icon" />
+              </el-icon>
+              <span style="display: flex; align-items: center">
+                {{ item.title }}</span
+              >
+            </div>
+
+            <!-- {{ item.title }} -->
+          </template>
         </el-tab-pane>
       </el-tabs>
       <el-dropdown trigger="click" placement="bottom-start">
@@ -76,12 +91,13 @@ import { useRoute, useRouter } from "vue-router";
 import Sortable from "sortablejs";
 const route = useRoute();
 const router = useRouter();
-const nowTab = ref(route.fullPath);
+const nowTab = ref("");
 
 import useTabsStore from "@/store/tabs";
 import { ArrowDown, Refresh } from "@element-plus/icons-vue";
 import { nextTick } from "vue";
 import { useKeepAliveStore } from "@/store/keepAlive";
+import { now } from "lodash";
 const keepAliveStore = useKeepAliveStore();
 const tabsStore = useTabsStore();
 // console.log(route)
@@ -95,6 +111,7 @@ watch(
   () => route.fullPath,
   () => {
     // if (route.meta.isFull) return;
+    // console.log("route.fullPath", route);
     nowTab.value = route.path;
     // console.log(nowTab.value)
 
@@ -105,16 +122,23 @@ watch(
       name: route.name as string,
       fullPath: route.fullPath,
       isKeepAlive: route.meta.isKeepAlive,
+      menuPath: route.meta.menuPath,
+      isInfo: route.meta.isInfo,
       //   close: !route.meta.isAffix,
       //   isKeepAlive: route.meta.isKeepAlive as boolean
     };
     if (route.meta.isInfo) {
       if (route.path.includes("logFlowMission")) {
         tabsParams.title = route.meta.title + "-详情";
+      } else if (!route.query.verbose_name) {
+        tabsParams.title = route.meta.title;
+        nowTab.value = route.path.replace(/\/[^/]*$/, "");
       } else {
-        tabsParams.title = route.meta.title + "-" + route.query.verbose_name;
+        nowTab.value = route.meta.title;
+        tabsParams.title = route.meta.title;
       }
     }
+    // console.log("tabsParams", tabsParams);
     tabsStore.addTabs(tabsParams);
     // 更新当前面包屑
     tabsStore.updateCurrentTitle(tabsParams);
@@ -221,10 +245,9 @@ const refresh = () => {
   font-weight: 600;
 }
 
-:deep {
-  .el-tabs__header {
-    margin: 0;
-  }
+:deep(.el-tabs__header) {
+  margin: 0;
 }
+
 @import "./tabs.scss";
 </style>

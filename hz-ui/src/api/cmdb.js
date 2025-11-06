@@ -18,6 +18,9 @@ const path = {
   cmdbModelRef: "/api/v1/cmdb/model_ref/",
   cmdbReEncrypt: "/api/v1/cmdb/password_manage/re_encrypt/",
   cmdbSyncZabbix: "/api/v1/cmdb/zabbix_sync_host/",
+  cmdbRelation: "/api/v1/cmdb/relations/",
+  cmdbRelationDefinition: "/api/v1/cmdb/relation_definition/",
+  auditLog: "/api/v1/cmdb/audit/logs/",
 }
 export default {
   // cmdb
@@ -26,21 +29,21 @@ export default {
     return axios.request({ url: path.cmdbCiModelGroup, method: 'get', params: params })
   },
   deleteCiModelGroup(params) {
-    return axios.delete(path.cmdbCiModelGroup + params)
+    return axios.delete(path.cmdbCiModelGroup + params + '/')
   },
   addCiModelGroup(params) {
     return axios.request({ url: path.cmdbCiModelGroup, method: 'post', data: params })
   },
   updateCiModelGroup(params) {
     // return axios.put(path.role+params.id+'/',params)
-    return axios.request({ url: path.cmdbCiModelGroup + params.id, method: 'put', data: params })
+    return axios.request({ url: path.cmdbCiModelGroup + params.id + '/', method: 'put', data: params })
   },
   // 模型
   getCiModel(params, obj = null) {
     if (obj === null) {
       return axios.request({ url: path.cmdbCiModel, method: 'get', params: params })
     } else {
-      return axios.request({ url: path.cmdbCiModel + obj, method: 'get', params: params })
+      return axios.request({ url: path.cmdbCiModel + obj + '/', method: 'get', params: params })
     }
   },
   deleteCiModel(params) {
@@ -56,7 +59,7 @@ export default {
   },
   // 模型唯一标识更新
   updateInstanceName(params) {
-    return axios.request({ url: path.cmdbCiModel + params + 'rename_instances/', method: 'post' })
+    return axios.request({ url: path.cmdbCiModel + params + '/rename_instances/', method: 'post' })
   },
   updateInstanceNameTask(params) {
     return axios.request({ url: path.cmdbCiModel + 'rename_status/', method: 'get', params: params })
@@ -86,7 +89,7 @@ export default {
     return axios.request({ url: path.cmdbCiModelField + params.id + '/', method: 'patch', data: params })
   },
   getCiModelFieldType(params = null) {
-    return axios.request({ url: path.cmdbCiModelField + 'metadata', method: 'get' })
+    return axios.request({ url: path.cmdbCiModelField + 'metadata/', method: 'get' })
 
   },
   // 字段校验
@@ -120,12 +123,15 @@ export default {
   getCiModelInstance(params) {
     return axios.request({ url: path.cmdbCiModelInstance, method: 'get', params: params })
   },
+  getCiModelInstanceInfo(id) {
+    return axios.request({ url: path.cmdbCiModelInstance + id + '/', method: 'get' })
+  },
   // 获取模型所有实例id，用户选择全部时的请求
   getCiModelInstanceAll(params) {
     return axios.request({ url: path.cmdbCiModelInstance, method: 'get', params: params })
   },
   deleteCiModelInstance(params) {
-    return axios.delete(path.cmdbCiModelInstance + params)
+    return axios.delete(path.cmdbCiModelInstance + params + '')
   },
   bulkDeleteCiModelInstance(params, timeout = 30) {
     return axios.request({ url: path.cmdbCiModelInstance + 'bulk_delete/', method: 'post', data: params, timeout: timeout })
@@ -160,6 +166,11 @@ export default {
   // ci tree
   getCiModelTree(params) {
     return axios.request({ url: path.cmdbCiDataTree, method: 'get', params: params })
+  },
+  // 实例树节点
+  getCiModelTreeNode(params) {
+    // params: {model:id}
+    return axios.request({ url: path.cmdbCiDataTree + 'tree/', method: 'get', params: params })
   },
   // 从CI树节点查询ci实例
   getCiDataFromModelTree(params) {
@@ -211,17 +222,48 @@ export default {
     return axios.request({ url: path.cmdbReEncrypt, method: 'post', data: params, timeout: timeout })
   },
   // zabbix主机同步状态
-  getZabbixSync(params) {
-    return axios.request({ url: path.cmdbSyncZabbix, params: params, method: 'get' })
+  // getZabbixSync(params) {
+  //   return axios.request({ url: path.cmdbSyncZabbix, params: params, method: 'get' })
+  // },
+  // syncZabbixHost(params) {
+  //   return axios.request({ url: path.cmdbSyncZabbix + 'sync_zabbix_host/', method: 'post', data: params })
+  // },
+  // updateZabbixAvailability(params) {
+  //   return axios.request({ url: path.cmdbSyncZabbix + 'update_zabbix_availability/', method: 'post', data: params })
+  // },
+  // installAgent(params) {
+  //   return axios.request({ url: path.cmdbSyncZabbix + 'install_agents/', method: 'post', data: params })
+  // }
+  // 模型关联定义
+  getModelRelationDefine(params) {
+    return axios.request({ url: path.cmdbRelationDefinition, method: 'get', params: params })
   },
-  syncZabbixHost(params) {
-    return axios.request({ url: path.cmdbSyncZabbix + 'sync_zabbix_host/', method: 'post', data: params })
+  getModelRelationDefineInfo(id) {
+    return axios.request({ url: path.cmdbRelationDefinition + id + '/', method: 'get' })
   },
-  updateZabbixAvailability(params) {
-    return axios.request({ url: path.cmdbSyncZabbix + 'update_zabbix_availability/', method: 'post', data: params })
+  deleteModelRelationDefine(params) {
+    return axios.delete(path.cmdbRelationDefinition + params + '/')
   },
-  installAgent(params) {
-    return axios.request({ url: path.cmdbSyncZabbix + 'install_agents/', method: 'post', data: params })
-  }
-
+  addModelRelationDefine(params) {
+    return axios.request({ url: path.cmdbRelationDefinition, method: 'post', data: params })
+  },
+  updateModelRelationDefine(params) {
+    return axios.request({ url: path.cmdbRelationDefinition + params.id + '/', method: 'patch', data: params })
+  },
+  // 模型实例关联
+  getModelInstanceRelation(params) {
+    return axios.request({ url: path.cmdbRelation, method: 'get', params: params })
+  },
+  getModelInstanceRelationInfo(id) {
+    return axios.request({ url: path.cmdbRelation + id + '/', method: 'get' })
+  },
+  deleteModelInstanceRelation(params) {
+    return axios.delete(path.cmdbRelation + params + '/')
+  },
+  updateModelInstanceRelation(params) {
+    return axios.request({ url: path.cmdbRelation + params.id + '/', method: 'patch', data: params })
+  },
+  addModelInstanceRelation(params) {
+    return axios.request({ url: path.cmdbRelation, method: 'post', data: params })
+  },
 }

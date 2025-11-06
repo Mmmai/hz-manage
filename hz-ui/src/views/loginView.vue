@@ -88,7 +88,7 @@ const handleCommit = () => {
         let gmRes = await proxy.$api.getSysConfig({ params: "gm" });
 
         configStore.setGmCry(gmRes.data);
-        configStore.getAppVersion();
+        // configStore.getAppVersion();
         // 获取版本
       }
     }

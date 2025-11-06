@@ -234,9 +234,11 @@ class sysConfigParams(models.Model):
         FLOAT = 'float', '小数'
         # JSON = 'fr', 'French'
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    verbose_name = models.CharField(max_length=254, null=True,blank=True,verbose_name = "参数名称")
-    param_name = models.CharField(max_length=254, unique=True,verbose_name = "参数代码")
-    param_value = models.CharField(max_length=254,null=True,blank=True,verbose_name = "参数值")
+    verbose_name = models.CharField(max_length=254, null=True,blank=True,verbose_name ="参数名称")
+    #配置所属系统s 参数
+    system = models.CharField(max_length=254, default="common",verbose_name="系统")
+    param_name = models.CharField(max_length=254, unique=True,verbose_name="参数代码")
+    param_value = models.CharField(max_length=254,null=True,blank=True,verbose_name="参数值")
     param_type = models.CharField(max_length=50, choices=TypeChoices.choices, default=TypeChoices.STRING)    
     description = models.TextField(blank=True, null=True,verbose_name="参数说明") 
     class Meta:

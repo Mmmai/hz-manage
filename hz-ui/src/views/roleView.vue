@@ -67,13 +67,14 @@
               size="small"
               @click="handleDelete(scope.row)"
               >删除</el-button
+                            :disabled="scope.row.role == 'sysadmin' ? true : false"
+
             > -->
             <el-button
               link
               v-permission="`${route.name?.replace('_info', '')}:edit`"
               type="primary"
               :icon="Edit"
-              :disabled="scope.row.role == 'sysadmin' ? true : false"
               @click="handleEdit(scope.row)"
             ></el-button>
             <el-button

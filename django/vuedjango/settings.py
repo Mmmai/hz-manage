@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'mlog',
     'mapi',
     'cacheops',
+    'node_mg',
     'cmdb',
     'rest_framework',
     'django_filters',
@@ -57,7 +58,10 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'drf_spectacular_sidecar',
     'channels',
-    'django_celery_beat']
+    'django_celery_beat',
+    'jobflow'
+
+]
 
 
 MIDDLEWARE = [
@@ -108,7 +112,7 @@ CHANNEL_LAYERS = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'cmdb',
+        'NAME': 'autoOps',
         'USER': 'root',
         'PASSWORD': 'thinker',
         'HOST': DB_HOST,
@@ -119,16 +123,17 @@ DATABASES = {
     #     'NAME': 'cmdb',
     #     'USER': 'root',
     #     'PASSWORD': 'thinker',
-    #     'HOST': DB_HOST,
+    #     'HOST': '127.0.0.1',
     #     'PORT': '3306',
     # },
 }
 # 多数据库配置
-# DATABASE_ROUTERS = ['vuedjango.db_router.database_router']
+#DATABASE_ROUTERS = ['vuedjango.db_router.database_router']
 # DATABASE_APPS_MAPPING = {
-#     'mlog': 'cmdb',
-#     'mapi': 'cmdb',
-#     'cmdb': 'cmdb',
+#     'mlog': 'default',
+#     'mapi': 'default',
+#     'cmdb': 'default',
+#     'node_mg': 'default'
 # }
 
 CACHEOPS_REDIS = {
@@ -347,7 +352,7 @@ LOGGING = {
     'disable_existing_loggers': False,
     'formatters': {
         'standard': {
-            'format': '[{levelname}] {asctime} [{name}] {message}',
+            'format': '[{levelname}] {asctime} [{name} {lineno}] {message}',
             'datefmt': '%Y-%m-%d %H:%M:%S',
             'style': '{',
         },
@@ -358,16 +363,48 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'standard',
         },
+        #通用日志
         'file': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': os.path.join(LOG_DIR, 'cmdb.log'),
+            'filename': os.path.join(LOG_DIR, 'run.log'),
             'formatter': 'standard',
         },
         'celery_file': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOG_DIR, 'celery.log'),
+            'formatter': 'standard',
+        },
+        # 为其他app添加日志文件
+        'mlog_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'mlog.log'),
+            'formatter': 'standard',
+        },
+        'mapi_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'mapi.log'),
+            'formatter': 'standard',
+        },
+        'node_mg_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'node_mg.log'),
+            'formatter': 'standard',
+        },
+        'cmdb_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'cmdb.log'),
+            'formatter': 'standard',
+        },
+        'jobflow_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'jobflow.log'),
             'formatter': 'standard',
         },
     },
@@ -382,11 +419,37 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
-        '': {
-            'handlers': ['console', 'file'],
+        # 为各app配置独立日志记录器
+        'mlog': {
+            'handlers': ['mlog_file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'mapi': {
+            'handlers': ['mapi_file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'node_mg': {
+            'handlers': ['node_mg_file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'cmdb': {
+            'handlers': ['cmdb_file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'jobflow': {
+            'handlers': ['jobflow_file', 'console'],
             'level': 'DEBUG',
             'propagate': True,
         },
+        # '': {
+        #     'handlers': ['console', 'file'],
+        #     'level': 'DEBUG',
+        #     'propagate': True,
+        # },
     },
 }
 

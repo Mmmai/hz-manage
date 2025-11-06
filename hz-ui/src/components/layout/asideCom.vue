@@ -121,9 +121,12 @@ const currentMenIndex = ref("name");
   /* border-right: 1px; */
   /* color: var(--el-text-color-regular); */
   /* background-color: var(--el-color-primary-light-5) !important; */
+  /* background-color: var(--color-background, #ffffff) !important; */
 }
 .el-aside {
   /* background-color: var(--el-color-primary-light-5) !important; */
+  background-color: var(--el-bg-color, #ffffff) !important;
+  border-right: solid 1px var(--el-border-color, #dcdfe6) !important;
 }
 h3 {
   line-height: 40px;

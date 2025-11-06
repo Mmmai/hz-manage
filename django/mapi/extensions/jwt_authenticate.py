@@ -28,11 +28,15 @@ class JWTQueryParamsAuthentication(BaseAuthentication):
             # print(unverified_payload)
             # 从token中获取payload【校验合法性】
             payload = jwt.decode(jwt=token, key=salt, algorithms=["HS256"])
+            # print(payload)
             user_id = payload.get("user_id")
             if not user_id:
                 error = "token中用户信息不存在"
                 raise AuthenticationFailed({"code": 401, "error": error})
             user = UserInfo.objects.filter(id=user_id).first()
+            if not user:
+                error = "token中用户信息已查询不到,token已失效"
+                raise AuthenticationFailed({"code": 401, "error": error})
             return (user, token)
         except jwt.exceptions.ExpiredSignatureError:
             error = "token已失效"

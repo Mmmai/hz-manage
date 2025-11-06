@@ -14,6 +14,7 @@ export const useTabsStore = defineStore(
     const tabsMenuList = ref([]);
     const router = useRouter();
     const currentTitle = ref('')
+    const currentBreadcrumb = ref([]);
     const currentMenu = ref('')
     // action
     // const pushTesst = ()=>{
@@ -32,20 +33,19 @@ export const useTabsStore = defineStore(
     const updateCurrentTitle = async (params) => {
       currentTitle.value = params.title
       currentMenu.value = params.name.split('_')[0]
+      if (params.name === 'home') {
+        currentBreadcrumb.value = []
+      } else {
+        currentBreadcrumb.value = params.menuPath
+
+      }
+      // console.log("currentBreadcrumb:", currentBreadcrumb)
     }
-    // const updateCurentMenu = async(params) =>{
-    //   currentMenu.value = params
-    // }
-    // const addTabs = async (tabItem) => {
-    //   if (tabsMenuList.value.every(item => item.fullPath !== tabItem.fullPath)) {
-    //     tabsMenuList.value.push(tabItem);
-    //   }
-    // }
+
     // 添加标签
     const addTabs = (tabItem) => {
       // 实现看单个详情,每次都覆盖之前的详单tabs
       if (tabItem.name === 'logFlowMission_info') {
-        console.log('名字一致')
         // if (tabsMenuList.value.every(item => item.name !== tabItem.name)) {
         //   tabsMenuList.value.push(tabItem);
         // }
@@ -57,6 +57,10 @@ export const useTabsStore = defineStore(
         } else {
           tabsMenuList.value.push(tabItem)
         }
+        return
+      }
+      // 详情页在本tab内
+      if (tabItem.isInfo) {
         return
       }
 
@@ -137,7 +141,7 @@ export const useTabsStore = defineStore(
 
     return {
       tabsMenuList, closeTabsOnSide, closeMultipleTab,
-      addTabs, removeTabs, tabsMenuDict, currentTitle, updateCurrentTitle, currentMenu, setTabs
+      addTabs, removeTabs, tabsMenuDict, currentTitle, updateCurrentTitle, currentMenu, setTabs, currentBreadcrumb
     }
   },
   // 插件外参

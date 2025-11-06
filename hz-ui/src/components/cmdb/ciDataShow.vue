@@ -265,7 +265,7 @@
 
       <!-- <el-table-column label="Date" width="120" @row-click="editCiData">
                   <template #default="scope">{{ scope.row.date }}</template>
-</el-table-column> -->
+      </el-table-column> -->
       <el-table-column
         v-for="(data, index) in hasConfigField"
         :property="data.name"
@@ -277,13 +277,18 @@
       >
         <!-- 新增管理口跳转 -->
         <template #default="scope" v-if="data.name === 'mgmt_ip'">
-          <el-link
-            :href="`https://${scope.row[data.name]}`"
-            type="primary"
-            target="_blank"
-          >
-            {{ scope.row[data.name] }}</el-link
-          >
+          <div v-if="scope.row[data.name] !== null">
+            <el-tooltip content="跳转管理口" placement="right" effect="dark">
+              <el-link
+                :href="`https://${scope.row[data.name]}`"
+                type="primary"
+                target="_blank"
+              >
+                {{ scope.row[data.name] }}<el-icon><TopRight /></el-icon
+              ></el-link>
+            </el-tooltip>
+          </div>
+          <div v-else></div>
         </template>
         <!-- 列表显示布尔值按钮，以及模型关联、枚举类的label值 -->
         <template
@@ -324,10 +329,11 @@
           </div>
           <div v-else>
             <el-text v-if="scope.row[data.name]?.length >> 0">{{
-              "*".repeat(
-                decrypt_sm4(gmConfig.key, gmConfig.mode, scope.row[data.name])
-                  .length
-              )
+              // "*".repeat(
+              //   decrypt_sm4(gmConfig.key, gmConfig.mode, scope.row[data.name])
+              //     .length
+              // )
+              "*".repeat(scope.row[data.name]?.length)
             }}</el-text>
             <el-text v-else></el-text>
           </div>
@@ -361,10 +367,10 @@
               link
               type="primary"
               :icon="View"
-              @click="editCiData(scope.row)"
+              @click="goToEdit(scope.row)"
             ></el-button>
           </el-tooltip>
-          <el-tooltip
+          <!-- <el-tooltip
             class="box-item"
             effect="dark"
             content="编辑"
@@ -375,9 +381,9 @@
               link
               type="primary"
               :icon="Edit"
-              @click="editCiData(scope.row, true)"
+              @click="goToEdit(scope.row)"
             ></el-button>
-          </el-tooltip>
+          </el-tooltip> -->
           <el-tooltip
             class="box-item"
             effect="dark"
@@ -597,6 +603,7 @@
                       <el-input
                         v-model="ciDataForm[fitem.name]"
                         style="width: 240px"
+                        :disabled="controlEdit(fitem.editable)"
                         v-else
                       ></el-input>
                     </el-form-item>
@@ -801,16 +808,9 @@
                             :class="{ requiredClass: fitem.required }"
                             @mouseenter="showPassButton = true"
                             @mouseleave="showPassButton = false"
+                            class="hide-text"
                           >
-                            {{
-                              "*".repeat(
-                                decrypt_sm4(
-                                  gmConfig.key,
-                                  gmConfig.mode,
-                                  ciDataForm[fitem.name]
-                                ).length
-                              )
-                            }}
+                            {{ "*".repeat(ciDataForm[fitem.name]?.length) }}
                             <el-popover
                               v-permission="
                                 `${route.name?.replace(
@@ -1062,6 +1062,8 @@
                         v-else
                         v-model="ciDataForm[fitem.name]"
                         placeholder="请选择"
+                        filterable
+                        clearable
                         style="width: 240px"
                       >
                         <el-option
@@ -1141,13 +1143,13 @@
           v-if="!commitActionAdd"
           >222</el-tab-pane
         >
-        <el-tab-pane
-          label="变更记录"
-          name="changelog"
-          disabled
-          v-if="!commitActionAdd"
-          >Role</el-tab-pane
-        >
+        <el-tab-pane label="变更记录" name="changelog" v-if="!commitActionAdd">
+          <ciDataAudit
+            ref="ciDataAuditRef"
+            v-if="currentRow && currentRow.id"
+            :instanceId="currentRow.id"
+          />
+        </el-tab-pane>
       </el-tabs>
     </template>
     <template #footer>
@@ -1320,10 +1322,12 @@
                 v-model="multipleForm.updateParams[item]"
                 placeholder="请选择"
                 style="width: 180px"
+                clearable
+                filterable
               >
                 <el-option
                   v-for="ritem in enumOptionObj[
-                    allModelFieldByNameObj[item].validation_rule
+                    allModelFieldByNameObj[item]?.validation_rule
                   ]"
                   :key="ritem.value"
                   :label="ritem.label"
@@ -1343,6 +1347,7 @@
                 placeholder="请选择"
                 style="width: 240px"
                 filterable
+                clearable
               >
                 <!--                 @visible-change="
                   getModelRefCiData($event, {
@@ -1586,6 +1591,8 @@
 import ciDataUpload from "./ciDataUpload.vue";
 import ciDataTableCol from "./ciDataTableCol.vue";
 import ciDataShowPass from "./ciDataShowPass.vue";
+import ciDataAudit from "./ciDataAudit.vue";
+
 import ciDataqCode from "./ciDataqCode.vue";
 import {
   Check,
@@ -1635,10 +1642,14 @@ import ciDataFilter from "./ciDataFilter.vue";
 import { useStore } from "vuex";
 import { useClipboard } from "vue-clipboard3";
 import { debounce } from "lodash";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
+const router = useRouter();
 const route = useRoute();
 const store = useStore();
-const emit = defineEmits(["getTree"]);
+const emit = defineEmits(["getTree", "show-info"]);
+// 审计功能
+const ciDataAuditRef = ref("");
+
 const props = defineProps(["ciModelId", "treeData", "currentNodeId"]);
 const showTree = defineModel("showTree");
 // const treeData = defineModel("treeData");
@@ -2606,7 +2617,13 @@ const addCiData = () => {
 
 const currentRow = ref({});
 const beforeEditCiDataForm = ref({});
+
+const goToEdit = (params) => {
+  router.push({ path: route.path + "/" + params.id });
+};
+
 const editCiData = (params, edit = false) => {
+  isCopy.value = false;
   ciDrawer.value = true;
   commitActionAdd.value = false;
   isEdit.value = edit;
@@ -2628,10 +2645,14 @@ const editCiData = (params, edit = false) => {
             ciDataForm[item] = params[item];
           }
         } else if (modelFieldType.value.password.indexOf(item) !== -1) {
-          console.log("password");
           if (!showAllPass.value) {
+            console.log(params[item]);
             ciDataForm[item] = params[item];
           } else {
+            console.log(params[item]);
+            console.log(
+              decrypt_sm4(gmConfig.value.key, gmConfig.value.mode, params[item])
+            );
             ciDataForm[item] = decrypt_sm4(
               gmConfig.value.key,
               gmConfig.value.mode,
@@ -2644,12 +2665,15 @@ const editCiData = (params, edit = false) => {
         }
       } // isDisabled.value = params.built_in
     );
+    console.log(ciDataForm);
     // ciDataForm = params
     beforeEditCiDataForm.value = JSON.parse(JSON.stringify(ciDataForm));
   });
 };
+const isCopy = ref(false);
 const cpCiData = (params) => {
   ciDrawer.value = true;
+  isCopy.value = true;
   commitActionAdd.value = true;
   isEdit.value = true;
   currentRow.value = params;
@@ -2669,7 +2693,7 @@ const cpCiData = (params) => {
           ciDataForm[item] = params[item].value;
         } else if (modelFieldType.value.password.indexOf(item) !== -1) {
           if (!showAllPass.value) {
-            ciDataForm[item] = params[item];
+            ciDataForm[item] = null;
           } else {
             ciDataForm[item] = decrypt_sm4(
               gmConfig.value.key,
@@ -2691,7 +2715,15 @@ const cpCiData = (params) => {
     duration: 2000,
   });
 };
-
+const controlEdit = (refVal) => {
+  if (commitActionAdd.value) return false;
+  if (isCopy.value) return false;
+  if (refVal) {
+    return false;
+  } else {
+    return true;
+  }
+};
 const ciDataFormRef = ref<FormInstance>();
 const ciDataForm = reactive({
   instance_name: null,
@@ -2700,7 +2732,7 @@ const rmNameObj = computed(() => {
   let tmpObj = Object.assign({}, ciDataForm);
   delete tmpObj.instance_name;
   for (let [ckey, cvalue] of Object.entries(tmpObj)) {
-    if (cvalue === null) continue;
+    if (cvalue === null || cvalue === "") continue;
     if (modelFieldType.value.password.indexOf(ckey) !== -1) {
       // 加密
       tmpObj[ckey] = encrypt_sm4(
@@ -2715,10 +2747,8 @@ const rmNameObj = computed(() => {
 const rmNameObjUpdate = computed(() => {
   let tmpObj = Object.assign({}, updateParams.value);
   delete tmpObj.instance_name;
-  console.log(modelFieldType.value);
-
   for (let [ckey, cvalue] of Object.entries(updateParams.value)) {
-    if (cvalue === null) continue;
+    if (cvalue === null || cvalue === "") continue;
     if (modelFieldType.value.password.indexOf(ckey) !== -1) {
       // 加密
       tmpObj[ckey] = encrypt_sm4(
@@ -2764,7 +2794,7 @@ const ciDataCommit = async (
         });
         setTimeout(() => {
           loading.close();
-        }, 2000);
+        }, 200);
 
         // console.log(res)
         // console.log(123)
@@ -2804,6 +2834,9 @@ const ciDataCommit = async (
             message: "无更新,关闭窗口",
             type: "info",
           });
+          setTimeout(() => {
+            loading.close();
+          }, 200);
           return;
         } else {
           // 判断此次用户操作的字段
@@ -2879,7 +2912,7 @@ const ciDataCommit = async (
         }
         setTimeout(() => {
           loading.close();
-        }, 1000);
+        }, 200);
       }
       // console.log('submit!')
     } else {
@@ -2974,6 +3007,9 @@ const activeName = ref("modelField");
 const handleClick = (tab: TabsPaneContext, event: Event) => {
   // console.log(tab, event);
   console.log(activeName.value);
+  if (tab.props.name == "changelog") {
+    ciDataAuditRef.value!.getData();
+  }
 };
 defineExpose({
   getHasConfigField,
@@ -3094,6 +3130,16 @@ const leftHeaderStyle = ({ row, column, rowIndex, columnIndex }) => {
 //   text-overflow: clip;
 //   overflow-wrap: break-word;
 // }
+
+// 密码过长显示
+
+.hide-text {
+  display: inline-block;
+  max-width: 150px; /* 控制显示宽度 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* 超出部分显示省略号 */
+}
 .demo-tabs > .el-tabs__content {
   padding: 32px;
   color: #6b778c;

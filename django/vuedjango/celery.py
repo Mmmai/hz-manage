@@ -7,7 +7,7 @@ import logging
 from celery import Celery
 from celery.signals import setup_logging
 from datetime import timedelta
-from cmdb.utils import zabbix_config
+from cmdb.utils import sys_config
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ is_migrating = any(arg in ['migrate', 'makemigrations'] for arg in sys.argv)
 if not is_migrating:
 
     beat_schedule = {}
-    if zabbix_config.is_zabbix_sync_enabled():
+    if sys_config.is_zabbix_sync_enabled():
         # 只在启用同步时添加 Zabbix 相关任务
         beat_schedule.update({
             'update-zabbix-interface-every-5-minutes': {

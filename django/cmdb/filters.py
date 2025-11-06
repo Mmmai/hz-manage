@@ -391,7 +391,13 @@ class RelationsFilter(filters.FilterSet):
             
         ]
 
-
+    def filter_instances(self, queryset, name, value):
+        if not value:
+            return queryset
+        instance_ids = value.split(',')
+        return queryset.filter(
+            Q(source_instance__id__in=instance_ids) | Q(target_instance__id__in=instance_ids)
+        ).distinct()
 
 class ZabbixSyncHostFilter(filters.FilterSet):
     ip = filters.CharFilter(field_name='ip', lookup_expr='icontains')

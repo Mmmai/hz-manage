@@ -115,7 +115,7 @@ const getUploadRes = async () => {
       let res = await proxy.$api.importCiDataStatus(v);
       // console.log(res)
       uploadRes.value[k] = res.data;
-      if (res.data.status === "completed") {
+      if (res.data.status === "completed" || res.data.status === "failed") {
         delete uploadMission.value[k];
       }
     });

@@ -1,48 +1,8 @@
-import { createRouter,createWebHashHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 //createWebHashHistory
-// import {useStore} from 'vuex'
 import dealWithRoute from './dynamicRoute'
 // const store = useStore()
 import store from '../store/index'
-// console.log(store)
-// const tempval = [
-//   {
-//     path:'home',
-//     name: 'home',
-//     component: () => import('../views/homeView.vue')
-//   },
-//   {
-//     path:'user',
-//     name: 'user',
-//     component: () => import('../views/Userview.vue'),
-//     meta:{role:[1,2]}
-//   },
-//   {
-//     path:'role',
-//     name: 'role',
-//     component: () => import('../views/roleview.vue'),
-//     meta:{role:[1]}
-//   },
-//   {
-//     path:'menu',
-//     name: 'menu',
-//     component: () => import('../views/menuView.vue'),
-//     meta:{role:[1]}
-//   },
-//   // {
-//   //   path:'/loki',
-//   //   name: 'loki',
-//   //   component: () => import('../views/lokiView.vue'),
-//   //   meta:{role:[1]}
-//   // },
-//   {
-//     path:'/other',
-//     name: 'other',
-//     component: () => import('../views/otherView.vue'),
-//     meta:{role:[2]}
-//   }
-// ]
-
 
 // 路由和vue视图的对应关系
 const publicRoute = [
@@ -51,35 +11,13 @@ const publicRoute = [
     name: 'login',
     // redirect:'/',
     component: () => import('../views/loginView.vue'),
-    //     children:[
-    //   // {
-    //   //   path: '/log/loki',
-    //   //   name: 'loki',
-    //   //   component: () => import('../views/lokiView.vue')
-    //   //   // meta: item.meta
-    //   // }
-    //   {        path: '/111',
-    //     name: '2222',
-    //     component: () => import('../views/homeView.vue')}
-    // ]
   },
-  // {
-  //   path: '/',
-  //   name: 'main',
-  //   redirect:'/home',
-  //   component: () => import('../views/mainView.vue'),
-  //   // children:[
-  //   //   // {
-  //   //   //   path: '/log/loki',
-  //   //   //   name: 'loki',
-  //   //   //   component: () => import('../views/lokiView.vue')
-  //   //   //   // meta: item.meta
-  //   //   // }
-  //   //   {        path: '/home',
-  //   //     name: 'home',
-  //   //     component: () => import('../views/homeView.vue')}
-  //   // ]
-  // },
+  {
+    path: '/cmdb_only',
+    name: 'cmdb_only',
+    component: () => import('../views/cmdbForUops.vue'),
+    children: []
+  },
   {
     // path: '/:error*', // /:error -> 匹配 /, /one, /one/two, /one/two/three, 等
     path: '/:catchAll(.*)',
@@ -98,7 +36,7 @@ const publicRoute = [
 
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
-  routes:publicRoute
+  routes: publicRoute
 })
 // console.log(router.getRoutes())
 
@@ -116,11 +54,11 @@ const router = createRouter({
 // console.log("xxssdad")
 // console.log(router.getRoutes())
 // 路由守卫
-router.beforeEach(async(to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   if (to.path === '/login') {
-    if (localStorage.getItem('token')){
+    if (localStorage.getItem('token')) {
       next('/')
-    }else{
+    } else {
       next();
     }
   } else {
@@ -133,38 +71,43 @@ router.beforeEach(async(to, from, next) => {
       // 获取路由
       const dynamicCreateRoute = store.state.dynamicCreateRoute
       // 判断是否要获取新的路由
-      if (!dynamicCreateRoute){
+      if (!dynamicCreateRoute) {
         console.log('获取动态路由')
-        store.commit("updateDynamicCreateRoute",true)
+        store.commit("updateDynamicCreateRoute", true)
         // 获取动态路由
         // await store.dispatch('getRouteInfoAction', {role:store.state.role})
-        await store.dispatch('getRoleMenu', {role:store.state.role})
-        // console.log(store.state.menuInfo)
-        // const drouteinfo = store.state.routeInfo
-        console.log(store.state.menuInfo)
-        if (store.state.menuInfo.length === 0){
-          next('/login')
-          return 
-        } 
+        try {
+          await store.dispatch('getRoleMenu', { role: store.state.role })
+          // console.log(store.state.menuInfo)
+          // const drouteinfo = store.state.routeInfo
+          if (store.state.menuInfo.length === 0) {
+            next('/login')
+            return
+          }
 
-      dealWithRoute(store.state.menuInfo,publicRoute)
-      
-      // print()
-      next({ ...to, replace: true })    
-      }else{
+          dealWithRoute(store.state.menuInfo, publicRoute)
+
+          // print()
+          next({ ...to, replace: true })
+        } catch (error) {
+          // 处理token认证失败的情况
+          next('/login')
+          return
+        }
+      } else {
         // 判断路由中的权限
-        if(to.meta.role){
+        if (to.meta.role) {
           let currentRoleList = JSON.parse(localStorage.getItem('role'));
           let allowRoleList = to.meta.role
           let hasRoleList = allowRoleList.filter(item => currentRoleList.includes(item))
           // console.log(123)
           // console.log
-          if(hasRoleList.length == 0){
+          if (hasRoleList.length == 0) {
             next('/login');
-          }else{
+          } else {
             next();
           }
-        }else{
+        } else {
           next();
         }
       }
@@ -172,7 +115,7 @@ router.beforeEach(async(to, from, next) => {
       // next()
 
 
-      
+
     }
   }
 });

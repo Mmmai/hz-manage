@@ -29,6 +29,10 @@ import json
 from django.conf import settings
 from mapi.extensions.pagination import StandardResultsSetPagination
 from .export import exportHandler
+from node_mg.utils.config_manager import ConfigManager
+
+import logging
+logger = logging.getLogger(__name__)
 def getRolePermissionList(role_ids):
     allPermissionList = []
     for role_id in role_ids:
@@ -143,6 +147,16 @@ class getMenu(APIView):
             # if info["is_menu"]:
             #     # print(info["label"])
             #     info["meta"]["permission"] = []
+                        # 构建菜单全路径
+            path_labels = []
+            current = menu
+            while current:
+                path_labels.insert(0, {'name':current.label,'icon': current.icon})
+                current = current.parentid
+            # menu_path = "/".join(path_labels)
+            
+            # 添加meta信息，包含菜单全路径
+            info["meta"].update({"menuPath": path_labels}) 
             info['children'] = self.get_menu_tree(menu_list,role,menu)
             # print(info)
 
@@ -173,7 +187,6 @@ class getPermissionToRole(APIView):
                 info = {"id":menu.id,"label":menu.label,"tree_type":"menu"}
             else:
                 info = {"id":menu.id,"label":menu.label,"tree_type":"directory"}
-
             info['children'] = self.get_menu_tree(menu_list,menu)
             # print(info)
                 # 如果是目录，但是没有子目录，则跳过
@@ -243,9 +256,9 @@ class UserInfoViewSet(ModelViewSet):
         pks = request.data.get('pks',None)
         if not pks:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        for pk in pks:
-            get_object_or_404(UserInfo, id=int(pk)).delete()
-
+       # for pk in pks:
+            # get_object_or_404(UserInfo, id=pk).delete()
+        UserInfo.objects.filter(id__in=pks).delete()
         return Response(data='delete success',status=status.HTTP_204_NO_CONTENT)
 class UserGroupViewSet(ModelViewSet):
     queryset = UserGroup.objects.all()
@@ -288,12 +301,12 @@ class RoleViewSet(ModelViewSet):
                 # print(123)
                 # 先清空原有的，再添加新的
                 instance.permission.all().delete()
-                print(f"清空角色<{instance.role}>权限!")
+                logger.info(f"清空角色<{instance.role}>权限!")
                 # 添加新的
                 for button_id in rolePermission:
                     button_obj = Button.objects.get(id=button_id)
                     Permission.objects.create(role=instance,menu=button_obj.menu,button=button_obj)
-                    print(f"为角色<{instance.role}>添加<${button_obj.action}>权限!")
+                    logger.info(f"为角色<{instance.role}>添加<${button_obj.action}>权限!")
                     # 如果有其他按钮权限，查看的权限应该同步添加，就算用户没有勾选！
                     if button_obj.action == "view":
                         pass
@@ -301,9 +314,9 @@ class RoleViewSet(ModelViewSet):
                         view_button_obj = Button.objects.get(action="view",menu=button_obj.menu)
                         view_per_obj, created = Permission.objects.get_or_create(role=instance,menu=button_obj.menu,button=view_button_obj)
                         if created:
-                            print(f"为角色<{instance.role}>添加<${view_button_obj.action}>权限!")
+                            logger.info(f"为角色<{instance.role}>添加<${view_button_obj.action}>权限!")
                         else:
-                            print(f"为角色<{instance.role}>已拥有<${view_button_obj.action}>权限!")
+                            logger.info(f"为角色<{instance.role}>已拥有<${view_button_obj.action}>权限!")
         return Response(serializer.data)
 
 class MenuViewSet(ModelViewSet):
@@ -555,6 +568,13 @@ class sysConfigViewSet(ModelViewSet):
         for param in params_to_update:
             param.param_value = params[param.param_name]
         # 更新
-        sysConfigParams.objects.bulk_update(params_to_update,["param_value"])
+        try:
+            sysConfigParams.objects.bulk_update(params_to_update,["param_value"])
+            #触发配置文件加载
+            sys_config = ConfigManager()
+            #强制刷新
+            sys_config.reload()
+            logger.info(f"刷新redis<{params}>")
+        except Exception as e:
+            return Response(data=e)
         return Response(data='update success')
-

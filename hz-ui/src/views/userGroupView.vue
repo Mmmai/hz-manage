@@ -79,7 +79,7 @@
     <!-- 弹出框 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="action == 'add' ? '新增用户组' : '编辑用户组'"
+      :title="isAdd ? '新增用户组' : '编辑用户组'"
       width="45%"
       :before-close="handleClose"
     >
@@ -228,20 +228,15 @@ const addGroup = () => {
 const nowRow = ref({});
 const isAdd = ref(true);
 const editRow = (row) => {
-  nowRow.value = row;
-  console.log(row);
   dialogVisible.value = true;
+  nowRow.value = row;
   isAdd.value = false;
   nextTick(() => {
-    Object.keys(formInline).forEach((item) => {
-      if (["user_ids"].includes(item)) {
-        formInline[item] = row["users"].map((ary) => ary.id);
-      } else if (["role_ids"].includes(item)) {
-        formInline[item] = row["roles"].map((ary) => ary.id);
-      } else {
-        formInline[item] = row[item];
-      }
-    });
+    // Object.assign(formInline, row);
+    formInline.group_name = row.group_name;
+    formInline.role_ids = row.roles.map((ary) => ary.id);
+    formInline.user_ids = row.users.map((ary) => ary.id);
+    console.log(formInline);
   });
   console.log(formInline);
 };
@@ -304,6 +299,8 @@ const submitAction = async (formEl) => {
           });
         }
       } else {
+        console.log(formInline);
+
         let res = await proxy.$api.updateUserGroup({
           id: nowRow.value.id,
           ...formInline,

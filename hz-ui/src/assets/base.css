@@ -11,7 +11,7 @@
   --vt-c-indigo: #2c3e50;
 
   --vt-c-divider-light-1: rgba(60, 60, 60, 0.29);
-  --vt-c-divider-light-2: rgba(60, 60, 60, 0.12);
+  --vt-c-divider-light-2: rgba(60, 60, 0.12);
   --vt-c-divider-dark-1: rgba(84, 84, 84, 0.65);
   --vt-c-divider-dark-2: rgba(84, 84, 84, 0.48);
 
@@ -83,4 +83,543 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* 海洋蓝主题 */
+.theme-blue {
+  --el-color-primary: #1a73e8;
+  --el-color-primary-light-3: #4a90e2;
+  --el-color-primary-light-5: #5d9de8;
+  --el-color-primary-light-7: #8abcf0;
+  --el-color-primary-light-8: #a3ccf5;
+  --el-color-primary-light-9: #beddf9;
+  --el-color-primary-dark-2: #1459b3;
+  --color-background: #f0f8ff;
+  --color-background-soft: #e6f2ff;
+  --color-background-mute: #d9e9ff;
+  --el-bg-color: #f0f8ff;
+  --el-bg-color-page: #e6f2ff;
+  --el-fill-color: #d9e9ff;
+  --el-fill-color-light: #e6f2ff;
+  --el-fill-color-lighter: #f0f8ff;
+  --el-fill-color-extra-light: #fafcff;
+  --el-fill-color-dark: #c9d9ef;
+  --el-fill-color-darker: #c0d0e9;
+  --el-fill-color-blank: #ffffff;
+}
+
+/* 清新绿主题 */
+.theme-green {
+  --el-color-primary: #00c471;
+  --el-color-primary-light-3: #33d090;
+  --el-color-primary-light-5: #4dd8a0;
+  --el-color-primary-light-7: #80e3c2;
+  --el-color-primary-light-8: #99ead2;
+  --el-color-primary-light-9: #b3f1e2;
+  --el-color-primary-dark-2: #009d5a;
+  --color-background: #f0fff8;
+  --color-background-soft: #e6fff2;
+  --color-background-mute: #d9ffeb;
+  --el-bg-color: #f0fff8;
+  --el-bg-color-page: #e6fff2;
+  --el-fill-color: #d9ffeb;
+  --el-fill-color-light: #e6fff2;
+  --el-fill-color-lighter: #f0fff8;
+  --el-fill-color-extra-light: #fafcff;
+  --el-fill-color-dark: #c9efe2;
+  --el-fill-color-darker: #c0e9d8;
+  --el-fill-color-blank: #ffffff;
+}
+
+/* 优雅紫主题 */
+.theme-purple {
+  --el-color-primary: #8e24aa;
+  --el-color-primary-light-3: #a642c2;
+  --el-color-primary-light-5: #b462ce;
+  --el-color-primary-light-7: #ca94dd;
+  --el-color-primary-light-8: #d7afe7;
+  --el-color-primary-light-9: #e4caf1;
+  --el-color-primary-dark-2: #711d88;
+  --color-background: #fcf0ff;
+  --color-background-soft: #f9e6ff;
+  --color-background-mute: #f2d9ff;
+  --el-bg-color: #fcf0ff;
+  --el-bg-color-page: #f9e6ff;
+  --el-fill-color: #f2d9ff;
+  --el-fill-color-light: #f9e6ff;
+  --el-fill-color-lighter: #fcf0ff;
+  --el-fill-color-extra-light: #fdf8ff;
+  --el-fill-color-dark: #e2c9ef;
+  --el-fill-color-darker: #d8c0e9;
+  --el-fill-color-blank: #ffffff;
+}
+
+/* 浪漫粉主题 */
+.theme-pink {
+  --el-color-primary: #e91e63;
+  --el-color-primary-light-3: #ee4c87;
+  --el-color-primary-light-5: #f1699d;
+  --el-color-primary-light-7: #f6a0c3;
+  --el-color-primary-light-8: #f8b7d3;
+  --el-color-primary-light-9: #fbdce9;
+  --el-color-primary-dark-2: #ba184f;
+  --color-background: #fff0f5;
+  --color-background-soft: #ffe6f0;
+  --color-background-mute: #ffd9eb;
+  --el-bg-color: #fff0f5;
+  --el-bg-color-page: #ffe6f0;
+  --el-fill-color: #ffd9eb;
+  --el-fill-color-light: #ffe6f0;
+  --el-fill-color-lighter: #fff0f5;
+  --el-fill-color-extra-light: #fff8fb;
+  --el-fill-color-dark: #efc9d9;
+  --el-fill-color-darker: #e9c0d0;
+  --el-fill-color-blank: #ffffff;
+}
+
+/* 活力橙主题 */
+.theme-orange {
+  --el-color-primary: #ff9800;
+  --el-color-primary-light-3: #ffa726;
+  --el-color-primary-light-5: #ffb74d;
+  --el-color-primary-light-7: #ffcc80;
+  --el-color-primary-light-8: #ffd599;
+  --el-color-primary-light-9: #ffebcc;
+  --el-color-primary-dark-2: #cc7a00;
+  --color-background: #fff8f0;
+  --color-background-soft: #fff2e6;
+  --color-background-mute: #ffe9d9;
+  --el-bg-color: #fff8f0;
+  --el-bg-color-page: #fff2e6;
+  --el-fill-color: #ffe9d9;
+  --el-fill-color-light: #fff2e6;
+  --el-fill-color-lighter: #fff8f0;
+  --el-fill-color-extra-light: #fffcf8;
+  --el-fill-color-dark: #efdcc9;
+  --el-fill-color-darker: #e9d3c0;
+  --el-fill-color-blank: #ffffff;
+}
+
+/* 暗黑模式下的主题色适配 */
+@media (prefers-color-scheme: dark) {
+  .theme-blue {
+    --el-color-primary: #4a90e2;
+    --el-color-primary-light-3: #5d9de8;
+    --el-color-primary-light-5: #79b3ef;
+    --el-color-primary-light-7: #a0cfff;
+    --el-color-primary-light-8: #b3d8ff;
+    --el-color-primary-light-9: #c6e2ff;
+    --el-color-primary-dark-2: #337ecc;
+    --color-background: #1a2a3a;
+    --color-background-soft: #223344;
+    --color-background-mute: #2a3a4a;
+    --el-bg-color: #1a2a3a;
+    --el-bg-color-page: #223344;
+    --el-fill-color: #2a3a4a;
+    --el-fill-color-light: #223344;
+    --el-fill-color-lighter: #1a2a3a;
+    --el-fill-color-extra-light: #15202a;
+    --el-fill-color-dark: #3a4a5a;
+    --el-fill-color-darker: #4a5a6a;
+    --el-fill-color-blank: #181818;
+  }
+  
+  .theme-green {
+    --el-color-primary: #00e684;
+    --el-color-primary-light-3: #33ec9d;
+    --el-color-primary-light-5: #4deeb1;
+    --el-color-primary-light-7: #80f4cc;
+    --el-color-primary-light-8: #99f7da;
+    --el-color-primary-light-9: #b3fae8;
+    --el-color-primary-dark-2: #00b86a;
+    --color-background: #1a3a2a;
+    --color-background-soft: #224433;
+    --color-background-mute: #2a4a3a;
+    --el-bg-color: #1a3a2a;
+    --el-bg-color-page: #224433;
+    --el-fill-color: #2a4a3a;
+    --el-fill-color-light: #224433;
+    --el-fill-color-lighter: #1a3a2a;
+    --el-fill-color-extra-light: #152a20;
+    --el-fill-color-dark: #3a5a4a;
+    --el-fill-color-darker: #4a6a5a;
+    --el-fill-color-blank: #181818;
+  }
+  
+  .theme-purple {
+    --el-color-primary: #a642c2;
+    --el-color-primary-light-3: #b462ce;
+    --el-color-primary-light-5: #c07dd7;
+    --el-color-primary-light-7: #d3a7e6;
+    --el-color-primary-light-8: #dfbfeb;
+    --el-color-primary-light-9: #ebd8f4;
+    --el-color-primary-dark-2: #8533a0;
+    --color-background: #2a1a3a;
+    --color-background-soft: #332244;
+    --color-background-mute: #3a2a4a;
+    --el-bg-color: #2a1a3a;
+    --el-bg-color-page: #332244;
+    --el-fill-color: #3a2a4a;
+    --el-fill-color-light: #332244;
+    --el-fill-color-lighter: #2a1a3a;
+    --el-fill-color-extra-light: #20152a;
+    --el-fill-color-dark: #4a3a5a;
+    --el-fill-color-darker: #5a4a6a;
+    --el-fill-color-blank: #181818;
+  }
+  
+  .theme-pink {
+    --el-color-primary: #ec407a;
+    --el-color-primary-light-3: #f06292;
+    --el-color-primary-light-5: #f48fb1;
+    --el-color-primary-light-7: #f8bbd0;
+    --el-color-primary-light-8: #f9c7d7;
+    --el-color-primary-light-9: #fde3eb;
+    --el-color-primary-dark-2: #d81b60;
+    --color-background: #3a1a2a;
+    --color-background-soft: #442233;
+    --color-background-mute: #4a2a3a;
+    --el-bg-color: #3a1a2a;
+    --el-bg-color-page: #442233;
+    --el-fill-color: #4a2a3a;
+    --el-fill-color-light: #442233;
+    --el-fill-color-lighter: #3a1a2a;
+    --el-fill-color-extra-light: #2a1520;
+    --el-fill-color-dark: #5a3a4a;
+    --el-fill-color-darker: #6a4a5a;
+    --el-fill-color-blank: #181818;
+  }
+  
+  .theme-orange {
+    --el-color-primary: #ffa726;
+    --el-color-primary-light-3: #ffb74d;
+    --el-color-primary-light-5: #ffcc80;
+    --el-color-primary-light-7: #ffe0b2;
+    --el-color-primary-light-8: #ffecb3;
+    --el-color-primary-light-9: #fff3e0;
+    --el-color-primary-dark-2: #fb8c00;
+    --color-background: #3a2a1a;
+    --color-background-soft: #443322;
+    --color-background-mute: #4a3a2a;
+    --el-bg-color: #3a2a1a;
+    --el-bg-color-page: #443322;
+    --el-fill-color: #4a3a2a;
+    --el-fill-color-light: #443322;
+    --el-fill-color-lighter: #3a2a1a;
+    --el-fill-color-extra-light: #2a2015;
+    --el-fill-color-dark: #5a4a3a;
+    --el-fill-color-darker: #6a5a4a;
+    --el-fill-color-blank: #181818;
+  }
+}
+
+/* 通用组件背景色适配 */
+.el-input__inner,
+.el-textarea__inner,
+.el-checkbox__inner,
+.el-radio__inner,
+.el-select-dropdown,
+.el-dropdown-menu,
+.el-transfer-panel,
+.el-transfer-panel__body,
+.el-transfer-panel__list,
+.el-tree,
+.el-tree-node__content,
+.el-table,
+.el-table__body,
+.el-table__header,
+.el-pagination,
+.el-tabs__nav,
+.el-tabs__content,
+.el-card,
+.el-collapse,
+.el-collapse-item__header,
+.el-collapse-item__content,
+.el-alert,
+.el-message-box,
+.el-dialog,
+.el-drawer,
+.el-popover,
+.el-tooltip__popper,
+.el-dropdown-menu__item,
+.el-cascader__dropdown,
+.el-cascader-menu,
+.el-color-dropdown,
+.el-color-picker__panel,
+.el-date-picker,
+.el-date-range-picker,
+.el-time-panel,
+.el-time-select,
+.el-picker-panel,
+.el-upload-dragger,
+.el-steps,
+.el-step__head,
+.el-step__main {
+  background-color: var(--el-bg-color, #ffffff) !important;
+}
+
+/* 暗黑模式下的特殊处理 */
+html.dark .el-input__inner,
+html.dark .el-textarea__inner,
+html.dark .el-checkbox__inner,
+html.dark .el-radio__inner,
+html.dark .el-select-dropdown,
+html.dark .el-dropdown-menu,
+html.dark .el-transfer-panel,
+html.dark .el-transfer-panel__body,
+html.dark .el-transfer-panel__list,
+html.dark .el-tree,
+html.dark .el-tree-node__content,
+html.dark .el-table,
+html.dark .el-table__body,
+html.dark .el-table__header,
+html.dark .el-pagination,
+html.dark .el-tabs__nav,
+html.dark .el-tabs__content,
+html.dark .el-card,
+html.dark .el-collapse,
+html.dark .el-collapse-item__header,
+html.dark .el-collapse-item__content,
+html.dark .el-alert,
+html.dark .el-message-box,
+html.dark .el-dialog,
+html.dark .el-drawer,
+html.dark .el-popover,
+html.dark .el-tooltip__popper,
+html.dark .el-dropdown-menu__item,
+html.dark .el-cascader__dropdown,
+html.dark .el-cascader-menu,
+html.dark .el-color-dropdown,
+html.dark .el-color-picker__panel,
+html.dark .el-date-picker,
+html.dark .el-date-range-picker,
+html.dark .el-time-panel,
+html.dark .el-time-select,
+html.dark .el-picker-panel,
+html.dark .el-upload-dragger,
+html.dark .el-steps,
+html.dark .el-step__head,
+html.dark .el-step__main {
+  background-color: var(--el-bg-color, #181818) !important;
+}
+
+/* 自定义主题处理 */
+html.theme-blue .el-input__inner,
+html.theme-blue .el-textarea__inner,
+html.theme-blue .el-checkbox__inner,
+html.theme-blue .el-radio__inner,
+html.theme-blue .el-select-dropdown,
+html.theme-blue .el-dropdown-menu,
+html.theme-blue .el-transfer-panel,
+html.theme-blue .el-transfer-panel__body,
+html.theme-blue .el-transfer-panel__list,
+html.theme-blue .el-tree,
+html.theme-blue .el-tree-node__content,
+html.theme-blue .el-table,
+html.theme-blue .el-table__body,
+html.theme-blue .el-table__header,
+html.theme-blue .el-pagination,
+html.theme-blue .el-tabs__nav,
+html.theme-blue .el-tabs__content,
+html.theme-blue .el-card,
+html.theme-blue .el-collapse,
+html.theme-blue .el-collapse-item__header,
+html.theme-blue .el-collapse-item__content,
+html.theme-blue .el-alert,
+html.theme-blue .el-message-box,
+html.theme-blue .el-dialog,
+html.theme-blue .el-drawer,
+html.theme-blue .el-popover,
+html.theme-blue .el-tooltip__popper,
+html.theme-blue .el-dropdown-menu__item,
+html.theme-blue .el-cascader__dropdown,
+html.theme-blue .el-cascader-menu,
+html.theme-blue .el-color-dropdown,
+html.theme-blue .el-color-picker__panel,
+html.theme-blue .el-date-picker,
+html.theme-blue .el-date-range-picker,
+html.theme-blue .el-time-panel,
+html.theme-blue .el-time-select,
+html.theme-blue .el-picker-panel,
+html.theme-blue .el-upload-dragger,
+html.theme-blue .el-steps,
+html.theme-blue .el-step__head,
+html.theme-blue .el-step__main {
+  background-color: var(--el-bg-color, #f0f8ff) !important;
+}
+
+html.theme-green .el-input__inner,
+html.theme-green .el-textarea__inner,
+html.theme-green .el-checkbox__inner,
+html.theme-green .el-radio__inner,
+html.theme-green .el-select-dropdown,
+html.theme-green .el-dropdown-menu,
+html.theme-green .el-transfer-panel,
+html.theme-green .el-transfer-panel__body,
+html.theme-green .el-transfer-panel__list,
+html.theme-green .el-tree,
+html.theme-green .el-tree-node__content,
+html.theme-green .el-table,
+html.theme-green .el-table__body,
+html.theme-green .el-table__header,
+html.theme-green .el-pagination,
+html.theme-green .el-tabs__nav,
+html.theme-green .el-tabs__content,
+html.theme-green .el-card,
+html.theme-green .el-collapse,
+html.theme-green .el-collapse-item__header,
+html.theme-green .el-collapse-item__content,
+html.theme-green .el-alert,
+html.theme-green .el-message-box,
+html.theme-green .el-dialog,
+html.theme-green .el-drawer,
+html.theme-green .el-popover,
+html.theme-green .el-tooltip__popper,
+html.theme-green .el-dropdown-menu__item,
+html.theme-green .el-cascader__dropdown,
+html.theme-green .el-cascader-menu,
+html.theme-green .el-color-dropdown,
+html.theme-green .el-color-picker__panel,
+html.theme-green .el-date-picker,
+html.theme-green .el-date-range-picker,
+html.theme-green .el-time-panel,
+html.theme-green .el-time-select,
+html.theme-green .el-picker-panel,
+html.theme-green .el-upload-dragger,
+html.theme-green .el-steps,
+html.theme-green .el-step__head,
+html.theme-green .el-step__main {
+  background-color: var(--el-bg-color, #f0fff8) !important;
+}
+
+html.theme-purple .el-input__inner,
+html.theme-purple .el-textarea__inner,
+html.theme-purple .el-checkbox__inner,
+html.theme-purple .el-radio__inner,
+html.theme-purple .el-select-dropdown,
+html.theme-purple .el-dropdown-menu,
+html.theme-purple .el-transfer-panel,
+html.theme-purple .el-transfer-panel__body,
+html.theme-purple .el-transfer-panel__list,
+html.theme-purple .el-tree,
+html.theme-purple .el-tree-node__content,
+html.theme-purple .el-table,
+html.theme-purple .el-table__body,
+html.theme-purple .el-table__header,
+html.theme-purple .el-pagination,
+html.theme-purple .el-tabs__nav,
+html.theme-purple .el-tabs__content,
+html.theme-purple .el-card,
+html.theme-purple .el-collapse,
+html.theme-purple .el-collapse-item__header,
+html.theme-purple .el-collapse-item__content,
+html.theme-purple .el-alert,
+html.theme-purple .el-message-box,
+html.theme-purple .el-dialog,
+html.theme-purple .el-drawer,
+html.theme-purple .el-popover,
+html.theme-purple .el-tooltip__popper,
+html.theme-purple .el-dropdown-menu__item,
+html.theme-purple .el-cascader__dropdown,
+html.theme-purple .el-cascader-menu,
+html.theme-purple .el-color-dropdown,
+html.theme-purple .el-color-picker__panel,
+html.theme-purple .el-date-picker,
+html.theme-purple .el-date-range-picker,
+html.theme-purple .el-time-panel,
+html.theme-purple .el-time-select,
+html.theme-purple .el-picker-panel,
+html.theme-purple .el-upload-dragger,
+html.theme-purple .el-steps,
+html.theme-purple .el-step__head,
+html.theme-purple .el-step__main {
+  background-color: var(--el-bg-color, #fcf0ff) !important;
+}
+
+html.theme-pink .el-input__inner,
+html.theme-pink .el-textarea__inner,
+html.theme-pink .el-checkbox__inner,
+html.theme-pink .el-radio__inner,
+html.theme-pink .el-select-dropdown,
+html.theme-pink .el-dropdown-menu,
+html.theme-pink .el-transfer-panel,
+html.theme-pink .el-transfer-panel__body,
+html.theme-pink .el-transfer-panel__list,
+html.theme-pink .el-tree,
+html.theme-pink .el-tree-node__content,
+html.theme-pink .el-table,
+html.theme-pink .el-table__body,
+html.theme-pink .el-table__header,
+html.theme-pink .el-pagination,
+html.theme-pink .el-tabs__nav,
+html.theme-pink .el-tabs__content,
+html.theme-pink .el-card,
+html.theme-pink .el-collapse,
+html.theme-pink .el-collapse-item__header,
+html.theme-pink .el-collapse-item__content,
+html.theme-pink .el-alert,
+html.theme-pink .el-message-box,
+html.theme-pink .el-dialog,
+html.theme-pink .el-drawer,
+html.theme-pink .el-popover,
+html.theme-pink .el-tooltip__popper,
+html.theme-pink .el-dropdown-menu__item,
+html.theme-pink .el-cascader__dropdown,
+html.theme-pink .el-cascader-menu,
+html.theme-pink .el-color-dropdown,
+html.theme-pink .el-color-picker__panel,
+html.theme-pink .el-date-picker,
+html.theme-pink .el-date-range-picker,
+html.theme-pink .el-time-panel,
+html.theme-pink .el-time-select,
+html.theme-pink .el-picker-panel,
+html.theme-pink .el-upload-dragger,
+html.theme-pink .el-steps,
+html.theme-pink .el-step__head,
+html.theme-pink .el-step__main {
+  background-color: var(--el-bg-color, #fff0f5) !important;
+}
+
+html.theme-orange .el-input__inner,
+html.theme-orange .el-textarea__inner,
+html.theme-orange .el-checkbox__inner,
+html.theme-orange .el-radio__inner,
+html.theme-orange .el-select-dropdown,
+html.theme-orange .el-dropdown-menu,
+html.theme-orange .el-transfer-panel,
+html.theme-orange .el-transfer-panel__body,
+html.theme-orange .el-transfer-panel__list,
+html.theme-orange .el-tree,
+html.theme-orange .el-tree-node__content,
+html.theme-orange .el-table,
+html.theme-orange .el-table__body,
+html.theme-orange .el-table__header,
+html.theme-orange .el-pagination,
+html.theme-orange .el-tabs__nav,
+html.theme-orange .el-tabs__content,
+html.theme-orange .el-card,
+html.theme-orange .el-collapse,
+html.theme-orange .el-collapse-item__header,
+html.theme-orange .el-collapse-item__content,
+html.theme-orange .el-alert,
+html.theme-orange .el-message-box,
+html.theme-orange .el-dialog,
+html.theme-orange .el-drawer,
+html.theme-orange .el-popover,
+html.theme-orange .el-tooltip__popper,
+html.theme-orange .el-dropdown-menu__item,
+html.theme-orange .el-cascader__dropdown,
+html.theme-orange .el-cascader-menu,
+html.theme-orange .el-color-dropdown,
+html.theme-orange .el-color-picker__panel,
+html.theme-orange .el-date-picker,
+html.theme-orange .el-date-range-picker,
+html.theme-orange .el-time-panel,
+html.theme-orange .el-time-select,
+html.theme-orange .el-picker-panel,
+html.theme-orange .el-upload-dragger,
+html.theme-orange .el-steps,
+html.theme-orange .el-step__head,
+html.theme-orange .el-step__main {
+  background-color: var(--el-bg-color, #fff8f0) !important;
 }

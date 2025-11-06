@@ -1,7 +1,10 @@
 docker run --restart=always -p 6379:6379 --name redis -d redis:latest
  ##--requirepass
 
- celery -A vuedjnago worker -l info -P eventlet
+ celery -A vuedjnago worker -l info -B
 
 
- uvicorn vuedjnago.asgi:application --host 0.0.0.0 --port 8001
+ uvicorn vuedjnago.asgi:application --host 0.0.0.0  
+
+
+python manage.py test your_app_name.tests

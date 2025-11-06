@@ -21,11 +21,16 @@
       >
         {{ currentMenu.name }}
       </el-breadcrumb-item> -->
-        <el-breadcrumb-item>首页</el-breadcrumb-item>
         <el-breadcrumb-item
-          v-if="currentMenuLabel && currentMenuLabel !== '首页'"
-        >
-          {{ currentMenuLabel }}
+          ><el-icon><HomeFilled /></el-icon>
+        </el-breadcrumb-item>
+        <el-breadcrumb-item v-for="(item, index) in currentBreadcrumb">
+          <div class="flexJbetween gap-2">
+            <el-icon>
+              <iconifyOffline :icon="item.icon" />
+            </el-icon>
+            <span> {{ item.name }}</span>
+          </div>
         </el-breadcrumb-item>
       </el-breadcrumb>
       <!-- </div> -->
@@ -45,13 +50,74 @@
       >
         <el-link type="primary" href="/docs/" target="_blank">指南</el-link>
 
-        <el-switch
-          v-model="isDark"
-          :active-icon="Moon"
-          :inactive-icon="Sunny"
-          inline-prompt
-          @change="toggleDark"
-        />
+        <!-- 主题选择器按钮 -->
+        <el-tooltip content="自定义主题色" placement="bottom" effect="dark">
+          <el-button circle size="small" @click="openThemeDrawer">
+            <el-icon :size="16">
+              <Brush />
+            </el-icon>
+          </el-button>
+        </el-tooltip>
+
+        <!-- 主题选择抽屉 -->
+        <el-drawer
+          v-model="themeDrawerVisible"
+          title="皮肤选择"
+          direction="rtl"
+          size="300px"
+        >
+          <div class="dark-mode-section">
+            <div class="dark-mode-toggle">
+              <el-text tag="b" size="large">显示模式</el-text>
+              <el-switch
+                v-model="isDark"
+                :active-icon="Moon"
+                :inactive-icon="Sunny"
+                inline-prompt
+                @change="toggleDark"
+                style="zoom: 1.2"
+              >
+                <template #active>暗黑</template>
+                <template #inactive>明亮</template>
+              </el-switch>
+            </div>
+          </div>
+          <div class="theme-drawer-content">
+            <div class="theme-list">
+              <el-text tag="b" size="large">主题色</el-text>
+              <div
+                v-for="(theme, index) in themeColors"
+                :key="index"
+                class="theme-item-large"
+                @click="handleThemeChange(theme.color)"
+              >
+                <span
+                  class="theme-color-block-large"
+                  :style="{ backgroundColor: theme.color }"
+                ></span>
+                <span class="theme-name-large">{{ theme.themeName }}</span>
+              </div>
+            </div>
+            <div class="custom-theme-section">
+              <div class="section-title">自定义颜色</div>
+              <el-color-picker
+                v-model="customThemeColor"
+                :predefine="predefineColors"
+                show-alpha
+                size="default"
+                color-format="hex"
+              />
+              <el-button
+                type="primary"
+                style="margin-top: 20px; width: 100%"
+                @click="confirmCustomTheme"
+              >
+                应用自定义颜色
+              </el-button>
+            </div>
+          </div>
+        </el-drawer>
+
         <el-dropdown trigger="click">
           <span class="el-dropdown-link">
             <el-icon>
@@ -80,20 +146,74 @@
 <script setup>
 import { ref, computed, watch } from "vue";
 import { useStore } from "vuex";
-import { ArrowRight } from "@element-plus/icons-vue";
+import { ArrowRight, Brush } from "@element-plus/icons-vue";
 import router from "@/router";
 import { ElMessageBox } from "element-plus";
 import { Sunny, Moon } from "@element-plus/icons-vue";
-import { useDark, useToggle } from "@vueuse/core";
 import useTabsStore from "@/store/tabs";
+import { useElementPlusTheme } from "use-element-plus-theme";
 
+const layoutThemeColor = useStorage("layout-theme-color", "#409eff"); // 默认主题色
+const { changeTheme } = useElementPlusTheme(layoutThemeColor.value); // 初始化主题色
 const tabsStore = useTabsStore();
 const currentMenuLabel = computed(() => {
   return tabsStore.currentTitle;
 });
+const currentBreadcrumb = computed(() => {
+  return tabsStore.currentBreadcrumb;
+});
+import { useDark, useToggle, useStorage } from "@vueuse/core";
 const isDark = useDark();
-
 const toggleDark = useToggle(isDark);
+
+const themeColors = [
+  { color: "#409eff", themeName: "默认" },
+  { color: "#749bc7", themeName: "道奇蓝" },
+  { color: "#722ed1", themeName: "深紫罗兰色" },
+  { color: "#eb2f96", themeName: "深粉色" },
+  { color: "#f5222d", themeName: "猩红色" },
+  { color: "#fa541c", themeName: "橙红色" },
+  { color: "#13c2c2", themeName: "绿宝石" },
+  { color: "#52c41a", themeName: "酸橙绿" },
+];
+const predefineColors = ref([
+  "#409eff",
+  "#749bc7",
+  "#722ed1",
+  "#eb2f96",
+  "#f5222d",
+  "#fa541c",
+  "#13c2c2",
+  "#52c41a",
+  "#000000",
+  "#ffffff",
+]);
+
+const themeDrawerVisible = ref(false);
+const customThemeColor = ref(layoutThemeColor.value);
+
+const openThemeDrawer = () => {
+  themeDrawerVisible.value = true;
+};
+
+const handleThemeChange = (theme) => {
+  layoutThemeColor.value = theme;
+  changeTheme(theme);
+  themeDrawerVisible.value = false; // 选择主题后关闭抽屉
+};
+
+const confirmCustomTheme = () => {
+  if (customThemeColor.value) {
+    layoutThemeColor.value = customThemeColor.value;
+    changeTheme(customThemeColor.value);
+  }
+};
+const handleCustomThemeChange = (color) => {
+  if (color) {
+    layoutThemeColor.value = color;
+    changeTheme(color);
+  }
+};
 let store = useStore();
 const collapse = ref(true);
 const changeCollapse = () => {
@@ -126,7 +246,6 @@ const handleLogout = (done) => {
       // window.location.reload()
     })
     .catch((error) => {
-      console.log(123);
       // catch error
       console.error("发生错误: " + error);
     });
@@ -144,5 +263,67 @@ const handleLogout = (done) => {
 
 .el-dropdown {
   align-items: center;
+}
+
+.theme-drawer-content {
+  padding: 20px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.theme-list {
+  flex: 1;
+}
+
+.theme-item-large {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: background-color 0.3s;
+}
+
+.theme-item-large:hover {
+  background-color: #f5f7fa;
+}
+
+.theme-color-block-large {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  margin-right: 15px;
+  border: 1px solid #eee;
+}
+
+.theme-name-large {
+  font-size: 16px;
+  color: #333;
+}
+
+.custom-theme-section {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+}
+.dark-mode-section {
+  padding-top: 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.dark-mode-toggle {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 15px;
+  gap: 10px;
+}
+.section-title {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 15px;
+  color: #333;
 }
 </style>
