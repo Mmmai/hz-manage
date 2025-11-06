@@ -1433,9 +1433,13 @@ class RelationsViewSet(CmdbBaseViewSet):
             if mode == 'path' and not end_node_ids:
                 return Response({"detail": "End nodes are required when using path mode."}, status=status.HTTP_400_BAD_REQUEST)
 
-            G, involved_nodes, involved_edges = self._build_graph_on_demand(
+            logger.info(f"Processing topology query with mode: {mode}, depth: {depth}, direction: {direction}")
+
+            G = self._build_graph_on_demand(
                 start_node_ids, end_node_ids, depth, direction, mode
             )
+            
+            logger.info(f"Graph constructed with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
 
             node_objects = [data['instance'] for _, data in G.nodes(data=True)]
             edge_objects = [data['relation'] for u, v, data in G.edges(data=True)]
@@ -1470,30 +1474,31 @@ class RelationsViewSet(CmdbBaseViewSet):
         在给定的图G中查找从start_node_ids到end_node_ids的所有简单路径，路径长度不超过depth。
         返回包含这些路径的子图。
         """
-        subgraph = nx.DiGraph()
+        path_graph = nx.DiGraph()
 
         for start_node in start_node_ids:
             for end_node in end_node_ids:
                 if G.has_node(start_node) and G.has_node(end_node):
                     try:
-                        return self._filter_path_edges(G, start_node, end_node, depth, subgraph)
+                        self._filter_path_edges(G, start_node, end_node, depth, path_graph)
                     except nx.NetworkXNoPath:
                         continue
-        return subgraph
-
-    def _find_blast_neighbors(self, G, start_node_ids, end_node_ids, direction, depth):
+        return path_graph
+    
+    def _find_blast_neighbors(self, start_node_ids, end_node_ids, direction, depth):
         """
         在图G中查找从start_node_ids出发，按照direction方向，深度为depth的邻接节点。
         如果提供了end_node_ids，则只返回包含这些终点的子图。
         """
-        subgraph = nx.DiGraph()
+        graph = nx.DiGraph()
         queue = set(start_node_ids)
         seen_nodes = set()
 
+        logger.info(f"Finding blast neighbors from nodes: {start_node_ids} with depth: {depth} and direction: {direction}")
         for _ in range(depth):
             if not queue:
                 break
-
+            logger.info(f"Current queue: {queue}")
             current_level_nodes = list(queue)
             seen_nodes.update(current_level_nodes)
             queue.clear()
@@ -1505,28 +1510,23 @@ class RelationsViewSet(CmdbBaseViewSet):
                 q_filter |= Q(target_instance_id__in=current_level_nodes)
 
             relations_qs = Relations.objects.filter(q_filter).select_related('source_instance', 'target_instance', 'relation')
-            newly_found_nodes = self._add_edges_to_graph(G, relations_qs)
+            logger.info(f"Found {relations_qs.count()} relations at current depth")
+            newly_found_nodes = self._add_edges_to_graph(graph, relations_qs)
+            logger.info(f"Newly found nodes: {newly_found_nodes}")
             queue.update(newly_found_nodes - seen_nodes)
 
         if not end_node_ids:
-            return subgraph
+            return graph
         
-        final_subgraph = nx.DiGraph()
-        for start_node in start_node_ids:
-            for end_node in end_node_ids:
-                if subgraph.has_node(start_node) and subgraph.has_node(end_node):
-                    try:
-                        return self._filter_path_edges(subgraph, start_node, end_node, depth, final_subgraph)
-                    except nx.NetworkXNoPath:
-                        continue
-        return final_subgraph
+        path_subgraph = self._find_path_between_nodes(graph, start_node_ids, end_node_ids, depth)
+        return path_subgraph
 
     def _build_graph_on_demand(self, start_node_ids, end_node_ids, depth, direction, mode):
         """
         按需从数据库查询数据来构建图，避免一次性加载所有数据。
         """
         G = nx.DiGraph()
-
+        logger.info(f"Building graph on demand with mode: {mode}")
         # 路径查询
         if mode == 'path':
             initial_nodes = set(start_node_ids + end_node_ids)
@@ -1553,7 +1553,7 @@ class RelationsViewSet(CmdbBaseViewSet):
                         
         # 爆炸分析
         elif mode == 'blast':
-            G = self._find_blast_neighbors(G, start_node_ids, end_node_ids, direction, depth)
+            G = self._find_blast_neighbors(start_node_ids, end_node_ids, direction, depth)
             
         # 邻接查询
         elif mode == 'neighbor':
