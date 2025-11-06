@@ -242,7 +242,7 @@ export default {
     return axios.request({ url: path.cmdbRelationDefinition + id + '/', method: 'get' })
   },
   deleteModelRelationDefine(params) {
-    return axios.delete(path.cmdbRelationDefinition + params)
+    return axios.delete(path.cmdbRelationDefinition + params + '/')
   },
   addModelRelationDefine(params) {
     return axios.request({ url: path.cmdbRelationDefinition, method: 'post', data: params })
@@ -258,7 +258,7 @@ export default {
     return axios.request({ url: path.cmdbRelation + id + '/', method: 'get' })
   },
   deleteModelInstanceRelation(params) {
-    return axios.delete(path.cmdbRelation + params)
+    return axios.delete(path.cmdbRelation + params + '/')
   },
   updateModelInstanceRelation(params) {
     return axios.request({ url: path.cmdbRelation + params.id + '/', method: 'patch', data: params })
