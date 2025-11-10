@@ -1105,7 +1105,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                     validated_values[field_name] = self._validate_field_value(field, value)
 
                 # 批量更新
-                field_metas = []
+                field_meta_list = []
                 for field_name, validated_data in validated_values.items():
                     field = fields_config[field_name]
 
@@ -1122,9 +1122,9 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                         data=validated_data['data'],
                         model=instance.model
                     )
-                    field_metas.append(meta)
+                    field_meta_list.append(meta)
 
-                return field_metas
+                return field_meta_list
         except Exception as e:
             logger.error(f"Error in update fields: {str(e)}, {traceback.format_exc()}")
             raise serializers.ValidationError(str(e))

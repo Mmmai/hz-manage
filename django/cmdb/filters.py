@@ -373,6 +373,8 @@ class RelationsFilter(filters.FilterSet):
     target_instance = filters.UUIDFilter(field_name='target_instance')
     instances = filters.CharFilter(method='filter_instances')
     relation = filters.UUIDFilter(field_name='relation')
+    model = filters.UUIDFilter(method='filter_model')
+    instance_name = filters.CharFilter(method='filter_instance_name')
     
     def filter_instances(self, queryset, name, value):
         if not value:
@@ -382,6 +384,20 @@ class RelationsFilter(filters.FilterSet):
             Q(source_instance__id__in=instance_ids) | Q(target_instance__id__in=instance_ids)
         ).distinct()
     
+    def filter_model(self, queryset, name, value):
+        if not value:
+            return queryset
+        return queryset.filter(
+            Q(relation__source_model__id=value) | Q(relation__target_model__id=value)
+        ).distinct()
+    
+    def filter_instance_name(self, queryset, name, value):
+        if not value:
+            return queryset
+        return queryset.filter(
+            Q(source_instance__instance_name__icontains=value) | Q(target_instance__instance_name__icontains=value)
+        ).distinct()
+        
     class Meta:
         model = Relations
         fields = [

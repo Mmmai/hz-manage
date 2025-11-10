@@ -1369,7 +1369,7 @@ class RelationsViewSet(CmdbBaseViewSet):
         direction = data['direction']
         attributes = data['relation_attributes']
         user = self.get_current_user()
-
+    
         relations_to_create = []
         for instance_id in instance_ids:
             if direction == 'target-source':
