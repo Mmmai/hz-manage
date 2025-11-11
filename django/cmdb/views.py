@@ -617,6 +617,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
         filter_by_params = request.data.get('all', False)
         params = request.data.get('params', {})
         group_id = request.data.get('group')
+        using_template = request.data.get('using_template')
 
         if group_id:
             params['model_instance_group'] = group_id
@@ -642,6 +643,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             updated_count = self.get_serializer_class().bulk_update_instances(
                 instances_qs=instances,
                 fields_data=fields_data,
+                using_template=using_template,
                 context=self.get_serializer_context()
             )
 

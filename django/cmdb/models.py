@@ -1,16 +1,13 @@
-from os import name
-from tabnanny import verbose
-from weakref import proxy
-from django.db import models
-from django.db.models import JSONField
-from django.db import transaction
-from rest_framework.exceptions import PermissionDenied
-from django.core.cache import cache
-from cacheops import cached_as
 import json
 import uuid
 import logging
 import functools
+
+from django.db import models
+from django.db import transaction
+from rest_framework.exceptions import PermissionDenied
+from django.core.cache import cache
+
 from .constants import ValidationType
 from .resolver import resolve_model_field_id_list, resolve_dynamic_value, resolve_model
 from audit.decorators import register_audit
@@ -314,7 +311,9 @@ class UniqueConstraint(models.Model):
     snapshot_fields={'id', 'instance_name', 'input_mode'},
     ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
     public_name='model_instance',
-    dynamic_value_resolver=resolve_dynamic_value
+    dynamic_value_resolver=resolve_dynamic_value,
+    restorer='cmdb.restorer.restore_model_instance',
+    locker='cmdb.locker.lock_model_instance_for_update'
 )
 class ModelInstance(models.Model):
     class Meta:

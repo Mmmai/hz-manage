@@ -11,7 +11,11 @@ from django.db import transaction
 from .models import AuditLog
 from .serializers import AuditLogSerializer
 from .filters import AuditLogFilter
+from .restoration import RollbackManager, AuditConflict
+from .mixins import AuditContextMixin
+from .context import audit_context
 from .registry import registry
+
 
 
 logger = logging.getLogger(__name__)
@@ -40,7 +44,7 @@ class CustomAuditSearchFilter(SearchFilter):
         return super().filter_queryset(request, annotated_queryset, view)
 
 
-class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):    
+class AuditLogViewSet(AuditContextMixin, viewsets.ReadOnlyModelViewSet):    
     queryset = AuditLog.objects.all().select_related('content_type').prefetch_related('details')
     serializer_class = AuditLogSerializer
     pagination_class = AuditLogPagination
@@ -114,3 +118,23 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
 
         serializer = self.get_serializer(final_query, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['post'])
+    def rollback(self, request):
+        correlation_id = request.data.get('correlation_id')
+        logger.info(f"Request user {request.username} initiated rollback for correlation_id: {correlation_id}")
+        
+        if not correlation_id:
+            return Response({"Error": "Parameter correlation_id is required."}, status=400)
+
+        rollback_manager = RollbackManager(correlation_id, request=request)
+        
+        try:
+            result = rollback_manager.execute()
+            return Response({"state": result}, status=200)
+        except AuditConflict as ac:
+            logger.warning(f"Audit conflict during rollback for correlation_id {correlation_id}: {ac}")
+            return Response({"Error": str(ac)}, status=409)
+        except Exception as e:
+            logger.error(f"Unexpected error during rollback: {e}")
+            return Response({"Error": f"An unexpected error occurred during rollback. {e}"}, status=500)

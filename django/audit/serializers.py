@@ -36,6 +36,8 @@ class AuditLogSerializer(serializers.ModelSerializer):
             'timestamp',
             'comment',
             'details',
+            'is_reverted',
+            'reverted_from'
         ]
     
     def get_target_type(self, obj):

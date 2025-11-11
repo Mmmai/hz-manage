@@ -10,6 +10,8 @@ DEFAULT_CONTEXT: Dict[str, Any] = {
     "correlation_id": None,
     "operator": "anonymous",
     "operator_ip": None,
+    "is_rollback": False,
+    "reverted_from": None,
     "comment": ""
 }
 

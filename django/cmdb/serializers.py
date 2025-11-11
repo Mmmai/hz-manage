@@ -832,7 +832,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ModelInstance
-        fields = ['id', 'model', 'instance_name',  'using_template', 'import_from',
+        fields = ['id', 'model', 'instance_name',  'using_template', 'input_mode',
                 'fields', 'field_values', 'instance_group',
                 'create_time', 'update_time', 'create_user', 'update_user']
         extra_kwargs = {
@@ -857,6 +857,16 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
         groups = self.context.get('instance_group', {})
         group = groups.get(str(obj.id), [])
 
+        if not group:
+            group_relations = ModelInstanceGroupRelation.objects.filter(
+                instance=obj
+            ).select_related('group')
+            for relation in group_relations:
+                group.append({
+                    'group_id': str(relation.group.id),
+                    'group_path': relation.group.path
+                })
+
         return group
 
     @extend_schema_field({
@@ -870,7 +880,12 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
 
         field_meta_all = self.context.get('field_meta', {})
         field_meta = field_meta_all.get(str(obj.id), [])
-
+        
+        if not field_meta:
+            field_meta = ModelFieldMeta.objects.filter(
+                model_instance=obj,
+            ).select_related('model_fields', 'model_fields__validation_rule')
+            
         return ModelFieldMetaNestedSerializer(
             field_meta,
             many=True,
@@ -1130,7 +1145,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(str(e))
 
     @classmethod
-    def bulk_update_instances(cls, instances_qs, fields_data, context):
+    def bulk_update_instances(cls, instances_qs, fields_data, using_template, context):
         # user = context['request'].user.username if 'request' in context else 'unknown'
         model = instances_qs.first().model
         
@@ -1154,6 +1169,11 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 with capture_audit_snapshots([instance]):
                     old_instance_snapshot = get_dynamic_field_snapshot(instance)
 
+                    using_template_changed = False
+                    if using_template is not None and using_template != instance.using_template:
+                        instance.using_template = using_template
+                        using_template_changed = True
+                                            
                     instance_name_changed = False
                     if instance.model.instance_name_template:
                         db_fields = ModelFieldMeta.objects.filter(model_instance=instance).select_related('model_fields').values('model_fields__name', 'data')
@@ -1185,14 +1205,16 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                     update_fields = []
                     if instance_name_changed:
                         update_fields = ['instance_name']
+                    if using_template_changed:
+                        update_fields.append('using_template')
                     instance.save(update_fields=update_fields)
                 updated_count += 1
         
-        # if snapshots_list:
-        #     instance_bulk_update_audit.send(
-        #         sender=ModelInstance,
-        #         snapshots_list=snapshots_list
-        #     )
+        if snapshots_list:
+            instance_bulk_update_audit.send(
+                sender=ModelInstance,
+                snapshots_list=snapshots_list
+            )
         return updated_count
 
 

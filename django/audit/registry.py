@@ -1,6 +1,7 @@
 import logging
 from typing import Dict, Type
 from django.db import models
+from importlib import import_module
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,27 @@ class AuditRegistry:
             if not field.many_to_many:
                 raise ValueError(f"Field '{field_name}' is not a ManyToManyField in model {model.__name__}.")
             self._m2m_fields_to_audit.append((model, field_name, field.remote_field.through))
+    
+    def _resolve_path(self, path: str) -> Type[models.Model]:
+        try:
+            path, class_name = path.rsplit('.', 1)
+            module = import_module(path)
+            return getattr(module, class_name)
+        except (ImportError, AttributeError, ValueError) as e:
+            logger.error(f"Error resolving path '{path}': {e}")
+            return None
+        
+    def _get_callable(self, model: Type[models.Model], key: str) -> callable:
+        config = self.config(model)
+        value = config.get(key)
 
+        if isinstance(value, str):
+            resolved_callable = self._resolve_path(value)
+            config[key] = resolved_callable
+            return resolved_callable
+        
+        return value
+        
     def is_registered(self, model: Type[models.Model]) -> bool:
         """检查一个模型是否已被注册"""
         return model in self._config
@@ -71,5 +92,14 @@ class AuditRegistry:
     def get_m2m_fields_to_audit(self):
         """获取所有注册的多对多字段审计配置"""
         return self._m2m_fields_to_audit
+    
+    def get_restorer(self, model: Type[models.Model]) -> callable:
+        """获取模型的回退函数"""
+        return self._get_callable(model, 'restorer')
+
+    def get_locker(self, model: Type[models.Model]) -> callable:
+        """获取模型的锁定函数"""
+        return self._get_callable(model, 'locker')
+    
 
 registry = AuditRegistry()

@@ -7,8 +7,13 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 class AuditLog(models.Model):
     """主审计日志表"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    correlation_id = models.CharField(max_length=100, blank=True, db_index=True)
-    action = models.CharField(max_length=20, choices=[('CREATE', '创建'), ('UPDATE', '更新'), ('DELETE', '删除')])
+    action = models.CharField(max_length=20, 
+        choices=[
+            ('CREATE', '创建'), 
+            ('UPDATE', '更新'), 
+            ('DELETE', '删除')
+        ]
+    )
 
     # 关联的目标对象
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, db_constraint=False)
@@ -22,6 +27,17 @@ class AuditLog(models.Model):
     operator = models.CharField(max_length=100, blank=True, db_index=True)
     operator_ip = models.GenericIPAddressField(null=True, blank=True)
     request_id = models.CharField(max_length=100, blank=True, db_index=True)
+    correlation_id = models.CharField(max_length=100, blank=True, db_index=True)
+    
+    # 回退标识
+    is_reverted = models.BooleanField(default=False, db_index=True)
+    reverted_from = models.ForeignKey(
+        'self', 
+        null=True, 
+        blank=True, 
+        on_delete=models.SET_NULL, 
+        related_name='revert_logs'    
+    )
 
     timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
     comment = models.TextField(blank=True)
