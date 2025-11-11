@@ -27,7 +27,9 @@
                 /> -->
           <router-view>
             <template #default="{ Component, route }">
-              <component :is="Component" :key="route.path" />
+              <keep-alive :include="keepAliveName">
+                <component :is="Component" :key="route.path" />
+              </keep-alive>
             </template>
           </router-view>
           <!-- <iframe-view v-show="route.meta.is_iframe"></iframe-view>

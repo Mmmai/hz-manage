@@ -164,10 +164,11 @@
       <div class="drawer-content">
         <json-viewer
           :value="currentRowData"
-          :expand-depth="5"
+          :expand-depth="10"
           copyable
           boxed
           sort
+          expanded
         ></json-viewer>
       </div>
     </el-drawer>

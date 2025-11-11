@@ -869,7 +869,6 @@ const submitAction = async () => {
             editForm.instance_name === instanceData.value.instance_name
               ? null
               : editForm.instance_name,
-          update_user: store.state.username,
           fields: processFieldsForSubmit.value,
         });
 

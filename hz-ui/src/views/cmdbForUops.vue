@@ -67,13 +67,9 @@
         <!-- 使用 router-view 替代动态组件 -->
         <router-view>
           <template #default="{ Component, route }">
-            <KeepAlive :include="keepAliveName">
-              <component
-                :is="Component"
-                :key="route.path"
-                v-bind="route.params"
-              />
-            </KeepAlive>
+            <keep-alive :include="keepAliveName">
+              <component :is="Component" :key="route.path" />
+            </keep-alive>
           </template>
         </router-view>
       </el-main>
@@ -167,37 +163,6 @@ let originalBgColor = ref("");
 
 // 初始化菜单数据
 onMounted(async () => {
-  // // 保存原始背景色值
-  // originalBgColor.value = getComputedStyle(
-  //   document.documentElement
-  // ).getPropertyValue("--el-bg-color");
-
-  // // 为当前页面设置特定的背景色
-  // document.documentElement.style.setProperty("--el-bg-color", "#1d2430");
-  // document.documentElement.style.setProperty("--el-menu-bg-color", "#060c18");
-  // document.documentElement.style.setProperty("--el-pagination-bg", "#1a1a1a");
-  // document.documentElement.style.setProperty(
-  //   "--el-text-color-primary",
-  //   "#e6e6e6"
-  // );
-  // document.documentElement.style.setProperty("--el-menu-text-color", "#e6e6e6");
-  // document.documentElement.style.setProperty(
-  //   "--el-button-primary-text-color",
-  //   "#ffffff"
-  // );
-  // document.documentElement.style.setProperty(
-  //   "--el-button-primary-text-color",
-  //   "#ffffff"
-  // );
-
-  // document.documentElement.style.setProperty(
-  //   "--el-table-header-bg-color",
-  //   "#060c18"
-  // );
-  // document.documentElement.style.setProperty(
-  //   "--el-table-row-hover-bg-color",
-  //   "#3a3a3a"
-  // );
   // 如果菜单数据为空，获取菜单数据
   if (!store.state.menuInfo || store.state.menuInfo.length === 0) {
     try {

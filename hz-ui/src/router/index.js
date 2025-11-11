@@ -15,6 +15,8 @@ const publicRoute = [
   {
     path: '/cmdb_only',
     name: 'cmdb_only',
+    redirect: '/cmdb_only/cmdb/cidata',
+
     component: () => import('../views/cmdbForUops.vue'),
     children: []
   },
