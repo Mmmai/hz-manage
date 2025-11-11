@@ -193,6 +193,12 @@ def log_changes(sender, instance, created, **kwargs):
 
         comment = context.get("comment") or build_audit_comment(action, instance)
         logger.debug(f'{static_changes}, {dynamic_changes}, {comment}')
+
+        is_rollback = context.get("is_rollback", False)
+        reverted_from = context.get("reverted_from", None)
+        if is_rollback:
+            comment = f"[回退操作] {comment}"
+        
         log = AuditLog.objects.create(
             content_object=instance,
             action=action,
@@ -201,6 +207,8 @@ def log_changes(sender, instance, created, **kwargs):
             operator_ip=context.get('operator_ip', None),
             request_id=context.get('request_id', ''),
             correlation_id=context.get('correlation_id', ''),
+            is_reverted=is_rollback,
+            reverted_from=reverted_from,
             comment=comment
         )
 
