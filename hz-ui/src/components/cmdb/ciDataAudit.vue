@@ -273,6 +273,9 @@ const changeMap = {
   order: "排序",
   verbose_name: "字段名称",
   model_field_group: "字段组",
+  using_template: "自动命名",
+  model: "模型",
+  input_mode: "录入方式",
   // update_user: "更新用户",
 };
 const formatChanges = (row) => {

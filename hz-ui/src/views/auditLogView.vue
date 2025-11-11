@@ -419,6 +419,9 @@ const changeMap = {
   source_attributes: "源属性",
   target_attributes: "目标属性",
   relation: "关联关系",
+  using_template: "自动命名",
+  model: "模型",
+  input_mode: "录入方式",
   // update_user: "更新用户",
 };
 const formatChanges = (row) => {

@@ -61,10 +61,10 @@
               搜索
             </el-button>
             <el-button @click="resetFilters">重置</el-button>
-            <el-button type="primary" @click="handleAdd">新增关联</el-button>
           </div>
         </div>
       </div>
+      <el-button type="primary" @click="handleAdd">新增关联</el-button>
     </div>
 
     <div class="card table-container" style="width: 100%">
@@ -728,22 +728,6 @@ const targetInstances = ref([]); // 目标实例列表
 const sourceInstanceLoading = ref(false);
 const targetInstanceLoading = ref(false);
 // 为目标实例存储独立的属性
-const targetAttributesMap = reactive({}); // 存储每个目标实例的target_attributes
-const relationAttributesMap = reactive({}); // 存储每个目标实例的relation_attributes
-const sourceAttributesMap = reactive({}); // 存储每个目标实例的source_attributes
-// const sourceAttributesObjet = computed(() => {
-//   let newObj = {};
-//   if (!addRelationForm.relation) return {};
-//   let _source_attributes =
-//     relationDefineMap.value[addRelationForm.relation]?.attribute_schema?.source;
-//   console.log("333", _source_attributes);
-//   if (_source_attributes) {
-//     Object.keys(_source_attributes).forEach((item) => {
-//       newObj[item] = null;
-//     });
-//   }
-//   return newObj;
-// });
 const addTargetInstance = () => {
   addRelationForm.relations.push({
     target_instance: null,
@@ -752,15 +736,12 @@ const addTargetInstance = () => {
     relation_attributes: {},
   });
 };
-const test = () => {
-  console.log(addRelationForm);
-};
 const copyTargetInstance = (row) => {
   addRelationForm.relations.push({
     target_instance: null,
-    source_attributes: row.source_attributes,
-    target_attributes: row.target_attributes,
-    relation_attributes: row.relation_attributes,
+    source_attributes: { ...row.source_attributes },
+    target_attributes: { ...row.target_attributes },
+    relation_attributes: { ...row.relation_attributes },
   });
 };
 const removeTargetInstance = (index) => {
@@ -1238,13 +1219,11 @@ const submitAddRelation = async () => {
           relations.push(params);
         }
         console.log("提交的params", JSON.stringify({ relations: relations }));
-        return;
-        const results = await Promise.all(promises);
 
         // 检查是否所有请求都成功
-        const allSuccess = results.every((res) => res.status === 201);
+        const res = await proxy.$api.addRelations(relations);
 
-        if (allSuccess) {
+        if (res.status == 200) {
           ElMessage.success("添加关联关系成功");
           addRelationDialogVisible.value = false;
           resetAddRelationForm();
@@ -1336,10 +1315,12 @@ onMounted(() => {
 
 <style scoped>
 .filter-card {
-  height: 100px;
+  height: 55px;
   padding: 10px 15px;
   overflow-y: auto;
   flex: none;
+  display: flex;
+  justify-content: space-between;
 }
 
 .table-container {

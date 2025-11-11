@@ -832,7 +832,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ModelInstance
-        fields = ['id', 'model', 'instance_name',  'using_template', 'import_from',
+        fields = ['id', 'model', 'instance_name',  'using_template', 'input_mode',
                 'fields', 'field_values', 'instance_group',
                 'create_time', 'update_time', 'create_user', 'update_user']
         extra_kwargs = {

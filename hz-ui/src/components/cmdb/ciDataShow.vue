@@ -256,12 +256,21 @@
         :reserve-selection="true"
       >
       </el-table-column>
+
       <el-table-column
         prop="instance_name"
         label="名称"
         fixed="left"
         width="180"
-      />
+      >
+        <template #default="scope">
+          <el-tooltip content="查看详情" placement="right" effect="dark">
+            <el-link type="primary" @click="goToEdit(scope.row)">
+              {{ scope.row.instance_name }}</el-link
+            >
+          </el-tooltip>
+        </template>
+      </el-table-column>
 
       <!-- <el-table-column label="Date" width="120" @row-click="editCiData">
                   <template #default="scope">{{ scope.row.date }}</template>
@@ -508,37 +517,71 @@
             require-asterisk-position="right"
           >
             <!-- <div v-for="(item, index) in modelInfo.field_groups"> -->
-            <el-form-item
-              prop="instance_name"
-              required
-              style="margin-left: 30px"
-              v-if="isEdit"
-            >
-              <template #label>
-                <el-space :size="2">
-                  <el-text tag="b">唯一标识</el-text>
-                  <el-tooltip
-                    content="唯一命名标识"
-                    placement="right"
-                    effect="dark"
-                  >
-                    <el-icon>
-                      <Warning />
-                    </el-icon>
-                  </el-tooltip>
-                </el-space>
-              </template>
+            <el-row>
+              <el-col :span="12">
+                <el-form-item
+                  prop="instance_name"
+                  required
+                  style="margin-left: 30px"
+                  v-if="isEdit"
+                >
+                  <template #label>
+                    <el-space :size="2">
+                      <el-text tag="b">唯一标识</el-text>
+                      <el-tooltip
+                        content="唯一命名标识"
+                        placement="right"
+                        effect="dark"
+                      >
+                        <el-icon>
+                          <Warning />
+                        </el-icon>
+                      </el-tooltip>
+                    </el-space>
+                  </template>
 
-              <el-input
-                v-model="ciDataForm.instance_name"
-                style="width: 240px"
-                v-if="isEdit"
+                  <el-input
+                    v-model="ciDataForm.instance_name"
+                    style="width: 240px"
+                    v-if="isEdit"
+                  >
+                  </el-input>
+                  <span v-else class="requiredClass">{{
+                    ciDataForm.instance_name
+                  }}</span>
+                </el-form-item></el-col
               >
-              </el-input>
-              <span v-else class="requiredClass">{{
-                ciDataForm.instance_name
-              }}</span>
-            </el-form-item>
+              <el-col :span="12">
+                <el-form-item
+                  prop="using_template"
+                  required
+                  style="margin-left: 30px"
+                >
+                  <template #label>
+                    <el-space :size="2">
+                      <el-text tag="b">自动生成唯一标识</el-text>
+                      <el-tooltip
+                        content="是否根据模型的唯一命名规则，自动生成唯一标识"
+                        placement="right"
+                        effect="dark"
+                      >
+                        <el-icon>
+                          <Warning />
+                        </el-icon>
+                      </el-tooltip>
+                    </el-space>
+                  </template>
+                  <el-switch
+                    v-model="ciDataForm.using_template"
+                    style="
+                      --el-switch-on-color: #13ce66;
+                      --el-switch-off-color: #ff4949;
+                    "
+                  />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
             <el-collapse v-model="activeArr">
               <el-collapse-item
                 :name="index"
@@ -1254,8 +1297,17 @@
             />
           </el-select>
           <div v-if="item && !item.startsWith('__temp')">
+            <div v-if="item === 'using_template'">
+              <el-switch
+                v-model="multipleForm.updateParams[item]"
+                style="
+                  --el-switch-on-color: #13ce66;
+                  --el-switch-off-color: #ff4949;
+                "
+              />
+            </div>
             <div
-              v-if="
+              v-else-if="
                 ['text', 'json'].indexOf(allModelFieldByNameObj[item].type) >>>
                 -1
                   ? false
@@ -2006,7 +2058,11 @@ const selectName = (index, name) => {
   // 保留原值
   // multipleForm.updateParams[name] = multipleForm.updateParams[paramNameLineMap[index]];
   // or 清空值
-  multipleForm.updateParams[name] = undefined;
+  if (name === "using_template") {
+    multipleForm.updateParams[name] = true;
+  } else {
+    multipleForm.updateParams[name] = undefined;
+  }
 
   // 删除原来的key, 并且更新map
   delete multipleForm.updateParams[paramNames.value[index]];
@@ -2046,21 +2102,35 @@ const saveCommit = () => {
       // 批量更新的方法
       // return;
       // let res = undefined;
+      // 针对using_template单独处理
+      let _using_template = null;
+      console.log(
+        "111",
+        JSON.stringify(multipleCommitParam.value.using_template)
+      );
+
+      if ("using_template" in multipleCommitParam.value) {
+        _using_template = multipleCommitParam.value.using_template;
+        delete multipleCommitParam.value.using_template;
+        console.log("111", JSON.stringify(multipleCommitParam.value));
+      }
       let params = new Object();
       if (isSelectAll.value) {
         // 条件下的全量更新
         params = {
-          update_user: store.state.username,
           fields: multipleCommitParam.value,
           model: props.ciModelId,
           ...multipleParams.value,
+          using_template: multipleCommitParam.value,
         };
       } else {
         params = {
-          update_user: store.state.username,
           instances: multipleSelectId.value,
           fields: multipleCommitParam.value,
         };
+      }
+      if (_using_template !== null) {
+        params.using_template = _using_template;
       }
       const loading = ElLoading.service({
         lock: true,
@@ -2102,7 +2172,9 @@ const saveCommit = () => {
   });
 };
 const allModelFieldOptions = computed<any>(() => {
-  let tempList = new Array();
+  let tempList = [
+    { value: "using_template", label: "自动命名", disabled: false },
+  ];
   modelInfo.value?.field_groups?.forEach((item) => {
     item.fields.forEach((field) => {
       let isDisabled = false;
@@ -2116,6 +2188,7 @@ const allModelFieldOptions = computed<any>(() => {
       });
     });
   });
+
   return tempList;
 });
 const handleClose = () => {
@@ -2432,7 +2505,7 @@ const setFormItemRule = (rule) => {
 const initCiDataForm = () => {
   for (const [ckey, cvalue] of Object.entries(ciDataForm)) {
     // console.log(key + ': ' + value);
-    if (ckey !== "instance_name") {
+    if (["instance_name", "using_template"].indexOf(ckey) === -1) {
       delete ciDataForm[ckey];
     }
   } // let initObj = new Object();
@@ -2607,6 +2680,7 @@ onMounted(async () => {
 // 实例编辑弹出框
 const ciDrawer = ref(false);
 const addCiData = () => {
+  console.log("addCiData", JSON.stringify(ciDataForm));
   isEdit.value = true;
   ciDrawer.value = true;
   commitActionAdd.value = true;
@@ -2727,10 +2801,13 @@ const controlEdit = (refVal) => {
 const ciDataFormRef = ref<FormInstance>();
 const ciDataForm = reactive({
   instance_name: null,
+  using_template: true,
 });
 const rmNameObj = computed(() => {
   let tmpObj = Object.assign({}, ciDataForm);
   delete tmpObj.instance_name;
+  delete tmpObj.using_template;
+
   for (let [ckey, cvalue] of Object.entries(tmpObj)) {
     if (cvalue === null || cvalue === "") continue;
     if (modelFieldType.value.password.indexOf(ckey) !== -1) {
@@ -2790,6 +2867,7 @@ const ciDataCommit = async (
           update_user: store.state.username,
           fields: rmNameObj.value,
           instance_name: ciDataForm.instance_name,
+          using_template: ciDataForm.using_template,
           instance_group: [props.currentNodeId],
         });
         setTimeout(() => {
