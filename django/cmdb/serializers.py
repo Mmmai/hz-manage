@@ -2122,7 +2122,7 @@ class RelationDefinitionSerializer(serializers.ModelSerializer):
             if not data['source_model']:
                 raise serializers.ValidationError("source_model cannot be set to null or empty.")
             cur_models = set([str(m.id) for m in self.instance.source_model.all()])
-            deleted_models = set(cur_models) - set(data['source_model'])
+            deleted_models = set(cur_models) - set([str(m.id) for m in data['source_model']])
             if deleted_models:
                 used_models = Relations.objects.filter(
                     relation=self.instance
@@ -2134,7 +2134,7 @@ class RelationDefinitionSerializer(serializers.ModelSerializer):
             if not data['target_model']:
                 raise serializers.ValidationError("target_model cannot be set to null or empty.")
             cur_models = set([str(m.id) for m in self.instance.target_model.all()])
-            deleted_models = set(cur_models) - set(data['target_model'])
+            deleted_models = set(cur_models) - set([str(m.id) for m in data['target_model']])
             if deleted_models:
                 used_models = Relations.objects.filter(
                     relation=self.instance
