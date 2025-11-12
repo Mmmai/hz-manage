@@ -6,11 +6,9 @@ import re
 import io
 import tempfile
 import networkx as nx
-from celery import shared_task
 from functools import reduce
 from django.conf import settings
 from rest_framework import viewsets
-from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.metadata import BaseMetadata
@@ -20,19 +18,15 @@ from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 from cacheops import cached_as, invalidate_model
 from django.core.cache import cache
-from django.http import HttpResponse, StreamingHttpResponse
+from django.http import StreamingHttpResponse
 from django.db import transaction
-from django.utils import timezone
 from django.db.models import Q
-from django.db.models import Max, Case, When, Value, IntegerField
 from django_redis import get_redis_connection
-from drf_spectacular.utils import extend_schema, OpenApiParameter
 from celery.result import AsyncResult
 from .utils import password_handler, celery_manager
-from node_mg.utils import sys_config
 from .excel import ExcelHandler
 from .constants import FieldMapping, FieldType, limit_field_names
-from .tasks import process_import_data, setup_host_monitoring, install_zabbix_agent, sync_zabbix_host_task, update_instance_names_for_model_template_change, update_zabbix_interface_availability
+from .tasks import process_import_data, setup_host_monitoring, sync_zabbix_host_task, update_instance_names_for_model_template_change, update_zabbix_interface_availability
 from .filters import *
 from .models import *
 from .serializers import *
