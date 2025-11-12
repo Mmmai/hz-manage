@@ -74,13 +74,13 @@
         </div>
       </div>
     </div>
-    <div class="card table-container" style="width: 100%">
+    <div class="card table-main" style="width: 100%">
       <!-- 审计日志表格 -->
       <el-table
         :data="auditLogs"
-        style="flex: 1"
         border
         table-layout="fixed"
+        height="100%"
         highlight-current-row
       >
         <el-table-column prop="target_type" label="操作对象" width="120">
@@ -117,9 +117,13 @@
                 class="change-item"
               >
                 <el-text tag="b">{{ change.field }}: </el-text>
-                <span v-if="change.oldValue !== undefined" class="old-value">{{
-                  change.oldValue !== null ? change.oldValue : "null"
-                }}</span>
+                <span
+                  v-if="change.oldValue !== undefined"
+                  class="changeValue"
+                  >{{
+                    change.oldValue !== null ? change.oldValue : "null"
+                  }}</span
+                >
                 <el-text v-else>null</el-text>
                 <el-text
                   v-if="
@@ -131,9 +135,13 @@
                 >
                   →
                 </el-text>
-                <span v-if="change.newValue !== undefined" class="new-value">{{
-                  change.newValue !== null ? change.newValue : "null"
-                }}</span>
+                <span
+                  v-if="change.newValue !== undefined"
+                  class="changeValue"
+                  >{{
+                    change.newValue !== null ? change.newValue : "null"
+                  }}</span
+                >
               </div>
             </div>
           </template>
@@ -436,8 +444,8 @@ const formatChanges = (row) => {
       } else if (field === "groups") {
         changes.push({
           field: changeMap[field],
-          oldValue: values[0].map((item) => item.path).join(","),
-          newValue: values[1].map((item) => item.path).join(","),
+          oldValue: values[0].map((item) => item.path).join("\n"),
+          newValue: values[1].map((item) => item.path).join("\n"),
         });
       } else if (field === "instance_name_template") {
         // console.log(
@@ -697,5 +705,13 @@ onMounted(() => {
     height: auto;
     max-height: 180px;
   }
+}
+.change-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.changeValue {
+  white-space: pre-line;
 }
 </style>

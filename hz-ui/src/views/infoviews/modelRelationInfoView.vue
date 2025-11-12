@@ -10,17 +10,15 @@
           </el-page-header>
           <div>
             <el-tooltip
-              :content="
-                relationData.built_in
-                  ? '内置关联关系,无法编辑!'
-                  : '编辑关联关系'
+              content="
+                  
+                  编辑关联关系
               "
               placement="top"
             >
               <el-button
                 type="primary"
                 @click="editMode = true"
-                :disabled="relationData.built_in"
                 v-if="!editMode"
                 >编辑</el-button
               >
@@ -45,7 +43,7 @@
             <el-form-item label="名称">
               <el-input
                 v-model="relationData.name"
-                :disabled="!editMode"
+                :disabled="!editMode || !isAdd"
                 style="max-width: 300px"
               />
             </el-form-item>
@@ -127,21 +125,6 @@
               ></el-input> </el-form-item
           ></el-col>
         </el-row>
-
-        <!-- 
-        <el-row :gutter="20">
-          <el-col :span="12"> </el-col>
-          <el-col :span="12"> </el-col>
-        </el-row>
-
-        <el-row :gutter="20">
-          <el-col :span="12"> </el-col>
-          <el-col :span="12"> </el-col>
-        </el-row> -->
-
-        <!-- <el-row :gutter="20">
-          <el-col :span="12"> </el-col>
-        </el-row> -->
 
         <el-form-item label="描述">
           <el-input
@@ -270,7 +253,17 @@ const isAdd = ref(false);
 const getRelationData = async () => {
   const res = await proxy.$api.getModelRelationDefineInfo(relationId.value);
   if (res.status === 200) {
-    Object.assign(relationData, res.data);
+    originalData.value = res.data;
+    // Object.assign(relationData, res.data);
+    // relation赋值
+    relationData.name = res.data.name;
+    relationData.topology_type = res.data.topology_type;
+    relationData.forward_verb = res.data.forward_verb;
+    relationData.reverse_verb = res.data.reverse_verb;
+    relationData.attribute_schema = res.data.attribute_schema;
+    relationData.description = res.data.description;
+    relationData.source_model = res.data.source_model;
+    relationData.target_model = res.data.target_model;
   }
 };
 const updateRelationData = async () => {

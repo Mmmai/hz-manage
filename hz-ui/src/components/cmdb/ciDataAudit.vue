@@ -99,6 +99,21 @@
           </template>
         </el-table-column>
         <el-table-column prop="timestamp" label="操作时间" width="300" />
+        <el-table-column label="操作" fixed="right" width="120">
+          <template #default="scope">
+            <el-button
+              @click="rockBackAction(scope.row.correlation_id)"
+              type="primary"
+              link
+              v-if="
+                scope.row.action === 'UPDATE' &&
+                scope.row.target_type === 'model_instance' &&
+                scope.row.is_reverted === false
+              "
+              >回退</el-button
+            >
+          </template>
+        </el-table-column>
       </el-table>
 
       <!-- 分页 -->
@@ -140,7 +155,7 @@ import { Search } from "@element-plus/icons-vue";
 import { ElDrawer, valueEquals } from "element-plus";
 import { JsonViewer } from "vue3-json-viewer";
 import "vue3-json-viewer/dist/vue3-json-viewer.css";
-
+import { ElMessage } from "element-plus";
 const { proxy } = getCurrentInstance();
 // 组件参数
 const props = defineProps({
@@ -468,6 +483,24 @@ const resetFilters = () => {
 //   setDefaultTimeRange();
 //   fetchAuditLogs();
 // });
+
+// 回滚
+const rockBackAction = async (params) => {
+  let res = await proxy.$api.ciAuditRockBack({
+    correlation_id: params,
+  });
+  if (res.status == 200) {
+    ElMessage({
+      type: "success",
+      message: "回滚成功",
+    });
+  } else {
+    ElMessage({
+      type: "error",
+      message: "回滚失败" + JSON.stringify(res.data),
+    });
+  }
+};
 // 定义方法给组件调用
 const getData = () => {
   setDefaultTimeRange();

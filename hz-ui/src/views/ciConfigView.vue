@@ -1,5 +1,5 @@
 <template>
-  <div class="card">
+  <div class="card table-main">
     <div class="table-header">
       <div class="header-button-lf">
         <el-button
@@ -33,6 +33,7 @@
       ref="multipleTableRef"
       :data="validationRules"
       style="width: 100%"
+      height="100%"
       border
       @sort-change="sortMethod"
     >
@@ -93,7 +94,6 @@
       style="margin-top: 5px; justify-content: flex-end"
     >
     </el-pagination>
-
     <!-- 弹出框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -302,6 +302,8 @@ const store = useStore();
 const validationRules = ref([]);
 import { useRoute } from "vue-router";
 const route = useRoute();
+import useModelStore from "@/store/cmdb/model";
+const modelConfigStore = useModelStore();
 const colValue = ref("verbose_name");
 const filterValue = ref<string>("");
 const filterParam = computed(() => {
@@ -588,6 +590,7 @@ const getRules = async (params = null) => {
   });
   validationRules.value = res.data.results;
   totalCount.value = res.data.count;
+  modelConfigStore.updateValidationRules(res.data.results);
 };
 const getModelFieldType = async () => {
   let res = await proxy.$api.getCiModelFieldType();

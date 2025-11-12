@@ -15,4 +15,8 @@ export default {
     // 请求参数: {target_type: model_instance, object_id: XXXX} 
     return axios.request({ url: path.auditLog + 'history/', method: 'get', params: params })
   },
+  ciAuditRockBack(params: { correlation_id: string }) {
+    // 请求参数: {correlation_id: XXXX}
+    return axios.request({ url: path.auditLog + 'rollback/', method: 'post', data: params })
+  },
 }

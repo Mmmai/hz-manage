@@ -235,7 +235,8 @@ import type { ComponentSize, FormInstance, FormRules } from "element-plus";
 import { fa } from "element-plus/es/locale/index.mjs";
 import iconSelectCom from "../components/iconSelectCom.vue";
 defineOptions({ name: "model" });
-
+import useModelStore from "@/store/cmdb/model";
+const modelConfigStore = useModelStore();
 const { proxy } = getCurrentInstance();
 const modelGroupAction = ref(false);
 const modelAction = ref(false);
@@ -303,6 +304,7 @@ const modelist = ref([]);
 const getCiModelList = async () => {
   let res = await proxy.$api.getCiModel();
   modelist.value = res.data.results;
+  modelConfigStore.updateAllModels(res.data.results);
 };
 
 // 模型表单

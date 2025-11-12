@@ -67,11 +67,12 @@
       <el-button type="primary" @click="handleAdd">新增关联</el-button>
     </div>
 
-    <div class="card table-container" style="width: 100%">
+    <div class="card table-main" style="width: 100%">
       <el-table
         :data="relationList"
         stripe
         style="width: 100%"
+        height="100%"
         v-loading="loading"
       >
         <el-table-column prop="definition.name" label="关系类型" width="150">

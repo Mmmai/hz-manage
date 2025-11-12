@@ -7,7 +7,11 @@
             <el-space :size="30">
               <el-button size="large" circle disabled style="margin: 10px">
                 <!-- <Icon :icon="ciModelInfo.icon"></Icon> -->
-                <iconifyOffline :icon="ciModelInfo?.icon" />
+
+                <iconifyOffline
+                  v-if="ciModelInfo?.icon"
+                  :icon="ciModelInfo?.icon"
+                />
               </el-button>
 
               <!-- </div> -->

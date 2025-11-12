@@ -29,7 +29,11 @@ export const modelConfigStore = defineStore(
         };
       });
     });
-
+    // 更新模型列表allModels
+    const updateAllModels = (data) => {
+      allModels.value = data
+    }
+    // 获取模型
     const getModel = async (force = false) => {
       if (!force && allModels.value.length > 0) return;
       let res = await proxy.$api.getCiModel()
@@ -60,7 +64,10 @@ export const modelConfigStore = defineStore(
           return acc;
         }, {});
     });
-
+    // 更新模型列表allModels
+    const updateValidationRules = (data) => {
+      validationRules.value = data
+    }
     // 获取校验规则
     const getValidationRules = async (force = false) => {
       if (!force && validationRules.value.length > 0) return;
@@ -70,8 +77,8 @@ export const modelConfigStore = defineStore(
 
     // 提供给外部调用
     return {
-      allModels, modelObjectByName, modelObjectById, modelOptions, getModel,
-      validationRules, validationRulesObjectById, validationRulesEnumOptionsObject, getValidationRules
+      allModels, modelObjectByName, modelObjectById, modelOptions, getModel, updateAllModels,
+      validationRules, validationRulesObjectById, validationRulesEnumOptionsObject, getValidationRules, updateValidationRules
     }
   },
   // 插件外参

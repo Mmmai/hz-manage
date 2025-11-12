@@ -87,4 +87,12 @@ const pvar = defineProps({
   /* color: var(--el-text-color-regular); */
   /* background-color: var(--el-color-primary-light-7) !important; */
 }
+.el-menu .el-menu-item.is-active {
+  color: var(--el-color-primary-light-9) !important;
+  background-color: var(--el-menu-active-color) !important;
+}
+/* .el-menu .el-menu-item {
+  color: var(--el-color-primary-light-9) !important;
+  background-color: var(--el-menu-bg-color) !important;
+} */
 </style>

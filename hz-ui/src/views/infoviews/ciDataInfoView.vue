@@ -82,7 +82,7 @@
               >
                 <template #label>
                   <el-space :size="2">
-                    <el-text tag="b">自动生成唯一标识</el-text>
+                    <el-text tag="b">自动命名</el-text>
                     <el-tooltip
                       content="是否根据模型的唯一命名规则，自动生成唯一标识"
                       placement="right"
@@ -678,6 +678,8 @@ const modelRefOptions = ref({});
 const initEditForm = () => {
   editForm.id = instanceData.value.id;
   editForm.instance_name = instanceData.value.instance_name;
+  editForm.using_template = instanceData.value.using_template;
+
   Object.keys(instanceData.value.fields).forEach((item) => {
     if (modelFieldType.value.enum.includes(item)) {
       if (instanceData.value.fields[item] !== null) {
@@ -888,21 +890,19 @@ const submitAction = async () => {
         text: "保存中...",
         background: "rgba(0, 0, 0, 0.7)",
       });
-
+      let params = {
+        id: instanceData.value.id,
+        model: modelInfo.value.id,
+        fields: processFieldsForSubmit.value,
+      };
+      if (editForm.using_template !== instanceData.value.using_template) {
+        params.using_template = editForm.using_template;
+      }
+      if (editForm.instance_name !== instanceData.value.instance_name) {
+        params.instance_name = editForm.instance_name;
+      }
       try {
-        let res = await proxy.$api.updateCiModelInstance({
-          id: instanceData.value.id,
-          model: modelInfo.value.id,
-          instance_name:
-            editForm.instance_name === instanceData.value.instance_name
-              ? null
-              : editForm.instance_name,
-          using_template:
-            editForm.using_template === instanceData.value.using_template
-              ? null
-              : editForm.using_template,
-          fields: processFieldsForSubmit.value,
-        });
+        let res = await proxy.$api.updateCiModelInstance(params);
 
         if (res.status == "200") {
           ElMessage({ type: "success", message: "保存成功" });

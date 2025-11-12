@@ -5,8 +5,8 @@
         <el-button type="primary" @click="handleAdd">新增关系</el-button>
       </div>
     </div>
-    <div class="card table-container" style="width: 100%">
-      <el-table :data="relationList" stripe style="width: 100%">
+    <div class="card table-main" style="width: 100%">
+      <el-table :data="relationList" stripe style="width: 100%" height="100%">
         <el-table-column
           prop="name"
           label="关系名称"

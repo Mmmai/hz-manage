@@ -2,15 +2,16 @@
   <el-row style="width: 100%" justify="space-between">
     <el-col :span="12" style="display: flex; align-items: center">
       <!-- <div class="l-content"> -->
-      <el-button @click="changeCollapse" size="small" class="collapseClass">
-        <!-- <Menu /> -->
-        <el-icon v-if="collapse">
+      <!-- <Menu /> -->
+      <div style="margin-right: 10px; display: flex">
+        <el-icon v-if="collapse" @click="changeCollapse">
           <Fold />
         </el-icon>
-        <el-icon v-else>
+        <el-icon v-else @click="changeCollapse">
           <Expand />
         </el-icon>
-      </el-button>
+      </div>
+
       <!-- 面包屑 -->
       <el-breadcrumb :separator-icon="ArrowRight">
         <!-- 可以跳转 -->
@@ -21,8 +22,8 @@
       >
         {{ currentMenu.name }}
       </el-breadcrumb-item> -->
-        <el-breadcrumb-item
-          ><el-icon><HomeFilled /></el-icon>
+        <el-breadcrumb-item v-if="currentMenuLabel === '首页'">
+          <el-icon><HomeFilled /></el-icon> <span>首页</span>
         </el-breadcrumb-item>
         <el-breadcrumb-item v-for="(item, index) in currentBreadcrumb">
           <div class="flexJbetween gap-2">
@@ -301,7 +302,6 @@ const handleLogout = (done) => {
 
 .theme-name-large {
   font-size: 16px;
-  color: #333;
 }
 
 .custom-theme-section {

@@ -2,18 +2,32 @@
   <div class="card table-main" v-if="reloadTable" style="width: 100%; flex: 1">
     <div class="table-header">
       <div class="header-button-lf">
-        <el-button
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="隐藏实例树"
+          placement="top"
           v-if="showTree"
-          :icon="Fold"
-          @click="showTree = false"
-          size="default"
-        ></el-button>
-        <el-button
+        >
+          <el-button
+            :icon="Fold"
+            @click="showTree = false"
+            size="default"
+          ></el-button>
+        </el-tooltip>
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="显示实例树"
+          placement="top"
           v-else
-          :icon="Expand"
-          @click="showTree = true"
-          size="default"
-        ></el-button>
+        >
+          <el-button
+            :icon="Expand"
+            @click="showTree = true"
+            size="default"
+          ></el-button>
+        </el-tooltip>
         <el-button
           type="primary"
           @click="addCiData"
@@ -559,7 +573,7 @@
                 >
                   <template #label>
                     <el-space :size="2">
-                      <el-text tag="b">自动生成唯一标识</el-text>
+                      <el-text tag="b">自动命名</el-text>
                       <el-tooltip
                         content="是否根据模型的唯一命名规则，自动生成唯一标识"
                         placement="right"
