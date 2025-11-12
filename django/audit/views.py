@@ -93,16 +93,23 @@ class AuditLogViewSet(AuditContextMixin, viewsets.ReadOnlyModelViewSet):
             combined_query |= Q(content_type=field_ct, object_id__in=field_ids)
             combined_query |= Q(content_type=field_group_ct, object_id__in=field_group_ids)
 
-        # 如果目标是 ModelInstance，则聚合其分组关联及模型字段的日志
+        # 如果目标是 ModelInstance，则聚合其分组关联、模型字段及关联关系的日志
         elif public_name == 'model_instance':
             group_relation_ct = ContentType.objects.get(app_label='cmdb', model='modelinstancegrouprelation')
             group_relation_ids = target_obj.group_relations.values_list('pk', flat=True)
             group_relation_ids = [str(group_relation_id) for group_relation_id in group_relation_ids]
             combined_query |= Q(content_type=group_relation_ct, object_id__in=group_relation_ids)
+
             field_ct = ContentType.objects.get(app_label='cmdb', model='modelfields')
             field_ids = target_obj.model.fields.values_list('pk', flat=True)
             field_ids = [str(field_id) for field_id in field_ids]
             combined_query |= Q(content_type=field_ct, object_id__in=field_ids, action__in=['CREATE', 'DELETE'])
+
+            relation_ct = ContentType.objects.get(app_label='cmdb', model='relations')
+            relation_ids = target_obj.relation_as_source.values_list('pk', flat=True)
+            relation_ids = relation_ids.union(target_obj.relation_as_target.values_list('pk', flat=True))
+            relation_ids = [str(relation_id) for relation_id in relation_ids]
+            combined_query |= Q(content_type=relation_ct, object_id__in=relation_ids)
 
         # 排除系统初始化审计信息
         if not include_init:

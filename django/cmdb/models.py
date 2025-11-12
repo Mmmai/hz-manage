@@ -568,8 +568,8 @@ class Relations(models.Model):
         unique_together = ('source_instance', 'target_instance', 'relation')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    source_instance = models.ForeignKey('ModelInstance', related_name='source_instance', on_delete=models.CASCADE)
-    target_instance = models.ForeignKey('ModelInstance', related_name='target_instance', on_delete=models.CASCADE)
+    source_instance = models.ForeignKey('ModelInstance', related_name='relation_as_source', on_delete=models.CASCADE)
+    target_instance = models.ForeignKey('ModelInstance', related_name='relation_as_target', on_delete=models.CASCADE)
     relation = models.ForeignKey('RelationDefinition', on_delete=models.CASCADE)
     target_attributes = models.JSONField(default=dict, blank=True, null=True)
     source_attributes = models.JSONField(default=dict, blank=True, null=True)

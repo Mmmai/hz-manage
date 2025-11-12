@@ -24,7 +24,7 @@ class RollbackManager:
         logs_to_process = list(
             AuditLog.objects.filter(
                 correlation_id=self.correlation_id,
-                action='UPDATE'
+                action=AuditLog.Action.UPDATE
             )
             .select_related('content_type')
             .prefetch_related('details')
@@ -37,7 +37,7 @@ class RollbackManager:
         # 预检测是否存在更新时间晚于批次中最新更新时间的实例
         latest_timestamps_in_batch = AuditLog.objects.filter(
             correlation_id=self.correlation_id,
-            action='UPDATE'
+            action=AuditLog.Action.UPDATE
         ).values('content_type_id', 'object_id').annotate(
             latest_ts=Max('timestamp')
         )

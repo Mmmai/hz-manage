@@ -30,6 +30,7 @@ from .tasks import process_import_data, setup_host_monitoring, sync_zabbix_host_
 from .filters import *
 from .models import *
 from .serializers import *
+from .message import bulk_creation_audit
 from .schemas import (
     model_groups_schema,
     models_schema,
@@ -1334,8 +1335,8 @@ class RelationDefinitionViewSet(CmdbBaseViewSet):
             raise PermissionDenied("This relation definition is in use by at least one relation instance and cannot be deleted.")
         logger.info(f"Relation definition '{instance.name}' has been deleted.")
         super().perform_destroy(instance)
-
-
+        
+        
 class RelationsViewSet(CmdbBaseViewSet):
     queryset = Relations.objects.select_related(
         'source_instance__model', 'target_instance__model', 'relation'
@@ -1387,17 +1388,53 @@ class RelationsViewSet(CmdbBaseViewSet):
             )
 
         try:
-            with capture_audit_snapshots(relations_to_create, created=True):
-                created_objects = Relations.objects.bulk_create(relations_to_create, ignore_conflicts=True)
-            
+            created_objects = Relations.objects.bulk_create(relations_to_create, ignore_conflicts=True)
+            bulk_creation_audit.send(sender=Relations, instances=created_objects)
+                        
             return Response(
                 {
-                    "detail": f"Successfully created {len(created_objects)} relations.",
+                    "created_count": len(created_objects)
                 },
                 status=status.HTTP_201_CREATED
             )
         except Exception as e:
             logger.error(f"Error creating relations: {e}", exc_info=True)
+            raise ValidationError(f"Failed to create relations: {e}")
+
+    @action(detail=False, methods=['post'])
+    def bulk_create(self, request, *args, **kwargs):
+        """
+        批量创建多个关联关系。
+        接收一个包含多个关系定义的列表。
+        数据格式: {"relations": [{"source_instance": "uuid", "target_instance": "uuid", "relation": "uuid", ...}]}
+        """
+        relations_data = request.data.get('relations', [])
+        if not isinstance(relations_data, list) or not relations_data:
+            raise ValidationError("A non-empty list of relations is required.")
+
+        serializer = self.get_serializer(data=relations_data, many=True)
+        serializer.is_valid(raise_exception=True)
+
+        user = self.get_current_user()
+        relations_to_create = []
+
+        for relation_data in serializer.validated_data:
+            relation_data['create_user'] = user
+            relation_data['update_user'] = user
+            relations_to_create.append(Relations(**relation_data))
+
+        try:
+            created_objects = Relations.objects.bulk_create(relations_to_create, ignore_conflicts=True)
+            bulk_creation_audit.send(sender=Relations, instances=created_objects)
+
+            return Response(
+                {
+                    "created_count": len(created_objects)
+                },
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            logger.error(f"Error occurred while bulk creating relations: {e}", exc_info=True)
             raise ValidationError(f"Failed to create relations: {e}")
 
     @action(detail=False, methods=['post'])
