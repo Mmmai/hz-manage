@@ -1041,6 +1041,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 )
                 valid_flag = False
                 group_cache_to_clear = []
+                group_info = []
                 if unassigned_group.id in instance_group_ids and len(instance_group_ids) > 1:
                     instance_group_ids.remove(unassigned_group.id)
                 if instance_group_ids:
@@ -1064,6 +1065,11 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                                 create_user=validated_data.get('create_user', 'system'),
                                 update_user=validated_data.get('update_user', 'system')
                             )
+                            group_info.append({
+                                'id': str(target_group.id),
+                                'label': target_group.label,
+                                'path': target_group.path
+                            })
                             logger.info(f"Added instance {instance.id} to {target_group.label}")
                             group_cache_to_clear.append(target_group)
                 if not valid_flag or not instance_group_ids:
@@ -1073,8 +1079,16 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                         create_user=validated_data.get('create_user', 'system'),
                         update_user=validated_data.get('update_user', 'system')
                     )
+                    group_info.append({
+                        'id': str(unassigned_group.id),
+                        'label': unassigned_group.label,
+                        'path': unassigned_group.path
+                    })
+                    
                     logger.info(f"Added instance {instance.id} to {unassigned_group.label}")
                     group_cache_to_clear.append(unassigned_group)
+                    
+                setattr(instance, '_initial_groups', group_info)
                 ModelInstanceGroup.clear_groups_cache(group_cache_to_clear)
 
                 return instance
@@ -1737,9 +1751,32 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
         with transaction.atomic():
             instance = super().create(validated_data)
             if parent and ModelInstanceGroupRelation.objects.filter(group=parent).exists():
-                ModelInstanceGroupRelation.objects.filter(group=parent).update(
-                    group=instance
-                )
+                relations = ModelInstanceGroupRelation.objects.filter(group=parent)
+                for relation in relations:
+                    model_instance = relation.instance
+                    logger.info(f'Relations: {model_instance.group_relations.all()}')
+                    old_groups_snapshot = [
+                        {
+                            'id': str(rel.group.id),
+                            'label': rel.group.label,
+                            'path': rel.group.path
+                        } for rel in model_instance.group_relations.all()
+                    ]
+                    relation.group = instance
+                    relation.save(update_fields=['group', 'update_time', 'update_user'])
+                    new_groups_snapshot = [
+                        {
+                            'id': str(rel.id),
+                            'label': rel.group.label,
+                            'path': rel.group.path
+                        } for rel in model_instance.group_relations.all()
+                    ]
+                    instance_group_relations_audit.send(
+                        sender=ModelInstance,
+                        instance=model_instance,
+                        old_groups=old_groups_snapshot,
+                        new_groups=new_groups_snapshot
+                    )
                 logger.info(f'Moved instances from group {parent.label} to {instance.label}')
                 ModelInstanceGroup.clear_group_cache(parent)
         return instance
@@ -2023,7 +2060,7 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
                         for relation in new_relations
                     ]
                     instance_group_relations_audit.send(
-                        sender=ModelInstanceGroupRelation,
+                        sender=ModelInstance,
                         instance=instance,
                         old_groups=old_groups_snapshot,
                         new_groups=new_groups_snapshot
@@ -2085,7 +2122,7 @@ class RelationDefinitionSerializer(serializers.ModelSerializer):
             if not data['source_model']:
                 raise serializers.ValidationError("source_model cannot be set to null or empty.")
             cur_models = set([str(m.id) for m in self.instance.source_model.all()])
-            deleted_models = set(cur_models) - set(data['source_model'])
+            deleted_models = set(cur_models) - set([str(m.id) for m in data['source_model']])
             if deleted_models:
                 used_models = Relations.objects.filter(
                     relation=self.instance
@@ -2097,7 +2134,7 @@ class RelationDefinitionSerializer(serializers.ModelSerializer):
             if not data['target_model']:
                 raise serializers.ValidationError("target_model cannot be set to null or empty.")
             cur_models = set([str(m.id) for m in self.instance.target_model.all()])
-            deleted_models = set(cur_models) - set(data['target_model'])
+            deleted_models = set(cur_models) - set([str(m.id) for m in data['target_model']])
             if deleted_models:
                 used_models = Relations.objects.filter(
                     relation=self.instance

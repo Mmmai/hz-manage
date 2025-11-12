@@ -84,7 +84,14 @@ def clear_prefetched_snapshots():
 
 
 @contextmanager
-def capture_audit_snapshots(instances):
+def capture_audit_snapshots(instances, create=False):
+    if create:
+        try:
+            yield
+        finally:
+            clear_prefetched_snapshots()
+        return
+    
     try:
         for inst in instances:
             if not inst.pk:

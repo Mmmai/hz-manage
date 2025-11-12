@@ -6,11 +6,9 @@ import re
 import io
 import tempfile
 import networkx as nx
-from celery import shared_task
 from functools import reduce
 from django.conf import settings
 from rest_framework import viewsets
-from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.metadata import BaseMetadata
@@ -20,22 +18,19 @@ from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 from cacheops import cached_as, invalidate_model
 from django.core.cache import cache
-from django.http import HttpResponse, StreamingHttpResponse
+from django.http import StreamingHttpResponse
 from django.db import transaction
-from django.utils import timezone
 from django.db.models import Q
-from django.db.models import Max, Case, When, Value, IntegerField
 from django_redis import get_redis_connection
-from drf_spectacular.utils import extend_schema, OpenApiParameter
 from celery.result import AsyncResult
 from .utils import password_handler, celery_manager
-from node_mg.utils import sys_config
 from .excel import ExcelHandler
 from .constants import FieldMapping, FieldType, limit_field_names
-from .tasks import process_import_data, setup_host_monitoring, install_zabbix_agent, sync_zabbix_host_task, update_instance_names_for_model_template_change, update_zabbix_interface_availability
+from .tasks import process_import_data, setup_host_monitoring, sync_zabbix_host_task, update_instance_names_for_model_template_change, update_zabbix_interface_availability
 from .filters import *
 from .models import *
 from .serializers import *
+from .message import bulk_creation_audit
 from .schemas import (
     model_groups_schema,
     models_schema,
@@ -1340,8 +1335,8 @@ class RelationDefinitionViewSet(CmdbBaseViewSet):
             raise PermissionDenied("This relation definition is in use by at least one relation instance and cannot be deleted.")
         logger.info(f"Relation definition '{instance.name}' has been deleted.")
         super().perform_destroy(instance)
-
-
+        
+        
 class RelationsViewSet(CmdbBaseViewSet):
     queryset = Relations.objects.select_related(
         'source_instance__model', 'target_instance__model', 'relation'
@@ -1393,17 +1388,53 @@ class RelationsViewSet(CmdbBaseViewSet):
             )
 
         try:
-            with capture_audit_snapshots(relations_to_create, created=True):
-                created_objects = Relations.objects.bulk_create(relations_to_create, ignore_conflicts=True)
-            
+            created_objects = Relations.objects.bulk_create(relations_to_create, ignore_conflicts=True)
+            bulk_creation_audit.send(sender=Relations, instances=created_objects)
+                        
             return Response(
                 {
-                    "detail": f"Successfully created {len(created_objects)} relations.",
+                    "created_count": len(created_objects)
                 },
                 status=status.HTTP_201_CREATED
             )
         except Exception as e:
             logger.error(f"Error creating relations: {e}", exc_info=True)
+            raise ValidationError(f"Failed to create relations: {e}")
+
+    @action(detail=False, methods=['post'])
+    def bulk_create(self, request, *args, **kwargs):
+        """
+        批量创建多个关联关系。
+        接收一个包含多个关系定义的列表。
+        数据格式: {"relations": [{"source_instance": "uuid", "target_instance": "uuid", "relation": "uuid", ...}]}
+        """
+        relations_data = request.data.get('relations', [])
+        if not isinstance(relations_data, list) or not relations_data:
+            raise ValidationError("A non-empty list of relations is required.")
+
+        serializer = self.get_serializer(data=relations_data, many=True)
+        serializer.is_valid(raise_exception=True)
+
+        user = self.get_current_user()
+        relations_to_create = []
+
+        for relation_data in serializer.validated_data:
+            relation_data['create_user'] = user
+            relation_data['update_user'] = user
+            relations_to_create.append(Relations(**relation_data))
+
+        try:
+            created_objects = Relations.objects.bulk_create(relations_to_create, ignore_conflicts=True)
+            bulk_creation_audit.send(sender=Relations, instances=created_objects)
+
+            return Response(
+                {
+                    "created_count": len(created_objects)
+                },
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            logger.error(f"Error occurred while bulk creating relations: {e}", exc_info=True)
             raise ValidationError(f"Failed to create relations: {e}")
 
     @action(detail=False, methods=['post'])

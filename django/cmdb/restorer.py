@@ -59,20 +59,3 @@ def restore_model_instance(instance, snapshot, field_details=None, request_user=
     
     ser.is_valid(raise_exception=True)
     ser.save(update_user=request_user)
-
-    #         old_value = field_detail.old_value
-            
-    #         if field_detail.old_value == field_detail.new_value:
-    #             continue
-            
-    #         field_meta = ModelFieldMeta.objects.filter(
-    #             model_instance=instance, 
-    #             model_fields=field
-    #         ).select_related('model_fields')
-
-    #         if field_meta:
-    #             field_meta.delete()
-                
-
-                    
-    # instance.save(update_fields=['instance_name', 'using_template', 'update_time', 'update_user'])

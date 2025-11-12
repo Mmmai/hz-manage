@@ -5,16 +5,16 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 
 
 class AuditLog(models.Model):
+    
+    class Action(models.TextChoices):
+        CREATE = 'CREATE', '创建'
+        UPDATE = 'UPDATE', '更新'
+        DELETE = 'DELETE', '删除'
+    
     """主审计日志表"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    action = models.CharField(max_length=20, 
-        choices=[
-            ('CREATE', '创建'), 
-            ('UPDATE', '更新'), 
-            ('DELETE', '删除')
-        ]
-    )
-
+    action = models.CharField(max_length=20, choices=Action.choices, db_index=True)
+    
     # 关联的目标对象
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, db_constraint=False)
     object_id = models.CharField(max_length=255, db_index=True)

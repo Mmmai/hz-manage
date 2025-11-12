@@ -10,8 +10,6 @@ from cacheops import invalidate_model
 from django.db import transaction
 from django.db.utils import OperationalError
 from .config import BUILT_IN_MODELS, BUILT_IN_RELATION_DEFINITION, BUILT_IN_VALIDATION_RULES
-from .tasks import setup_host_monitoring
-from .utils import password_handler
 from node_mg.utils import sys_config
 from .utils.zabbix import ZabbixAPI
 from .constants import ValidationType
@@ -177,29 +175,29 @@ def _create_model_and_fields(model_name, model_config, model_group=None):
 
             # 为每个内置模型添加一个默认的唯一性校验规则：使用ip字段校验
             # 只给hosts 和 network设备添加
-            if model_name in ['hosts', 'switches', 'firewalls', 'dwdm', 'virtual_machines']:
-                field_ip = ModelFields.objects.filter(
-                    model=model,
-                    name='ip'
-                ).first()
-                if not UniqueConstraint.objects.filter(
-                    model=model,
-                    fields=[str(field_ip.id)]
-                ).exists() and field_ip:
-                    # 创建唯一性约束
-                    unique_constraint_data = {
-                        'model': model.id,
-                        'fields': [str(field_ip.id)],
-                        'built_in': True,
-                        'create_user': 'system',
-                        'update_user': 'system'
-                    }
-                    unique_constraint_serializer = UniqueConstraintSerializer(data=unique_constraint_data)
-                    if unique_constraint_serializer.is_valid(raise_exception=True):
-                        unique_constraint_serializer.save()
-                        logger.info(f"Created unique constraint for model {model_name}")
-                    else:
-                        logger.error(f"Unique constraint validation failed: {unique_constraint_serializer.errors}")
+            # if model_name in ['hosts', 'switches', 'firewalls', 'dwdm', 'virtual_machines']:
+            #     field_ip = ModelFields.objects.filter(
+            #         model=model,
+            #         name='ip'
+            #     ).first()
+            #     if not UniqueConstraint.objects.filter(
+            #         model=model,
+            #         fields=[str(field_ip.id)]
+            #     ).exists() and field_ip:
+            #         # 创建唯一性约束
+            #         unique_constraint_data = {
+            #             'model': model.id,
+            #             'fields': [str(field_ip.id)],
+            #             'built_in': True,
+            #             'create_user': 'system',
+            #             'update_user': 'system'
+            #         }
+            #         unique_constraint_serializer = UniqueConstraintSerializer(data=unique_constraint_data)
+            #         if unique_constraint_serializer.is_valid(raise_exception=True):
+            #             unique_constraint_serializer.save()
+            #             logger.info(f"Created unique constraint for model {model_name}")
+            #         else:
+            #             logger.error(f"Unique constraint validation failed: {unique_constraint_serializer.errors}")
 
     except Exception as e:
         logger.error(f"Error creating model and fields for {model_name}: {str(e)}")
@@ -246,8 +244,10 @@ def _initialize_model_groups():
     """初始化模型分组"""
     from .models import ModelGroups
     from .serializers import ModelGroupsSerializer
+    
+    invalidate_model(ModelGroups)
+    
     with transaction.atomic():
-
         # 创建初始模型组
         group_configs = [
             {'name': 'host', 'verbose_name': '主机'},

@@ -191,7 +191,8 @@ class ModelInstanceFilter(filters.FilterSet):
     model = filters.UUIDFilter(field_name='model')
     instance_name = filters.CharFilter(field_name='instance_name', lookup_expr='icontains')
     model_instance_group = filters.UUIDFilter(method='filter_model_instance_group')
-    input_type = filters.CharFilter(field_name='input_type', lookup_expr='icontains')
+    using_template = filters.BooleanFilter(field_name='using_template')
+    input_mode = filters.CharFilter(field_name='input_mode', lookup_expr='icontains')
     create_time_after = filters.DateTimeFilter(field_name='create_time', lookup_expr='gte')
     create_time_before = filters.DateTimeFilter(field_name='create_time', lookup_expr='lte')
     update_time_after = filters.DateTimeFilter(field_name='update_time', lookup_expr='gte')
@@ -224,6 +225,7 @@ class ModelInstanceFilter(filters.FilterSet):
         fields = [
             'model',
             'instance_name',
+            'input_mode',
             'model_instance_group',
             'create_time_after',
             'create_time_before',
@@ -385,10 +387,11 @@ class RelationsFilter(filters.FilterSet):
         ).distinct()
     
     def filter_model(self, queryset, name, value):
+        logger.info(f'Filtering model with value: {value}')
         if not value:
             return queryset
         return queryset.filter(
-            Q(relation__source_model__id=value) | Q(relation__target_model__id=value)
+            Q(source_instance__model__id=value) | Q(target_instance__model__id=value)
         ).distinct()
     
     def filter_instance_name(self, queryset, name, value):

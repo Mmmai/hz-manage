@@ -14,7 +14,7 @@ from .snapshots import (
     get_static_field_snapshot,
     get_field_value_snapshot
 )
-from cmdb.message import instance_group_relations_audit, instance_bulk_update_audit
+from cmdb.message import instance_group_relations_audit, instance_bulk_update_audit, bulk_creation_audit
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ def build_audit_comment(action, instance):
         return f"{verb}了校验规则：{rule_name}"
     
     if model_name == "uniqueconstraint":
-        _model_name = getattr(getattr(instance, "model", None), "verbose_name", "模型")
+        _model_name = getattr(getattr(instance, "model", None), "name", "模型")
         model_label = getattr(getattr(instance, "model", None), "verbose_name", "模型")
         return f"{verb}了{model_label}({_model_name})的唯一约束"
 
@@ -176,6 +176,14 @@ def log_changes(sender, instance, created, **kwargs):
                 key: [None, get_field_value_snapshot(val)]
                 for key, val in new_static_snapshot.items()
             }
+            
+            # ModelInstance创建记录初始分组信息/单独适配
+            if hasattr(instance, '_initial_groups'):
+                group_field_name = 'groups'
+                group_values = getattr(instance, '_initial_groups', [])
+                static_changes[group_field_name] = [None, group_values]
+                delattr(instance, '_initial_groups')
+                
             dynamic_changes = [{
                 'name': key,
                 'verbose_name': data.get('verbose_name', ''),
@@ -287,12 +295,12 @@ def log_instance_group_relation_audit(sender, instance, old_groups, new_groups, 
     context = get_audit_context()
 
     def delayed_audit_log(context=context):
-        old_groups_str = '，'.join(f"{group['label']}" for group in old_groups) if old_groups else '无'
-        new_groups_str = '，'.join(f"{group['label']}" for group in new_groups) if new_groups else '无'
-        comment = f"更新了模型实例 <{instance.instance_name}> 的分组关联关系：<{old_groups_str}> -> <{new_groups_str}>"
+        old_groups_str = '，'.join(f"{group['label']}" for group in old_groups) if old_groups else None
+        new_groups_str = '，'.join(f"{group['label']}" for group in new_groups) if new_groups else None
+        comment = f"更新了模型实例 <{instance.instance_name}> 的分组关联关系：<{old_groups_str}> → <{new_groups_str}>"
         AuditLog.objects.create(
             content_object=instance,
-            action='UPDATE',
+            action=AuditLog.Action.UPDATE,
             changed_fields={
                 'groups': [old_groups, new_groups]    
             },
@@ -465,3 +473,31 @@ def log_generic_m2m_changes(sender, instance, action, reverse, model, pk_set, **
             logger.error(f"Failed to merge M2M audit changes: {e}", exc_info=True)
 
     transaction.on_commit(delayed_merge)
+    
+@receiver(bulk_creation_audit)
+def log_bulk_creation(sender, instances, **kwargs):
+    context = get_audit_context()
+    logs_to_create = []
+
+    for instance in instances:
+        static_snapshot = get_static_field_snapshot(instance)
+        
+        static_changes = {}
+        for field, value in static_snapshot.items():
+            static_changes[field] = [None, value]
+
+        logs_to_create.append(
+            AuditLog(
+                content_object=instance,
+                action=AuditLog.Action.CREATE,
+                changed_fields=clean_for_json(static_changes),
+                operator=context.get('operator', ''),
+                operator_ip=context.get('operator_ip', ''),
+                request_id=context.get('request_id', ''),
+                correlation_id=context.get('correlation_id', ''),
+                comment=build_audit_comment('CREATE', instance)
+            )
+        )
+
+    if logs_to_create:
+        AuditLog.objects.bulk_create(logs_to_create)
