@@ -1,35 +1,29 @@
 import ipaddress
 import json
 import re
-import time
 import traceback
-from datetime import date, datetime
-from uuid import UUID
+
 from ast import literal_eval
-from weakref import ref
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from django.conf import settings
 from django.db import transaction
-from django.utils import timezone
-from django.db.models.signals import post_save
-from django.db import DEFAULT_DB_ALIAS
-import operator
-from functools import reduce
-from django.db.models import Max, F, Q, Count
 from django.core.cache import cache
 from types import SimpleNamespace
 from cacheops import invalidate_model, invalidate_obj
+from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.types import OpenApiTypes
+
+from audit.snapshots import capture_audit_snapshots
+from mapi.permissions import has_button_permission
+from .models import *
 from .utils import password_handler
 from .validators import FieldValidator
 from .constants import FieldMapping, ValidationType, FieldType, limit_field_names
 from .message import instance_group_relation_updated, instance_group_relations_audit, instance_bulk_update_audit
-from audit.snapshots import capture_audit_snapshots
-from drf_spectacular.utils import extend_schema_field
-from drf_spectacular.types import OpenApiTypes
-from .models import *
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -574,7 +568,7 @@ class UniqueConstraintSerializer(serializers.ModelSerializer):
         """自定义验证方法"""
         model = data.get('model')
         field_ids = data.get('fields', [])
-        
+
         if not model:
             model = self.instance.model if self.instance else None
 
@@ -763,7 +757,7 @@ class ModelFieldMetaSerializer(serializers.ModelSerializer):
         return data
 
 
-class  ModelFieldMetaNestedSerializer(ModelFieldMetaSerializer):
+class ModelFieldMetaNestedSerializer(ModelFieldMetaSerializer):
     class Meta:
         model = ModelFieldMeta
         exclude = ('model', 'model_instance', 'create_user', 'update_user')
@@ -783,8 +777,21 @@ class  ModelFieldMetaNestedSerializer(ModelFieldMetaSerializer):
 
         return super().to_internal_value(data)
 
+    def _has_password_permission(self):
+        request = self.context.get('request', None)
+        if not request:
+            return False
+        username = request.username
+        if not username:
+            return False
+        # admin 用户始终可见
+        if username == 'admin':
+            return True
+        return has_button_permission(username, 'showPassword')
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        _has_password_permission = self._has_password_permission()
         if instance.model_fields.type == FieldType.MODEL_REF and data.get('data'):
             try:
                 ref_instance_map = self.context.get('ref_instances', {})
@@ -819,7 +826,10 @@ class  ModelFieldMetaNestedSerializer(ModelFieldMetaSerializer):
                 }
         elif instance.model_fields.type == FieldType.PASSWORD:
             try:
-                data['data'] = password_handler.decrypt(data['data'])
+                if not _has_password_permission:
+                    data['data'] = password_handler.encrypt('******')
+                else:
+                    data['data'] = password_handler.decrypt(data['data'])
             except BaseException:
                 data['data'] = None
         return data
@@ -832,9 +842,11 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ModelInstance
-        fields = ['id', 'model', 'instance_name',  'using_template', 'input_mode',
-                'fields', 'field_values', 'instance_group',
-                'create_time', 'update_time', 'create_user', 'update_user']
+        fields = [
+            'id', 'model', 'instance_name',  'using_template', 'input_mode',
+            'fields', 'field_values', 'instance_group',
+            'create_time', 'update_time', 'create_user', 'update_user'
+        ]
         extra_kwargs = {
             'model': {'required': False},
             'instance_name': {'required': False},
@@ -880,12 +892,12 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
 
         field_meta_all = self.context.get('field_meta', {})
         field_meta = field_meta_all.get(str(obj.id), [])
-        
+
         if not field_meta:
             field_meta = ModelFieldMeta.objects.filter(
                 model_instance=obj,
             ).select_related('model_fields', 'model_fields__validation_rule')
-            
+
         return ModelFieldMetaNestedSerializer(
             field_meta,
             many=True,
@@ -896,22 +908,22 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
         # 检查上下文，判断是否为批量更新模式
         if self.context.get('is_bulk_update', False):
             return []
-        
+
         return super().get_validators()
-    
+
     def validate_fields(self, fields_data, model=None):
         """验证字段值"""
         request = self.context.get('request', None)
         from_excel = self.context.get('from_excel', False)
         if from_excel:
             return fields_data
-        
+
         if not model and self.instance:
             model = self.instance.model
-            
+
         if not model:
             model = self.initial_data.get('model')
-            
+
         if request and request.method in ['PUT', 'POST']:
             if not model:
                 raise serializers.ValidationError("Model is required")
@@ -1084,17 +1096,17 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                         'label': unassigned_group.label,
                         'path': unassigned_group.path
                     })
-                    
+
                     logger.info(f"Added instance {instance.id} to {unassigned_group.label}")
                     group_cache_to_clear.append(unassigned_group)
-                    
+
                 setattr(instance, '_initial_groups', group_info)
                 ModelInstanceGroup.clear_groups_cache(group_cache_to_clear)
 
                 return instance
 
         except Exception as e:
-            print (traceback.print_exc())
+            print(traceback.print_exc())
             logger.error(f"Error creating model instance: {str(e)}")
             raise serializers.ValidationError(str(e))
 
@@ -1162,7 +1174,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
     def bulk_update_instances(cls, instances_qs, fields_data, using_template, context):
         # user = context['request'].user.username if 'request' in context else 'unknown'
         model = instances_qs.first().model
-        
+
         pre_validation_serializer = cls(data={'fields': fields_data}, partial=True, context=context)
         try:
             pre_validation_serializer.validate_fields(fields_data, model=model)
@@ -1170,16 +1182,16 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
         except ValidationError as e:
             logger.error(f'Validating fields data failed.')
             raise ValidationError({'detail': 'Validating fields data failed.'})
-        
+
         updated_count = 0
         batch_generated_names = set()
-        
+
         snapshots_list = []
 
         with transaction.atomic():
             for instance in instances_qs:
                 temp_instance_serializer = cls(instance=instance, context=context)
-                
+
                 with capture_audit_snapshots([instance]):
                     old_instance_snapshot = get_dynamic_field_snapshot(instance)
 
@@ -1187,26 +1199,29 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                     if using_template is not None and using_template != instance.using_template:
                         instance.using_template = using_template
                         using_template_changed = True
-                                            
+
                     instance_name_changed = False
                     if instance.model.instance_name_template:
-                        db_fields = ModelFieldMeta.objects.filter(model_instance=instance).select_related('model_fields').values('model_fields__name', 'data')
+                        db_fields = ModelFieldMeta.objects.filter(model_instance=instance).select_related(
+                            'model_fields').values('model_fields__name', 'data')
                         all_field_values = {item['model_fields__name']: item['data'] for item in db_fields}
                         all_field_values.update(fields_data)
 
                         from .utils.name_generator import generate_instance_name
-                        new_instance_name = generate_instance_name(all_field_values, instance.model.instance_name_template)
-                        
+                        new_instance_name = generate_instance_name(
+                            all_field_values, instance.model.instance_name_template)
+
                         if new_instance_name and new_instance_name != instance.instance_name:
                             if new_instance_name in batch_generated_names:
-                                raise ValidationError(f"Duplicate instance name '{new_instance_name}' generated in this batch.")
+                                raise ValidationError(
+                                    f"Duplicate instance name '{new_instance_name}' generated in this batch.")
                             if ModelInstance.objects.filter(model=instance.model, instance_name=new_instance_name).exclude(pk=instance.pk).exists():
                                 raise ValidationError(f"Duplicate instance name '{new_instance_name}' already exists.")
-                            
+
                             instance.instance_name = new_instance_name
                             batch_generated_names.add(new_instance_name)
                             instance_name_changed = True
-                    
+
                     if fields_data:
                         temp_instance_serializer.update_fields(instance, fields_data)
                         snapshots_list.append({
@@ -1215,7 +1230,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                             'update_fields': list(fields_data.keys()),
                             'new_snapshot': get_dynamic_field_snapshot(instance)
                         })
-                        
+
                     update_fields = []
                     if instance_name_changed:
                         update_fields = ['instance_name']
@@ -1223,14 +1238,13 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                         update_fields.append('using_template')
                     instance.save(update_fields=update_fields)
                 updated_count += 1
-        
+
         if snapshots_list:
             instance_bulk_update_audit.send(
                 sender=ModelInstance,
                 snapshots_list=snapshots_list
             )
         return updated_count
-
 
     def update(self, instance, validated_data):
         validated_data.pop('field_values', None)
@@ -1240,12 +1254,11 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
         with capture_audit_snapshots([instance]):
             if fields_data:
                 self.update_fields(instance, fields_data)
-                
+
             updated_instance = super().update(instance, validated_data)
 
         return updated_instance
 
-    
     def _convert_to_storage_value(self, value, field_config):
         """转换值为存储格式"""
         if value is None:
@@ -1371,7 +1384,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
             model = instance_or_qs.model if instance_or_qs else attrs.get('model')
         if not model:
             raise ValidationError({'detail': 'Model is required for validation'})
-        
+
         group = attrs.get('group')
         fields_data = attrs.get('fields', {})
 
@@ -1385,7 +1398,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
 
         if from_excel or not request:
             return attrs
-        
+
         is_create = request.method == 'POST'
         if not model:
             model = self.instance.model if self.instance else None
@@ -1826,22 +1839,22 @@ class ModelInstanceGroupTreeSerializer(ModelInstanceGroupSerializer):
     def get_children(self, obj):
         children = ModelInstanceGroup.objects.filter(parent=obj).order_by('order')
         return ModelInstanceGroupTreeSerializer(children, many=True, context=self.context).data
-    
+
     def get_instances(self, obj):
         # 检查是否为叶子节点
         if not ModelInstanceGroup.objects.filter(parent=obj).exists():
             instance_map = self.context.get('instance_map', {})
             instance_ids = self.context.get('relation_map', {}).get(str(obj.id), [])
-            
+
             instances_data = []
             for iid in instance_ids:
                 instance_name = instance_map.get(iid)
                 if instance_name is not None:
                     instances_data.append({'id': iid, 'instance_name': instance_name})
             return instances_data
-        
+
         return None
-    
+
     def to_representation(self, instance):
         representation = {
             'id': str(instance.id),
@@ -1851,12 +1864,13 @@ class ModelInstanceGroupTreeSerializer(ModelInstanceGroupSerializer):
             'level': instance.level,
             'children': self.get_children(instance),
         }
-        
+
         instances_data = self.get_instances(instance)
         if instances_data is not None:
             representation['instances'] = instances_data
-            
+
         return representation
+
 
 class ModelInstanceBasicViewSerializer(ModelInstanceSerializer):
     class Meta:
@@ -1978,7 +1992,7 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
 
         if not groups:
             raise serializers.ValidationError('No valid groups provided')
-        
+
         # 验证是否为底层分组
         non_leaf_groups = [
             g for g in groups
@@ -2028,7 +2042,7 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
                     groups_to_clear.update(relation.group for relation in existing_query)
                     old_groups_snapshot = [
                         {
-                            'id': str(relation.group.id), 
+                            'id': str(relation.group.id),
                             'label': relation.group.label,
                             'path': relation.group.path
                         }
@@ -2096,28 +2110,33 @@ class RelationDefinitionSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(f"Scope {scope} must be a JSON object of <dict>.")
             for attr_key, rules in value.get(scope, {}).items():
                 if not isinstance(rules, dict):
-                    raise serializers.ValidationError(f"Attribute {attr_key} in scope {scope} must be a JSON object of <dict>.")
+                    raise serializers.ValidationError(
+                        f"Attribute {attr_key} in scope {scope} must be a JSON object of <dict>.")
                 if 'type' not in rules:
-                    raise serializers.ValidationError(f"Attribute {attr_key} in scope {scope} must have a 'type' field.")
+                    raise serializers.ValidationError(
+                        f"Attribute {attr_key} in scope {scope} must have a 'type' field.")
                 field_type = rules['type']
                 if field_type not in FieldType.__members__.values():
-                    raise serializers.ValidationError(f"Attribute {attr_key} in scope {scope} has invalid type '{field_type}'.")
+                    raise serializers.ValidationError(
+                        f"Attribute {attr_key} in scope {scope} has invalid type '{field_type}'.")
                 if field_type == FieldType.ENUM:
                     validation_rule = rules.get('validation_rule')
                     vr = ValidationRules.objects.get(pk=validation_rule) if validation_rule else None
                     if not vr or vr.type != FieldType.ENUM:
-                        raise serializers.ValidationError(f"Attribute {attr_key} in scope {scope} of type ENUM must have a valid ENUM validation_rule.")
+                        raise serializers.ValidationError(
+                            f"Attribute {attr_key} in scope {scope} of type ENUM must have a valid ENUM validation_rule.")
         return value
 
     def validate(self, data):
         if not self.instance:
             if not data.get('source_model') or not data.get('target_model'):
-                raise serializers.ValidationError("source_model and target_model cannot be null when creating a RelationDefinition.")
+                raise serializers.ValidationError(
+                    "source_model and target_model cannot be null when creating a RelationDefinition.")
             return data
-        
+
         if 'name' in data and data['name'] != self.instance.name and self.instance.built_in:
             raise serializers.ValidationError("Built-in RelationDefinition name cannot be changed.")
-        
+
         if 'source_model' in data:
             if not data['source_model']:
                 raise serializers.ValidationError("source_model cannot be set to null or empty.")
@@ -2128,8 +2147,9 @@ class RelationDefinitionSerializer(serializers.ModelSerializer):
                     relation=self.instance
                 ).values_list('source_instance__model__id', flat=True).distinct()
                 if any(str(m) in deleted_models for m in used_models):
-                    raise serializers.ValidationError("Cannot remove source_model that is in use by existing Relations.")
-        
+                    raise serializers.ValidationError(
+                        "Cannot remove source_model that is in use by existing Relations.")
+
         if 'target_model' in data:
             if not data['target_model']:
                 raise serializers.ValidationError("target_model cannot be set to null or empty.")
@@ -2140,10 +2160,11 @@ class RelationDefinitionSerializer(serializers.ModelSerializer):
                     relation=self.instance
                 ).values_list('target_instance__model__id', flat=True).distinct()
                 if any(str(m) in deleted_models for m in used_models):
-                    raise serializers.ValidationError("Cannot remove target_model that is in use by existing Relations.")
+                    raise serializers.ValidationError(
+                        "Cannot remove target_model that is in use by existing Relations.")
 
         return data
-    
+
 
 class RelationsSerializer(serializers.ModelSerializer):
 
@@ -2169,7 +2190,8 @@ class RelationsSerializer(serializers.ModelSerializer):
         # 检查是否提供了Schema中未定义的属性
         for attr_key in attributes:
             if attr_key not in schema_part:
-                logger.warning(f"Provided attribute '{attr_key}' is not defined in {scope_name} schema and will be ignored.")
+                logger.warning(
+                    f"Provided attribute '{attr_key}' is not defined in {scope_name} schema and will be ignored.")
 
         for key, rule in schema_part.items():
             value = attributes.get(key)
@@ -2195,7 +2217,7 @@ class RelationsSerializer(serializers.ModelSerializer):
                         type=rule.get('type'),
                         validation_rule=validation_rule if rule.get('type') == FieldType.ENUM else None
                     )
-                    
+
                     FieldValidator.validate(value, temp_field_config)
 
                 except ValueError as e:
@@ -2221,22 +2243,22 @@ class RelationsSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 "target_instance": f"Target instance model '{target_instance.model.name}' is not allowed for this relation."
             })
-            
+
         schema = relation_def.attribute_schema or {}
-        
+
         data['source_attributes'] = self._validate_attributes_against_schema(
-            data.get('source_attributes', {}), 
-            schema.get('source', {}), 
+            data.get('source_attributes', {}),
+            schema.get('source', {}),
             '源端'
         )
         data['target_attributes'] = self._validate_attributes_against_schema(
-            data.get('target_attributes', {}), 
-            schema.get('target', {}), 
+            data.get('target_attributes', {}),
+            schema.get('target', {}),
             '目标端'
         )
         data['relation_attributes'] = self._validate_attributes_against_schema(
-            data.get('relation_attributes', {}), 
-            schema.get('relation', {}), 
+            data.get('relation_attributes', {}),
+            schema.get('relation', {}),
             '关系'
         )
 
@@ -2273,35 +2295,38 @@ class BulkAssociateRelationsSerializer(serializers.Serializer):
 
         if ModelInstance.objects.filter(id__in=all_ids).count() != len(all_ids):
             raise serializers.ValidationError("One or more specified instance IDs do not exist.")
-            
+
         relation = RelationDefinition.objects.get(id=relation_id)
         models = ModelInstance.objects.filter(id__in=all_ids).values_list('model__id', flat=True).distinct()
         multi_instance_models = relation.source_model if data['direction'] == 'source-target' else relation.target_model
         single_instance_models = relation.target_model if data['direction'] == 'source-target' else relation.source_model
         multi_instance_models = [str(m.id) for m in multi_instance_models]
         single_instance_models = [str(m.id) for m in single_instance_models]
-        
+
         # instance_ids中的实例必须全部属于multi_instance_models
         if not all(model_id in multi_instance_models for model_id in models if model_id in multi_instance_models):
-            raise serializers.ValidationError("All instances in instance_ids must belong to the models defined in the relation.")
+            raise serializers.ValidationError(
+                "All instances in instance_ids must belong to the models defined in the relation.")
         if not target_instance_id in single_instance_models:
-            raise serializers.ValidationError("The target_instance_id must belong to the model defined in the relation.")
-        
+            raise serializers.ValidationError(
+                "The target_instance_id must belong to the model defined in the relation.")
+
         temp_relation_serializer = RelationsSerializer()
         schema = relation.attribute_schema or {}
         if schema:
             try:
                 validated_attributes = temp_relation_serializer._validate_attributes_against_schema(
-                    relation_attributes, 
-                    schema.get('relation', {}), 
+                    relation_attributes,
+                    schema.get('relation', {}),
                     '关系'
                 )
                 data['relation_attributes'] = validated_attributes
             except serializers.ValidationError as e:
                 raise serializers.ValidationError({"relation_attributes": e.detail})
         elif not schema and relation_attributes:
-            raise serializers.ValidationError("This relation does not define any attributes, but relation_attributes were provided.")
-        
+            raise serializers.ValidationError(
+                "This relation does not define any attributes, but relation_attributes were provided.")
+
         return data
 
 

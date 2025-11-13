@@ -6,6 +6,7 @@ import re
 import io
 import tempfile
 import networkx as nx
+
 from functools import reduce
 from django.conf import settings
 from rest_framework import viewsets
@@ -23,6 +24,8 @@ from django.db import transaction
 from django.db.models import Q
 from django_redis import get_redis_connection
 from celery.result import AsyncResult
+
+from mapi.permissions import get_user_data_scope
 from .utils import password_handler, celery_manager
 from .excel import ExcelHandler
 from .constants import FieldMapping, FieldType, limit_field_names
@@ -56,8 +59,8 @@ class StandardResultsSetPagination(PageNumberPagination):
     page_size = settings.REST_FRAMEWORK.get('PAGE_SIZE', 20)
     page_size_query_param = 'page_size'
     max_page_size = 1000
-    
-    
+
+
 class CmdbBaseViewSet(AuditContextMixin, viewsets.ModelViewSet):
     """
     CMDB 应用专属的 ViewSet 基类。
@@ -66,7 +69,7 @@ class CmdbBaseViewSet(AuditContextMixin, viewsets.ModelViewSet):
     都会被置于审计上下文中。
     """
     pagination_class = StandardResultsSetPagination
-    
+
     def get_current_user(self):
         if self.request and hasattr(self.request, 'user'):
             return self.request.username
@@ -82,11 +85,13 @@ class CmdbBaseViewSet(AuditContextMixin, viewsets.ModelViewSet):
         username = self.get_current_user()
         serializer.save(update_user=username)
 
+
 class CmdbReadOnlyBaseViewSet(AuditContextMixin, viewsets.ReadOnlyModelViewSet):
     """
     为只读视图提供的基类，同样集成了审计上下文。
     """
     pagination_class = StandardResultsSetPagination
+
 
 @model_groups_schema
 class ModelGroupsViewSet(CmdbBaseViewSet):
@@ -116,7 +121,6 @@ class ModelsViewSet(CmdbBaseViewSet):
         user = self.get_current_user()
         instance = serializer.save(id=unique_id, create_user=user, update_user=user)
         logger.info(f"New model created: {instance.name} (ID: {unique_id})")
-
 
         default_group, created = ModelFieldGroups.objects.get_or_create(
             name='basic',
@@ -444,7 +448,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             ref_instances = ModelInstance.objects.filter(id__in=ref_model_ids).values('id', 'instance_name')
             ref_instances_map = {str(inst['id']): inst['instance_name'] for inst in ref_instances}
         context['ref_instances'] = ref_instances_map
-        
+
         return context
 
     def retrieve(self, request, *args, **kwargs):
@@ -579,6 +583,31 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
     @cached_as(ModelInstance, timeout=600)
     def get_queryset(self):
         queryset = ModelInstance.objects.all().order_by('-create_time').select_related('model')
+        username = self.get_current_user()
+        scope = get_user_data_scope(username)
+        query = Q()
+
+        if scope['all']:
+            pass
+        else:
+            if scope['groups']:
+                all_children = set()
+                for group_id in scope['groups']:
+                    group = ModelInstanceGroup.objects.get(pk=group_id)
+                    if group:
+                        all_children.update(self.get_all_child_groups(group))
+                instance_ids = ModelInstanceGroupRelation.objects.filter(
+                    group_id__in=all_children
+                ).values_list('instance_id', flat=True)
+                query |= Q(id__in=instance_ids)
+
+            if scope['models']:
+                query |= Q(model_id__in=scope['models'])
+
+            if scope['self']:
+                query |= Q(create_user=username)
+
+            queryset = queryset.filter(query) if query else queryset.none()
 
         if self.action == 'retrieve' and self.kwargs.get('pk'):
             return queryset
@@ -1069,6 +1098,24 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
         queryset = self.queryset
         model_id = self.request.query_params.get('model')
 
+        username = self.get_current_user()
+        scope = get_user_data_scope(username)
+
+        if scope['all']:
+            pass
+        else:
+            query = Q()
+            if scope['groups']:
+                query |= Q(id__in=scope['groups'])
+
+            if scope['models']:
+                query |= Q(model_id__in=scope['models'])
+
+            if scope['self']:
+                query |= Q(create_user=username)
+
+            queryset = queryset.filter(query) if query else queryset.none()
+
         try:
             if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
                 return queryset.select_related('model')
@@ -1239,7 +1286,7 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
         except Exception as e:
             logger.error(f"Error deleting group: {str(e)}")
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
+
     @action(detail=False, methods=['get'])
     def tree(self, request):
         model_id = request.query_params.get('model')
@@ -1249,7 +1296,7 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
         try:
             root_groups = ModelInstanceGroup.objects.filter(model_id=model_id, parent=None).order_by('order')
             context = self.get_serializer_context()
-            
+
             # 获取所有分组与实例的关联关系
             all_group_ids = ModelInstanceGroup.objects.filter(model_id=model_id).values_list('id', flat=True)
             relations = ModelInstanceGroupRelation.objects.filter(
@@ -1273,7 +1320,7 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
             context['instance_map'] = instance_map
 
             serializer = ModelInstanceGroupTreeSerializer(root_groups, many=True, context=context)
-            
+
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:
@@ -1332,11 +1379,12 @@ class RelationDefinitionViewSet(CmdbBaseViewSet):
         # 检查关系定义是否已被使用
         if Relations.objects.filter(relation=instance).exists():
             logger.warning(f"Trying to delete a relation definition in use: {instance.name}")
-            raise PermissionDenied("This relation definition is in use by at least one relation instance and cannot be deleted.")
+            raise PermissionDenied(
+                "This relation definition is in use by at least one relation instance and cannot be deleted.")
         logger.info(f"Relation definition '{instance.name}' has been deleted.")
         super().perform_destroy(instance)
-        
-        
+
+
 class RelationsViewSet(CmdbBaseViewSet):
     queryset = Relations.objects.select_related(
         'source_instance__model', 'target_instance__model', 'relation'
@@ -1366,7 +1414,7 @@ class RelationsViewSet(CmdbBaseViewSet):
         direction = data['direction']
         attributes = data['relation_attributes']
         user = self.get_current_user()
-    
+
         relations_to_create = []
         for instance_id in instance_ids:
             if direction == 'target-source':
@@ -1375,7 +1423,7 @@ class RelationsViewSet(CmdbBaseViewSet):
                 source_id, target_id = target_instance_id, instance_id
             else:
                 raise ValidationError(f"Invalid direction: {direction}. Must be 'source-target' or 'target-source'.")
-            
+
             relations_to_create.append(
                 Relations(
                     source_instance_id=source_id,
@@ -1390,7 +1438,7 @@ class RelationsViewSet(CmdbBaseViewSet):
         try:
             created_objects = Relations.objects.bulk_create(relations_to_create, ignore_conflicts=True)
             bulk_creation_audit.send(sender=Relations, instances=created_objects)
-                        
+
             return Response(
                 {
                     "created_count": len(created_objects)
@@ -1444,7 +1492,7 @@ class RelationsViewSet(CmdbBaseViewSet):
             raise ValidationError("Require a non-empty list of relation IDs to delete.")
 
         queryset = self.get_queryset().filter(id__in=relation_ids)
-        
+
         with capture_audit_snapshots(list(queryset)):
             deleted_count, _ = queryset.delete()
 
@@ -1472,7 +1520,7 @@ class RelationsViewSet(CmdbBaseViewSet):
             G = self._build_graph_on_demand(
                 start_node_ids, end_node_ids, depth, direction, mode
             )
-            
+
             logger.info(f"Graph constructed with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
 
             node_objects = [data['instance'] for _, data in G.nodes(data=True)]
@@ -1495,11 +1543,11 @@ class RelationsViewSet(CmdbBaseViewSet):
         for path in paths:
             for i in range(len(path) - 1):
                 u, v = path[i], path[i+1]
-                if not subgraph.has_node(u): 
+                if not subgraph.has_node(u):
                     subgraph.add_node(u, **G.nodes[u])
-                if not subgraph.has_node(v): 
+                if not subgraph.has_node(v):
                     subgraph.add_node(v, **G.nodes[v])
-                if not subgraph.has_edge(u, v): 
+                if not subgraph.has_edge(u, v):
                     subgraph.add_edge(u, v, **G.get_edge_data(u, v))
         return subgraph
 
@@ -1518,7 +1566,7 @@ class RelationsViewSet(CmdbBaseViewSet):
                     except nx.NetworkXNoPath:
                         continue
         return path_graph
-    
+
     def _find_blast_neighbors(self, start_node_ids, end_node_ids, direction, depth):
         """
         在图G中查找从start_node_ids出发，按照direction方向，深度为depth的邻接节点。
@@ -1528,7 +1576,8 @@ class RelationsViewSet(CmdbBaseViewSet):
         queue = set(start_node_ids)
         seen_nodes = set()
 
-        logger.info(f"Finding blast neighbors from nodes: {start_node_ids} with depth: {depth} and direction: {direction}")
+        logger.info(
+            f"Finding blast neighbors from nodes: {start_node_ids} with depth: {depth} and direction: {direction}")
         for _ in range(depth):
             if not queue:
                 break
@@ -1543,7 +1592,8 @@ class RelationsViewSet(CmdbBaseViewSet):
             if direction in ('reverse', 'both'):
                 q_filter |= Q(target_instance_id__in=current_level_nodes)
 
-            relations_qs = Relations.objects.filter(q_filter).select_related('source_instance', 'target_instance', 'relation')
+            relations_qs = Relations.objects.filter(q_filter).select_related(
+                'source_instance', 'target_instance', 'relation')
             logger.info(f"Found {relations_qs.count()} relations at current depth")
             newly_found_nodes = self._add_edges_to_graph(graph, relations_qs)
             logger.info(f"Newly found nodes: {newly_found_nodes}")
@@ -1551,7 +1601,7 @@ class RelationsViewSet(CmdbBaseViewSet):
 
         if not end_node_ids:
             return graph
-        
+
         path_subgraph = self._find_path_between_nodes(graph, start_node_ids, end_node_ids, depth)
         return path_subgraph
 
@@ -1567,11 +1617,11 @@ class RelationsViewSet(CmdbBaseViewSet):
             temp_G = nx.DiGraph()
             queue = set(initial_nodes)
             seen_nodes = set()
-            
+
             for _ in range(depth + 1):
                 if not queue:
                     break
-                
+
                 current_level_nodes = list(queue)
                 seen_nodes.update(current_level_nodes)
                 queue.clear()
@@ -1582,13 +1632,13 @@ class RelationsViewSet(CmdbBaseViewSet):
 
                 new_nodes = self._add_edges_to_graph(temp_G, relations_qs)
                 queue.update(new_nodes - seen_nodes)
-            
+
             G = self._find_path_between_nodes(temp_G, start_node_ids, end_node_ids, depth)
-                        
+
         # 爆炸分析
         elif mode == 'blast':
             G = self._find_blast_neighbors(start_node_ids, end_node_ids, direction, depth)
-            
+
         # 邻接查询
         elif mode == 'neighbor':
             for start_node in start_node_ids:
@@ -1606,7 +1656,7 @@ class RelationsViewSet(CmdbBaseViewSet):
         # 模式匹配
         elif mode == 'pattern':
             pass
-        
+
         # 孤立节点
         elif mode == 'isolate':
             instances = ModelInstance.objects.filter(id__in=start_node_ids).values_list('id', flat=True)
@@ -1629,19 +1679,19 @@ class RelationsViewSet(CmdbBaseViewSet):
         返回本次添加操作中新发现的所有节点的ID集合。
         """
         new_nodes = set()
-        
+
         # 预加载所有涉及的实例对象，减少循环内查询
         instance_ids = set()
         for rel in relations_qs:
             instance_ids.add(rel.source_instance_id)
             instance_ids.add(rel.target_instance_id)
-        
+
         instances = ModelInstance.objects.in_bulk([str(uuid) for uuid in instance_ids])
-        
+
         for rel in relations_qs:
             source_id = str(rel.source_instance_id)
             target_id = str(rel.target_instance_id)
-            
+
             source_inst = instances.get(rel.source_instance_id)
             target_inst = instances.get(rel.target_instance_id)
 
@@ -1658,14 +1708,15 @@ class RelationsViewSet(CmdbBaseViewSet):
 
             # 根据关系类型添加边
             topology_type = rel.relation.topology_type
-            
+
             if topology_type in ('directed', 'daggered'):
                 G.add_edge(source_id, target_id, relation=rel)
             elif topology_type == 'undirected':
                 G.add_edge(source_id, target_id, relation=rel)
-                G.add_edge(target_id, source_id, relation=rel) # 添加反向边以模拟无向
+                G.add_edge(target_id, source_id, relation=rel)  # 添加反向边以模拟无向
 
         return new_nodes
+
 
 @password_manage_schema
 class PasswordManageViewSet(CmdbBaseViewSet):
@@ -1719,23 +1770,23 @@ class PasswordManageViewSet(CmdbBaseViewSet):
 
 
 class SystemCacheViewSet(CmdbBaseViewSet):
-    
+
     @action(detail=False, methods=['post'])
     def clear_cache(self, request):
         """清理系统缓存"""
         try:
             conn = get_redis_connection("default")
             key_prefix = settings.CACHES['default'].get('KEY_PREFIX', '')
-            
+
             if not key_prefix:
                 return Response({
                     'status': 'failed',
                     'message': 'Cache key prefix is not set in settings.'
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
+
             pattern = f'{key_prefix}*'
             keys_to_delete = conn.keys(pattern)
-            
+
             if keys_to_delete:
                 deleted_count = conn.delete(*keys_to_delete)
             else:
@@ -1751,7 +1802,7 @@ class SystemCacheViewSet(CmdbBaseViewSet):
                 'status': 'failed',
                 'message': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
+
 
 class ZabbixSyncHostViewSet(CmdbBaseViewSet):
     queryset = ZabbixSyncHost.objects.all().order_by('create_time')

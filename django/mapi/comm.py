@@ -1,15 +1,20 @@
+import time
+import json
+import logging
+
 from celery.result import AsyncResult
 from django.http import StreamingHttpResponse
-import time,json,logging
-from rest_framework.exceptions import ValidationError, PermissionDenied
 from django.core.cache import cache
-from cmdb.models import (ZabbixSyncHost)
 from rest_framework.response import Response
 from rest_framework import status
-    
+from rest_framework.exceptions import ValidationError, PermissionDenied
+
 logger = logging.getLogger(__name__)
+
+
 def get_task_status(request, task_id):
     result = AsyncResult(task_id)
+
     def event_stream():
         # yield "retry: 10000\n\n"
         is_finish = False
@@ -28,10 +33,12 @@ def get_task_status(request, task_id):
     response['X-Accel-Buffering'] = 'no'
     return response
 
+
 def import_status_sse(request):
     cache_key = request.GET.get('cache_key')
     if not cache_key:
         raise ValidationError({'detail': 'Missing cache key'})
+
     def event_stream():
         last = None
         for _ in range(600):
@@ -50,6 +57,8 @@ def import_status_sse(request):
     response['Cache-Control'] = 'no-cache'
     # response['X-Accel-Buffering'] = 'no'
     return response
+
+
 def installation_status_sse(request):
     """使用 SSE 实时获取 Zabbix 安装状态"""
     try:
@@ -68,6 +77,7 @@ def installation_status_sse(request):
             'failed': 0,
             'progress': 0
         }
+
         def event_stream():
             result['status'] = 'processing'
             completed_hosts = set()
@@ -106,7 +116,8 @@ def installation_status_sse(request):
         return Response({
             'error': f'Error in installation status SSE: {str(e)}'
         }, status=500)
-    
+
+
 def check_chain_task(task_id):
     """检查链式任务的状态"""
     task = AsyncResult(task_id)
@@ -129,55 +140,3 @@ def check_chain_task(task_id):
             return -1
     else:
         return -1
-    # try:
-    #     idsStr = request.GET.get('ids', [])
-    #     if isinstance(idsStr,str):
-    #         ids = json.loads(idsStr)
-    #     else:
-    #         ids = []
-    #     all_failed = request.GET.get('all', False)
-    #     if not ids and not all_failed:
-    #         raise ValidationError('缺少sufficient params')
-    #     if all_failed:
-    #         ids = ZabbixSyncHost.objects.filter(agent_installed=False).values_list('id', flat=True)
-    #         ids = [str(id) for id in ids]
-    #     def event_stream():
-    #         last_status = {}
-    #         for _ in range(1200):
-    #             current_status = {}
-    #             hosts = ZabbixSyncHost.objects.filter(id__in=ids).values(
-    #                 'id', 'host_id', 'ip', 'name', 'agent_installed',
-    #                 'interface_available', 'installation_error'
-    #             )
-    #             all_completed = True
-    #             for host in hosts:
-    #                 host_pk = str(host['id'])
-    #                 host["id"] = host_pk
-    #                 current_status[host_pk] = host
-    #                 if not host['agent_installed'] and not host['installation_error']:
-    #                     all_completed = False
-    #             if current_status != last_status and current_status:
-    #                 last_status = current_status.copy()
-    #                 data = {
-    #                     'status': 'success',
-    #                     'hosts': list(current_status.values())
-    #                 }
-    #                 yield f"data: {json.dumps(data,ensure_ascii=False)}\n\n"
-    #             if all_completed:
-    #                 final_data = {
-    #                     'status': 'completed',
-    #                     'hosts': list(current_status.values())
-    #                 }
-    #                 yield f"data: {json.dumps(final_data,ensure_ascii=False)}\n\n"
-    #                 break
-    #             time.sleep(2)
-    #     response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
-    #     response['Cache-Control'] = 'no-cache'
-    #     response['X-Accel-Buffering'] = 'no'
-    #     return response
-    # except Exception as e:
-    #     logger.error(f"Error in get installation status: {str(e)}")
-    #     return Response({
-    #         'status': 'error',
-    #         'message': f'Error in get installation status: {str(e)}'
-    #     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
