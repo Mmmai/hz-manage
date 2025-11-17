@@ -30,6 +30,7 @@ from django.conf import settings
 from mapi.extensions.pagination import StandardResultsSetPagination
 from .export import exportHandler
 from node_mg.utils.config_manager import ConfigManager
+from cmdb.utils import password_handler
 
 import logging
 logger = logging.getLogger(__name__)
@@ -45,13 +46,31 @@ def getRolePermissionList(role_ids):
 class LoginView(APIView):
     """用户登录"""
     authentication_classes = [] # 取消全局认证
-    
     def post(self,request,*args,**kwargs):
-        user = request.data.get('username')
-        pwd = request.data.get('password')
-        user_obj = UserInfo.objects.filter(username=user,password=pwd).first()
+        username = request.data.get('username')
+        password = request.data.get('password')
+        # 查找用户
+        user_obj = UserInfo.objects.filter(username=username).first()
         if not user_obj:
-            return Response({'code':401,'error':'用户名或密码错误'})
+            return Response({'code':401,'error':'用户名不存在!'})
+        # 检查用户是否已过期（admin等内置用户除外）
+        if user_obj.is_expired():
+            return Response({'code':401,'error':'用户账户已过期!'})
+            
+        # 检查用户状态
+        if not user_obj.status:
+            return Response({'code':401,'error':'用户已被禁用!'})            
+        try:
+            # 使用用户存储的盐值处理输入的密码
+            salted_password = f'{user_obj.password_salt}:{password}'
+            # 使用SM4加密加盐后的密码
+            encrypted_password = password_handler.encrypt_to_sm4(salted_password)
+            # 比较加密后的密码
+            if user_obj.password != encrypted_password:
+                return Response({'code':401,'error':'用户密码错误!'})
+        except Exception as e:
+            logger.error(f"Password verification failed: {str(e)}")
+            return Response({'code':401,'error':'密码认证失败!'})
         # 获取用户组id
         userGroupList = [ i['id'] for i in user_obj.groups.all().values('id') ]
         # 
@@ -68,10 +87,12 @@ class LoginView(APIView):
         payload = {
             'user_id':str(user_obj.pk),#自定义用户ID
             'username':user_obj.username,#自定义用户名
+            'password': user_obj.password,  # 添加密码字段用于验证token有效性
             # 'exp':datetime.datetime.utcnow()+datetime.timedelta(minutes=1),# 设置超时时间，1min
         }
-        jwt_token = create_token(payload=payload)
-        return Response({'code':200,'token':jwt_token,"role":roleList,"userinfo":payload,"permission":permissionList})
+        timeout = request.data.get('timeout',7)
+        jwt_token = create_token(payload=payload,timeout=timeout)
+        return Response({'code':200,'token':jwt_token,"role":roleList,"userinfo":{'user_id':str(user_obj.pk),'username':user_obj.username,},"permission":permissionList})
 
 
 
@@ -213,18 +234,7 @@ class getUserButton(APIView):
                 allPermissionList.append(f"{menu_name}:{button_name}")
         # print(allPermissionList)
         return Response({'code':200,"results":allPermissionList})
-#   # data = {'1':2,'3':4}
-#   return JsonResponse(data)
 
-# class UserViewSet(ModelViewSet):
-#   queryset = userlist.objects.all()
-#   serializer_class = UserModelSerializer
-
-#分页类
-# class defaultPageNumberPagination(PageNumberPagination):
-#     pige_size = 10
-#     max_page_size = 50
-#     page_size_query_param = 'size'
 
 class UserInfoViewSet(ModelViewSet):
     queryset = UserInfo.objects.all()
@@ -247,7 +257,17 @@ class UserInfoViewSet(ModelViewSet):
             return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
-
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # 执行删除前验证
+        serializer = self.get_serializer()
+        try:
+            serializer.validate_for_delete(instance)
+        except serializers.ValidationError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     # 批量删除
     @action(methods=['delete'], detail=False)
@@ -256,6 +276,18 @@ class UserInfoViewSet(ModelViewSet):
         pks = request.data.get('pks',None)
         if not pks:
             return Response(status=status.HTTP_404_NOT_FOUND)
+            
+        # 对每个要删除的对象执行验证
+        serializer = self.get_serializer()
+        for pk in pks:
+            try:
+                instance = UserInfo.objects.get(id=pk)
+                serializer.validate_for_delete(instance)
+            except UserInfo.DoesNotExist:
+                return Response({'error': f'用户不存在: {pk}'}, status=status.HTTP_400_BAD_REQUEST)
+            except serializers.ValidationError as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                
        # for pk in pks:
             # get_object_or_404(UserInfo, id=pk).delete()
         UserInfo.objects.filter(id__in=pks).delete()
@@ -266,13 +298,61 @@ class UserGroupViewSet(ModelViewSet):
     # pagination_class = StandardResultsSetPagination
     # filterset_class = roleFilter
     order_fields = ["id"]
-
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # 执行删除前验证
+        serializer = self.get_serializer()
+        try:
+            serializer.validate_for_delete(instance)
+        except serializers.ValidationError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 class RoleViewSet(ModelViewSet):
     queryset = Role.objects.all()
     serializer_class =  RoleModelSerializer
     # pagination_class = StandardResultsSetPagination
     filterset_class = roleFilter
     order_fields = ["id"]
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        # 处理角色权限
+        instance = Role.objects.get(id=serializer.data['id'])
+        rolePermission = request.data.get('rolePermission', None)
+        if rolePermission:
+            # 添加新的权限
+            for button_id in rolePermission:
+                button_obj = Button.objects.get(id=button_id)
+                Permission.objects.update_or_create(role=instance, menu=button_obj.menu, button=button_obj)
+                logger.info(f"为角色<{instance.role}>添加<{button_obj.action}>权限!")
+                # 如果有其他按钮权限，查看的权限应该同步添加，就算用户没有勾选！
+                if button_obj.action == "view":
+                    pass
+                    add =     'd'
+                else:
+                    view_button_obj = Button.objects.get(action="view", menu=button_obj.menu)
+                    view_per_obj, created = Permission.objects.get_or_create(role=instance, menu=button_obj.menu, button=view_button_obj)
+                    if created:
+                        logger.info(f"为角色<{instance.role}>添加<{view_button_obj.action}>权限!")
+                    else:
+                        logger.info(f"为角色<{instance.role}>已拥有<{view_button_obj.action}>权限!")
+        
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # 执行删除前验证
+        serializer = self.get_serializer()
+        try:
+            serializer.validate_for_delete(instance)
+        except serializers.ValidationError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
@@ -318,6 +398,115 @@ class RoleViewSet(ModelViewSet):
                         else:
                             logger.info(f"为角色<{instance.role}>已拥有<${view_button_obj.action}>权限!")
         return Response(serializer.data)
+    @action(detail=True, methods=['post'], url_path='add_permissions')
+    def add_permissions(self, request, pk=None):
+        """
+        为角色添加权限
+        """
+        role = self.get_object()
+        button_ids = request.data.get('button_ids', [])
+        
+        if not button_ids:
+            return Response({'error': '权限ID列表不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        added_permissions = []
+        existing_permissions = []
+        
+        for button_id in button_ids:
+            try:
+                button_obj = Button.objects.get(id=button_id)
+                # 检查权限是否已存在
+                permission, created = Permission.objects.get_or_create(
+                    role=role,
+                    menu=button_obj.menu,
+                    button=button_obj
+                )
+                
+                if created:
+                    added_permissions.append(str(button_id))
+                    logger.info(f"为角色<{role.role}>添加<{button_obj.action}>权限!")
+                    
+                    # 如果不是查看权限，确保查看权限也存在
+                    if button_obj.action != "view":
+                        view_button_obj = Button.objects.get(action="view", menu=button_obj.menu)
+                        view_per_obj, view_created = Permission.objects.get_or_create(
+                            role=role,
+                            menu=button_obj.menu,
+                            button=view_button_obj
+                        )
+                        if view_created:
+                            logger.info(f"为角色<{role.role}>添加<{view_button_obj.action}>权限!")
+                else:
+                    existing_permissions.append(str(button_id))
+            except Button.DoesNotExist:
+                return Response({'error': f'按钮权限ID {button_id} 不存在'}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({'error': f'添加权限时出错: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response({
+            'detail': '权限添加成功',
+            'added_permissions': added_permissions,
+            'existing_permissions': existing_permissions
+        }, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['post'], url_path='remove_permissions')
+    def remove_permissions(self, request, pk=None):
+        """
+        从角色中删除权限
+        """
+        role = self.get_object()
+        button_ids = request.data.get('button_ids', [])
+        
+        if not button_ids:
+            return Response({'error': '权限ID列表不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        removed_permissions = []
+        
+        for button_id in button_ids:
+            try:
+                button_obj = Button.objects.get(id=button_id)
+                
+                # 如果移除的是"查看"权限，则同步移除该菜单下的所有权限
+                if button_obj.action == 'view':
+                    # 先获取该菜单下的所有权限用于返回
+                    menu_permissions = Permission.objects.filter(
+                        role=role, 
+                        menu=button_obj.menu
+                    )
+                    for perm in menu_permissions:
+                        if perm.button:
+                            removed_permissions.append(str(perm.button.id))
+                    
+                    # 删除该菜单下的所有权限
+                    deleted_count, _ = Permission.objects.filter(
+                        role=role,
+                        menu=button_obj.menu
+                    ).delete()
+                    
+                    logger.info(f"从角色<{role.role}>删除<{button_obj.menu.name}>菜单下的所有权限!")
+                else:
+                    # 删除指定权限
+                    deleted_count, _ = Permission.objects.filter(
+                        role=role,
+                        menu=button_obj.menu,
+                        button=button_obj
+                    ).delete()
+                    
+                    if deleted_count > 0:
+                        removed_permissions.append(str(button_id))
+                        logger.info(f"从角色<{role.role}>删除<{button_obj.action}>权限!")
+            except Button.DoesNotExist:
+                return Response({'error': f'按钮权限ID {button_id} 不存在'}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({'error': f'删除权限时出错: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # 去重
+        removed_permissions = list(set(removed_permissions))
+        
+        return Response({
+            'detail': '权限删除成功',
+            'removed_permissions': removed_permissions
+        }, status=status.HTTP_200_OK)
 
 class MenuViewSet(ModelViewSet):
     queryset = Menu.objects.all()

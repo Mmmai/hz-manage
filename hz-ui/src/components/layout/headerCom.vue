@@ -3,14 +3,20 @@
     <el-col :span="12" style="display: flex; align-items: center">
       <!-- <div class="l-content"> -->
       <!-- <Menu /> -->
-      <div style="margin-right: 10px; display: flex">
-        <el-icon v-if="collapse" @click="changeCollapse">
-          <Fold />
-        </el-icon>
-        <el-icon v-else @click="changeCollapse">
-          <Expand />
-        </el-icon>
-      </div>
+      <el-tooltip
+        :content="collapse ? '收起菜单' : '展开菜单'"
+        placement="bottom"
+        effect="dark"
+      >
+        <div style="margin-right: 10px; display: flex">
+          <el-icon v-if="collapse" @click="changeCollapse">
+            <Fold />
+          </el-icon>
+          <el-icon v-else @click="changeCollapse">
+            <Expand />
+          </el-icon>
+        </div>
+      </el-tooltip>
 
       <!-- 面包屑 -->
       <el-breadcrumb :separator-icon="ArrowRight">
@@ -49,7 +55,7 @@
           gap: 10px;
         "
       >
-        <el-link type="primary" href="/docs/" target="_blank">指南</el-link>
+        <!-- <el-link type="primary" href="/docs/" target="_blank" >指南</el-link> -->
 
         <!-- 主题选择器按钮 -->
         <el-tooltip content="自定义主题色" placement="bottom" effect="dark">
@@ -124,46 +130,108 @@
             <el-icon>
               <UserFilled />
             </el-icon>
-            {{ currenUsername }}
+            {{ userInfo.username }}
             <el-icon class="el-icon--right">
               <arrow-down />
             </el-icon>
           </span>
           <template #dropdown>
             <el-dropdown-menu>
-              <!-- <el-dropdown-item>个人中心</el-dropdown-item> -->
+              <el-dropdown-item @click="showChangePasswordDialog"
+                >修改密码</el-dropdown-item
+              >
               <el-dropdown-item @click="handleLogout">退出</el-dropdown-item>
-              <!-- <el-dropdown-item>Action 3</el-dropdown-item> -->
-              <!-- <el-dropdown-item disabled>Action 4</el-dropdown-item> -->
-              <!-- <el-dropdown-item divided>Action 5</el-dropdown-item> -->
             </el-dropdown-menu>
           </template>
         </el-dropdown>
       </div>
     </el-col>
   </el-row>
+  <!-- 修改密码对话框 -->
+  <el-dialog
+    v-model="changePasswordDialogVisible"
+    title="修改密码"
+    width="500px"
+    @close="resetPasswordForm"
+  >
+    <el-form
+      ref="passwordFormRef"
+      :model="passwordForm"
+      :rules="passwordRules"
+      label-width="100px"
+    >
+      <el-form-item label="原密码" prop="oldPassword">
+        <el-input
+          v-model="passwordForm.oldPassword"
+          type="password"
+          show-password
+          placeholder="请输入原密码"
+        />
+      </el-form-item>
+      <el-form-item label="新密码" prop="newPassword">
+        <el-input
+          v-model="passwordForm.newPassword"
+          type="password"
+          show-password
+          placeholder="请输入新密码"
+        />
+      </el-form-item>
+      <el-form-item label="确认密码" prop="confirmPassword">
+        <el-input
+          v-model="passwordForm.confirmPassword"
+          type="password"
+          show-password
+          placeholder="请再次输入新密码"
+        />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="changePasswordDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleChangePassword"
+          >确认修改</el-button
+        >
+      </span>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
-import { ref, computed, watch } from "vue";
-import { useStore } from "vuex";
+import {
+  ref,
+  computed,
+  watch,
+  getCurrentInstance,
+  reactive,
+  nextTick,
+} from "vue";
 import { ArrowRight, Brush } from "@element-plus/icons-vue";
 import router from "@/router";
-import { ElMessageBox } from "element-plus";
 import { Sunny, Moon } from "@element-plus/icons-vue";
 import useTabsStore from "@/store/tabs";
-import { useElementPlusTheme } from "use-element-plus-theme";
+import useConfigStore from "@/store/config";
+import { debounce, throttle } from "lodash";
 
+import { useElementPlusTheme } from "use-element-plus-theme";
+import { ElMessage, ElMessageBox } from "element-plus";
+const { proxy } = getCurrentInstance();
 const layoutThemeColor = useStorage("layout-theme-color", "#409eff"); // 默认主题色
 const { changeTheme } = useElementPlusTheme(layoutThemeColor.value); // 初始化主题色
 const tabsStore = useTabsStore();
+const configStore = useConfigStore();
+const collapse = computed(() => {
+  return configStore.collapse;
+});
+const changeCollapse = () => {
+  configStore.changeCollapse();
+};
 const currentMenuLabel = computed(() => {
   return tabsStore.currentTitle;
 });
 const currentBreadcrumb = computed(() => {
   return tabsStore.currentBreadcrumb;
 });
-import { useDark, useToggle, useStorage } from "@vueuse/core";
+import { useDark, useToggle, useStorage, computedAsync } from "@vueuse/core";
 const isDark = useDark();
 const toggleDark = useToggle(isDark);
 
@@ -215,33 +283,17 @@ const handleCustomThemeChange = (color) => {
     changeTheme(color);
   }
 };
-let store = useStore();
-const collapse = ref(true);
-const changeCollapse = () => {
-  //调用vuex中的
-  store.commit("changeIsCollapse");
-  collapse.value = store.state.isCollapse;
-};
-// const currentMenuLabel = computed(() => {
-//   // console.log(store.state.currentMenu)
-//   return store.state.currentMenu
-// })
-// const currentMenu = ref('')
 
-const currenUsername = computed(() => {
-  return store.state.username;
-});
-// console.log('所有路由记录:', router.getRoutes())
+const userInfo = computed(() => configStore.userInfo);
 
 // console.log(currentMenu)
 const handleLogout = (done) => {
   ElMessageBox.confirm("是否退出?")
     .then(() => {
-      store.commit("updateDynamicCreateRoute", false);
       // tabsStore.setTabs([]);
       tabsStore.setTabs([]);
-
-      localStorage.clear();
+      configStore.clearConfig();
+      // localStorage.clear();
       // 清楚tab打开的菜单列表
       router.push({ name: "login" });
       // window.location.reload()
@@ -251,6 +303,81 @@ const handleLogout = (done) => {
       console.error("发生错误: " + error);
     });
 };
+// 修改密码功能
+const changePasswordDialogVisible = ref(false);
+const passwordFormRef = ref();
+const passwordForm = reactive({
+  oldPassword: "",
+  newPassword: "",
+  confirmPassword: "",
+});
+
+const passwordRules = {
+  oldPassword: [{ required: true, message: "请输入原密码", trigger: "blur" }],
+  newPassword: [
+    { required: true, message: "请输入新密码", trigger: "blur" },
+    { min: 5, message: "密码长度不能低于5位", trigger: "blur" },
+  ],
+  confirmPassword: [
+    { required: true, message: "请确认新密码", trigger: "blur" },
+    {
+      validator: (rule, value, callback) => {
+        if (value === "") {
+          callback(new Error("请再次输入新密码"));
+        } else if (value !== passwordForm.newPassword) {
+          callback(new Error("两次输入的密码不一致"));
+        } else {
+          callback();
+        }
+      },
+      trigger: "blur",
+    },
+  ],
+};
+
+const showChangePasswordDialog = () => {
+  changePasswordDialogVisible.value = true;
+};
+
+const resetPasswordForm = () => {
+  if (passwordFormRef.value) {
+    passwordFormRef.value.resetFields();
+  }
+};
+
+const handleChangePassword = throttle(() => {
+  if (!passwordFormRef.value) return;
+
+  passwordFormRef.value.validate(async (valid) => {
+    if (valid) {
+      console.log(userInfo.value);
+      try {
+        const res = await proxy.$api.userupdate({
+          id: userInfo.value.user_id,
+          old_password: passwordForm.oldPassword,
+          password: passwordForm.newPassword,
+        });
+
+        if (res.status === 200) {
+          ElMessage.success("密码修改成功，请重新登录");
+          changePasswordDialogVisible.value = false;
+          resetPasswordForm();
+
+          // 退出登录
+          tabsStore.setTabs([]);
+          localStorage.clear();
+          nextTick(() => {
+            router.push({ name: "login" });
+          });
+        } else {
+          ElMessage.error(JSON.stringify(res.data) || "密码修改失败");
+        }
+      } catch (error) {
+        ElMessage.error(error || "密码修改失败");
+      }
+    }
+  });
+}, 3000);
 </script>
 <style scoped>
 .l-content {

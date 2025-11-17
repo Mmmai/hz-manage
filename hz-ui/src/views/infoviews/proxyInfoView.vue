@@ -179,6 +179,7 @@
           v-model="selectedKeys"
           :data="treeData"
           :leaf-only="true"
+          :hide-fully-assigned-parents="true"
           :titles="['可选节点', '已选节点']"
           :check-strictly="false"
           @change="handleChange"
@@ -210,12 +211,12 @@ import TreeTransfer from "@/components/common/treeTransfer.vue";
 const proxyId = ref(null);
 
 const goBack = () => {
-  if (route.name.includes("cmdb_only")) {
-    router.push({
-      path: "/cmdb_only/cmdb/cidata",
-    });
-    return;
-  }
+  // if (route.name.includes("cmdb_only")) {
+  //   router.push({
+  //     path: "/cmdb_only/cmdb/cidata",
+  //   });
+  //   return;
+  // }
   router.push({
     path: "/node_control/proxyManage",
   });
@@ -520,6 +521,7 @@ const getHostTreeData = async () => {
     model: manageModelNameMap.value[activeName.value]?.model_id,
   });
   treeData.value = convertToTreeFormat(res.data);
+  // treeData.value = res.data;
 };
 
 //

@@ -4,7 +4,6 @@
       <div>
         <el-button
           type="primary"
-          size="small"
           @click="handleAdd"
           v-permission="`${route.name?.replace('_info', '')}:add`"
           >新增</el-button
@@ -38,48 +37,17 @@
         </el-table-column>
         <el-table-column fixed="right" label="操作" width="150">
           <template #default="scope">
-            <!-- <el-button
-              v-if="scope.row.role == '管理员'"
-              type="primary"
-              size="small"
-              @click="handleEdit(scope.row)"
-              disabled
-              >编辑</el-button
-            >
-            <el-button
-              v-else
-              type="primary"
-              size="small"
-              @click="handleEdit(scope.row)"
-              >编辑</el-button
-            >
-            <el-button
-              v-if="scope.row.role == '管理员'"
-              type="danger"
-              size="small"
-              disabled
-              @click="handleDelete(scope.row)"
-              >删除</el-button
-            >
-            <el-button
-              v-else
-              type="danger"
-              size="small"
-              @click="handleDelete(scope.row)"
-              >删除</el-button
-                            :disabled="scope.row.role == 'sysadmin' ? true : false"
-
-            > -->
             <el-button
               link
               v-permission="`${route.name?.replace('_info', '')}:edit`"
               type="primary"
               :icon="Edit"
-              @click="handleEdit(scope.row)"
+              @click="gotoInfo(scope.row)"
             ></el-button>
             <el-button
               v-permission="`${route.name?.replace('_info', '')}:delete`"
-              :disabled="scope.row.role == 'sysadmin' ? true : false"
+              :disabled="scope.row.built_in"
+              icon-position="right"
               link
               type="danger"
               :icon="Delete"
@@ -112,7 +80,7 @@
           placeholder="请输入英文"
           clearable
           style="width: 30%"
-          :disabled="isDisabled"
+          :disabled="nowRow.built_in"
         />
       </el-form-item>
       <el-form-item
@@ -173,10 +141,11 @@ import {
   toRaw,
   nextTick,
 } from "vue";
-import { useRoute } from "vue-router";
-const route = useRoute();
 const currentSelectRow = ref({});
 const { proxy } = getCurrentInstance();
+import { useRoute, useRouter } from "vue-router";
+const router = useRouter();
+const route = useRoute();
 import { ElMessageBox, ElMessage } from "element-plus";
 const customNodeClass = ({ tree_type }, node) => {
   if (tree_type === "menu") {
@@ -207,6 +176,10 @@ const roleListCol = ref([
     label: "角色名称",
   },
   {
+    prop: "userGroup_count",
+    label: "用户组数量",
+  },
+  {
     prop: "user_count",
     label: "用户数量",
   },
@@ -235,12 +208,8 @@ const selectFirst = () => {
 
 // 获取角色数据
 const getRoleData = async () => {
-  let roleinfo = await proxy.$api.getRole();
-  roleList.value = roleinfo.data.results.map((item) => {
-    item.userinfo_set = item.userinfo_set.length;
-    return item;
-  });
-
+  let res = await proxy.$api.getRole();
+  roleList.value = res.data.results;
   //   #roleList.value.length
 
   // 统计用户个数
@@ -278,8 +247,9 @@ const formInline = reactive({
 const action = ref("add");
 // 显示新增弹出框
 const handleAdd = () => {
-  action.value = "add";
-  dialogVisible.value = true;
+  // action.value = "add";
+  // dialogVisible.value = true;
+  router.push({ path: route.path + "/new" });
 };
 // 取消新增弹出框
 const cancelAdd = () => {
@@ -405,6 +375,9 @@ const handleEdit = (row) => {
 
   // formInline.rolePermission = row.menu
 };
+const gotoInfo = (row) => {
+  router.push({ path: route.path + "/" + row.id });
+};
 // 删除
 const handleDelete = (row) => {
   ElMessageBox.confirm("是否确认删除?", "Warning", {
@@ -421,7 +394,9 @@ const handleDelete = (row) => {
           type: "success",
           message: "删除成功",
         });
-        await getRoleData(pageConfig);
+        nextTick(() => {
+          getRoleData();
+        });
         // selectFirst()
       } else {
         ElMessage({

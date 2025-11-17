@@ -359,6 +359,7 @@
       v-model="addRelationDialogVisible"
       :title="'新增关联关系'"
       width="60%"
+      class="add-relation-dialog"
       :before-close="resetAddRelationForm"
     >
       <el-form
@@ -460,7 +461,7 @@
             <el-text>{{ getRelationDescription }}</el-text>
           </div>
         </el-form-item>
-        <el-form-item label="关联实例" v-if="addRelationForm.relation">
+        <div class="relation-instances-table" v-if="addRelationForm.relation">
           <el-table
             :data="addRelationForm.relations"
             style="width: 100%; margin-top: 15px"
@@ -475,6 +476,8 @@
                 <el-form-item
                   :prop="'relations.' + scope.$index + '.target_instance'"
                   required
+                  label-position="left"
+                  label-width="auto"
                 >
                   <el-select
                     v-model="scope.row.target_instance"
@@ -490,6 +493,7 @@
                       :key="item.id"
                       :label="item.instance_name"
                       :value="item.id"
+                      :disabled="item.disabled"
                     />
                   </el-select>
                 </el-form-item>
@@ -507,12 +511,12 @@
                     :prop="
                       'relations.' +
                       scope.$index +
-                      '.source_attributes' +
+                      '.source_attributes.' +
                       sourceKey
                     "
                     :required="sourceField.required"
                     label-position="left"
-                    label-width="100px"
+                    label-width="auto"
                   >
                     <el-input
                       v-model="scope.row.source_attributes[sourceKey]"
@@ -540,7 +544,7 @@
                     "
                     :required="targetField.required"
                     label-position="left"
-                    label-width="100px"
+                    label-width="auto"
                   >
                     <el-input
                       v-model="scope.row.target_attributes[targetKey]"
@@ -568,7 +572,7 @@
                     "
                     :required="relationField.required"
                     label-position="left"
-                    label-width="100px"
+                    label-width="auto"
                   >
                     <!-- <el-input
                       v-model="scope.row.relation_attributes[relationKey]"
@@ -599,7 +603,7 @@
                       "
                       v-model="scope.row.relation_attributes[relationKey]"
                       :placeholder="'请输入' + relationField.verbose_name"
-                      style="width: 80%"
+                      style="width: 50%"
                       controls-position="right"
                     />
 
@@ -614,7 +618,12 @@
                     <!-- 单位显示 -->
                     <div
                       v-if="relationField.unit"
-                      style="font-size: 12px; color: #999; margin-top: 3px"
+                      style="
+                        font-size: 12px;
+                        color: #999;
+                        margin-top: 3px;
+                        margin-left: 10px;
+                      "
                     >
                       单位: {{ relationField.unit }}
                     </div>
@@ -646,7 +655,7 @@
               >新增</el-button
             >
           </div>
-        </el-form-item>
+        </div>
       </el-form>
       <template #footer>
         <div class="dialog-footer">
@@ -754,7 +763,10 @@ const addRelationForm = reactive({
   source_instance: null,
   relations: [],
 });
-
+// 获取已选择的目标实例
+const targetInstancesSelects = computed(() => {
+  return addRelationForm.relations.map((item) => item.target_instance);
+});
 const targetModelOptions = ref([]);
 const selectTargetModel = ref(null);
 const targetModelChange = () => {
@@ -1113,6 +1125,17 @@ const handleRelationTypeChange = () => {
   }
   selectTargetModel.value = targetModelOptions.value[0].value;
 };
+const resetAddForm = () => {
+  addRelationFormRef.value?.resetFields();
+  addRelationForm.source_model = null;
+  addRelationForm.relation = null;
+  addRelationForm.source_instance = null;
+  addRelationForm.target_instances = [];
+  // 清空目标实例属性映射
+  selectTargetModel.value = null;
+  addRelationForm.relations = [];
+  sourceInstances.value = [];
+};
 // 重置新增关系表单
 const resetAddRelationForm = () => {
   ElMessageBox.confirm("确定关闭添加对话框?", "Warning", {
@@ -1121,16 +1144,7 @@ const resetAddRelationForm = () => {
     type: "warning",
   })
     .then(() => {
-      addRelationFormRef.value?.resetFields();
-      addRelationForm.source_model = null;
-      addRelationForm.relation = null;
-      addRelationForm.source_instance = null;
-      addRelationForm.target_instances = [];
-      // 清空目标实例属性映射
-      addRelationForm.relations = [];
-      sourceInstances.value = [];
-      targetInstances.value = [];
-      addRelationDialogVisible.value = false;
+      resetAddForm();
     })
     .catch(() => {
       ElMessage({
@@ -1188,9 +1202,16 @@ const searchTargetInstances = async (query) => {
       const res = await proxy.$api.getCiModelInstance({
         model: selectTargetModel.value,
         instance_name: query,
-        page_size: 3,
+        page_size: 10,
       });
-      targetInstances.value = res.data.results;
+      targetInstances.value = res.data.results.map((item) => {
+        if (targetInstancesSelects.value.indexOf(item.id) !== -1) {
+          console.log("item", item);
+          item.disabled = true;
+          return item;
+        }
+        return item;
+      });
     }
   } catch (error) {
     ElMessage.error("搜索目标实例失败");
@@ -1217,20 +1238,27 @@ const submitAddRelation = async () => {
             target_attributes: _relation.target_attributes || {},
             relation_attributes: _relation.relation_attributes || {},
           };
+          if (is_reverse.value) {
+            params.source_instance = _relation.target_instance;
+            params.target_instance = addRelationForm.source_instance;
+          }
+
           relations.push(params);
         }
         console.log("提交的params", JSON.stringify({ relations: relations }));
 
         // 检查是否所有请求都成功
-        const res = await proxy.$api.addRelations(relations);
+        const res = await proxy.$api.bulkAddModelInstanceRelation({
+          relations: relations,
+        });
 
-        if (res.status == 200) {
+        if (res.status == 201) {
           ElMessage.success("添加关联关系成功");
           addRelationDialogVisible.value = false;
-          resetAddRelationForm();
+          resetAddForm();
           fetchRelationData(); // 刷新数据
         } else {
-          ElMessage.error("部分关联关系添加失败");
+          ElMessage.error("关联关系添加失败" + JSON.stringify(res.data));
         }
       } catch (error) {
         ElMessage.error("添加关联关系失败: " + error.message);
@@ -1354,5 +1382,44 @@ onMounted(() => {
 
 .filter-label {
   white-space: nowrap;
+}
+/* 添加关系对话框的样式 */
+.add-relation-dialog {
+  display: flex;
+  flex-direction: column;
+  height: 70vh;
+}
+
+.add-relation-dialog .el-dialog__body {
+  flex: 1;
+  overflow: hidden;
+  padding: 10px 20px;
+}
+
+.relation-form-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.relation-form-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.relation-instances-table {
+  flex: 1;
+  overflow: auto;
+  margin-top: 15px;
+}
+
+.relation-instances-table .el-table {
+  height: 100%;
+}
+
+.dialog-footer {
+  padding-top: 15px;
 }
 </style>

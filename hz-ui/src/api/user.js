@@ -1,99 +1,140 @@
 import axios from '../utils/request'
-import path from './path'
-export default {
-   
+const path = {
+  login: "/api/v1/login/",
+  test: "/api/v1/test",
+  user: "/api/v1/userinfo/",
+  userGroup: "/api/v1/userGroup/",
 
-// 登录
-login(params){
+  role: "/api/v1/role/",
+  menuInfo: "/api/v1/menuinfo/",
+  menuList: "/api/v1/getMenu/",
+  menu: "/api/v1/menu/",
+  button: "/api/v1/button/",
+  routeInfo: "/api/v1/testroute/",
+  portal: "/api/v1/portal/",
+  pgroup: "/api/v1/pgroup/",
+  // datasource
+  dataSource: "/api/v1/datasource/",
+  getSecret: "/api/v1/getSecret/",
+  sysConfig: "/api/v1/sysconfig/",
+}
+export default {
+
+
+  // 登录
+  login(params) {
     return axios.request({
-      url:path.login,
-      method:'post',
-      data:params
+      url: path.login,
+      method: 'post',
+      data: params
     })
   },
 
 
-  test(){
+  test() {
     return axios.get(path.test)
   },
-  user(config){
+  user(config) {
     return axios.request({
-      url:path.user,
+      url: path.user,
       method: 'get',
-      params:config
+      params: config
     })
 
   },
-  useradd(params){
-    return axios.post(path.user,params)
+  useradd(params) {
+    return axios.post(path.user, params)
   },
-  userupdate(params){
-    return axios.patch(path.user+params.id+'/',params)
+  userupdate(params) {
+    return axios.patch(path.user + params.id + '/', params)
   },
-  userdel(params){
-    return axios.delete(path.user+params+'/')
+  userdel(params) {
+    return axios.delete(path.user + params + '/')
   },
-  usermuldel(data){
+  usermuldel(data) {
     // return axios.delete(path.user+'multiple_delete/',data)
     return axios.request({
-      url:path.user+'multiple_delete/',
-      method:'delete',
-      data:data
+      url: path.user + 'multiple_delete/',
+      method: 'delete',
+      data: data
     })
   },
-  getRole(params){
+  getRole(params) {
     return axios.request({
-      url:path.role,
+      url: path.role,
       method: 'get',
       params: params
     })
     // return axios.post(path.role)}
-  },  
-  roledel(params){
-    return axios.delete(path.role+params+'/')
   },
-  roleadd(params){
+  getRoleInfo(params) {
     return axios.request({
-      url:path.role,
+      url: path.role + params + '/',
+      method: 'get',
+    })
+    // return axios.post(path.role)}
+  },
+  roledel(params) {
+    return axios.delete(path.role + params + '/')
+  },
+  roleadd(params) {
+    return axios.request({
+      url: path.role,
       method: 'post',
       data: params
     })
     // return axios.post(path.role)}
-  }, 
-  roleupdate(params){
+  },
+  roleupdate(params) {
     // return axios.put(path.role+params.id+'/',params)
     return axios.request({
-      url:path.role+params.id+'/',
+      url: path.role + params.id + '/',
       method: 'patch',
       data: params
     })
   },
-  // 获取角色关联权限的树状
-  getPermissionToRole(params){
+  // 为角色添加按钮菜单权限
+  addRolePermissions(id, params) {
     return axios.request({
-      url:'/api/v1/getPermissionToRole/',
+      url: path.role + id + '/add_permissions/',
+      method: 'post',
+      data: params
+    })
+  },
+  // 为角色删除按钮菜单权限
+  removeRolePermissions(id, params) {
+    return axios.request({
+      url: path.role + id + '/remove_permissions/',
+      method: 'post',
+      data: params
+    })
+  },
+  // 获取角色关联权限的树状
+  getPermissionToRole(params) {
+    return axios.request({
+      url: '/api/v1/getPermissionToRole/',
       method: 'post',
       data: params
     })
     // return axios.post(path.role)}
-  }, 
+  },
 
-  getUserGroup(config){
+  getUserGroup(config) {
     return axios.request({
-      url:path.userGroup,
+      url: path.userGroup,
       method: 'get',
-      params:config
+      params: config
     })
 
   },
-  addUserGroup(params){
-    return axios.post(path.userGroup,params)
+  addUserGroup(params) {
+    return axios.post(path.userGroup, params)
   },
-  updateUserGroup(params){
-    return axios.patch(path.userGroup+params.id+'/',params)
+  updateUserGroup(params) {
+    return axios.patch(path.userGroup + params.id + '/', params)
   },
-  deleteUserGroup(params){
-    return axios.delete(path.userGroup+params+'/')
+  deleteUserGroup(params) {
+    return axios.delete(path.userGroup + params + '/')
   },
 
 }

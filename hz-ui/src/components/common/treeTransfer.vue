@@ -4,7 +4,9 @@
       <!-- 左侧面板 -->
       <div class="panel left-panel">
         <div class="panel-header">
-          <el-text tag="b">{{ titles[0] || "左侧列表" }}</el-text>
+          <el-text tag="b"
+            >{{ titles[0] || "左侧列表" }} ({{ leftTreeDataCount }})</el-text
+          >
           <el-input
             v-model="leftFilterText"
             placeholder="输入关键字筛选"
@@ -20,17 +22,18 @@
         <div class="panel-body">
           <el-tree
             ref="leftTreeRef"
-            :data="leftTreeData"
+            :data="leftUniqueKeyTreeData"
             show-checkbox
             default-expand-all
-            node-key="id"
+            node-key="uniqueKey"
             :props="treeProps"
             :filter-node-method="filterLeftNode"
             :check-strictly="checkStrictly"
             @check="handleLeftCheck"
-            :default-checked-keys="leftCheckedKeys"
+            :default-checked-keys="leftUniqueCheckedKeys"
             :default-expanded-keys="defaultExpandedKeys"
             :expand-on-click-node="false"
+            :class="{ 'tree-disabled': disabled }"
           >
             <template #default="{ node, data }">
               <el-tooltip
@@ -88,7 +91,9 @@
       <!-- 右侧面板 -->
       <div class="panel right-panel">
         <div class="panel-header">
-          <el-text tag="b">{{ titles[1] || "右侧列表" }}</el-text>
+          <el-text tag="b"
+            >{{ titles[1] || "右侧列表" }} ({{ rightTreeDataCount }})</el-text
+          >
           <el-input
             v-model="rightFilterText"
             placeholder="输入关键字筛选"
@@ -104,17 +109,18 @@
         <div class="panel-body">
           <el-tree
             ref="rightTreeRef"
-            :data="rightTreeData"
+            :data="rightUniqueKeyTreeData"
             show-checkbox
             default-expand-all
-            node-key="id"
+            node-key="uniqueKey"
             :props="treeProps"
             :filter-node-method="filterRightNode"
             :check-strictly="checkStrictly"
             @check="handleRightCheck"
-            :default-checked-keys="rightCheckedKeys"
+            :default-checked-keys="rightUniqueCheckedKeys"
             :default-expanded-keys="defaultExpandedKeys"
             :expand-on-click-node="false"
+            :class="{ 'tree-disabled': disabled }"
           >
             <template #default="{ node, data }">
               <el-tooltip
@@ -193,6 +199,15 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  hideFullyAssignedParents: {
+    type: Boolean,
+    default: false,
+  },
+  // 是否禁用整个组件
+  disabled: {
+    type: Boolean,
+    default: false,
+  },
   // 树属性配置
   treeProps: {
     type: Object,
@@ -220,34 +235,80 @@ const rightTreeRef = ref<TreeInstance>();
 const leftFilterText = ref("");
 const rightFilterText = ref("");
 
-// 选中的节点key
+// 选中的节点key（原始ID）
 const selectedLeftKeys = ref([]);
 const selectedRightKeys = ref([]);
 
-// 处理左侧树选中事件
-const handleLeftCheck = (data, info) => {
-  selectedLeftKeys.value = info.checkedKeys;
+// 生成具有唯一key的树数据
+const generateUniqueKeyTreeData = (data, prefix = "") => {
+  if (!data || !Array.isArray(data)) return [];
+
+  const result = [];
+
+  const processNode = (node, index, parentPath = "") => {
+    // 创建当前节点的副本
+    const newNode = { ...node };
+
+    // 生成唯一key: 路径+索引+原始ID
+    const uniqueKey = `${parentPath}${index}-${node.id}`;
+    newNode.uniqueKey = uniqueKey;
+
+    // 处理子节点
+    if (node.children && node.children.length > 0) {
+      newNode.children = node.children.map((child, childIndex) =>
+        processNode(child, childIndex, `${uniqueKey}-`)
+      );
+    }
+
+    return newNode;
+  };
+
+  // 处理所有根节点
+  data.forEach((node, index) => {
+    const processedNode = processNode(node, index, prefix);
+    result.push(processedNode);
+  });
+
+  return result;
 };
 
-// 处理右侧树选中事件
-const handleRightCheck = (data, info) => {
-  selectedRightKeys.value = info.checkedKeys;
+// 从唯一key树数据中提取原始ID
+const extractOriginalIds = (uniqueKeys, uniqueKeyTreeData) => {
+  const originalIds = [];
+
+  // 遍历唯一key树数据，查找对应的原始ID
+  const traverse = (nodes) => {
+    if (!nodes || !Array.isArray(nodes)) return;
+
+    nodes.forEach((node) => {
+      if (uniqueKeys.includes(node.uniqueKey)) {
+        originalIds.push(node.id);
+      }
+
+      if (node.children && node.children.length > 0) {
+        traverse(node.children);
+      }
+    });
+  };
+
+  traverse(uniqueKeyTreeData);
+  return [...new Set(originalIds)]; // 去重
 };
 
-// 获取所有叶子节点的key
-const getLeafKeys = (data) => {
+// 获取所有叶子节点的唯一key
+const getLeafUniqueKeys = (data) => {
   const leafKeys = [];
 
   const traverse = (nodes) => {
     if (!nodes || !Array.isArray(nodes)) return;
 
     nodes.forEach((node) => {
-      if (node.children && node.children.length > 0) {
+      if (!node.children || node.children.length === 0) {
+        // 叶子节点
+        leafKeys.push(node.uniqueKey);
+      } else if (node.children && node.children.length > 0) {
         // 有子节点，继续遍历
         traverse(node.children);
-      } else {
-        // 叶子节点
-        leafKeys.push(node.id);
       }
     });
   };
@@ -256,16 +317,20 @@ const getLeafKeys = (data) => {
   return leafKeys;
 };
 
-// 获取所有节点的key（包括非叶子节点）
-const getAllNodeKeys = (data) => {
-  const allKeys = [];
+// 获取所有非disabled的叶子节点key（去重）
+const getUniqueNonDisabledLeafKeys = (data) => {
+  const leafKeys = new Set();
 
   const traverse = (nodes) => {
     if (!nodes || !Array.isArray(nodes)) return;
 
     nodes.forEach((node) => {
-      allKeys.push(node.id);
-      if (node.children && node.children.length > 0) {
+      if (!node.children || node.children.length === 0) {
+        // 叶子节点，且未被禁用
+        if (!node.disabled) {
+          leafKeys.add(node.id);
+        }
+      } else if (node.children && node.children.length > 0) {
         // 有子节点，继续遍历
         traverse(node.children);
       }
@@ -273,43 +338,17 @@ const getAllNodeKeys = (data) => {
   };
 
   traverse(data);
-  return allKeys;
+  return Array.from(leafKeys);
 };
 
-// 过滤叶子节点（只保留叶子节点）
-const filterLeafNodes = (keys, allData) => {
-  // 构建完整树结构用于判断叶子节点
-  const leafKeys = getLeafKeys(allData);
-  return keys.filter((key) => leafKeys.includes(key));
-};
-
-// 左侧树数据（未选中的节点）
-const leftTreeData = computed(() => {
-  return filterTreeData(
-    props.data,
-    (item) => !props.modelValue.includes(item.id)
-  );
+// 左侧唯一key树数据
+const leftUniqueKeyTreeData = computed(() => {
+  return generateUniqueKeyTreeData(leftTreeData.value, "left-");
 });
 
-// 右侧树数据（已选中的节点）
-const rightTreeData = computed(() => {
-  return filterTreeData(props.data, (item) =>
-    props.modelValue.includes(item.id)
-  );
-});
-
-// 左侧选中keys
-const leftCheckedKeys = computed(() => {
-  return selectedLeftKeys.value.filter(
-    (key) => !props.modelValue.includes(key)
-  );
-});
-
-// 右侧选中keys
-const rightCheckedKeys = computed(() => {
-  return selectedRightKeys.value.filter((key) =>
-    props.modelValue.includes(key)
-  );
+// 右侧唯一key树数据
+const rightUniqueKeyTreeData = computed(() => {
+  return generateUniqueKeyTreeData(rightTreeData.value, "right-");
 });
 
 // 过滤树数据
@@ -360,25 +399,239 @@ const filterTreeData = (data, filterFn) => {
   return result;
 };
 
-// 左侧节点筛选
-const filterLeftNode = (value, data) => {
-  if (!value) return true;
-  // 只筛选叶子节点
-  if (data.children && data.children.length > 0) {
-    return false;
-  }
-  return data.label.includes(value);
+// 新增：过滤树数据（增强版）- 支持隐藏所有子节点都在右侧的父节点
+const filterTreeDataAdvanced = (
+  data,
+  filterFn,
+  hideFullyAssignedParents = false,
+  modelValue = []
+) => {
+  if (!data || !Array.isArray(data)) return [];
+
+  const result = [];
+
+  // 获取所有叶子节点
+  const leafKeys = getLeafKeys(data);
+
+  const processNode = (node) => {
+    // 检查当前节点是否符合条件
+    const nodeMatch = filterFn(node);
+
+    // 创建当前节点的副本
+    const newNode = { ...node };
+    // 处理子节点
+    let childrenMatch = false;
+    let allLeafChildrenInRight = false;
+
+    if (node.children && node.children.length > 0) {
+      // 递归处理子节点
+      const filteredChildren = node.children
+        .map((child) => processNode(child))
+        .filter((child) => child !== null);
+      if (filteredChildren.length > 0) {
+        newNode.children = filteredChildren;
+        childrenMatch = true;
+      } else {
+        delete newNode.children;
+      }
+      // 检查是否所有叶子节点子节点都在右侧（即所有叶子节点都被选中）
+      if (hideFullyAssignedParents) {
+        // 只考虑叶子节点，因为非叶子节点是否在右侧不影响是否显示父节点
+        const descendantLeafKeys = getLeafKeys([node]);
+        // 确保descendantLeafKeys不为空再进行every检查
+        allLeafChildrenInRight =
+          descendantLeafKeys.length > 0 &&
+          descendantLeafKeys.every((key) => modelValue.includes(key));
+      }
+    }
+    // 如果启用了隐藏完全分配的父节点且所有叶子节点子节点都在右侧，则不显示该父节点
+    if (hideFullyAssignedParents && allLeafChildrenInRight) {
+      return null;
+    }
+
+    // 如果当前节点匹配或者有子节点匹配，则保留该节点
+    if (nodeMatch || childrenMatch) {
+      return newNode;
+    }
+
+    // 如果当前节点和子节点都不匹配，返回null
+    return null;
+  };
+
+  // 处理所有根节点
+  data.forEach((node) => {
+    const processedNode = processNode(node);
+    if (processedNode !== null) {
+      result.push(processedNode);
+    }
+  });
+
+  return result;
 };
 
-// 右侧节点筛选
-const filterRightNode = (value, data) => {
-  if (!value) return true;
-  // 只筛选叶子节点
-  if (data.children && data.children.length > 0) {
-    return false;
+// 左侧树数据（未选中的节点）
+const leftTreeData = computed(() => {
+  // 使用新的高级过滤函数，传入props.hideFullyAssignedParents参数控制是否隐藏完全分配的父节点
+  if (props.hideFullyAssignedParents) {
+    return filterTreeDataAdvanced(
+      props.data,
+      (item) => !props.modelValue.includes(item.id),
+      true,
+      props.modelValue
+    );
+  } else {
+    return filterTreeData(
+      props.data,
+      (item) => !props.modelValue.includes(item.id)
+    );
   }
-  return data.label.includes(value);
+});
+
+// 右侧树数据（已选中的节点）
+const rightTreeData = computed(() => {
+  // 右侧树数据不需要隐藏完全分配的父节点的功能，所以直接使用原始的filterTreeData
+  return filterTreeData(props.data, (item) =>
+    props.modelValue.includes(item.id)
+  );
+});
+
+// 获取所有叶子节点的key
+const getLeafKeys = (data) => {
+  const leafKeys = [];
+
+  const traverse = (nodes) => {
+    if (!nodes || !Array.isArray(nodes)) return;
+
+    nodes.forEach((node) => {
+      if (node.children && node.children.length > 0) {
+        // 有子节点，继续遍历
+        traverse(node.children);
+      } else {
+        // 叶子节点
+        leafKeys.push(node.id);
+      }
+    });
+  };
+
+  traverse(data);
+  return leafKeys;
 };
+
+// 计算左侧树数据数量
+const leftTreeDataCount = computed(() => {
+  if (props.leafOnly) {
+    // 只统计非disabled的叶子节点数量（去重）
+    const uniqueLeafKeys = getUniqueNonDisabledLeafKeys(leftTreeData.value);
+    return uniqueLeafKeys.length;
+  } else {
+    // 统计所有非disabled节点数量
+    const countNodes = (nodes) => {
+      if (!nodes || !Array.isArray(nodes)) return 0;
+      return nodes.reduce((count, node) => {
+        // 如果节点被禁用，则不计入统计
+        if (node.disabled) return count + countNodes(node.children);
+        return count + 1 + countNodes(node.children);
+      }, 0);
+    };
+    return countNodes(leftTreeData.value);
+  }
+});
+
+// 计算右侧树数据数量
+const rightTreeDataCount = computed(() => {
+  if (props.leafOnly) {
+    // 只统计非disabled的叶子节点数量（去重）
+    const uniqueLeafKeys = getUniqueNonDisabledLeafKeys(rightTreeData.value);
+    return uniqueLeafKeys.length;
+  } else {
+    // 统计所有非disabled节点数量
+    const countNodes = (nodes) => {
+      if (!nodes || !Array.isArray(nodes)) return 0;
+      return nodes.reduce((count, node) => {
+        // 如果节点被禁用，则不计入统计
+        if (node.disabled) return count + countNodes(node.children);
+        return count + 1 + countNodes(node.children);
+      }, 0);
+    };
+    return countNodes(rightTreeData.value);
+  }
+});
+
+// 左侧选中keys（唯一key）
+const leftUniqueCheckedKeys = computed(() => {
+  // 需要将原始ID转换为唯一key
+  const uniqueKeys = [];
+  const traverse = (nodes) => {
+    if (!nodes || !Array.isArray(nodes)) return;
+
+    nodes.forEach((node) => {
+      if (selectedLeftKeys.value.includes(node.id)) {
+        uniqueKeys.push(node.uniqueKey);
+      }
+
+      if (node.children && node.children.length > 0) {
+        traverse(node.children);
+      }
+    });
+  };
+
+  traverse(leftUniqueKeyTreeData.value);
+  return uniqueKeys;
+});
+
+// 右侧选中keys（唯一key）
+const rightUniqueCheckedKeys = computed(() => {
+  // 需要将原始ID转换为唯一key
+  const uniqueKeys = [];
+  const traverse = (nodes) => {
+    if (!nodes || !Array.isArray(nodes)) return;
+
+    nodes.forEach((node) => {
+      if (selectedRightKeys.value.includes(node.id)) {
+        uniqueKeys.push(node.uniqueKey);
+      }
+
+      if (node.children && node.children.length > 0) {
+        traverse(node.children);
+      }
+    });
+  };
+
+  traverse(rightUniqueKeyTreeData.value);
+  return uniqueKeys;
+});
+
+// 处理左侧树选中事件
+const handleLeftCheck = (data, info) => {
+  if (props.disabled) return;
+  console.log(data);
+  // 从唯一key提取原始ID
+  selectedLeftKeys.value = extractOriginalIds(
+    info.checkedKeys,
+    leftUniqueKeyTreeData.value
+  );
+};
+
+// 处理右侧树选中事件
+const handleRightCheck = (data, info) => {
+  if (props.disabled) return;
+  console.log("handleRightCheck", rightTreeRef.value!.getCurrentNode());
+  console.log(data);
+  console.log(info);
+  // 从唯一key提取原始ID
+  selectedRightKeys.value = extractOriginalIds(
+    info.checkedKeys,
+    rightUniqueKeyTreeData.value
+  );
+};
+
+// 过滤叶子节点（只保留叶子节点）
+const filterLeafNodes = (keys, allData) => {
+  // 构建完整树结构用于判断叶子节点
+  const leafKeys = getLeafKeys(allData);
+  return keys.filter((key) => leafKeys.includes(key));
+};
+
 // 移动到右侧
 const moveToRight = () => {
   if (selectedLeftKeys.value.length === 0) return;
@@ -427,6 +680,26 @@ const moveToLeft = () => {
   });
 };
 
+// 左侧节点筛选
+const filterLeftNode = (value, data) => {
+  if (!value) return true;
+  // 只筛选叶子节点
+  if (data.children && data.children.length > 0) {
+    return false;
+  }
+  return data.label.includes(value);
+};
+
+// 右侧节点筛选
+const filterRightNode = (value, data) => {
+  if (!value) return true;
+  // 只筛选叶子节点
+  if (data.children && data.children.length > 0) {
+    return false;
+  }
+  return data.label.includes(value);
+};
+
 // 监听筛选文本变化
 watch(leftFilterText, (val) => {
   if (leftTreeRef.value) {
@@ -446,10 +719,10 @@ watch(
   () => {
     nextTick(() => {
       if (leftTreeRef.value) {
-        leftTreeRef.value.setCheckedKeys(leftCheckedKeys.value);
+        leftTreeRef.value.setCheckedKeys(leftUniqueCheckedKeys.value);
       }
       if (rightTreeRef.value) {
-        rightTreeRef.value.setCheckedKeys(rightCheckedKeys.value);
+        rightTreeRef.value.setCheckedKeys(rightUniqueCheckedKeys.value);
       }
     });
   },
@@ -460,10 +733,10 @@ watch(
 onMounted(() => {
   nextTick(() => {
     if (leftTreeRef.value) {
-      leftTreeRef.value.setCheckedKeys(leftCheckedKeys.value);
+      leftTreeRef.value.setCheckedKeys(leftUniqueCheckedKeys.value);
     }
     if (rightTreeRef.value) {
-      rightTreeRef.value.setCheckedKeys(rightCheckedKeys.value);
+      rightTreeRef.value.setCheckedKeys(rightUniqueCheckedKeys.value);
     }
   });
 });
@@ -551,5 +824,19 @@ onMounted(() => {
 
 :deep(.el-checkbox) {
   margin-right: 8px;
+}
+/* 添加禁用状态的样式 */
+:deep(.tree-disabled .el-tree-node__content) {
+  color: #c0c4cc;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+:deep(.tree-disabled .el-checkbox) {
+  pointer-events: none;
+}
+
+:deep(.tree-disabled .el-tree-node__expand-icon) {
+  pointer-events: none;
 }
 </style>

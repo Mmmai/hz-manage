@@ -1,19 +1,31 @@
 from django.db import models
-from datetime import timezone
+from django.utils import timezone
 import uuid
 class UserInfo(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = models.CharField(max_length=32,null=False,unique=True)
-    password = models.CharField(max_length=32,null=False)
+    password = models.CharField(max_length=256,null=False)
+    password_salt = models.CharField(max_length=32, null=False, default='')    
     real_name = models.CharField(max_length=50, verbose_name="真实姓名",null=True,blank=True,default="")
     # token = models.CharField(max_length=128,null=True,blank=True)
     status = models.BooleanField(verbose_name="状态",default=True)
+    built_in = models.BooleanField(verbose_name="内置用户",default=False)
+    expire_time = models.DateTimeField(verbose_name="到期时间", null=True, blank=True)
     update_time = models.DateTimeField(auto_now=True)
     create_time = models.DateTimeField(auto_now_add=True)
     roles = models.ManyToManyField(to='Role',verbose_name='角色')
     groups = models.ManyToManyField(to='UserGroup',verbose_name='用户组',related_name="users")
     def __str__(self):
       return self.username
+    def is_expired(self):
+        """
+        检查用户是否已过期
+        如果没有设置过期时间，则返回False
+        否则比较当前时间和过期时间
+        """
+        if not self.expire_time:
+            return False
+        return timezone.now() > self.expire_time
     class Meta:
       db_table = "tb_userinfo"
       verbose_name = "用户表"
@@ -23,6 +35,7 @@ class UserInfo(models.Model):
 class UserGroup(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     group_name = models.CharField(max_length=32,null=False,unique=True)
+    built_in = models.BooleanField(verbose_name="内置用户组",default=False)
     update_time = models.DateTimeField(auto_now=True)
     create_time = models.DateTimeField(auto_now_add=True)
     roles = models.ManyToManyField(to='Role',verbose_name='角色')
@@ -41,6 +54,7 @@ class Role(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     role = models.CharField(max_length=32, unique=True,verbose_name = "角色")
     role_name = models.CharField(max_length=32, unique=True,verbose_name = "角色名称")
+    built_in = models.BooleanField(verbose_name="内置角色",default=False)
     update_time = models.DateTimeField(auto_now=True)
     create_time = models.DateTimeField(auto_now_add=True)
     

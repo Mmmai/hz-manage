@@ -34,8 +34,8 @@
       <el-table-column property="roles" label="角色列表">
         <template #default="scope">
           <div class="flexJstart gap-5">
-            <el-tag v-for="item in scope.row.roles" :key="item">
-              {{ item.role }}
+            <el-tag v-for="item in scope.row.roles" :key="item" type="warning">
+              {{ item.role_name }}
             </el-tag>
           </div>
         </template>
@@ -51,7 +51,6 @@
           >
             <el-button
               v-permission="`${route.name?.replace('_info', '')}:edit`"
-              :disabled="scope.row.group_name === '系统管理组' ? true : false"
               link
               type="primary"
               :icon="Edit"
@@ -67,7 +66,7 @@
             <el-button
               v-permission="`${route.name?.replace('_info', '')}:delete`"
               link
-              :disabled="scope.row.group_name === '系统管理组' ? true : false"
+              :disabled="scope.row.built_in"
               type="danger"
               :icon="Delete"
               @click="deleteRow(scope.row.id)"
@@ -100,7 +99,7 @@
             v-model="formInline.group_name"
             placeholder=""
             clearable
-            :disabled="isDisabled"
+            :disabled="!isAdd && nowRow.built_in"
             style="width: 220px"
           />
         </el-form-item>
@@ -113,7 +112,6 @@
             collapse-tags
             collapse-tags-tooltip
             :max-collapse-tags="3"
-            :disabled="isDisabled"
             style="width: 220px"
           >
             <el-option
@@ -134,7 +132,7 @@
             collapse-tags
             collapse-tags-tooltip
             :max-collapse-tags="3"
-            :disabled="isDisabled"
+            :disabled="!isAdd && nowRow.built_in"
             style="width: 220px"
           >
             <el-option
@@ -221,6 +219,7 @@ const getUserGroupData = async () => {
 const multipleTableRef = ref(null);
 const handleClose = () => {
   dialogVisible.value = false;
+  resetForm(userGroupFrom.value);
 };
 const addGroup = () => {
   dialogVisible.value = true;
@@ -333,5 +332,4 @@ onMounted(async () => {
   await getUserGroupData();
 });
 </script>
-<style scoped lang="scss">
-</style>
+<style scoped lang="scss"></style>

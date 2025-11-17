@@ -43,8 +43,9 @@ instance.interceptors.request.use(
     //   console.log(config.data)
     config.startTime = Date.now();
     // }
-    if (localStorage.getItem('token')) {
-      config.headers.token = localStorage.getItem('token')
+    let token = JSON.parse(localStorage.getItem('configs'))?.token
+    if (token) {
+      config.headers.token = token
       // console.log(localStorage.getItem('token'))
     }
     return config;
@@ -60,6 +61,24 @@ instance.interceptors.response.use(
     const costTime = endTime - response.config.startTime;
     response.costTime = costTime
     // return response.data.staus == 200 ? Promise.resolve(response) : Promise.reject(response)
+    // 检查响应数据中是否有token过期的相关信息
+    if (response.data && response.data.status === 403) {
+      // token过期，清除本地存储并跳转到登录页
+      alert.error('登录已过期，请重新登录')
+      localStorage.clear()
+
+      // 延迟跳转以确保消息能被看到
+      setTimeout(() => {
+        // 如果使用Vue Router，可以这样跳转
+        if (window.location.hash) {
+          window.location.hash = '#/login'
+        } else {
+          window.location.href = '/#/login'
+        }
+      }, 1500)
+
+      return Promise.reject(response)
+    }
     return Promise.resolve(response)
   },
   (error) => {

@@ -69,7 +69,7 @@
           label="操作描述"
           show-overflow-tooltip
         />
-        <el-table-column label="变更内容">
+        <el-table-column label="变更内容" show-overflow-tooltip>
           <template #default="scope">
             <div class="change-content">
               <div
@@ -157,6 +157,11 @@ import { JsonViewer } from "vue3-json-viewer";
 import "vue3-json-viewer/dist/vue3-json-viewer.css";
 import { ElMessage } from "element-plus";
 const { proxy } = getCurrentInstance();
+import { encrypt_sm4, decrypt_sm4 } from "@/utils/gmCrypto.ts";
+
+import useConfigStore from "@/store/config";
+const configStore = useConfigStore();
+const gmConfig = computed(() => configStore.gmCry);
 // 组件参数
 const props = defineProps({
   instanceId: {
@@ -281,16 +286,52 @@ const pageChange = () => {
   fetchAuditLogs();
 };
 // 获取变更内容
-// ... existing code ...
+const targetTypeMap = {
+  model: "模型",
+  model_field: "字段",
+  model_instance: "实例",
+  model_group: "模型组",
+  unique_constraint: "唯一约束",
+  model_field_group: "模型字段组",
+  validation_rule: "校验规则",
+  model_instance_group: "实例组",
+  relation_definition: "关系定义",
+  relation: "关系关联",
+  // 可以根据实际需求添加更多模型
+};
 const changeMap = {
+  // 实例树
   groups: "实例组",
+  path: "路径",
+  label: "标签",
+  level: "层级",
+  parent: "父级",
+  built_in: "内置",
   instance_name: "实例名称",
   order: "排序",
   verbose_name: "字段名称",
-  model_field_group: "字段组",
+  model_field_group: "字段分组",
+  instance_name_template: "实例名称模板",
+  fields: "字段组合",
+
   using_template: "自动命名",
   model: "模型",
   input_mode: "录入方式",
+  // 关联关系
+  relation_attributes: "关系属性",
+  source_attributes: "源属性",
+  target_attributes: "目标属性",
+  relation: "关联关系",
+  attribute_schema: "关系属性",
+  description: "描述",
+  source_instance: "源实例",
+  target_instance: "目标实例",
+  source_model: "源模型",
+  target_model: "目标模型",
+  name: "名称",
+  forward_verb: "正向名称",
+  reverse_verb: "反向名称",
+  topology_type: "拓扑类型",
   // update_user: "更新用户",
 };
 const formatChanges = (row) => {
@@ -337,46 +378,55 @@ const formatChanges = (row) => {
 };
 // 处理enum,model_ref
 const formatDetails = (text) => {
+  const processObject = (parsed) => {
+    if (typeof parsed === "object" && parsed !== null) {
+      if (parsed.hasOwnProperty("label") && parsed.label !== undefined) {
+        return parsed.label;
+      } else if (
+        parsed.hasOwnProperty("instance_name") &&
+        parsed.instance_name !== undefined
+      ) {
+        return parsed.instance_name;
+      } else if (
+        parsed.hasOwnProperty("verbose_name") &&
+        parsed.verbose_name !== undefined
+      ) {
+        return parsed.verbose_name;
+      } else if (
+        parsed.hasOwnProperty("password") &&
+        parsed.password !== undefined
+      ) {
+        if (configStore.isShowPass) {
+          return decrypt_sm4(
+            gmConfig.value.key,
+            gmConfig.value.mode,
+            parsed.password
+          );
+        } else {
+          return "******";
+        }
+      } else {
+        return JSON.stringify(parsed);
+      }
+    }
+  };
   if (text === null) return text;
 
   // 如果是对象，直接处理
   if (typeof text === "object") {
-    if (text.hasOwnProperty("label") && text.label !== undefined) {
-      return text.label;
-    } else if (
-      text.hasOwnProperty("instance_name") &&
-      text.instance_name !== undefined
-    ) {
-      return text.instance_name;
-    } else if (
-      text.hasOwnProperty("verbose_name") &&
-      text.verbose_name !== undefined
-    ) {
-      return text;
-    }
-    return text;
+    return processObject(text);
   }
 
   // 如果是字符串，尝试解析为对象后再处理
-  if (typeof text === "string") {
+  else if (typeof text === "string") {
     try {
       const parsed = JSON.parse(text);
-      if (typeof parsed === "object" && parsed !== null) {
-        if (parsed.hasOwnProperty("label") && parsed.label !== undefined) {
-          return parsed.label;
-        } else if (
-          parsed.hasOwnProperty("instance_name") &&
-          parsed.instance_name !== undefined
-        ) {
-          return parsed.instance_name;
-        }
-      }
+      return processObject(parsed);
     } catch (e) {
       // 解析失败则按普通字符串处理
+      return text;
     }
-    return text;
   }
-
   return text;
 };
 // ... existing code ...
@@ -391,17 +441,6 @@ const formattedJson = computed(() => {
 const showDetail = (row) => {
   currentRowData.value = row;
   drawerVisible.value = true;
-};
-
-const targetTypeMap = {
-  model: "模型",
-  model_field: "字段",
-  model_instance: "实例",
-  model_group: "模型组",
-  unique_constraint: "唯一约束",
-  model_field_group: "模型字段组",
-  validation_rule: "校验规则",
-  model_instance_group: "实例组",
 };
 
 const formatTargetType = (type) => {

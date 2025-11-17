@@ -376,12 +376,12 @@ INIT_MENU = [
         "path": "/role",
         "is_menu": 1,
         "sort": 3,
-        "has_info": 0,
-        "info_view_name": '',
+        "has_info": 1,
+        "info_view_name": 'roleInfo',
         "is_iframe": 0,
         "iframe_url": '',
         "description": "",
-        "keepalive": 1,
+        "keepalive": 0,
         "parentid_id": "settings"
     },
     {
