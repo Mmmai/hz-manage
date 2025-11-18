@@ -1,10 +1,13 @@
-from django.db.models.signals import post_save, post_migrate
-from django.dispatch import receiver
-from .models import UserInfo, UserGroup, Role, Menu, sysConfigParams, Button, Permission
-from django.db import transaction
-from node_mg.utils.config_manager import ConfigManager
 import re
 import logging
+
+from django.db.models.signals import post_save, post_migrate
+from django.dispatch import receiver
+
+from .models import UserInfo, UserGroup, Role, Menu, sysConfigParams, Button, Permission
+from .messages import zabbix_config_updated
+from node_mg.utils.config_manager import ConfigManager
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,3 +56,11 @@ def atuo_add_to_sysadmin(sender, instance, created, **kwargs):
 #             logger.info(f"更新系统配置<{instance.param_name}>")
 
 #     transaction.on_commit(delayed_process)
+
+
+@receiver(post_save, sender=sysConfigParams)
+def monitor_sys_config_change(sender, instance, created, **kwargs):
+    # zabbix配置发生变化时通知node_mg立即刷新配置
+    if re.match("^zabbix", instance.param_name):
+        zabbix_config_updated.send()
+        logger.debug(f'Zabbix configuration parameter "{instance.param_name}" has changed, sent update signal.')

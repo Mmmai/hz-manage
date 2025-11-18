@@ -5,20 +5,7 @@ from drf_spectacular.types import OpenApiTypes
 from rest_framework import serializers
 from textwrap import dedent
 from .constants import FieldType, ValidationType
-from .serializers import (
-    ModelGroupsSerializer,
-    ModelsSerializer,
-    ModelFieldGroupsSerializer,
-    ValidationRulesSerializer,
-    ModelFieldsSerializer,
-    ModelFieldPreferenceSerializer,
-    UniqueConstraintSerializer,
-    ModelInstanceSerializer,
-    ModelInstanceBasicViewSerializer,
-    ModelFieldMetaSerializer,
-    ModelInstanceGroupSerializer,
-    ModelInstanceGroupRelationSerializer
-)
+from .serializers import *
 
 
 model_groups_schema = extend_schema_view(

@@ -46,9 +46,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'mapi',
+    'permissions',
     'audit',
     'mlog',
-    'mapi',
     'cacheops',
     'node_mg',
     'cmdb',
@@ -128,7 +129,7 @@ DATABASES = {
     # },
 }
 # 多数据库配置
-#DATABASE_ROUTERS = ['vuedjango.db_router.database_router']
+# DATABASE_ROUTERS = ['vuedjango.db_router.database_router']
 # DATABASE_APPS_MAPPING = {
 #     'mlog': 'default',
 #     'mapi': 'default',
@@ -260,7 +261,7 @@ SPECTACULAR_SETTINGS = {
         {'name': '字段校验规则管理', 'description': '字段校验规则相关接口'},
         {'name': '字段管理', 'description': '字段相关接口'},
         {'name': '字段展示管理', 'description': '字段展示设置相关接口'},
-        {'name': '字段元数据管理', 'description': '字段元数据相关接口'},
+        # {'name': '字段元数据管理', 'description': '字段元数据相关接口'},
         {'name': '实例唯一性约束管理', 'description': '实例唯一性约束相关接口'},
         {'name': '实例管理', 'description': '实例相关接口'},
         {'name': '模型引用管理', 'description': '模型引用相关接口'},
@@ -312,9 +313,6 @@ USE_L10N = True
 
 USE_TZ = False
 
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/3.0/howto/static-files/
 IMPORT_EXPORT_USE_TRANSACTIONS = True
 STATIC_URL = '/static/'
 
@@ -334,6 +332,8 @@ REST_FRAMEWORK = {
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
+        # 自定义权限过滤器
+        'permissions.backends.DataScopeFilterBackend',
     ),
     'DEFAULT_PARSER_CLASSES': (
         'rest_framework.parsers.JSONParser',
@@ -363,7 +363,7 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'standard',
         },
-        #通用日志
+        # 通用日志
         'file': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',

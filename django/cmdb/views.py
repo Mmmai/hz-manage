@@ -7,7 +7,6 @@ import io
 import tempfile
 import networkx as nx
 
-from functools import reduce
 from django.conf import settings
 from rest_framework import viewsets
 from rest_framework.response import Response
@@ -20,12 +19,13 @@ from rest_framework.pagination import PageNumberPagination
 from cacheops import cached_as, invalidate_model
 from django.core.cache import cache
 from django.http import StreamingHttpResponse
+from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 from django.db.models import Q
 from django_redis import get_redis_connection
 from celery.result import AsyncResult
 
-from mapi.permissions import get_user_data_scope
+
 from .utils import password_handler, celery_manager
 from .excel import ExcelHandler
 from .constants import FieldMapping, FieldType, limit_field_names
@@ -51,6 +51,7 @@ from .schemas import (
 )
 from audit.context import audit_context
 from audit.mixins import AuditContextMixin
+from permissions.manager import PermissionManager
 
 logger = logging.getLogger(__name__)
 
@@ -64,11 +65,48 @@ class StandardResultsSetPagination(PageNumberPagination):
 class CmdbBaseViewSet(AuditContextMixin, viewsets.ModelViewSet):
     """
     CMDB 应用专属的 ViewSet 基类。
+    它自动集成了 AuditContextMixin，确保所有继承自它的 ViewSet都会被置于审计上下文中。
+    同时，它还提供了基于当前用户的数据范围过滤功能，确保用户只能访问其有权限查看的数据。
 
-    它自动集成了 AuditContextMixin，确保所有继承自它的 ViewSet
-    都会被置于审计上下文中。
+    ** 子类必须通过 self.get_queryset() 方法获取查询集 **
+    ** 子类重写get_queryset()方法时必须在首行调用 super().get_queryset() **
+    ** 子类中禁止通过以下方法获取查询集 **
+    1. self.queryset（使用self.get_queryset()代替）
+    2. Model.objects.all()（使用PermissionManager.get_queryset(Model)代替）
+    3. Model.objects.filter()（使用PermissionManager.get_queryset(Model)代替）
+    4. 定义了类级别的 queryset 后必须重写 get_queryset() 方法以确保权限过滤生效
     """
     pagination_class = StandardResultsSetPagination
+    _visible_queryset = None
+
+    def get_base_queryset(self):
+        """
+        特殊情况下提供的获取基础查询集的方法，子类可以重写此方法以动态生成基础查询集。
+        ** 正常情况下只调用 super().get_queryset() 避免权限漏洞。 **
+        """
+        if not hasattr(self, 'queryset') or self.queryset is None:
+            raise ImproperlyConfigured(
+                f"{self.__class__.__name__} must define a 'queryset' attribute or override get_base_queryset()."
+            )
+        # 如果 queryset 是一个 QuerySet 对象，需要先克隆它以避免修改类属性
+        if hasattr(self.queryset, '_clone'):
+            return self.queryset._clone()
+        return self.queryset
+
+    def get_queryset(self):
+        if self._visible_queryset is None:
+            base_queryset = super().get_queryset()
+            self._visible_queryset = self.filter_queryset(base_queryset)
+        return self._visible_queryset
+
+    def filter_queryset(self, queryset):
+        if self._visible_queryset is not None:
+            return self._visible_queryset
+
+        filtered_queryset = super().filter_queryset(queryset)
+        self._visible_queryset = filtered_queryset
+
+        return self._visible_queryset
 
     def get_current_user(self):
         if self.request and hasattr(self.request, 'user'):
@@ -79,6 +117,7 @@ class CmdbBaseViewSet(AuditContextMixin, viewsets.ModelViewSet):
         """在创建对象时，自动设置 create_user 和 update_user。"""
         username = self.get_current_user()
         serializer.save(create_user=username, update_user=username)
+        return serializer.instance
 
     def perform_update(self, serializer):
         """在更新对象时，自动设置 update_user。"""
@@ -88,9 +127,30 @@ class CmdbBaseViewSet(AuditContextMixin, viewsets.ModelViewSet):
 
 class CmdbReadOnlyBaseViewSet(AuditContextMixin, viewsets.ReadOnlyModelViewSet):
     """
-    为只读视图提供的基类，同样集成了审计上下文。
+    为只读视图提供的基类。
     """
     pagination_class = StandardResultsSetPagination
+    _visible_queryset = None
+
+    def get_queryset(self):
+        if self._visible_queryset is None:
+            base_queryset = super().get_queryset()
+            self._visible_queryset = self.filter_queryset(base_queryset)
+        return self._visible_queryset
+
+    def filter_queryset(self, queryset):
+        if self._visible_queryset is not None:
+            return self._visible_queryset
+
+        filtered_queryset = super().filter_queryset(queryset)
+        self._visible_queryset = filtered_queryset
+
+        return self._visible_queryset
+
+    def get_current_user(self):
+        if self.request and hasattr(self.request, 'user'):
+            return self.request.username
+        return 'unknown'
 
 
 @model_groups_schema
@@ -101,6 +161,9 @@ class ModelGroupsViewSet(CmdbBaseViewSet):
     ordering_fields = ['name', 'built_in', 'editable', 'create_time', 'update_time']
     search_fields = ['name', 'description', 'create_user', 'update_user']
 
+    def get_queryset(self):
+        return super().get_queryset()
+
 
 @models_schema
 class ModelsViewSet(CmdbBaseViewSet):
@@ -110,17 +173,12 @@ class ModelsViewSet(CmdbBaseViewSet):
     ordering_fields = ['name', 'type', 'create_time', 'update_time']
     search_fields = ['name', 'type', 'description', 'create_user', 'update_user']
 
-    def generate_unique_id(self):
-        while True:
-            new_id = str(uuid.uuid4())
-            if Models.objects.filter(id=new_id).count() == 0:
-                return new_id
+    def get_queryset(self):
+        return super().get_queryset()
 
     def perform_create(self, serializer):
-        unique_id = self.generate_unique_id()
-        user = self.get_current_user()
-        instance = serializer.save(id=unique_id, create_user=user, update_user=user)
-        logger.info(f"New model created: {instance.name} (ID: {unique_id})")
+        instance = super().perform_create(serializer)
+        logger.info(f'Created model: {instance.name} by user: {self.get_current_user()}')
 
         default_group, created = ModelFieldGroups.objects.get_or_create(
             name='basic',
@@ -134,7 +192,6 @@ class ModelsViewSet(CmdbBaseViewSet):
                 'update_user': 'system'
             }
         )
-        # return instance
 
     def perform_destroy(self, instance):
         if instance.built_in:
@@ -142,17 +199,18 @@ class ModelsViewSet(CmdbBaseViewSet):
             raise PermissionDenied({
                 'detail': 'Built-in model cannot be deleted'
             })
-        logger.info(f"Model deleted successfully: {instance.name}")
         instance.delete()
+        logger.info(f"Model deleted successfully: {instance.name}")
 
     def retrieve(self, request, *args, **kwargs):
         model = self.get_object()
 
-        field_groups = ModelFieldGroups.objects.filter(model=model).order_by('create_time')
-        field_groups_data = ModelFieldGroupsSerializer(field_groups, many=True).data
+        pm = PermissionManager(user=self.request.username)
+        field_groups_qs = pm.get_queryset(ModelFieldGroups).filter(model=model).order_by('create_time')
+        field_groups_data = ModelFieldGroupsSerializer(field_groups_qs, many=True).data
 
-        fields = ModelFields.objects.filter(model=model).order_by('order')
-        fields_data = ModelFieldsSerializer(fields, many=True).data
+        fields_qs = pm.get_queryset(ModelFields).filter(model=model).order_by('order')
+        fields_data = ModelFieldsSerializer(fields_qs, many=True).data
 
         grouped_fields = {}
         for field in fields_data:
@@ -183,7 +241,7 @@ class ModelsViewSet(CmdbBaseViewSet):
             )
 
         audit_context = self.get_audit_context()
-        # logger.debug(f'Audit context for instance name change: {audit_context}')
+
         # 触发异步任务
         task = update_instance_names_for_model_template_change.delay(
             str(model.id),
@@ -220,6 +278,9 @@ class ModelFieldGroupsViewSet(CmdbBaseViewSet):
     ordering_fields = ['name', 'built_in', 'editable', 'create_time', 'update_time']
     search_fields = ['name', 'description', 'create_user', 'update_user']
 
+    def get_queryset(self):
+        return super().get_queryset()
+
     def perform_destroy(self, instance):
         if instance.built_in:
             logger.warning(f"Attempt to delete built-in field group denied: {instance.name}")
@@ -245,7 +306,9 @@ class ModelFieldGroupsViewSet(CmdbBaseViewSet):
             }
         )
 
-        ModelFields.objects.filter(model_field_group=instance).update(model_field_group=default_group)
+        pm = PermissionManager(user=self.request.username)
+        pm.get_queryset(ModelFields).filter(model_field_group=instance).update(model_field_group=default_group)
+        # ModelFields.objects.filter(model_field_group=instance).update(model_field_group=default_group)
 
         super().perform_destroy(instance)
         logger.info(f"Field group deleted successfully: {instance.name}")
@@ -258,6 +321,9 @@ class ValidationRulesViewSet(CmdbBaseViewSet):
     filterset_class = ValidationRulesFilter
     ordering_fields = ['name', 'field_type', 'type', 'create_time', 'update_time']
     search_fields = ['name', 'type', 'description', 'rule']
+
+    def get_queryset(self):
+        return super().get_queryset()
 
     def perform_destroy(self, instance):
         if instance.built_in:
@@ -304,6 +370,9 @@ class ModelFieldsViewSet(CmdbBaseViewSet):
     filterset_class = ModelFieldsFilter
     ordering_fields = ['name', 'type', 'order', 'create_time', 'update_time']
 
+    def get_queryset(self):
+        return super().get_queryset()
+
     def perform_destroy(self, instance):
         if instance.built_in:
             logger.warning(f"Attempt to delete built-in field group denied: {instance.name}")
@@ -323,6 +392,7 @@ class ModelFieldsViewSet(CmdbBaseViewSet):
                 raise PermissionDenied({
                     'detail': f'Field {instance.name} is used in unique constraint {constraint.name}'
                 })
+
         # 删除字段时，需要将字段从偏好设置中移除
         preferences = ModelFieldPreference.objects.filter(fields_preferred=[str(instance.id)])
         for preference in preferences:
@@ -345,6 +415,10 @@ class ModelFieldPreferenceViewSet(CmdbBaseViewSet):
     filterset_class = ModelFieldPreferenceFilter
     search_fields = ['model', 'create_user', 'update_user']
     ordering_fields = ['model', 'create_time', 'update_time']
+
+    def get_queryset(self):
+        # TODO: 字段展示列表暂不启用权限控制, 后续改造为根据不同用户展示不同的
+        return super().get_base_queryset()
 
     def list(self, request, *args, **kwargs):
         user = request.query_params.get('user', 'system')
@@ -385,6 +459,10 @@ class UniqueConstraintViewSet(CmdbBaseViewSet):
     serializer_class = UniqueConstraintSerializer
     filterset_class = UniqueConstraintFilter
     ordering_fields = ['model', 'create_time', 'update_time']
+
+    def get_queryset(self):
+        # TODO: 唯一约束不启用权限控制，允许任何人查看，后续考虑更新为只有部分用户有权限编辑
+        return super().get_base_queryset()
 
     def perform_destroy(self, instance):
         if instance.built_in:
@@ -472,8 +550,8 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
 
     def _apply_filters(self, queryset, model, filter_params):
         model_id = model
-        matching_ids_list = []
         params = filter_params.copy()
+        query = Q()
 
         if model_id:
             queryset = queryset.filter(model_id=model_id)
@@ -488,77 +566,50 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
                 else:
                     standard_fields[field_name] = field_value
 
+        # 过滤ModelInstance字段
         if standard_fields:
             filterset = ModelInstanceFilter(standard_fields, queryset=queryset)
             queryset = filterset.qs
 
+        # 过滤动态字段
         for field_name, field_value in filter_params.items():
             # 忽略特殊参数
             if field_name in limit_field_names:
                 continue
 
             try:
-                field = ModelFields.objects.get(
-                    model=model_id if model_id else queryset.first().model_id,
-                    name=field_name
-                )
-
-                meta_query = ModelFieldMeta.objects.filter(model_fields=field)
-                all_instance_ids = set(meta_query.values_list('model_instance_id', flat=True))
-                exclude_ids = set()
-
                 if isinstance(field_value, str):
                     if field_value.startswith('like:'):
                         value = field_value[5:]
-                        meta_query = meta_query.filter(data__icontains=value)
-                        all_instance_ids = set(meta_query.values_list('model_instance_id', flat=True))
+                        query &= Q(data__icontains=value)
                     elif field_value.startswith('in:'):
                         values = field_value[3:].split(',')
-                        meta_query = meta_query.filter(data__in=values)
-                        all_instance_ids = set(meta_query.values_list('model_instance_id', flat=True))
+                        query &= Q(data__in=values)
                     elif field_value.startswith('regex:'):
                         pattern = field_value[6:]
-                        meta_query = meta_query.filter(data__regex=pattern)
-                        all_instance_ids = set(meta_query.values_list('model_instance_id', flat=True))
+                        query &= Q(data__regex=pattern)
                     elif field_value.startswith('not:'):
                         # 反选匹配
                         value = field_value[4:]
                         if value.startswith('like:'):
                             v = value[5:]
-                            exclude_ids = set(
-                                meta_query.filter(
-                                    data__icontains=v).values_list(
-                                    'model_instance_id', flat=True))
+                            query &= ~Q(data__icontains=v)
                         elif value.startswith('in:'):
                             v = value[3:].split(',')
-                            exclude_ids = set(meta_query.filter(data__in=v).values_list('model_instance_id', flat=True))
+                            query &= ~Q(data__in=v)
                         elif value.startswith('regex:'):
                             pattern = value[6:]
-                            exclude_ids = set(
-                                meta_query.filter(
-                                    data__regex=pattern).values_list(
-                                    'model_instance_id', flat=True))
+                            query &= ~Q(data__regex=pattern)
                         else:
                             if value == 'null':
-                                exclude_ids = set(
-                                    meta_query.filter(
-                                        data__isnull=True).values_list(
-                                        'model_instance_id', flat=True))
+                                query &= ~Q(data__isnull=True)
                             else:
-                                exclude_ids = set(
-                                    meta_query.filter(
-                                        data=value).values_list(
-                                        'model_instance_id',
-                                        flat=True))
+                                query &= ~Q(data=value)
                     else:
-                        meta_query = meta_query.filter(
-                            data=field_value) if field_value != 'null' else meta_query.filter(
-                            data__isnull=True)
-                        all_instance_ids = set(meta_query.values_list('model_instance_id', flat=True))
-
-                # 获取匹配的实例ID
-                matching_ids = all_instance_ids - exclude_ids
-                matching_ids_list.append(matching_ids)
+                        if value == 'null':
+                            query &= Q(data__isnull=True)
+                        else:
+                            query &= Q(data=field_value)
 
             except ModelFields.DoesNotExist:
                 logger.warning(f"Field not found: {field_name}")
@@ -567,47 +618,12 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
                 logger.error(f"Error processing field {field_name}: {traceback.format_exc()}")
                 continue
 
-        # 取交集并过滤queryset
-        if matching_ids_list:
-            final_ids = reduce(lambda x, y: x & y, matching_ids_list)
-
-            if final_ids:
-                queryset = queryset.filter(id__in=final_ids)
-            else:
-                # 当没有匹配的 ID 时，返回空查询集
-                queryset = queryset.none()
-                logger.debug("No matching results found, returning empty queryset")
-
+        queryset = queryset.filter(query)
         return queryset
 
     @cached_as(ModelInstance, timeout=600)
     def get_queryset(self):
-        queryset = ModelInstance.objects.all().order_by('-create_time').select_related('model')
-        username = self.get_current_user()
-        scope = get_user_data_scope(username)
-        query = Q()
-
-        if scope['all']:
-            pass
-        else:
-            if scope['groups']:
-                all_children = set()
-                for group_id in scope['groups']:
-                    group = ModelInstanceGroup.objects.get(pk=group_id)
-                    if group:
-                        all_children.update(self.get_all_child_groups(group))
-                instance_ids = ModelInstanceGroupRelation.objects.filter(
-                    group_id__in=all_children
-                ).values_list('instance_id', flat=True)
-                query |= Q(id__in=instance_ids)
-
-            if scope['models']:
-                query |= Q(model_id__in=scope['models'])
-
-            if scope['self']:
-                query |= Q(create_user=username)
-
-            queryset = queryset.filter(query) if query else queryset.none()
+        queryset = super().get_queryset().order_by('-create_time').select_related('model')
 
         if self.action == 'retrieve' and self.kwargs.get('pk'):
             return queryset
@@ -647,7 +663,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             params['model_instance_group'] = group_id
 
         if filter_by_params and params:
-            instances = ModelInstance.objects.all()
+            instances = self.get_queryset().all()
             instances = self._apply_filters(instances, model_id, params)
         elif instance_ids:
             instances = ModelInstance.objects.filter(id__in=instance_ids)
@@ -748,16 +764,10 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
                 params['model_instance_group'] = group_id
 
             if filter_by_params and params:
-                instances = ModelInstance.objects.all()
+                instances = self.get_queryset().all()
                 instances = self._apply_filters(instances, model_id, params)
             elif instance_ids:
                 instances = instances.filter(id__in=instance_ids)
-
-            # if group_id:
-            #     instance_in_group = ModelInstanceGroupRelation.objects.filter(
-            #         group=group_id
-            #     ).values_list('instance_id', flat=True)
-            #     instances = instances.filter(id__in=instance_in_group)
 
             if not instances.exists():
                 raise ValidationError("No instances found with the provided criteria.")
@@ -994,7 +1004,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
         filter_by_params = request.data.get('all', False)
         params = request.data.get('params', {})
         group_id = request.data.get('group')
-        instances = ModelInstance.objects.all()
+        instances = self.get_queryset().all()
 
         if group_id:
             group = ModelInstanceGroup.objects.get(id=group_id)
@@ -1057,13 +1067,17 @@ class ModelInstanceBasicViewSet(CmdbReadOnlyBaseViewSet):
     search_fields = ['model', 'instance_name', 'create_user', 'update_user']
     ordering_fields = ['name', 'create_time', 'update_time']
 
+    def get_queryset(self):
+        return super().get_queryset()
 
-@model_field_meta_schema
-class ModelFieldMetaViewSet(CmdbBaseViewSet):
-    queryset = ModelFieldMeta.objects.all().order_by('-create_time')
-    serializer_class = ModelFieldMetaSerializer
-    filterset_class = ModelFieldMetaFilter
-    ordering_fields = ['create_time', 'update_time']
+
+# 禁止通过API直接操作字段数据
+# @model_field_meta_schema
+# class ModelFieldMetaViewSet(CmdbBaseViewSet):
+#     queryset = ModelFieldMeta.objects.all().order_by('-create_time')
+#     serializer_class = ModelFieldMetaSerializer
+#     filterset_class = ModelFieldMetaFilter
+#     ordering_fields = ['create_time', 'update_time']
 
 
 @model_instance_group_schema
@@ -1077,7 +1091,8 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
     def _build_model_groups_tree(self):
         """构建所有模型的分组树"""
         result = {}
-        models = Models.objects.all()
+        temp_vs = ModelsViewSet()
+        models = temp_vs.get_queryset().all()
 
         for model in models:
             root_groups = ModelInstanceGroup.objects.filter(
@@ -1095,26 +1110,8 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
         return result
 
     def get_queryset(self):
-        queryset = self.queryset
+        queryset = super().get_queryset()
         model_id = self.request.query_params.get('model')
-
-        username = self.get_current_user()
-        scope = get_user_data_scope(username)
-
-        if scope['all']:
-            pass
-        else:
-            query = Q()
-            if scope['groups']:
-                query |= Q(id__in=scope['groups'])
-
-            if scope['models']:
-                query |= Q(model_id__in=scope['models'])
-
-            if scope['self']:
-                query |= Q(create_user=username)
-
-            queryset = queryset.filter(query) if query else queryset.none()
 
         try:
             if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
@@ -1336,6 +1333,9 @@ class ModelInstanceGroupRelationViewSet(CmdbBaseViewSet):
     ordering_fields = ['create_time', 'update_time']
     http_method_names = ['get', 'post']
 
+    def get_queryset(self):
+        return super().get_queryset()
+
     def get_serializer_class(self):
         if self.action == 'create_relations':
             return BulkInstanceGroupRelationSerializer
@@ -1375,6 +1375,9 @@ class RelationDefinitionViewSet(CmdbBaseViewSet):
     filterset_class = RelationDefinitionFilter
     ordering_fields = ['name', 'create_time', 'update_time']
 
+    def get_queryset(self):
+        return super().get_queryset()
+
     def perform_destroy(self, instance):
         # 检查关系定义是否已被使用
         if Relations.objects.filter(relation=instance).exists():
@@ -1386,7 +1389,7 @@ class RelationDefinitionViewSet(CmdbBaseViewSet):
 
 
 class RelationsViewSet(CmdbBaseViewSet):
-    queryset = Relations.objects.select_related(
+    queryset = Relations.objects.all().select_related(
         'source_instance__model', 'target_instance__model', 'relation'
     ).order_by('-create_time')
     serializer_class = RelationsSerializer
@@ -1397,6 +1400,13 @@ class RelationsViewSet(CmdbBaseViewSet):
         'relation__name'
     ]
     ordering_fields = ['create_time', 'update_time']
+
+    def get_queryset(self):
+        queryset = super().get_queryset().select_related(
+            'source_instance__model', 'target_instance__model', 'relation'
+        ).order_by('-create_time')
+
+        return queryset
 
     @action(detail=False, methods=['post'])
     def bulk_associate(self, request, *args, **kwargs):
@@ -1805,7 +1815,7 @@ class SystemCacheViewSet(CmdbBaseViewSet):
 
 
 class ZabbixSyncHostViewSet(CmdbBaseViewSet):
-    queryset = ZabbixSyncHost.objects.all().order_by('create_time')
+    # queryset = ZabbixSyncHost.objects.all().order_by('create_time')
     serializer_class = ZabbixSyncHostSerializer
     pagination_class = StandardResultsSetPagination
     filterset_class = ZabbixSyncHostFilter
@@ -2015,14 +2025,14 @@ class ZabbixSyncHostViewSet(CmdbBaseViewSet):
 
 
 class ZabbixProxyViewSet(CmdbBaseViewSet):
-    queryset = ZabbixProxy.objects.all().order_by('create_time')
+    # queryset = ZabbixProxy.objects.all().order_by('create_time')
     serializer_class = ZabbixProxySerializer
     filterset_class = ZabbixProxyFilter
     ordering_fields = ['proxy_id', 'name', 'ip', 'create_time', 'update_time']
 
 
 class ProxyAssignRuleViewSet(CmdbBaseViewSet):
-    queryset = ProxyAssignRule.objects.all().order_by('create_time')
+    # queryset = ProxyAssignRule.objects.all().order_by('create_time')
     serializer_class = ProxyAssignRuleSerializer
     filterset_class = ProxyAssignRuleFilter
     ordering_fields = ['rule', 'type', 'proxy', 'create_time', 'update_time']

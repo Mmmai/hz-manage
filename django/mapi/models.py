@@ -266,38 +266,3 @@ class sysConfigParams(models.Model):
         verbose_name = "系统参数配置表"
         # verbose_name_plural = verbose_name
         app_label = 'mapi'
-
-
-class DataScope(models.Model):
-
-    class ScopeType(models.TextChoices):
-        ALL = 'all', '全部数据'
-        MODEL = 'model', '指定模型全部'
-        GROUP = 'group', '指定分组'
-        SELF = 'self', '仅自身创建'
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    role = models.ForeignKey('Role', on_delete=models.CASCADE, related_name='data_scopes')
-    scope_type = models.CharField(max_length=20, choices=ScopeType.choices, default=ScopeType.SELF)
-
-    # scope_type=model/group
-    model = models.ForeignKey('cmdb.Models', null=True, blank=True, on_delete=models.CASCADE)
-    # scope_type=group
-    groups = models.ManyToManyField('cmdb.ModelInstanceGroup', blank=True)
-
-    description = models.CharField(max_length=255, blank=True)
-    create_time = models.DateTimeField(auto_now_add=True)
-    update_time = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = 'tb_data_scope'
-        app_label = 'mapi'
-        ordering = ['-create_time']
-
-    def __str__(self):
-        return f"{self.role.name} - {self.get_scope_type_display()}"
-
-    def clean(self):
-        from django.core.exceptions import ValidationError
-        if self.scope_type in [self.ScopeType.MODEL, self.ScopeType.GROUP] and not self.model:
-            raise ValidationError({'model': 'Required when scope_type is model or group.'})

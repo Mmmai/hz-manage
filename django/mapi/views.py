@@ -234,7 +234,7 @@ class UserInfoViewSet(ModelViewSet):
     authentication_classes = [JWTQueryParamsAuthentication, ]
     serializer_class = UserInfoModelSerializer
     # pagination_class = defaultPageNumberPagination
-    filter_backends = (DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter)  # 指定后端
+    # filter_backends = (DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter)  # 指定后端
     # 视图中设置了 search_fields 属性时，才会应用 SearchFilter 类
     # search_fields只支持文本类型字段，例如 CharField 或 TextField
     search_fields = ('$username',)

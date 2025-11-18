@@ -17,7 +17,6 @@ from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.types import OpenApiTypes
 
 from audit.snapshots import capture_audit_snapshots
-from mapi.permissions import has_button_permission
 from .models import *
 from .utils import password_handler
 from .validators import FieldValidator
@@ -777,21 +776,21 @@ class ModelFieldMetaNestedSerializer(ModelFieldMetaSerializer):
 
         return super().to_internal_value(data)
 
-    def _has_password_permission(self):
-        request = self.context.get('request', None)
-        if not request:
-            return False
-        username = request.username
-        if not username:
-            return False
-        # admin 用户始终可见
-        if username == 'admin':
-            return True
-        return has_button_permission(username, 'showPassword')
+    # def _has_password_permission(self):
+    #     request = self.context.get('request', None)
+    #     if not request:
+    #         return False
+    #     username = request.username
+    #     if not username:
+    #         return False
+    #     # admin 用户始终可见
+    #     if username == 'admin':
+    #         return True
+    #     return has_button_permission(username, 'showPassword')
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        _has_password_permission = self._has_password_permission()
+        _has_password_permission = True  # self._has_password_permission()
         if instance.model_fields.type == FieldType.MODEL_REF and data.get('data'):
             try:
                 ref_instance_map = self.context.get('ref_instances', {})
@@ -863,9 +862,6 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
     })
     def get_instance_group(self, obj):
         """获取实例关联的分组列表"""
-        # groups = ModelInstanceGroupRelation.objects.filter(
-        #     instance=obj
-        # ).select_related('group').values_list('group_id', 'group__path')
         groups = self.context.get('instance_group', {})
         group = groups.get(str(obj.id), [])
 
