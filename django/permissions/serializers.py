@@ -67,13 +67,18 @@ class DataScopeSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         targets_data = validated_data.pop('targets', [])
         scope = DataScope.objects.create(**validated_data)
-        self._create_or_update_targets(scope, targets_data)
+        if scope.scope_type == DataScope.ScopeType.FILTER:
+            self._create_or_update_targets(scope, targets_data)
         return scope
 
     @transaction.atomic
     def update(self, instance, validated_data):
+        if instance.role and instance.role.role == 'sysadmin':
+            raise serializers.ValidationError("Cannot modify data scope for sysadmin role.")
+
+        scope_type = validated_data.get('scope_type', instance.scope_type)
         targets_data = validated_data.pop('targets', None)
         instance = super().update(instance, validated_data)
-        if targets_data is not None:
+        if targets_data is not None and scope_type == DataScope.ScopeType.FILTER:
             self._create_or_update_targets(instance, targets_data)
         return instance
