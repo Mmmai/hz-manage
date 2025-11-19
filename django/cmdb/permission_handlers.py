@@ -1,6 +1,8 @@
 from django.db.models import Q
 from permissions.registry import register_indirect_permission_handler
 
+from .models import *
+
 
 def get_cmdb_indirect_query(scope, model, username):
     """
@@ -14,6 +16,15 @@ def get_cmdb_indirect_query(scope, model, username):
         model_group_ids = scope['targets'].get('cmdb.modelgroups')
         if model_group_ids:
             query |= Q(model_group_id__in=model_group_ids)
+
+        # 如果分配了实例组权限，动态推导出相关模型权限
+        instance_group_ids = scope['targets'].get('cmdb.modelinstancegroup')
+        if instance_group_ids:
+            related_model_ids = ModelInstanceGroup.objects.filter(
+                id__in=instance_group_ids
+            ).values_list('model_id', flat=True)
+            if related_model_ids:
+                query |= Q(id__in=related_model_ids)
 
     if model_name == 'modelinstance':
 

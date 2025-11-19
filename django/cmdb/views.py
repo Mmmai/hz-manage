@@ -70,7 +70,7 @@ class CmdbBaseViewSet(AuditContextMixin, viewsets.ModelViewSet):
 
     ** 子类必须通过 self.get_queryset() 方法获取查询集 **
     ** 子类重写get_queryset()方法时必须在首行调用 super().get_queryset() **
-    ** 子类中禁止通过以下方法获取查询集 **
+    ** 子类中禁止通过以下方法获取查询集，功能需要查询非权限内实例的需要转移到模型层设计为特权方法 **
     1. self.queryset（使用self.get_queryset()代替）
     2. Model.objects.all()（使用PermissionManager.get_queryset(Model)代替）
     3. Model.objects.filter()（使用PermissionManager.get_queryset(Model)代替）
@@ -223,6 +223,56 @@ class ModelsViewSet(CmdbBaseViewSet):
             'model': ModelsSerializer(model).data,
             'field_groups': field_groups_data
         })
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            models_on_page = page
+        else:
+            models_on_page = list(queryset)
+
+        if not models_on_page:
+            return self.get_paginated_response([]) if page is not None else Response([])
+
+        pm = PermissionManager(user=self.request.username)
+        model_ids = [model.id for model in models_on_page]
+
+        logger.debug(f'Fetching field groups and fields for model IDs: {model_ids}')
+
+        field_groups_qs = pm.get_queryset(ModelFieldGroups).filter(model_id__in=model_ids).order_by('create_time')
+        fields_qs = pm.get_queryset(ModelFields).filter(model_id__in=model_ids).order_by('order')
+        # logger.debug(f'Fetched {field_groups_qs.count()} field groups and {fields_qs.count()} fields for models.')
+
+        models_data = self.get_serializer(models_on_page, many=True).data
+        field_groups_data = ModelFieldGroupsSerializer(field_groups_qs, many=True).data
+        fields_data = ModelFieldsSerializer(fields_qs, many=True).data
+
+        model_to_groups_map = {str(model_id): [] for model_id in model_ids}
+        for group in field_groups_data:
+            model_id = str(group.get('model'))
+            if model_id in model_to_groups_map:
+                model_to_groups_map[model_id].append(group)
+
+        group_to_fields_map = {group['id']: [] for group in field_groups_data}
+        for field in fields_data:
+            group_id = str(field.get('model_field_group'))
+            if group_id in group_to_fields_map:
+                group_to_fields_map[group_id].append(field)
+
+        for group in field_groups_data:
+            group['fields'] = group_to_fields_map.get(str(group['id']), [])
+        # logger.debug(f'Final group to fields map: {group_to_fields_map}')
+
+        # logger.debug(f'Assembled model to groups map: {model_to_groups_map}')
+        # 将字段组注入到对应的模型中
+        for model_data in models_data:
+            model_id = str(model_data['id'])
+            field_groups = model_to_groups_map.get(model_id, [])
+            # logger.debug(f'Injecting field groups for model ID {model_id}: {field_groups}')
+            model_data['field_groups'] = field_groups
+
+        return self.get_paginated_response(models_data) if page is not None else Response(models_data)
 
     @action(detail=True, methods=['post'])
     def rename_instances(self, request, pk=None):
@@ -1089,23 +1139,44 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
     ordering_fields = ['label', 'order', 'path', 'create_time', 'update_time']
 
     def _build_model_groups_tree(self):
-        """构建所有模型的分组树"""
-        result = {}
-        temp_vs = ModelsViewSet()
-        models = temp_vs.get_queryset().all()
 
-        for model in models:
-            root_groups = ModelInstanceGroup.objects.filter(
-                model=model,
-                parent=None
-            ).order_by('order')
+        result = []
+        pm = PermissionManager(self.request.user)
 
-            if root_groups.exists():
-                result[str(model.id)] = {
-                    'model_name': model.name,
-                    'model_verbose_name': model.verbose_name,
-                    'groups': self.get_serializer(root_groups, many=True).data
-                }
+        visible_model_groups = pm.get_queryset(ModelGroups).prefetch_related('models').order_by('create_time')
+        visible_models_qs = pm.get_queryset(Models)
+        visible_models_ids = set(visible_models_qs.values_list('id', flat=True))
+
+        all_visible_instance_groups = self.get_queryset().select_related('model', 'parent')
+        context = self._prepare_group_tree_context(all_visible_instance_groups)
+
+        for model_group in visible_model_groups:
+            models_in_group_data = []
+
+            models_in_group = [m for m in model_group.models.all() if m.id in visible_models_ids]
+
+            if not models_in_group:
+                continue
+
+            for model in models_in_group:
+                root_instance_groups = context['children_map'].get(None, [])
+                model_root_instance_groups = [g for g in root_instance_groups if g.model_id == model.id]
+
+                if model_root_instance_groups:
+                    models_in_group_data.append({
+                        'model_id': str(model.id),
+                        'model_name': model.name,
+                        'model_verbose_name': model.verbose_name,
+                        'groups': self.get_serializer(model_root_instance_groups, many=True, context=context).data
+                    })
+
+            if models_in_group_data:
+                result.append({
+                    'model_group_id': str(model_group.id),
+                    'model_group_name': model_group.name,
+                    'model_group_verbose_name': model_group.verbose_name,
+                    'models': models_in_group_data
+                })
 
         return result
 
@@ -1113,20 +1184,14 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
         queryset = super().get_queryset()
         model_id = self.request.query_params.get('model')
 
+        if model_id:
+            queryset = queryset.filter(model_id=model_id)
+            logger.debug(f"Filtering groups by model: {model_id}")
         try:
-            if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
-                return queryset.select_related('model')
+            if self.action in ['retrieve', 'update', 'partial_update', 'destroy', 'list']:
+                return queryset.select_related('model', 'parent')
             if self.action in ['add_instances', 'remove_instances', 'search_instances']:
                 return queryset
-            if model_id:
-                queryset = queryset.filter(model_id=model_id)
-                logger.debug(f"Filtering groups by model: {model_id}")
-
-            # 只返回顶层节点，子节点通过序列化器递归获取
-            queryset = queryset.filter(parent=None)
-
-            # 添加排序
-            # queryset = queryset.select_related('model').order_by('label')
 
             return queryset
 
@@ -1138,18 +1203,39 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
         try:
             model_id = request.query_params.get('model')
 
-            if model_id:
-                # 返回特定模型的分组树
-                queryset = self.get_queryset()
-                serializer = self.get_serializer(queryset, many=True)
-                groups_data = {}
-                for group_data in serializer.data:
-                    groups_data.update(group_data)
-
-                return Response(groups_data)
-            else:
-                # 返回所有模型的分组树
+            if not model_id:
                 return Response(self._build_model_groups_tree())
+
+            # 返回特定模型的分组树
+            pm = PermissionManager(self.request.username)
+            directly_visible_groups_qs = pm.get_queryset(ModelInstanceGroup).filter(model_id=model_id)
+
+            # 没有任何可见的分组，直接返回一个空的树结构
+            if not directly_visible_groups_qs.exists():
+                try:
+                    # 尝试获取根节点，即使没有任何子节点权限，也应返回根节点本身
+                    root_node = ModelInstanceGroup.objects.get_root_group(model_id=model_id)
+                    context = self._prepare_group_tree_context(ModelInstanceGroup.objects.filter(id=root_node.id))
+                    return Response(self.get_serializer(root_node, context=context).data)
+                except ModelInstanceGroup.DoesNotExist:
+                    return Response({}, status=status.HTTP_200_OK)  # 如果连根节点都没有，返回空字典
+
+            directly_visible_ids = set(directly_visible_groups_qs.values_list('id', flat=True))
+            ancestor_groups = self._get_all_ancestors(directly_visible_groups_qs)
+            ancestor_ids = {g.id for g in ancestor_groups}
+
+            all_required_ids = directly_visible_ids.union(ancestor_ids)
+
+            skeleton_tree_nodes_qs = ModelInstanceGroup.objects.filter(
+                id__in=all_required_ids
+            ).select_related('model', 'parent')
+
+            # 获取子分组
+            context = self._prepare_group_tree_context(skeleton_tree_nodes_qs)
+
+            absolute_root_node = ModelInstanceGroup.objects.get_root_group(model_id=model_id)
+            serializer = self.get_serializer(absolute_root_node, context=context)
+            return Response(serializer.data)
 
         except Exception as e:
             logger.error(f"Error in list view: {str(e)}")
@@ -1159,6 +1245,7 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
 
     def _get_all_child_groups(self, group):
         """递归获取所有子组"""
+
         children = list(ModelInstanceGroup.objects.filter(parent=group))
         logger.debug(f'Found {len(children)} children for group {group}')
         all_children = children.copy()
@@ -1169,13 +1256,26 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
         logger.debug(f'Groups: {all_children}')
         return all_children
 
-    def _check_root_group_operation(self, group):
+    def _check_root_group_operation(self, group: ModelInstanceGroup):
         """检查是否是对【所有】分组的操作"""
         if group.label == '所有' and group.built_in:
             logger.warning(f"Attempt to modify root group {group.label}")
             raise PermissionDenied({
                 'detail': 'Cannot modify root group "所有"'
             })
+
+    def _check_current_operation(self, pm: PermissionManager, group: ModelInstanceGroup):
+        """检查用户对当前分组的操作权限"""
+        scope = pm.scope
+        if scope.get('scope_type') == 'all':
+            return True
+
+        targets = scope.get('targets', []).get('cmdb.modelinstancegroup', [])
+        return str(group.id) in targets
+
+    def _check_parent_operation(self, pm: PermissionManager, group: ModelInstanceGroup):
+        """检查用户对父分组的操作权限"""
+        return pm.get_queryset(ModelInstanceGroup).filter(id=group.id).exists()
 
     def update(self, request, *args, **kwargs):
         """禁止更新内置分组"""
@@ -1186,6 +1286,12 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
         position = request.data.get('position')
 
         if target_id and position:
+            pm = PermissionManager(self.request.username)
+            # 对父节点无权限时拒绝更改分组排序
+            if instance.parent and not self._check_parent_operation(pm, instance.parent):
+                raise PermissionDenied({
+                    'detail': 'No permission to modify position under the current parent group'
+                })
             serializer = self.get_serializer(
                 instance,
                 data=request.data,
@@ -1210,79 +1316,93 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
                 })
             logger.info(f"Starting deletion process for group: {instance.label}")
 
-            with transaction.atomic():
-                unassigned_group = ModelInstanceGroup.objects.get(
-                    model=instance.model,
-                    label='空闲池',
-                    built_in=True
-                )
+            # 对父节点无权限时拒绝删除分组
+            pm = PermissionManager(self.request.username)
+            if instance.parent and not self._check_parent_operation(pm, instance.parent):
+                raise PermissionDenied({
+                    'detail': 'No permission to delete group under the current parent group'
+                })
 
-                child_groups = self._get_all_child_groups(instance)
-                all_groups = [instance] + child_groups
-                group_ids = [g.id for g in all_groups]
+            result = ModelInstanceGroup.objects.delete_group(
+                group=instance,
+                performing_user=self.request.username
+            )
 
-                logger.info(f"Found {len(child_groups)} child groups")
+            # with transaction.atomic():
+            #     unassigned_group = ModelInstanceGroup.objects.get(
+            #         model=instance.model,
+            #         label='空闲池',
+            #         built_in=True
+            #     )
 
-                instances_to_move = set()
-                for group in all_groups:
-                    group_instances = ModelInstanceGroupRelation.objects.filter(
-                        group=group
-                    ).values_list('instance_id', flat=True)
+            #     child_groups = self._get_all_child_groups(instance)
+            #     all_groups = [instance] + child_groups
+            #     group_ids = [g.id for g in all_groups]
 
-                    # 对于每个实例，检查是否还有其他非待删除组的关系
-                    for instance_id in group_instances:
-                        other_relations = ModelInstanceGroupRelation.objects.filter(
-                            instance_id=instance_id
-                        ).exclude(
-                            group_id__in=group_ids
-                        ).exclude(
-                            group=unassigned_group
-                        )
+            #     logger.info(f"Found {len(child_groups)} child groups")
 
-                        if not other_relations.exists():
-                            instances_to_move.add(instance_id)
+            #     instances_to_move = set()
+            #     for group in all_groups:
+            #         group_instances = ModelInstanceGroupRelation.objects.filter(
+            #             group=group
+            #         ).values_list('instance_id', flat=True)
 
-                logger.debug(f"Found {len(instances_to_move)} instances to move to unassigned pool")
+            #         # 对于每个实例，检查是否还有其他非待删除组的关系
+            #         for instance_id in group_instances:
+            #             other_relations = ModelInstanceGroupRelation.objects.filter(
+            #                 instance_id=instance_id
+            #             ).exclude(
+            #                 group_id__in=group_ids
+            #             ).exclude(
+            #                 group=unassigned_group
+            #             )
 
-                deleted_relations = ModelInstanceGroupRelation.objects.filter(
-                    group_id__in=group_ids
-                ).delete()[0]
-                logger.debug(f"Deleted {deleted_relations} group relations")
+            #             if not other_relations.exists():
+            #                 instances_to_move.add(instance_id)
 
-                # 将实例移动到空闲池
-                if instances_to_move:
-                    relations_to_create = [
-                        ModelInstanceGroupRelation(
-                            instance_id=instance_id,
-                            group=unassigned_group,
-                            create_user=request.user.username if hasattr(request.user, 'username') else request.user
-                        )
-                        for instance_id in instances_to_move
-                    ]
-                    ModelInstanceGroupRelation.objects.bulk_create(relations_to_create)
-                    logger.debug(f"Created {len(relations_to_create)} relations in unassigned pool")
+            #     logger.debug(f"Found {len(instances_to_move)} instances to move to unassigned pool")
 
-                for child in child_groups:
-                    child.delete()
-                    logger.debug(f"Deleted child group: {child.label}")
+            #     deleted_relations = ModelInstanceGroupRelation.objects.filter(
+            #         group_id__in=group_ids
+            #     ).delete()[0]
+            #     logger.debug(f"Deleted {deleted_relations} group relations")
 
-                instance.delete()
-                logger.info(f"Deleted group: {instance.label}")
+            #     # 将实例移动到空闲池
+            #     if instances_to_move:
+            #         relations_to_create = [
+            #             ModelInstanceGroupRelation(
+            #                 instance_id=instance_id,
+            #                 group=unassigned_group,
+            #                 create_user=request.user.username if hasattr(request.user, 'username') else request.user
+            #             )
+            #             for instance_id in instances_to_move
+            #         ]
+            #         ModelInstanceGroupRelation.objects.bulk_create(relations_to_create)
+            #         logger.debug(f"Created {len(relations_to_create)} relations in unassigned pool")
 
-                ModelInstanceGroup.clear_group_cache(instance)
+            #     for child in child_groups:
+            #         child.delete()
+            #         logger.debug(f"Deleted child group: {child.label}")
 
-                return Response({
-                    'message': f'Successfully deleted group {instance.label} and its children',
-                    'deleted_groups_count': len(all_groups),
-                    'moved_instances_count': len(instances_to_move)
-                }, status=status.HTTP_200_OK)
+            #     instance.delete()
+            #     logger.info(f"Deleted group: {instance.label}")
+
+            #     ModelInstanceGroup.clear_group_cache(instance)
+
+            return Response({
+                'message': f'Successfully deleted group {instance.label} and its children',
+                **result
+            }, status=status.HTTP_200_OK)
 
         except ModelInstanceGroup.DoesNotExist as e:
             logger.error(f"Group not found: {str(e)}")
             return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
+        except PermissionDenied as e:
+            logger.error(f"Permission denied: {str(e)}")
+            return Response({'error': str(e)}, status=status.HTTP_403_FORBIDDEN)
         except Exception as e:
             logger.error(f"Error deleting group: {str(e)}")
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def tree(self, request):
@@ -1323,6 +1443,101 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
         except Exception as e:
             logger.error(f"Error building instance group tree for model {model_id}: {str(e)}", exc_info=True)
             return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def _prepare_group_tree_context(self, groups_queryset):
+        context = self.get_serializer_context()
+        pm = PermissionManager(user=self.request.username)
+
+        children_map = {}
+        for group in groups_queryset:
+            parent_id = str(group.parent_id) if group.parent_id else None
+            if parent_id not in children_map:
+                children_map[parent_id] = []
+            children_map[parent_id].append(group)
+        context['children_map'] = children_map
+        logger.debug(f'Instance group children map: {children_map}')
+
+        all_group_ids = {group.id for group in groups_queryset}
+        descendant_map = {}
+        for group in groups_queryset:
+            descendants = self._get_all_descendants(group, groups_queryset)
+            descendant_ids = {g.id for g in descendants}
+            descendant_map[group.id] = descendant_ids | {group.id}
+            all_group_ids.update(descendant_ids)
+
+        visible_instances_qs = pm.get_queryset(ModelInstance)
+
+        relations = ModelInstanceGroupRelation.objects.filter(
+            group_id__in=all_group_ids,
+            instance__in=visible_instances_qs
+        ).values('group_id', 'instance_id').distinct()
+
+        instance_counts = {}
+        for group in groups_queryset:
+            group_and_descendant_ids = descendant_map[group.id]
+            unique_instances = {
+                r['instance_id'] for r in relations if r['group_id'] in group_and_descendant_ids
+            }
+            instance_counts[group.id] = len(unique_instances)
+
+        context['instance_counts'] = instance_counts
+        logger.debug(f'Instance counts: {instance_counts}')
+        return context
+
+    def _get_all_descendants(self, group, all_groups):
+        descendants = []
+        children = [g for g in all_groups if g.parent_id == group.id]
+        for child in children:
+            descendants.append(child)
+            descendants.extend(self._get_all_descendants(child, all_groups))
+        return descendants
+
+    def _get_all_ancestors(self, groups_qs):
+
+        ancestors = set()
+        groups_with_parents = groups_qs.select_related('parent')
+
+        # 使用一个队列来处理，避免无限递归
+        queue = list(groups_with_parents)
+        processed_ids = {g.id for g in queue}
+
+        while queue:
+            group = queue.pop(0)
+            parent = group.parent
+            if parent and parent.id not in processed_ids:
+                ancestors.add(parent)
+                processed_ids.add(parent.id)
+                # 为了继续向上追溯，需要获取父节点的父节点
+                # 这是一个潜在的 N+1 查询点，但在层级不深的情况下可以接受
+                # 更好的方法是如果模型有 path 字段，直接解析 path
+                try:
+                    full_parent = ModelInstanceGroup.objects.select_related('parent').get(id=parent.id)
+                    queue.append(full_parent)
+                except ModelInstanceGroup.DoesNotExist:
+                    continue
+
+        return list(ancestors)
+
+    def _build_model_groups_tree(self):
+        result = {}
+        pm = PermissionManager(self.request.user)
+
+        visible_models = pm.get_queryset(Models)
+        visible_groups = self.get_queryset().select_related('model', 'parent')
+
+        context = self._prepare_group_tree_context(visible_groups)
+
+        for model in visible_models:
+            root_groups = context['children_map'].get(None, [])
+            model_root_groups = [g for g in root_groups if g.model_id == model.id]
+
+            if model_root_groups:
+                result[str(model.id)] = {
+                    'model_name': model.name,
+                    'model_verbose_name': model.verbose_name,
+                    'groups': self.get_serializer(model_root_groups, many=True, context=context).data
+                }
+        return result
 
 
 @model_instance_group_relation_schema

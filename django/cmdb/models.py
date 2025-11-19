@@ -7,6 +7,7 @@ from django.db import models
 from django.db import transaction
 from rest_framework.exceptions import PermissionDenied
 from django.core.cache import cache
+from django.db.models import OuterRef, Exists
 
 from .constants import ValidationType
 from .resolver import resolve_model_field_id_list, resolve_dynamic_value, resolve_model
@@ -383,12 +384,83 @@ class ModelFieldMeta(models.Model):
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
 
+class ModelInstanceGroupManager(models.Manager):
+    @transaction.atomic
+    def delete_group(self, group, performing_user):
+        """
+        删除一个分组及其所有子分组，并将无其他分组关联的实例迁移到空闲池。
+        """
+        if group.built_in:
+            raise PermissionDenied(f'Can not delete built-in group "{group.label}"')
+
+        unassigned_group = self.model.get_unassigned_group(group.model)
+
+        # 递归获取所有待删除的子分组
+        all_groups_to_delete = [group] + list(group.get_all_children())
+        all_group_ids_to_delete = {g.id for g in all_groups_to_delete}
+        logger.debug(f"Preparing to delete {len(all_groups_to_delete)} groups, including '{group.label}'.")
+
+        instances_in_deleted_groups = ModelInstance.objects.filter(
+            group_relations__group_id__in=all_group_ids_to_delete
+        ).distinct()
+
+        # 检查实例是否存在其他关联分组
+        other_groups_subquery = ModelInstanceGroupRelation.objects.filter(
+            instance_id=OuterRef('pk'),
+        ).exclude(
+            group_id__in=all_group_ids_to_delete
+        )
+
+        instances_to_move_qs = instances_in_deleted_groups.annotate(
+            in_other_groups=Exists(other_groups_subquery)
+        ).filter(in_other_groups=False)
+
+        instances_to_move_ids = list(instances_to_move_qs.values_list('id', flat=True))
+        logger.debug(f"Found {len(instances_to_move_ids)} instances to move to unassigned pool.")
+
+        deleted_relations_count, _ = ModelInstanceGroupRelation.objects.filter(
+            group_id__in=all_group_ids_to_delete
+        ).delete()
+        logger.debug(f"Deleted {deleted_relations_count} existing group relations.")
+
+        # 创建到 空闲池 的关联
+        if instances_to_move_ids:
+            relations_to_create = [
+                ModelInstanceGroupRelation(
+                    instance_id=instance_id,
+                    group=unassigned_group,
+                    create_user=performing_user,
+                    update_user=performing_user
+                ) for instance_id in instances_to_move_ids
+            ]
+            ModelInstanceGroupRelation.objects.bulk_create(relations_to_create)
+            logger.debug(f"Created {len(relations_to_create)} new relations in unassigned pool.")
+
+        # 删除所有分组对象
+        deleted_groups_count, _ = self.get_queryset().filter(id__in=all_group_ids_to_delete).delete()
+        logger.debug(f"Successfully deleted {deleted_groups_count} groups from database.")
+
+        self.model.clear_groups_cache(all_groups_to_delete)
+
+        return {
+            'deleted_groups_count': deleted_groups_count,
+            'moved_instances_count': len(instances_to_move_ids)
+        }
+
+    def get_root_group(self, model_id):
+        """获取指定模型的根分组"""
+        return self.get_queryset().filter(model_id=model_id, parent=None).first()
+
+
 @register_audit(
     snapshot_fields={'id', 'label', 'path'},
     ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
     public_name='model_instance_group'
 )
 class ModelInstanceGroup(models.Model):
+
+    objects = ModelInstanceGroupManager()
+
     class Meta:
         db_table = 'model_instance_group'
         managed = True
@@ -508,8 +580,6 @@ class ModelInstanceGroup(models.Model):
         cache_keys = [f'group_count_{gid}' for gid in groups_to_clear]
         cache.delete_many(cache_keys)
         logger.info(f'Cache cleared successfully')
-
-# @register_audit(ignore_fields={'update_time', 'create_time'}, public_name='model_instance_group_relation')
 
 
 class ModelInstanceGroupRelation(models.Model):
