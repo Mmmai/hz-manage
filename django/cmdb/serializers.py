@@ -7,8 +7,6 @@ from ast import literal_eval
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from rest_framework.pagination import PageNumberPagination
-from django.conf import settings
 from django.db import transaction
 from django.core.cache import cache
 from types import SimpleNamespace
@@ -25,12 +23,6 @@ from .message import instance_group_relation_updated, instance_group_relations_a
 
 import logging
 logger = logging.getLogger(__name__)
-
-
-class StandardResultsSetPagination(PageNumberPagination):
-    page_size = settings.REST_FRAMEWORK.get('PAGE_SIZE', 20)
-    page_size_query_param = 'page_size'
-    max_page_size = 1000
 
 
 class ModelGroupsSerializer(serializers.ModelSerializer):
@@ -1494,27 +1486,14 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
         }
     })
     def get_children(self, obj):
-        children = ModelInstanceGroup.objects.filter(parent=obj).order_by('order')
-        return ModelInstanceGroupSerializer(children, many=True).data
+        children_map = self.context.get('children_map', {})
+        children = children_map.get(str(obj.id), [])
+        return ModelInstanceGroupSerializer(children, many=True, context=self.context).data
 
     @extend_schema_field(OpenApiTypes.INT)
     def get_count(self, obj):
-        """带缓存的计数方法"""
-        cache_key = f'group_count_{obj.id}'
-        count = cache.get(cache_key)
-
-        if count is None:
-            group_ids = self.get_all_child_groups(obj)
-            relations = ModelInstanceGroupRelation.objects.filter(
-                group_id__in=group_ids
-            )
-            unique_instances = set(
-                relations.values_list('instance', flat=True)
-            )
-            count = len(unique_instances)
-            cache.set(cache_key, count, timeout=300)
-
-        return count
+        instance_counts = self.context.get('instance_counts', {})
+        return instance_counts.get(obj.id, 0)
 
     def to_representation(self, instance):
         return {
@@ -1666,54 +1645,6 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
         except Exception as e:
             logger.error(f"Error validating group: {str(e)}")
             raise serializers.ValidationError(str(e))
-
-    def get_all_child_groups(self, group):
-        """递归获取所有子分组ID"""
-        group_ids = [group.id]
-        children = ModelInstanceGroup.objects.filter(parent=group)
-        for child in children:
-            group_ids.extend(self.get_all_child_groups(child))
-        return group_ids
-
-    def get_instances(self, obj, is_leaf=False):
-        """获取分组及其所有子分组下的实例"""
-        request = self.context.get('request')
-        if not request or not is_leaf:
-            return None
-
-        # 检查是否请求了实例列表
-        load_instances = request.query_params.get('load_instances')
-        if not load_instances or load_instances.lower() != 'true':
-            return None
-
-        # 获取所有子分组ID
-        group_ids = self.get_all_child_groups(obj)
-
-        # 获取分页参数
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 20))
-
-        # 获取所有实例
-        instance_ids = ModelInstanceGroupRelation.objects.filter(
-            group__in=group_ids
-        ).values_list('instance_id', flat=True)
-        instances = ModelInstance.objects.filter(
-            id__in=instance_ids
-        ).order_by('id')  # 添加排序以确保分页一致性
-
-        # 分页
-        paginator = StandardResultsSetPagination()
-        paginated_instances = paginator.paginate_queryset(instances, request)
-        if paginated_instances is not None:
-            serializer = ModelInstanceSerializer(paginated_instances, many=True)
-            return {
-                'count': paginator.page.paginator.count,
-                'next': paginator.get_next_link(),
-                'previous': paginator.get_previous_link(),
-                'results': serializer.data
-            }
-
-        return None
 
     def update_group_order(self, instance, target_id, position):
         with transaction.atomic():
