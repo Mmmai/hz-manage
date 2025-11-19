@@ -34,15 +34,7 @@ from cmdb.utils import password_handler
 
 import logging
 logger = logging.getLogger(__name__)
-def getRolePermissionList(role_ids):
-    allPermissionList = []
-    for role_id in role_ids:
-        for p_obj in Permission.objects.filter(role=role_id).all():
-            menu_name = p_obj.menu.name
-            # button_name = Button.objects.get(id=p_obj.button).action
-            button_name = p_obj.button.action
-            allPermissionList.append(f"{menu_name}:{button_name}")
-    return allPermissionList
+
 class LoginView(APIView):
     """用户登录"""
     authentication_classes = [] # 取消全局认证
@@ -79,10 +71,9 @@ class LoginView(APIView):
             group_obj = UserGroup.objects.get(id=group)
             for group_role in group_obj.roles.all():
                 userGroupRoleList.append(group_role.id)
-        # 判断用户的role
-        userRoleList = [ i['id'] for i in user_obj.roles.all().values('id') ]
-        roleList = list(set(userGroupRoleList + userRoleList))
-        permissionList = getRolePermissionList(role_ids=roleList)
+        # 获取用户权限
+        permissionObjects = Permission.get_user_permissions(user_obj) 
+        allPermissionList = [ f"{permissionObj.menu.name}:{permissionObj.button.action}" for permissionObj in permissionObjects]
         #print(roleList)
         payload = {
             'user_id':str(user_obj.pk),#自定义用户ID
@@ -90,105 +81,104 @@ class LoginView(APIView):
             'password': user_obj.password,  # 添加密码字段用于验证token有效性
             # 'exp':datetime.datetime.utcnow()+datetime.timedelta(minutes=1),# 设置超时时间，1min
         }
-        timeout = request.data.get('timeout',7)
+        timeout = request.data.get('timeout',3)
         jwt_token = create_token(payload=payload,timeout=timeout)
-        return Response({'code':200,'token':jwt_token,"role":roleList,"userinfo":{'user_id':str(user_obj.pk),'username':user_obj.username,},"permission":permissionList})
+        return Response({'code':200,'token':jwt_token,"userinfo":{'user_id':str(user_obj.pk),'username':user_obj.username,},"permission":allPermissionList})
 
 
 
 
 class getSecret(APIView):
-    # def post(self,request,*args,**kwargs):
-    #     owner = request.data.get('owner')
-    #     orderRes = request.data.get('orderRes')
-    #     orderObj = orderMethod.objects.filter(owner=owner).first()
-    #     orderObj.update(orderList={"orderList":orderRes})
-    #     return Response({'code':200,'results':'success'})
-
     def get(self,request,*args,**kwargs):
-        # owner = request.query_params.get('owner')
-        # orderRes =  orderMethod.objects.filter(owner=owner).first()
-        secretKey = settings.SECRET_KEY
-        return Response({"secret":secretKey})
-# Create your views here.
-# def test(request):
-#   data = {'1':2,'3':4}
-#   return JsonResponse(data)
+        # 获取头部token
 
+        return Response({"secret":settings.SECRET_KEY})
+    def post(self,request,*args,**kwargs):
+        # 获取头部token
+        token = request.META.get('HTTP_TOKEN')
+        return Response({"secret":settings.SECRET_KEY})
 
-
-# def user(request):
 class getMenu(APIView):
+    """动态路由"""
     def __init__(self):
         self.get_menu_tree = self.get_menu_tree
-    def post(self,request,*args,**kwargs):
-        # print(request.query_params)
-        # print(request.GET.getlist('role'))
-        # role = request.GET.getlist('role')
-        # print(request.GET.get('role[]'))
-        role = request.data.get('role')
-        menuobj = Menu.objects.all().order_by('sort')
-        # # print(menuobj)
-        # for i in menuobj.all():
-        #     print(i.__dict__.copy())
-        menuList = self.get_menu_tree(menuobj,role)
-        # print(menuList)
-        return Response({'code':200,"results":menuList})
+    
+    def post(self, request, *args, **kwargs):
+        # 获取当前用户
+        user_obj = request.user
+        
+        # 根据当前用户获取其所有权限
+        user_permissions = Permission.get_user_permissions(user_obj)
+        
+        # 获取用户有权访问的菜单IDs
+        accessible_menu_ids = set(user_permissions.values_list('menu', flat=True).distinct())
+        
+        # 获取所有菜单
+        all_menus = Menu.objects.all().order_by('sort')
+        
+        menuList = self.get_menu_tree(all_menus, accessible_menu_ids, parent=None)
+        return Response({'code': 200, "results": menuList})
 
-    def get_menu_tree(self,menu_list,role,parent=None):
+    def get_menu_tree(self, all_menus, accessible_menu_ids, parent=None):
         tree = []
-        for menu in menu_list.filter(parentid=parent):
-            # if not menu.status:
-            #     continue
-            
-            roleList = []
-            # for r in menu.role_set.all().values():
-            #     roleList.append(str(r["id"]))
-            # 获取角色列表
-
-            roleList = list(set([ str(i.role.id) for i in Permission.objects.filter(menu=menu).all()]))
-            # print(roleList)
-            # print(123)
-            # print(role)
-            # if len(list(set(roleList) & set(role))) == 0:
-            #     continue
-            button_queryset = menu.buttons.all().order_by("action")
-            button_serializer = ButtonModelSerializer(button_queryset, many=True)
-            serialized_data = JSONRenderer().render(button_serializer.data)
+        # 筛选出当前层级的所有菜单项
+        for menu in all_menus.filter(parentid=parent):
+            # 构造基本菜单信息
             info = menu.__dict__.copy()
             info.pop('_state')
             parentid = info.pop('parentid_id')
             info["parentid"] = parentid
-            info["meta"] = {"role":roleList,"icon":menu.icon,"title":menu.label,"isKeepAlive":menu.keepalive}
+            
+            # 获取具有此菜单权限的角色列表
+            roleList = list(set([
+                str(permission.role.id) 
+                for permission in Permission.objects.filter(menu=menu, role__isnull=False)
+            ]))
+            
+            # 序列化按钮数据
+            button_queryset = menu.buttons.all().order_by("action")
+            button_serializer = ButtonModelSerializer(button_queryset, many=True)
+            serialized_data = JSONRenderer().render(button_serializer.data)
+            
+            info["meta"] = {
+                "role": roleList,
+                "icon": menu.icon,
+                "title": menu.label,
+                "isKeepAlive": menu.keepalive,
+                "hasInfo": menu.has_info
+            }
             info["buttons"] = json.loads(serialized_data.decode('utf8'))
-            # info["button"] 
+            
             if info["is_iframe"]:
                 info["meta"]["iframePath"] = info["iframe_url"]
                 info["meta"]["is_iframe"] = info["is_iframe"]
-            # if info["is_menu"]:
-            #     # print(info["label"])
-            #     info["meta"]["permission"] = []
-                        # 构建菜单全路径
+            
+            # 构建菜单全路径
             path_labels = []
             current = menu
             while current:
-                path_labels.insert(0, {'name':current.label,'icon': current.icon})
+                path_labels.insert(0, {'name': current.label, 'icon': current.icon})
                 current = current.parentid
-            # menu_path = "/".join(path_labels)
             
             # 添加meta信息，包含菜单全路径
             info["meta"].update({"menuPath": path_labels}) 
-            info['children'] = self.get_menu_tree(menu_list,role,menu)
-            # print(info)
-
-            if role != None:
-                # currentRoleList = [ i for i in role.split(',')]
-                if len(list(set(roleList) & set(role))) == 0:
-                    if menu.is_menu == True:
-                        continue
-                if menu.is_menu == False and len(info['children']) == 0:
-                    continue
-            tree.append(info)
+            
+            # 递归处理子菜单
+            children = self.get_menu_tree(all_menus, accessible_menu_ids, menu)
+            info['children'] = children
+            
+            # 判断当前菜单是否应该显示给用户：
+            # 1. 如果是叶子菜单（菜单项），必须有权限才能显示
+            # 2. 如果是目录，只要包含有权限的子菜单就可以显示
+            # 3. 如果是叶子菜单但没有子菜单且用户无权限，则不显示
+            if menu.is_menu:  # 是菜单项
+                if menu.id in accessible_menu_ids:
+                    tree.append(info)
+            else:  # 是目录
+                # 目录只要有子项就显示，不管是否有直接权限
+                if children or menu.id in accessible_menu_ids:
+                    tree.append(info)
+                
         return tree
 # 获取角色授权页面的tree
 class getPermissionToRole(APIView):
@@ -330,9 +320,8 @@ class RoleViewSet(ModelViewSet):
                 Permission.objects.update_or_create(role=instance, menu=button_obj.menu, button=button_obj)
                 logger.info(f"为角色<{instance.role}>添加<{button_obj.action}>权限!")
                 # 如果有其他按钮权限，查看的权限应该同步添加，就算用户没有勾选！
-                if button_obj.action == "view":
+                if button_obj.action != "view":
                     pass
-                    add =     'd'
                 else:
                     view_button_obj = Button.objects.get(action="view", menu=button_obj.menu)
                     view_per_obj, created = Permission.objects.get_or_create(role=instance, menu=button_obj.menu, button=view_button_obj)
@@ -511,23 +500,363 @@ class RoleViewSet(ModelViewSet):
 class MenuViewSet(ModelViewSet):
     queryset = Menu.objects.all()
     serializer_class = MenuModelSerializer
-  # def get_serializer(self, *args, **kwargs):
-  #     serializer_class = self.get_serializer_class()
-  #     kwargs.setdefault('context', self.get_serializer_context())
-  #     if isinstance(self.request.data, list):
-  #         return serializer_class(many=True, *args, **kwargs)
-  #     else:
-  #         return serializer_class(*args, **kwargs)
+    @action(detail=False, methods=['get'], url_path='get_menu_tree')
+    def get_menu_tree(self, request):
+        menuobj = Menu.objects.all().order_by('sort')
+        menuList = self._get_menu_tree(menuobj)
+        # print(menuList)
+        return Response({'code':200,"results":menuList})
+    def _get_menu_tree(self,menu_list,parent=None):
+        tree = []
+        for menu in menu_list.filter(parentid=parent):
+            if menu.is_menu:
+                # 添加按钮到对应菜单下
+                info = {"id":menu.id,"label":menu.label,"tree_type":"menu"}
+            else:
+                info = {"id":menu.id,"label":menu.label,"tree_type":"directory"}
+            info['children'] = self._get_menu_tree(menu_list,menu)
+            # print(info)
+                # 如果是目录，但是没有子目录，则跳过
+            # if menu.is_menu == False and len(info['children']) == 0:
+            #     continue
+            if menu.is_menu:
+                # 添加按钮到对应菜单下
+                info["children"] = [ {"id":str(i.id),"label":i.name,"button":i.action,"tree_type":"button"} for i in Button.objects.filter(menu=menu).all().order_by('action')]  
+            tree.append(info)
+        return tree    
 
 class ButtonViewSet(ModelViewSet):
     queryset = Button.objects.all()
     serializer_class = ButtonModelSerializer
     filterset_class = buttonFilter
 
-# class PermissionViewSet(ModelViewSet):
-#   queryset = Menu.objects.all()
-#   serializer_class =  PermissionModelSerializer
-
+class PermissionViewSet(ModelViewSet):
+    queryset = Permission.objects.all()
+    serializer_class =  PermissionModelSerializer   
+    # 根据用户、用户组、角色获取权限列表
+    @action(detail=False, methods=['get'], url_path='get_permission')
+    def get_permission(self, request):
+        # 获取查询参数
+        user_id = request.query_params.get('user_id', None)
+        user_group_id = request.query_params.get('user_group_id', None)
+        role_id = request.query_params.get('role_id', None)
+        
+        # 根据传入的参数过滤权限
+        if user_id:
+            # 获取指定用户的所有权限（包括通过角色和用户组继承的权限）
+            try:
+                user = UserInfo.objects.get(id=user_id)
+                permissions = Permission.get_user_permissions(user)
+                # 为每个权限添加来源信息
+                permission_details = []
+                for perm in permissions:
+                    source_type = "unknown"
+                    source_name = "未知"
+                    if perm.user == user:
+                        source_type = "user"
+                        source_name = user.username
+                    elif perm.role_id:
+                        source_type = "role"
+                        source_name = perm.role.role
+                    elif perm.user_group_id:
+                        source_type = "user_group"
+                        source_name = perm.user_group.group_name
+                    
+                    permission_details.append({
+                        'button_id': str(perm.button_id),
+                        'source_type': source_type,
+                        'source_name': source_name,
+                        'permission_id': str(perm.id)
+                    })
+                        
+            except UserInfo.DoesNotExist:
+                return Response({'error': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)
+            except Exception as e:
+                print(e)
+                return Response({'error': '获取用户权限时发生错误'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+        elif user_group_id:
+            # 获取指定用户组的权限
+            try:
+                user_group = UserGroup.objects.get(id=user_group_id)
+                # 获取直接分配给用户组的权限
+                direct_permissions = Permission.objects.filter(user_group=user_group)
+                
+                # 获取通过用户组角色分配的权限
+                group_roles = user_group.roles.all()
+                role_permissions = Permission.objects.filter(role__in=group_roles)
+                # 合并权限并去重
+                permissions = (direct_permissions | role_permissions).distinct()
+                # 为每个权限添加来源信息
+                permission_details = []
+                for perm in permissions:
+                    source_type = "unknown"
+                    source_name = "未知"
+                    if perm.user_group == user_group:
+                        source_type = "user_group"
+                        source_name = user_group.group_name
+                    elif perm.role_id and perm.role_id in [role.id for role in group_roles]:
+                        source_type = "role"
+                        source_name = perm.role.role
+                    
+                    permission_details.append({
+                        'button_id': str(perm.button_id),
+                        'source_type': source_type,
+                        'source_name': source_name,
+                        'permission_id': str(perm.id)
+                    })
+                        
+            except UserGroup.DoesNotExist:
+                return Response({'error': '用户组不存在'}, status=status.HTTP_404_NOT_FOUND)
+            except Exception as e:
+                return Response({'error': '获取用户组权限时发生错误'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+        elif role_id:
+            # 获取指定角色的权限
+            try:
+                permissions = Permission.objects.filter(role_id=role_id)
+                
+                # 为每个权限添加来源信息
+                permission_details = []
+                role = Role.objects.get(id=role_id)
+                for perm in permissions:
+                    permission_details.append({
+                        'button_id': str(perm.button_id),
+                        'source_type': 'role',
+                        'source_name': role.role,
+                        'permission_id': str(perm.id)
+                    })
+                        
+            except Role.DoesNotExist:
+                return Response({'error': '角色不存在'}, status=status.HTTP_404_NOT_FOUND)
+            except Exception as e:
+                return Response({'error': '获取角色权限时发生错误'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            # 如果没有指定任何参数，返回错误
+            return Response({'error': '请提供user_id、user_group_id或role_id中的一个参数'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({
+            'code': 200,
+            'results': permission_details
+        })
+    # 根据传入的对象，添加权限
+    @action(detail=False, methods=['post'], url_path='add_permissions')
+    def add_permissions(self, request):
+        """
+        为用户、用户组或角色添加权限
+        
+        参数:
+            request: HTTP请求对象，应包含以下参数中的至少一个:
+                - user_id: 用户ID
+                - user_group_id: 用户组ID
+                - role_id: 角色ID
+                - button_ids: 按钮ID列表
+                
+        返回:
+            Response: 包含操作结果的响应
+        """
+        user_id = request.data.get('user_id', None)
+        user_group_id = request.data.get('user_group_id', None)
+        role_id = request.data.get('role_id', None)
+        button_ids = request.data.get('button_ids', [])
+        
+        # 参数有效性检查
+        target_count = sum(x is not None for x in [user_id, user_group_id, role_id])
+        if target_count != 1:
+            return Response({
+                'error': '必须且只能提供user_id、user_group_id或role_id中的一个参数'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        if not button_ids:
+            return Response({
+                'error': 'button_ids参数不能为空'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        # 验证关联对象是否存在
+        try:
+            buttons = Button.objects.filter(id__in=button_ids)
+            if buttons.count() != len(button_ids):
+                return Response({
+                    'error': '某些按钮ID不存在'
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+            # 确定权限主体
+            user = UserInfo.objects.get(id=user_id) if user_id else None
+            user_group = UserGroup.objects.get(id=user_group_id) if user_group_id else None
+            role = Role.objects.get(id=role_id) if role_id else None
+        except UserInfo.DoesNotExist:
+            return Response({
+                'error': '指定的用户不存在'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except UserGroup.DoesNotExist:
+            return Response({
+                'error': '指定的用户组不存在'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Role.DoesNotExist:
+            return Response({
+                'error': '指定的角色不存在'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                'error': f'验证参数时发生错误: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        # 添加权限
+        try:
+            added_permissions = []
+            existing_permissions = []
+            
+            for button in buttons:
+                # 创建或获取权限记录
+                permission, created = Permission.objects.get_or_create(
+                    user=user,
+                    user_group=user_group,
+                    role=role,
+                    button=button,
+                    menu=button.menu
+                )
+                
+                if created:
+                    added_permissions.append(str(button.id))
+                    # 记录日志
+                    if user:
+                        logger.info(f"为用户<{user.username}>添加<{button.menu.name}-{button.name}>权限")
+                    elif user_group:
+                        logger.info(f"为用户组<{user_group.group_name}>添加<{button.menu.name}-{button.name}>权限")
+                    elif role:
+                        logger.info(f"为角色<{role.role}>添加<{button.menu.name}-{button.name}>权限")
+                    # 如果不是查看权限，确保查看权限也存在
+                    if button.action != "view":
+                        view_button_obj = Button.objects.get(action="view", menu=button.menu)
+                        view_per_obj, view_created = Permission.objects.get_or_create(
+                            user=user,
+                            user_group=user_group,
+                            role=role,                            
+                            menu=button.menu,
+                            button=view_button_obj
+                        )
+                        if view_created:
+                            logger.info(f"同时添加<{view_button_obj.action}>权限!")
+                else:
+                    existing_permissions.append(str(button.id))
+                    
+            return Response({
+                'detail': '权限添加成功',
+                'added_permissions': added_permissions,
+                'existing_permissions': existing_permissions
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'添加权限时发生错误: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(methods=['post'], detail=False)
+    def remove_permissions(self, request):
+        """
+        从用户、用户组或角色中删除权限
+        
+        参数:
+            request: HTTP请求对象，应包含以下参数中的至少一个:
+                - user_id: 用户ID
+                - user_group_id: 用户组ID
+                - role_id: 角色ID
+                - menu_id: 菜单ID
+                - button_ids: 按钮ID列表
+                
+        返回:
+            Response: 包含操作结果的响应
+        """
+        user_id = request.data.get('user_id', None)
+        user_group_id = request.data.get('user_group_id', None)
+        role_id = request.data.get('role_id', None)
+        button_ids = request.data.get('button_ids', [])
+        
+        # 参数有效性检查
+        target_count = sum(x is not None for x in [user_id, user_group_id, role_id])
+        if target_count != 1:
+            return Response({
+                'error': '必须且只能提供user_id、user_group_id或role_id中的一个参数'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        if not button_ids:
+            return Response({
+                'error': 'button_ids参数不能为空'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        # 验证关联对象是否存在
+        try:
+            buttons = Button.objects.filter(id__in=button_ids)
+            if buttons.count() != len(button_ids):
+                return Response({
+                    'error': '某些按钮ID不存在'
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+            # 确定权限主体
+            user = UserInfo.objects.get(id=user_id) if user_id else None
+            user_group = UserGroup.objects.get(id=user_group_id) if user_group_id else None
+            role = Role.objects.get(id=role_id) if role_id else None
+        except UserInfo.DoesNotExist:
+            return Response({
+                'error': '指定的用户不存在'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except UserGroup.DoesNotExist:
+            return Response({
+                'error': '指定的用户组不存在'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Role.DoesNotExist:
+            return Response({
+                'error': '指定的角色不存在'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                'error': f'验证参数时发生错误: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        # 删除权限
+        try:
+            removed_permissions = []
+            
+            # 构建查询条件
+            filter_kwargs = {
+                'button__in': buttons
+            }
+            if user:
+                filter_kwargs['user'] = user
+            elif user_group:
+                filter_kwargs['user_group'] = user_group
+            elif role:
+                filter_kwargs['role'] = role
+                
+            # 查找并删除权限
+            permissions_to_remove = Permission.objects.filter(**filter_kwargs)
+            
+            for perm in permissions_to_remove:
+                button_id = str(perm.button.id)
+                removed_permissions.append(button_id)
+                # 记录日志
+                if user:
+                    logger.info(f"从用户<{user.username}>移除<{perm.menu.name}-{perm.button.name}>权限")
+                elif user_group:
+                    logger.info(f"从用户组<{user_group.group_name}>移除<{perm.menu.name}-{perm.button.name}>权限")
+                elif role:
+                    logger.info(f"从角色<{role.role}>移除<{perm.menu.name}-{perm.button.name}>权限")
+                # 当移除查看权限时，应该移除其他权限
+                if perm.button.action == 'view':
+                    # 根据menu删除
+                    permissions_to_remove.filter(button__menu=perm.button.menu).delete()
+                    logger.info(f"移除菜单<{perm.button.menu.name}>所有权限")
+            permissions_to_remove.delete()
+                    
+            return Response({
+                'detail': '权限删除成功',
+                'removed_permissions': removed_permissions
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'删除权限时发生错误: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class PortalViewSet(ModelViewSet):
     queryset = Portal.objects.all()

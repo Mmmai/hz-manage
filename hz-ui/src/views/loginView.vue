@@ -132,7 +132,7 @@ const handleCommit = () => {
           await configStore.setUserConfig(res.data);
 
           // 获取动态菜单路由
-          await configStore.getMenuInfo({ role: res.data.role });
+          await configStore.getMenuInfo();
 
           // 获取国密密钥
           let gmRes = await proxy.$api.getSysConfig({ params: "gm" });

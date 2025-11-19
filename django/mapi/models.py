@@ -140,13 +140,47 @@ class Permission(models.Model):
     权限
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    role = models.ForeignKey(Role, on_delete=models.CASCADE,related_name="permission")
-    menu = models.ForeignKey(Menu, on_delete=models.CASCADE,related_name="permission")
-    button = models.ForeignKey(Button, on_delete=models.CASCADE,related_name="permission")
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="permission", null=True, blank=True)
+    user = models.ForeignKey(UserInfo, on_delete=models.CASCADE, related_name="permission", null=True, blank=True)
+    user_group = models.ForeignKey(UserGroup, on_delete=models.CASCADE, related_name="permission", null=True, blank=True)
+    menu = models.ForeignKey(Menu, on_delete=models.CASCADE, related_name="permission")
+    button = models.ForeignKey(Button, on_delete=models.CASCADE, related_name="permission")
 
-    # def __str__(self):
-    #     # 显示带菜单前缀的权限
-    #     return 
+    def __str__(self):
+        if self.role:
+            owner = self.role.role
+        elif self.user:
+            owner = self.user.username
+        elif self.user_group:
+            owner = self.user_group.group_name
+        else:
+            owner = "Unknown"
+        return f"{owner} - {self.menu.name} - {self.button.name}"
+
+    @classmethod
+    def get_user_permissions(cls, user):
+        """
+        获取用户的所有权限，包括通过角色、用户组和直接授权的权限
+        """
+        # 通过用户直接角色获取权限
+        role_permissions = cls.objects.filter(role__in=user.roles.all())
+        
+        # 通过用户组获取权限（包括用户组关联的角色权限）
+        user_groups = user.groups.all()
+        user_group_permissions = cls.objects.filter(user_group__in=user_groups)
+        
+        # 通过用户组关联的角色获取权限
+        group_roles = []
+        for group in user_groups:
+            group_roles.extend(group.roles.all())
+        group_role_permissions = cls.objects.filter(role__in=group_roles)
+        
+        # 通过直接用户授权获取权限
+        user_permissions = cls.objects.filter(user=user)
+        
+        # 合并所有权限并去重
+        permissions = (role_permissions | user_group_permissions | group_role_permissions | user_permissions).distinct()
+        return permissions
 
     class Meta:
         db_table = "tb_permission"

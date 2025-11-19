@@ -378,7 +378,7 @@ import menuButtonCom from "../components/menuButtonCom.vue";
 import { useRoute } from "vue-router";
 const route = useRoute();
 import { Icon } from "@iconify/vue";
-defineOptions({ name: "menu" });
+defineOptions({ name: "menuConfig" });
 
 import { useStore } from "vuex";
 const store = useStore();
@@ -557,8 +557,8 @@ const handleCommit = () => {
           // 重置表单
           proxy.$refs.userFrom.resetFields();
           getMenuData();
-          // 更新路由
-          await store.dispatch("getRoleMenu", {
+          // 更新路由getRoleMenu
+          await store.dispatch("", {
             role: store.state.role,
           });
           // 更新按钮权限

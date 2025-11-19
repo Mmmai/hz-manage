@@ -223,6 +223,7 @@ const handleClose = () => {
 };
 const addGroup = () => {
   dialogVisible.value = true;
+  nowRow.value = {};
 };
 const nowRow = ref({});
 const isAdd = ref(true);

@@ -49,7 +49,7 @@ router.register('userGroup',views.UserGroupViewSet)
 router.register('role',views.RoleViewSet)
 router.register('menu',views.MenuViewSet)
 router.register('button',views.ButtonViewSet)
-
+# router.register('permission',views.PermissionViewSet)
 router.register('portal',views.PortalViewSet)
 router.register('pgroup',views.PgroupViewSet)
 router.register('datasource',views.dataSourceViewSet)
@@ -58,7 +58,7 @@ router.register('sysconfig',views.sysConfigViewSet)
 # router.register('logModule',views.LogModuleViewSet)
 
 
-# router.register('permission',views.PermissionViewSet)
+router.register('permission',views.PermissionViewSet)
 
 # router.register('login',views.LoginView)
 urlpatterns += router.urls

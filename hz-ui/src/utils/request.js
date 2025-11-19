@@ -1,5 +1,7 @@
 import axios from 'axios'
 import querystring from "querystring"
+import { ElMessage } from "element-plus";
+
 const instance = axios.create({
   timeout: 120 * 1000
 })
@@ -61,10 +63,13 @@ instance.interceptors.response.use(
     const costTime = endTime - response.config.startTime;
     response.costTime = costTime
     // return response.data.staus == 200 ? Promise.resolve(response) : Promise.reject(response)
+    return Promise.resolve(response)
+  },
+  (error) => {
     // 检查响应数据中是否有token过期的相关信息
-    if (response.data && response.data.status === 403) {
+    if (error.response && error.response.status === 403) {
       // token过期，清除本地存储并跳转到登录页
-      alert.error('登录已过期，请重新登录')
+      ElMessage.error('登录已过期，请重新登录')
       localStorage.clear()
 
       // 延迟跳转以确保消息能被看到
@@ -77,22 +82,10 @@ instance.interceptors.response.use(
         }
       }, 1500)
 
-      return Promise.reject(response)
     }
-    return Promise.resolve(response)
-  },
-  (error) => {
-    if (error.code === 'ECONNABORTED') {
-      // 超时处理，返回一个Promise，可以返回一个自定义的结果对象
-      return Promise.resolve({
-        timeout: true,
-        message: '请求超时',
-      });
-    }
-    const { response } = error;
 
     // errorHandle(response.status,response.data)
-    return response
+    return Promise.reject(error)
   }
 )
 

@@ -21,14 +21,12 @@ export const useConfigStore = defineStore(
     const token = ref<string>(null)
     // 用户角色
     const userInfo = ref<{}>({})
-    const role = ref([])
     // 权限菜单
     const permission = ref<[string]>([])
     const setUserConfig = (params) => {
       token.value = params.token
       userInfo.value = params.userinfo
       permission.value = params.permission
-      role.value = params.role
     }
     const setDynamicCreateRoute = (params) => {
       dynamicCreateRoute.value = params
@@ -36,13 +34,13 @@ export const useConfigStore = defineStore(
 
     // 动态菜单
     const menuInfo = ref([])
-    const getMenuInfo = async (config) => {
-      let res = await api.getMenuList(config)
+    const getMenuInfo = async () => {
+      let res = await api.getMenuList()
 
       if (res.status === 403) {
         // 弹出提示没有认证,清除token等，重新登录
         ElMessage.error(JSON.stringify(res.data))
-        setUserConfig({ token: null, userinfo: null, permission: null, role: null })
+        setUserConfig({ token: null, userinfo: null, permission: null })
         // 只有在提供了router实例时才进行跳转
       } else {
         menuInfo.value = res.data.results
@@ -75,7 +73,6 @@ export const useConfigStore = defineStore(
     const clearConfig = () => {
       token.value = null
       userInfo.value = null
-      role.value = null
       permission.value = null
       menuInfo.value = null
       gmCry.value = null
@@ -84,7 +81,7 @@ export const useConfigStore = defineStore(
       appVersion.value = null
     }
     return {
-      dynamicCreateRoute, setDynamicCreateRoute, collapse, changeCollapse, token, userInfo, role, permission, setUserConfig, menuInfo, getMenuInfo,
+      dynamicCreateRoute, setDynamicCreateRoute, collapse, changeCollapse, token, userInfo, permission, setUserConfig, menuInfo, getMenuInfo,
       gmCry, setGmCry, showAllPass, updateShowAllPass, setShowAllPassTime, showAllPassTime, updateShowAllPassTime, appVersion, getAppVersion, clearConfig
     }
   },

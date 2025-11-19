@@ -69,7 +69,7 @@ router.beforeEach(async (to, from, next) => {
         // await store.dispatch('getRouteInfoAction', {role:store.state.role})
         try {
           // await store.dispatch('getRoleMenu', { role: store.state.role })
-          await configStore.getMenuInfo({ role: configStore.role })
+          await configStore.getMenuInfo()
           configStore.setDynamicCreateRoute(true)
           // console.log(store.state.menuInfo)
           // const drouteinfo = store.state.routeInfo
@@ -86,21 +86,22 @@ router.beforeEach(async (to, from, next) => {
           next('/login')
           return
         }
-      } else {
+      }
+      else {
         // 判断路由中的权限
-        if (to.meta.role) {
-          let allowRoleList = to.meta.role
-          let hasRoleList = allowRoleList.filter(item => configStore.role.includes(item))
-          // console.log(123)
-          // console.log
-          if (hasRoleList.length == 0) {
-            next('/login');
-          } else {
-            next();
-          }
-        } else {
-          next();
-        }
+        // if (to.meta.role) {
+        //   let allowRoleList = to.meta.role
+        //   let hasRoleList = allowRoleList.filter(item => configStore.role.includes(item))
+        //   // console.log(123)
+        //   // console.log
+        //   if (hasRoleList.length == 0) {
+        //     next('/login');
+        //   } else {
+        //     next();
+        //   }
+        // } else {
+        next();
+        // }
       }
 
       // next()

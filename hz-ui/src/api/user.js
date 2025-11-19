@@ -93,22 +93,6 @@ export default {
       data: params
     })
   },
-  // 为角色添加按钮菜单权限
-  addRolePermissions(id, params) {
-    return axios.request({
-      url: path.role + id + '/add_permissions/',
-      method: 'post',
-      data: params
-    })
-  },
-  // 为角色删除按钮菜单权限
-  removeRolePermissions(id, params) {
-    return axios.request({
-      url: path.role + id + '/remove_permissions/',
-      method: 'post',
-      data: params
-    })
-  },
   // 获取角色关联权限的树状
   getPermissionToRole(params) {
     return axios.request({
@@ -136,5 +120,33 @@ export default {
   deleteUserGroup(params) {
     return axios.delete(path.userGroup + params + '/')
   },
-
+  // 获取用户、用户组、角色权限列表
+  getPermissionHas(params) {
+    // user_id,user_group_id,role_id
+    return axios.request({
+      url: '/api/v1/permission/get_permission/',
+      method: 'get',
+      params: params
+    })
+  },
+  // 添加按钮菜单权限
+  addObjectPermissions(params) {
+    // user_id,user_group_id,role_id
+    // {"role_id":1,"button_ids":[]}
+    return axios.request({
+      url: '/api/v1/permission/add_permissions/',
+      method: 'post',
+      data: params
+    })
+  },
+  // 删除按钮菜单权限
+  removeObjectPermissions(params) {
+    // user_id,user_group_id,role_id
+    // {"role_id":1,"button_ids":[]}
+    return axios.request({
+      url: '/api/v1/permission/remove_permissions/',
+      method: 'post',
+      data: params
+    })
+  },
 }

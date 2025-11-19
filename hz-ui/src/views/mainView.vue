@@ -38,7 +38,7 @@
         </el-main>
         <el-footer class="efooter">
           <el-text tag="p">
-            {{ `2024 © 智维_${appVersion} By 工程售后服务中心-技术管理室` }}
+            {{ `2025 © 智维_${appVersion} By 工程售后服务中心-技术管理室` }}
           </el-text>
         </el-footer>
       </el-container>

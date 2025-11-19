@@ -130,7 +130,7 @@
             <el-icon>
               <UserFilled />
             </el-icon>
-            {{ userInfo.username }}
+            {{ userInfo?.username }}
             <el-icon class="el-icon--right">
               <arrow-down />
             </el-icon>

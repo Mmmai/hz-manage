@@ -310,7 +310,13 @@ class ButtonModelSerializer(serializers.ModelSerializer):
         model = Button
         fields = "__all__"
         # depth = 1
-
+class PermissionModelSerializer(serializers.ModelSerializer):
+    # role_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)   
+    #     rolePermission = serializers.SerializerMethodField() 
+    class Meta:
+        # 表名
+        model = Permission
+        fields = "__all__"
 class getPortalModelSerializer(serializers.ModelSerializer):
     group_name = serializers.CharField(source='group.group')
     class Meta:

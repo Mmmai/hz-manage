@@ -45,6 +45,13 @@ const api = {
 
     })
   },
+  // 查看单个menu信息
+  getMenuTree(params) {
+    return axios.request({
+      url: path.menu + 'get_menu_tree/',
+      method: 'get',
+    })
+  },
   menuUpdate(params) {
     return axios.request({
       url: path.menu + params.id + '/',

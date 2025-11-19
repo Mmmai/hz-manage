@@ -110,11 +110,7 @@ onMounted(() => {
 watch(
   () => route.fullPath,
   () => {
-    // if (route.meta.isFull) return;
-    // console.log("route.fullPath", route);
     nowTab.value = route.path;
-    // console.log(nowTab.value)
-
     const tabsParams = {
       icon: route.meta.icon as string,
       title: route.meta.title as string,
@@ -124,6 +120,7 @@ watch(
       isKeepAlive: route.meta.isKeepAlive,
       menuPath: route.meta.menuPath,
       isInfo: route.meta.isInfo,
+      hasInfo: route.meta.hasInfo,
       //   close: !route.meta.isAffix,
       //   isKeepAlive: route.meta.isKeepAlive as boolean
     };
@@ -132,7 +129,7 @@ watch(
         tabsParams.title = route.meta.title + "-详情";
       } else if (!route.query.verbose_name) {
         tabsParams.title = route.meta.title;
-        nowTab.value = route.path.replace(/\/[^/]*$/, "");
+        // nowTab.value = route.path.replace(/\/[^/]*$/, "");
       } else {
         nowTab.value = route.meta.title;
         tabsParams.title = route.meta.title;
@@ -179,7 +176,7 @@ const initTabs = () => {
 // Tab Click
 const tabClick = (tabItem: TabsPaneContext) => {
   // const fullPath = tabItem.props.name as string;
-  //   console.log(tabItem)
+  // console.log(tabItem);
   router.push(tabsMenuDict.value[tabItem.props.name].fullPath);
 };
 

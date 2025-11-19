@@ -615,9 +615,6 @@ const handleLeftCheck = (data, info) => {
 // 处理右侧树选中事件
 const handleRightCheck = (data, info) => {
   if (props.disabled) return;
-  console.log("handleRightCheck", rightTreeRef.value!.getCurrentNode());
-  console.log(data);
-  console.log(info);
   // 从唯一key提取原始ID
   selectedRightKeys.value = extractOriginalIds(
     info.checkedKeys,

@@ -274,7 +274,7 @@ import type { FilterNodeMethodFunction, TreeInstance } from "element-plus";
 const { proxy } = getCurrentInstance();
 const treeRef = ref<TreeInstance>();
 const resultContentRef = ref();
-
+defineOptions({ name: "ansibleCli" });
 const filterText = ref("");
 watch(filterText, (val) => {
   treeRef.value!.filter(val);

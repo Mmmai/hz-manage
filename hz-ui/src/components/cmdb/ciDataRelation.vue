@@ -773,9 +773,9 @@ const generateStyledRelationDescription = (row) => {
   const targetName = row.target_instance.instance_name;
   const relationName = getRelationDisplayName(row);
   const sourceModelName =
-    modelObjectById.value[row.source_instance.model].verbose_name;
+    modelObjectById.value[row.source_instance.model]?.verbose_name;
   const targetModelName =
-    modelObjectById.value[row.target_instance.model].verbose_name;
+    modelObjectById.value[row.target_instance.model]?.verbose_name;
   // 根据instanceId所在位置决定使用哪一侧的属性
   let sourceAttributesName, targetAttributesName;
 

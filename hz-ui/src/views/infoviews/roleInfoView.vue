@@ -71,7 +71,7 @@
               :disabled="isSysAdmin"
             /></div
         ></el-tab-pane>
-        <el-tab-pane label="资产权限" name="cmdbPermission">Config</el-tab-pane>
+        <el-tab-pane label="资产权限" name="cmdbPermission"> </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -99,7 +99,7 @@ const isAdd = ref(false);
 const editMode = ref(false);
 // roleId
 const roleId = ref<any>(null);
-const activeName = ref("first");
+const activeName = ref("menuPermission");
 const handleClick = () => {};
 const goBack = () => {
   router.push({

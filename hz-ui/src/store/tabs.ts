@@ -60,8 +60,11 @@ export const useTabsStore = defineStore(
         return
       }
       // 详情页在本tab内
-      if (tabItem.isInfo) {
-        return
+      if (tabItem.hasInfo) {
+        // 找到tabsMenuList里对应的tabItem
+        let index = tabsMenuList.value.findIndex(item => item.title === tabItem.title)
+        // 找到tabsMenuList里对应的tabItem,更新元素
+        index !== -1 && tabsMenuList.value.splice(index, 1, tabItem)
       }
 
       if (tabsMenuList.value.every(item => item.path !== tabItem.path)) {
@@ -85,13 +88,14 @@ export const useTabsStore = defineStore(
           const nextTab = tabsMenuList.value[index + 1] || tabsMenuList.value[index - 1];
 
           if (!nextTab) return;
-          if (nextTab.name === "model_info") {
-            router.push(nextTab.fullPath)
+          // if (nextTab.name === "model_info") {
+          //   router.push(nextTab.fullPath)
 
-          } else {
-            router.push(nextTab.path)
+          // } else {
+          //   router.push(nextTab.path)
 
-          }
+          // }
+          router.push(nextTab.fullPath)
           // currentTitle.value = nextTab.title
           // console.log(currentTitle.value)
         });
