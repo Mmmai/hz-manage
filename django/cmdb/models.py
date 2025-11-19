@@ -15,9 +15,10 @@ from audit.snapshots import get_dynamic_field_snapshot
 
 logger = logging.getLogger(__name__)
 
+
 @register_audit(
     snapshot_fields={'id', 'name', 'verbose_name'},
-    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
     public_name='model_group'
 )
 class ModelGroups(models.Model):
@@ -63,9 +64,10 @@ class ModelGroups(models.Model):
             Models.objects.filter(model_group=self).update(model_group=default_group)
             super().delete(*args, **kwargs)
 
+
 @register_audit(
     snapshot_fields={'id', 'name', 'verbose_name'},
-    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
     public_name='model',
     field_resolvers={
         'instance_name_template': resolve_model_field_id_list
@@ -124,10 +126,9 @@ class Models(models.Model):
                 constraint.delete()
 
 
-
 @register_audit(
     snapshot_fields={'id', 'name', 'verbose_name'},
-    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
     public_name='model_field_group'
 )
 class ModelFieldGroups(models.Model):
@@ -167,9 +168,10 @@ class ModelFieldGroups(models.Model):
         )
         return default_field_group
 
+
 @register_audit(
     snapshot_fields={'id', 'name', 'verbose_name', 'field_type', 'type', 'rule'},
-    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
     public_name='validation_rule'
 )
 class ValidationRules(models.Model):
@@ -236,7 +238,7 @@ class ValidationRules(models.Model):
 
 @register_audit(
     snapshot_fields={'id', 'name', 'verbose_name', 'type', 'unit', 'ref_model'},
-    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
     public_name='model_field'
 )
 class ModelFields(models.Model):
@@ -280,9 +282,10 @@ class ModelFieldPreference(models.Model):
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
+
 @register_audit(
     snapshot_fields={'id', 'fields', 'validate_null'},
-    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
     public_name='unique_constraint',
     field_resolvers={
         'fields': resolve_model_field_id_list
@@ -305,11 +308,12 @@ class UniqueConstraint(models.Model):
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
+
 @register_audit(
     is_field_aware=True,
     dynamic_snapshot_func=get_dynamic_field_snapshot,
     snapshot_fields={'id', 'instance_name', 'input_mode'},
-    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
     public_name='model_instance',
     dynamic_value_resolver=resolve_dynamic_value,
     restorer='cmdb.restorer.restore_model_instance',
@@ -378,9 +382,10 @@ class ModelFieldMeta(models.Model):
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
+
 @register_audit(
     snapshot_fields={'id', 'label', 'path'},
-    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
     public_name='model_instance_group'
 )
 class ModelInstanceGroup(models.Model):
@@ -405,12 +410,12 @@ class ModelInstanceGroup(models.Model):
     def save(self, *args, **kwargs):
         skip_signal = kwargs.pop('_skip_signal', False)
         self.path = self.get_path()
-        
+
         if skip_signal:
             self._skip_signal = True
-            
+
         super().save(*args, **kwargs)
-        
+
         if hasattr(self, '_skip_signal'):
             delattr(self, '_skip_signal')
 
@@ -426,6 +431,19 @@ class ModelInstanceGroup(models.Model):
             child.path = child.get_path()
             child.save(update_fields=['path', 'update_time'], _skip_signal=True)
             child.update_child_path()
+
+    def get_all_children(self):
+        """获取所有子分组"""
+        all_children = set()
+
+        def _get_children(group):
+            children = self.__class__.objects.filter(parent=group)
+            for child in children:
+                all_children.add(child)
+                _get_children(child)
+
+        _get_children(self)
+        return all_children
 
     @classmethod
     def get_root_group(cls, model):
@@ -492,6 +510,8 @@ class ModelInstanceGroup(models.Model):
         logger.info(f'Cache cleared successfully')
 
 # @register_audit(ignore_fields={'update_time', 'create_time'}, public_name='model_instance_group_relation')
+
+
 class ModelInstanceGroupRelation(models.Model):
     """实例与分组的关联关系"""
     class Meta:
@@ -506,9 +526,10 @@ class ModelInstanceGroupRelation(models.Model):
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
+
 @register_audit(
     snapshot_fields={'id', 'name', 'source_model', 'target_model', 'topology_type'},
-    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
     m2m_fields={'source_model', 'target_model'},
     public_name='relation_definition',
     field_resolvers={
@@ -539,13 +560,13 @@ class RelationDefinition(models.Model):
     forward_verb = models.CharField(max_length=50, null=False, blank=False)
     reverse_verb = models.CharField(max_length=50, null=False, blank=False)
     source_model = models.ManyToManyField(
-        'Models', 
-        blank=True, 
+        'Models',
+        blank=True,
         related_name='relation_allowed_source_models'
     )
     target_model = models.ManyToManyField(
-        'Models', 
-        blank=True, 
+        'Models',
+        blank=True,
         related_name='relation_allowed_target_models'
     )
     attribute_schema = models.JSONField(default=dict, blank=True, null=True)
@@ -555,9 +576,10 @@ class RelationDefinition(models.Model):
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
+
 @register_audit(
     snapshot_fields={'id', 'source_instance', 'target_instance', 'relation'},
-    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'}, 
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
     public_name='relation'
 )
 class Relations(models.Model):

@@ -1,0 +1,84 @@
+from rest_framework import serializers
+from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
+from .models import DataScope, PermissionTarget
+
+
+class PermissionTargetInputSerializer(serializers.Serializer):
+    """
+    用于接收权限目标输入的内部序列化器。
+    """
+    app_label = serializers.CharField(write_only=True)
+    model = serializers.CharField(write_only=True)
+    object_ids = serializers.ListField(
+        child=serializers.CharField(),
+        allow_empty=True,
+        write_only=True
+    )
+
+    def validate(self, attrs):
+        try:
+            ContentType.objects.get(app_label=attrs['app_label'], model=attrs['model'])
+        except ContentType.DoesNotExist:
+            raise serializers.ValidationError(
+                f"Invalid target model: {attrs['app_label']}.{attrs['model']}"
+            )
+        return attrs
+
+
+class DataScopeSerializer(serializers.ModelSerializer):
+
+    targets = PermissionTargetInputSerializer(many=True, write_only=True, required=False)
+    role_name = serializers.CharField(source='role.name', read_only=True)
+    user_name = serializers.CharField(source='user.username', read_only=True)
+    user_group_name = serializers.CharField(source='user_group.name', read_only=True)
+
+    class Meta:
+        model = DataScope
+        fields = [
+            'id', 'role', 'user', 'user_group', 'scope_type',
+            'role_name', 'user_name', 'user_group_name',
+            'description', 'targets', 'create_time', 'update_time'
+        ]
+        read_only_fields = ['id', 'create_time', 'update_time', 'role_name', 'user_name', 'user_group_name']
+
+    def _create_or_update_targets(self, scope, targets_data):
+        scope.targets.all().delete()
+
+        targets_to_create = []
+        for target_data in targets_data:
+            content_type = ContentType.objects.get(
+                app_label=target_data['app_label'],
+                model=target_data['model']
+            )
+            for obj_id in target_data['object_ids']:
+                targets_to_create.append(
+                    PermissionTarget(
+                        scope=scope,
+                        content_type=content_type,
+                        object_id=obj_id
+                    )
+                )
+
+        if targets_to_create:
+            PermissionTarget.objects.bulk_create(targets_to_create)
+
+    @transaction.atomic
+    def create(self, validated_data):
+        targets_data = validated_data.pop('targets', [])
+        scope = DataScope.objects.create(**validated_data)
+        if scope.scope_type == DataScope.ScopeType.FILTER:
+            self._create_or_update_targets(scope, targets_data)
+        return scope
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        if instance.role and instance.role.role == 'sysadmin':
+            raise serializers.ValidationError("Cannot modify data scope for sysadmin role.")
+
+        scope_type = validated_data.get('scope_type', instance.scope_type)
+        targets_data = validated_data.pop('targets', None)
+        instance = super().update(instance, validated_data)
+        if targets_data is not None and scope_type == DataScope.ScopeType.FILTER:
+            self._create_or_update_targets(instance, targets_data)
+        return instance

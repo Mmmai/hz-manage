@@ -1,36 +1,29 @@
-from django.shortcuts import render
-from rest_framework.filters import SearchFilter
-
-from django.http import HttpResponse,JsonResponse
-from rest_framework import filters,status
-from rest_framework.viewsets import ModelViewSet
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.renderers import JSONRenderer
-from .sers import *
 import tempfile
+import json
+
+from django.shortcuts import render
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
+from django.conf import settings
+from rest_framework.filters import SearchFilter
+from rest_framework import filters, status
+from rest_framework.viewsets import ModelViewSet
+from rest_framework.decorators import action
+from rest_framework.renderers import JSONRenderer
 from rest_framework.views import APIView
 from rest_framework.response import Response
-# from .models import UserInfo,Role,Menu,Portal,Pgroup,Datasource,LogModule
-from .models import (
-  UserInfo,UserGroup,Role,Menu,Button,Permission,Portal,Pgroup,Datasource,
-  sysConfigParams
-  )
-from .filters import (
-    roleFilter,
-    sysConfigParamsFilter,
-    buttonFilter   
-)
-from .utils.jwt_create_token import create_token
-from rest_framework.pagination import PageNumberPagination
-from .extensions.jwt_authenticate import JWTQueryParamsAuthentication
-from rest_framework.decorators import action
-from django.shortcuts import get_object_or_404
-import json
-from django.conf import settings
-from mapi.extensions.pagination import StandardResultsSetPagination
-from .export import exportHandler
+from rest_framework.exceptions import PermissionDenied
+
 from node_mg.utils.config_manager import ConfigManager
 from cmdb.utils import password_handler
+
+from .utils.jwt_create_token import create_token
+from .extensions.jwt_authenticate import JWTQueryParamsAuthentication
+from .sers import *
+from .models import *
+from .filters import *
+from .export import exportHandler
 
 import logging
 logger = logging.getLogger(__name__)
@@ -64,8 +57,8 @@ class LoginView(APIView):
             logger.error(f"Password verification failed: {str(e)}")
             return Response({'code':401,'error':'密码认证失败!'})
         # 获取用户组id
-        userGroupList = [ i['id'] for i in user_obj.groups.all().values('id') ]
-        # 
+        userGroupList = [i['id'] for i in user_obj.groups.all().values('id')]
+        #
         userGroupRoleList = []
         for group in userGroupList:
             group_obj = UserGroup.objects.get(id=group)
@@ -181,36 +174,42 @@ class getMenu(APIView):
                 
         return tree
 # 获取角色授权页面的tree
+
+
 class getPermissionToRole(APIView):
     def __init__(self):
         self.get_menu_tree = self.get_menu_tree
-    def post(self,request,*args,**kwargs):
+
+    def post(self, request, *args, **kwargs):
         menuobj = Menu.objects.all().order_by('sort')
         menuList = self.get_menu_tree(menuobj)
         # print(menuList)
-        return Response({'code':200,"results":menuList})
+        return Response({'code': 200, "results": menuList})
 
-    def get_menu_tree(self,menu_list,parent=None):
+    def get_menu_tree(self, menu_list, parent=None):
         tree = []
         for menu in menu_list.filter(parentid=parent):
             if menu.is_menu:
                 # 添加按钮到对应菜单下
-                info = {"id":menu.id,"label":menu.label,"tree_type":"menu"}
+                info = {"id": menu.id, "label": menu.label, "tree_type": "menu"}
             else:
-                info = {"id":menu.id,"label":menu.label,"tree_type":"directory"}
-            info['children'] = self.get_menu_tree(menu_list,menu)
+                info = {"id": menu.id, "label": menu.label, "tree_type": "directory"}
+            info['children'] = self.get_menu_tree(menu_list, menu)
             # print(info)
-                # 如果是目录，但是没有子目录，则跳过
+            # 如果是目录，但是没有子目录，则跳过
             # if menu.is_menu == False and len(info['children']) == 0:
             #     continue
             if menu.is_menu:
                 # 添加按钮到对应菜单下
-                info["children"] = [ {"id":str(i.id),"label":i.name,"button":i.action,"tree_type":"button"} for i in Button.objects.filter(menu=menu).all().order_by('action')]  
+                info["children"] = [{"id": str(i.id), "label": i.name, "button": i.action, "tree_type": "button"}
+                                    for i in Button.objects.filter(menu=menu).all().order_by('action')]
             tree.append(info)
         return tree
 # 获取当前用户的权限列表
+
+
 class getUserButton(APIView):
-    def post(self,request,*args,**kwargs):
+    def post(self, request, *args, **kwargs):
         # owner = request.query_params.get('owner')
         # orderRes =  orderMethod.objects.filter(owner=owner).first()
         role_ids = request.data.get('role')
@@ -226,20 +225,19 @@ class getUserButton(APIView):
         return Response({'code':200,"results":allPermissionList})
 
 
+
 class UserInfoViewSet(ModelViewSet):
     queryset = UserInfo.objects.all()
     # 认证
     authentication_classes = [JWTQueryParamsAuthentication, ]
     serializer_class = UserInfoModelSerializer
     # pagination_class = defaultPageNumberPagination
-    filter_backends = (DjangoFilterBackend, filters.SearchFilter,filters.OrderingFilter)  # 指定后端
+    # filter_backends = (DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter)  # 指定后端
     # 视图中设置了 search_fields 属性时，才会应用 SearchFilter 类
     # search_fields只支持文本类型字段，例如 CharField 或 TextField
     search_fields = ('$username',)
 
     def list(self, request, *args, **kwargs):
-        # request.query_params = request.data
-        # page = request.data['page']
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -263,7 +261,7 @@ class UserInfoViewSet(ModelViewSet):
     @action(methods=['delete'], detail=False)
     def multiple_delete(self, request, *args, **kwargs):
         # pks = request.query_params.get('pks', None)
-        pks = request.data.get('pks',None)
+        pks = request.data.get('pks', None)
         if not pks:
             return Response(status=status.HTTP_404_NOT_FOUND)
             
@@ -280,11 +278,37 @@ class UserInfoViewSet(ModelViewSet):
                 
        # for pk in pks:
             # get_object_or_404(UserInfo, id=pk).delete()
+
+        if 'admin' in UserInfo.objects.filter(id__in=pks).values_list('username', flat=True):
+            raise PermissionDenied('admin 用户为系统管理员，不允许删除')
+
         UserInfo.objects.filter(id__in=pks).delete()
-        return Response(data='delete success',status=status.HTTP_204_NO_CONTENT)
+        return Response(data='delete success', status=status.HTTP_204_NO_CONTENT)
+
+    def perform_destroy(self, instance):
+        if instance.username == 'admin':
+            raise PermissionDenied('admin 用户为系统管理员，不允许删除')
+        super().perform_destroy(instance)
+
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        if instance.username == 'admin':
+            # 禁止修改 username、is_active
+            forbidden_fields = {'username', 'is_active'}
+            if any(f in self.request.data for f in forbidden_fields):
+                raise PermissionDenied('admin 用户的核心属性不可更改')
+            # 防止移除 sysadmin 角色
+            if 'roles' in self.request.data:
+                new_role_ids = set(self.request.data['roles'])
+                sysadmin_role = Role.objects.filter(role='sysadmin').first()
+                if sysadmin_role and str(sysadmin_role.id) not in new_role_ids:
+                    raise PermissionDenied('不允许移除 admin 用户的 sysadmin 角色')
+        super().perform_update(serializer)
+
+
 class UserGroupViewSet(ModelViewSet):
     queryset = UserGroup.objects.all()
-    serializer_class =  UserGroupModelSerializer
+    serializer_class = UserGroupModelSerializer
     # pagination_class = StandardResultsSetPagination
     # filterset_class = roleFilter
     order_fields = ["id"]
@@ -300,8 +324,9 @@ class UserGroupViewSet(ModelViewSet):
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
 class RoleViewSet(ModelViewSet):
+
     queryset = Role.objects.all()
-    serializer_class =  RoleModelSerializer
+    serializer_class = RoleModelSerializer
     # pagination_class = StandardResultsSetPagination
     filterset_class = roleFilter
     order_fields = ["id"]
@@ -353,35 +378,35 @@ class RoleViewSet(ModelViewSet):
             # If 'prefetch_related' has been applied to a queryset, we need to
             # forcibly invalidate the prefetch cache on the instance.
             instance._prefetched_objects_cache = {}
+
         # 更新perrmison字段内容
-        rolePermission = request.data.get('rolePermission',None)
+        rolePermission = request.data.get('rolePermission', None)
         if not rolePermission:
             pass
         else:
-            # return
-            # print(rolePermission)
             # instance.permission.all()
             # print(instance)
             # 判断原有的，若相同，则不处理
-            currentPermissionList = [ str(i) for i in  Permission.objects.filter(role=instance).values_list("button",flat=True)]
+            currentPermissionList = [str(i) for i in Permission.objects.filter(
+                role=instance).values_list("button", flat=True)]
             if sorted(rolePermission) == sorted(currentPermissionList):
                 pass
             else:
-                # print(123)
                 # 先清空原有的，再添加新的
                 instance.permission.all().delete()
                 logger.info(f"清空角色<{instance.role}>权限!")
                 # 添加新的
                 for button_id in rolePermission:
                     button_obj = Button.objects.get(id=button_id)
-                    Permission.objects.create(role=instance,menu=button_obj.menu,button=button_obj)
+                    Permission.objects.create(role=instance, menu=button_obj.menu, button=button_obj)
                     logger.info(f"为角色<{instance.role}>添加<${button_obj.action}>权限!")
                     # 如果有其他按钮权限，查看的权限应该同步添加，就算用户没有勾选！
                     if button_obj.action == "view":
                         pass
                     else:
-                        view_button_obj = Button.objects.get(action="view",menu=button_obj.menu)
-                        view_per_obj, created = Permission.objects.get_or_create(role=instance,menu=button_obj.menu,button=view_button_obj)
+                        view_button_obj = Button.objects.get(action="view", menu=button_obj.menu)
+                        view_per_obj, created = Permission.objects.get_or_create(
+                            role=instance, menu=button_obj.menu, button=view_button_obj)
                         if created:
                             logger.info(f"为角色<{instance.role}>添加<${view_button_obj.action}>权限!")
                         else:
@@ -497,6 +522,21 @@ class RoleViewSet(ModelViewSet):
             'removed_permissions': removed_permissions
         }, status=status.HTTP_200_OK)
 
+    def perform_destroy(self, instance):
+        if instance.role == 'sysadmin':
+            logger.warning(f'尝试删除系统内置角色 sysadmin, 操作被拒绝')
+            raise PermissionDenied('sysadmin 角色为系统内置角色，不允许删除')
+        super().perform_destroy(instance)
+
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        if instance.role == 'sysadmin':
+            # 允许修改 name/description，但禁止修改核心字段 role
+            if 'role' in self.request.data or 'permissions' in self.request.data:
+                raise PermissionDenied('sysadmin 角色的权限配置不可更改')
+        super().perform_update(serializer)
+
+
 class MenuViewSet(ModelViewSet):
     queryset = Menu.objects.all()
     serializer_class = MenuModelSerializer
@@ -524,6 +564,7 @@ class MenuViewSet(ModelViewSet):
                 info["children"] = [ {"id":str(i.id),"label":i.name,"button":i.action,"tree_type":"button"} for i in Button.objects.filter(menu=menu).all().order_by('action')]  
             tree.append(info)
         return tree    
+
 
 class ButtonViewSet(ModelViewSet):
     queryset = Button.objects.all()
@@ -861,12 +902,14 @@ class PermissionViewSet(ModelViewSet):
 class PortalViewSet(ModelViewSet):
     queryset = Portal.objects.all()
     # serializer_class = PortalModelSerializer
+
     def get_serializer_class(self):
         if self.action == 'list':
             return getPortalModelSerializer
         else:
             return PortalModelSerializer
     # pagination_class = defaultPageNumberPagination
+
     def list(self, request, *args, **kwargs):
         # queryset = self.filter_queryset(self.get_queryset())
         # serializer_class = getPortalModelSerializer
@@ -884,7 +927,6 @@ class PortalViewSet(ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
-
     @action(methods=['delete'], detail=False)
     def multiple_delete(self, request, *args, **kwargs):
         # pks = request.query_params.get('pks', None)
@@ -896,12 +938,13 @@ class PortalViewSet(ModelViewSet):
             get_object_or_404(Portal, id=int(pk)).delete()
 
         return Response(data='delete success', status=status.HTTP_204_NO_CONTENT)
+
     @action(methods=['post'], detail=False)
     def export_template(self, request, *args, **kwargs):
         # request.data.body('pks', None)
         # 获取Pg字段和列表
         model_fields = Portal._meta.fields
-        colList = [["名称","链接地址","状态","分组","用户名","密码","描述"]]
+        colList = [["名称", "链接地址", "状态", "分组", "用户名", "密码", "描述"]]
         # for i in model_fields:
         #     # print(type(i))
         #     # print(i.verbose_name)
@@ -916,13 +959,14 @@ class PortalViewSet(ModelViewSet):
         wb.save(response)
         return response
         # return Response(data='delete success', status=status.HTTP_200_OK)
+
     @action(methods=['post'], detail=False)
     def export_portal(self, request, *args, **kwargs):
         # request.data.body('pks', None)
         # 获取Pg字段和列表
         model_fields = Portal._meta.fields
 
-        colList = [["名称","链接地址","状态","分组","用户名","密码","描述"]]
+        colList = [["名称", "链接地址", "状态", "分组", "用户名", "密码", "描述"]]
 
         # for i in model_fields:
         #     # print(type(i))
@@ -933,7 +977,7 @@ class PortalViewSet(ModelViewSet):
         portalObj = Portal.objects.all()
         for i in portalObj:
             # pgroupObj = Pgroup.objects.get(id=str(i.group))
-            colList.append([i.name,i.url,i.status,i.group.group,i.username,i.password,i.describe])
+            colList.append([i.name, i.url, i.status, i.group.group, i.username, i.password, i.describe])
         excel_handler = exportHandler()
         wb = excel_handler.get_portal(colList=colList)
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -942,8 +986,9 @@ class PortalViewSet(ModelViewSet):
         wb.save(response)
         return response
         # return Response(data='delete success', status=status.HTTP_200_OK)
+
     @action(methods=['post'], detail=False)
-    def import_portal(self,request, *args, **kwargs):
+    def import_portal(self, request, *args, **kwargs):
         portal_file = request.FILES.get('file')
         with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp:
             for chunk in portal_file.chunks():
@@ -953,17 +998,19 @@ class PortalViewSet(ModelViewSet):
         allRow = excel_handler.load_data(temp_path)
         # print(allRow)
         for row in allRow:
-            name,url,p_status,group,username,password,describe = row
-            pgroupObj,is_create = Pgroup.objects.get_or_create(group=group)
+            name, url, p_status, group, username, password, describe = row
+            pgroupObj, is_create = Pgroup.objects.get_or_create(group=group)
             Portal.objects.update_or_create(name=name,
-                                           defaults={"url":url,"group":pgroupObj,"status":p_status,"username":username,"password":password,"describe":describe})
+                                            defaults={"url": url, "group": pgroupObj, "status": p_status, "username": username, "password": password, "describe": describe})
+
+        return Response(data={"count": len(allRow)}, status=status.HTTP_200_OK)
 
 
-        return Response(data={"count":len(allRow)}, status=status.HTTP_200_OK)
 class PgroupViewSet(ModelViewSet):
     queryset = Pgroup.objects.all()
     serializer_class = PgroupModelSerializer
     # pagination_class = defaultPageNumberPagination
+
     def list(self, request, *args, **kwargs):
         # queryset = self.filter_queryset(self.get_queryset())
         # owner = request.query_params.get('owner', None)
@@ -979,8 +1026,6 @@ class PgroupViewSet(ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
-
-
     @action(methods=['delete'], detail=False)
     def multiple_delete(self, request, *args, **kwargs):
         # pks = request.query_params.get('pks', None)
@@ -994,6 +1039,7 @@ class PgroupViewSet(ModelViewSet):
 
         return Response(data='delete success', status=status.HTTP_204_NO_CONTENT)
 
+
 class dataSourceViewSet(ModelViewSet):
     queryset = Datasource.objects.all()
     serializer_class = DatasourceModelSerializer
@@ -1004,21 +1050,20 @@ class dataSourceViewSet(ModelViewSet):
 
         source_name_exists = Datasource.objects.filter(source_name=reqJson["source_name"])
         if len(source_name_exists) != 0:
-            return Response({"code":201,"results":"failed","reason":"%s has been create" %reqJson["source_name"]})
+            return Response({"code": 201, "results": "failed", "reason": "%s has been create" % reqJson["source_name"]})
 
         getDefault = Datasource.objects.filter(isDefault=True).first()
         if getDefault and isDefault == True:
             print(123)
             pkId = getDefault.id
-            
+
             getDefault.isDefault = False
             getDefault.save()
             Datasource.objects.create(**reqJson)
-            return Response({"code":200,"results":"success"})
+            return Response({"code": 200, "results": "success"})
         else:
             Datasource.objects.create(**reqJson)
-            return Response({"code":200,"results":"success"})
-
+            return Response({"code": 200, "results": "success"})
 
         # if isDefault:
         #     getDefault = Datasource.objects.filter(isDefault=True)
@@ -1041,7 +1086,7 @@ class dataSourceViewSet(ModelViewSet):
         #     else:
         #         return Response({"code":200,"results":"success"})
 
-    def update(self,request,pk):
+    def update(self, request, pk):
         # updateSource = Datasource.objects.filter(id=pk).first()
         reqJson = json.loads(request.body.decode("utf8"))
         getDefault = Datasource.objects.filter(isDefault=True).first()
@@ -1051,11 +1096,12 @@ class dataSourceViewSet(ModelViewSet):
                 getDefault.isDefault = False
                 getDefault.save()
         Datasource.objects.filter(id=pk).update(**reqJson)
-        return Response({"code":200,"results":"success"})
-    
+        return Response({"code": 200, "results": "success"})
+
 # class LogModuleViewSet(ModelViewSet):
 #   queryset = LogModule.objects.all()
 #   serializer_class = LogModuleModelSerializer
+
 
 class sysConfigViewSet(ModelViewSet):
     queryset = sysConfigParams.objects.all()
@@ -1064,12 +1110,13 @@ class sysConfigViewSet(ModelViewSet):
     # filter_backends = (filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend)
     filterset_class = sysConfigParamsFilter
     ordering_fields = ['param_name', 'param_value',]
-    search_fields =  ('param_name', 'param_value',)
+    search_fields = ('param_name', 'param_value',)
+
     def list(self, request, *args, **kwargs):
-        if(request.query_params.get('params') == "gm"):
+        if (request.query_params.get('params') == "gm"):
             secretKey = sysConfigParams.objects.get(param_name="secret_key").param_value
             keyMode = sysConfigParams.objects.get(param_name="secret_mode").param_value
-            return Response({"key":secretKey,"mode":keyMode})
+            return Response({"key": secretKey, "mode": keyMode})
         # 在这里可以对queryset进行进一步的筛选或处理
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
@@ -1078,6 +1125,7 @@ class sysConfigViewSet(ModelViewSet):
             return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
     @action(methods=['post'], detail=False)
     def update_zabbix_params(self, request, *args, **kwargs):
         params = json.loads(request.body)
@@ -1087,10 +1135,10 @@ class sysConfigViewSet(ModelViewSet):
             param.param_value = params[param.param_name]
         # 更新
         try:
-            sysConfigParams.objects.bulk_update(params_to_update,["param_value"])
-            #触发配置文件加载
+            sysConfigParams.objects.bulk_update(params_to_update, ["param_value"])
+            # 触发配置文件加载
             sys_config = ConfigManager()
-            #强制刷新
+            # 强制刷新
             sys_config.reload()
             logger.info(f"刷新redis<{params}>")
         except Exception as e:

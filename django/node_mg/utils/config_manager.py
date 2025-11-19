@@ -90,12 +90,14 @@ class ConfigManager:
             for model_config in ModelConfig.objects.filter(is_manage=True):
                 db_config[model_config.model.name] = model_config.zabbix_sync_info
             self.config = db_config
-            
+
             cache.set(self.CACHE_KEY, db_config, timeout=self.CACHE_TIMEOUT)
 
             self._last_refresh_time = current_time
 
-            self._schedule_next_refresh()
+            # 开启zabbix同步时定时更新token
+            if self.is_zabbix_sync_enabled():
+                self._schedule_next_refresh()
 
             logger.info("Loaded Zabbix configuration from database")
             return self.config
@@ -152,6 +154,7 @@ class ConfigManager:
             return int(is_sync) == 1
         except (ValueError, TypeError):
             return False
+
     def is_asset_auto_update_enabled(self):
         """检查 Zabbix 同步是否启用"""
         if not self.config:

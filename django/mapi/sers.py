@@ -1,4 +1,4 @@
-#序列化类
+# 序列化类
 from rest_framework import serializers
 from mapi.models import (
     UserInfo,Role,Menu,Button,Permission,Portal,
@@ -149,8 +149,8 @@ class UserGroupModelSerializer(serializers.ModelSerializer):
     #       child=serializers.IntegerField(), write_only=True, required=False
     #   )
     # users = UserInfoModelSerializer(many=True,read_only=True)
-    users = UserInfoModelSerializer(many=True,read_only=True)
-    roles = RoleForSer(many=True,read_only=True)
+    users = UserInfoModelSerializer(many=True, read_only=True)
+    roles = RoleForSer(many=True, read_only=True)
     role_ids = serializers.ListField(
         child=serializers.CharField(),
         write_only=True,
@@ -198,8 +198,8 @@ class UserGroupModelSerializer(serializers.ModelSerializer):
         
     def update(self, instance, validated_data):
         #   print(validated_data)
-        role_ids = validated_data.pop('role_ids',[])
-        user_ids = validated_data.pop('user_ids',[])
+        role_ids = validated_data.pop('role_ids', [])
+        user_ids = validated_data.pop('user_ids', [])
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.roles.clear()
@@ -235,11 +235,11 @@ class UserGroupModelSerializer(serializers.ModelSerializer):
     
 # RoleModelSerializer  
 class RoleModelSerializer(serializers.ModelSerializer):
-    #显示__str__的字段
+    # 显示__str__的字段
     # userinfo_set = serializers.StringRelatedField(many=True, read_only=True)
-    #显示primkey
+    # 显示primkey
     userinfo_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
-    usergroup_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)   
+    usergroup_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     # 新增显示字段的场景
     user_count = serializers.SerializerMethodField()
     userGroup_count = serializers.SerializerMethodField()
@@ -251,7 +251,7 @@ class RoleModelSerializer(serializers.ModelSerializer):
         fields = "__all__"
         # depth = 1
 
-    def get_user_count(self,obj):
+    def get_user_count(self, obj):
         """获取角色关联的用户总数"""
         try:
             return UserInfo.objects.filter(roles=obj).count()
@@ -268,7 +268,7 @@ class RoleModelSerializer(serializers.ModelSerializer):
     def get_rolePermission(self,obj):
         """获取角色关联的权限列表"""
         try:
-            allRolePermission =  Permission.objects.filter(role=obj).all()
+            allRolePermission = Permission.objects.filter(role=obj).all()
             permissionList = []
             for roleP in allRolePermission:
                 # permissionList.append(roleP.menu.id)
@@ -294,17 +294,18 @@ class RoleModelSerializer(serializers.ModelSerializer):
         return instance
 
 class MenuModelSerializer(serializers.ModelSerializer):
-    # role_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)   
-    #     rolePermission = serializers.SerializerMethodField() 
+    # role_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    #     rolePermission = serializers.SerializerMethodField()
     class Meta:
         # 表名
         model = Menu
         fields = "__all__"
         # depth = 1
-  
+
+
 class ButtonModelSerializer(serializers.ModelSerializer):
-    # role_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)   
-    #     rolePermission = serializers.SerializerMethodField() 
+    # role_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    #     rolePermission = serializers.SerializerMethodField()
     class Meta:
         # 表名
         model = Button
@@ -319,6 +320,7 @@ class PermissionModelSerializer(serializers.ModelSerializer):
         fields = "__all__"
 class getPortalModelSerializer(serializers.ModelSerializer):
     group_name = serializers.CharField(source='group.group')
+
     class Meta:
         # 表名
         model = Portal
@@ -354,6 +356,7 @@ class DatasourceModelSerializer(serializers.ModelSerializer):
 #     # 表名
 #     model = LogModule
 #     fields = "__all__"
+
 
 class SysConfigSerializer(serializers.ModelSerializer):
 

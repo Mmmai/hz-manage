@@ -24,11 +24,4 @@ class CmdbConfig(AppConfig):
             # 清除缓存
             invalidate_all()
             password_handler.load_keys()
-            # sys_config.load_config()
-
-            # if sys_config.is_zabbix_sync_enabled():
-            #     token_manager = ZabbixTokenManager()
-            #     token_manager.initialize()
-            #     logger.info(f'Zabbix token manager initialized')
-            # else:
-            #     logger.warning(f'Zabbix synchronization is disabled')
+            import cmdb.permission_handlers
