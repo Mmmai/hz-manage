@@ -197,28 +197,56 @@ class UserGroupModelSerializer(serializers.ModelSerializer):
         return newObj      
         
     def update(self, instance, validated_data):
-        #   print(validated_data)
+        # 获取传入的数据
         role_ids = validated_data.pop('role_ids', [])
         user_ids = validated_data.pop('user_ids', [])
+        
+        # 更新普通字段
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-        instance.roles.clear()
-        # 处理多对多关系
+            
+        # 更新角色关联
         if len(role_ids) > 0:
-            for i in role_ids:
+            instance.roles.clear()
+            for role_id in role_ids:
                 try:
-                    i_obj = Role.objects.get(id=i)
-                    instance.roles.add(i_obj)
+                    role_obj = Role.objects.get(id=role_id)
+                    instance.roles.add(role_obj)
                 except Role.DoesNotExist:
                     pass
-        instance.users.clear()
+        
+        # 更新用户关联（特别处理admin用户）
         if len(user_ids) > 0:
-            for i in user_ids:
+            # 清空现有用户关联，但保留admin用户（如果适用）
+            current_users = list(instance.users.all())
+            for user in current_users:
+                # 除非是系统管理组且尝试移除admin用户，否则可以移除
+                if not (instance.group_name == '系统管理组' and user.username == 'admin'):
+                    instance.users.remove(user)
+            
+            # 添加新用户
+            for user_id in user_ids:
                 try:
-                    i_obj = UserInfo.objects.get(id=i)
-                    instance.users.add(i_obj)
+                    user_obj = UserInfo.objects.get(id=user_id)
+                    # 特殊处理：确保admin用户始终在系统管理组中
+                    if instance.group_name == '系统管理组' and user_obj.username == 'admin':
+                        instance.users.add(user_obj)
+                    # 对于非admin用户，正常添加
+                    elif user_obj.username != 'admin':
+                        instance.users.add(user_obj)
+                    # 对于admin用户但不是系统管理组的情况，不允许添加
+                    elif user_obj.username == 'admin' and instance.group_name != '系统管理组':
+                        pass  # 忽略添加admin用户到非系统管理组的操作
                 except UserInfo.DoesNotExist:
                     pass
+        else:
+            # 如果没有提供用户列表，检查是否是系统管理组且包含admin用户
+            if instance.group_name == '系统管理组':
+                admin_user = UserInfo.objects.filter(username='admin').first()
+                if admin_user:
+                    # 确保admin用户保留在系统管理组中
+                    instance.users.add(admin_user)
+        
         instance.save()
         return instance
         
@@ -226,25 +254,27 @@ class UserGroupModelSerializer(serializers.ModelSerializer):
         """
         删除前验证用户组
         """
+        # 检查是否为内置用户组
+        if instance.built_in:
+            raise serializers.ValidationError(f"用户组 '{instance.group_name}' 是系统内置用户组，不能删除")
+        
         # 检查用户组是否包含用户
         if instance.users.count() > 0:
             raise serializers.ValidationError(f"用户组 '{instance.group_name}' 仍包含 {instance.users.count()} 个用户，不能删除")
         
         return instance
-    # depth = 1
     
 # RoleModelSerializer  
 class RoleModelSerializer(serializers.ModelSerializer):
     # 显示__str__的字段
     # userinfo_set = serializers.StringRelatedField(many=True, read_only=True)
-    # 显示primkey
-    userinfo_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
-    usergroup_set = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     # 新增显示字段的场景
     user_count = serializers.SerializerMethodField()
     userGroup_count = serializers.SerializerMethodField()
     rolePermission = serializers.SerializerMethodField()
-    
+ # 添加关联的用户和用户组简要信息
+    associated_users = serializers.SerializerMethodField()
+    associated_user_groups = serializers.SerializerMethodField()    
     class Meta:
         # 表名
         model = Role
@@ -281,6 +311,9 @@ class RoleModelSerializer(serializers.ModelSerializer):
         """
         删除前验证角色
         """
+        # 检查是否为内置用户组
+        if instance.built_in:
+            raise serializers.ValidationError(f"用户组 '{instance.role}' 是系统内置角色，不能删除")
         # 检查角色是否分配给用户
         user_count = UserInfo.objects.filter(roles=instance).count()
         if user_count > 0:

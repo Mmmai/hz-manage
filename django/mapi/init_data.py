@@ -548,7 +548,7 @@ INIT_CONFIG = [
     {
         "verbose_name": "开启同步",
         "param_name": "zabbix_is_sync",
-        "param_value": 1,
+        "param_value": os.environ.get('ZABBIX_SERVER', 1),
         "param_type": "int",
         "system": "zabbix",
         "description":"是否开启资产同步zabbix监控",
@@ -618,14 +618,6 @@ INIT_CONFIG = [
         "system": "zabbix",
         "description":"单位秒,0表示不过期",
     },
-    {
-        "verbose_name":"token注销时间",
-        "param_name":"zabbix_interval",
-        "param_type": "int",
-        "param_value": os.environ.get('ZABBIX_INTERVAL', 0),
-        "system": "zabbix",
-        "description":"单位秒,0表示不过期",
-    },    
     {
         "verbose_name":"资产自更新",
         "param_name":"asset_auto_update",

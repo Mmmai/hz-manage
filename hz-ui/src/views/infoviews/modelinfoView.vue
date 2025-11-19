@@ -184,6 +184,13 @@ import ciModelUnique from "../../components/cmdb/ciModelUnique.vue";
 import ciModelTemplate from "../../components/cmdb/ciModelTemplateName.vue";
 import ciModelConfig from "../../components/cmdb/ciModelConfig.vue";
 import useCiStore from "@/store/cmdb/ci";
+import useModelStore from "@/store/cmdb/model";
+const modelConfigStore = useModelStore();
+const modelOptions = computed(() => modelConfigStore.modelOptions);
+const modelObjectById = computed(() => modelConfigStore.modelObjectById);
+const validationRulesEnumObject = computed(
+  () => modelConfigStore.validationRulesEnumOptionsObject
+);
 // defineOptions({ name: "model" });
 
 const ciStore = useCiStore();
@@ -196,7 +203,6 @@ const goBack = () => {
 const goto_ciData = () => {
   // console.log(ciModelInfo);
   ciStore.setCiLastModel(ciModelInfo.value.id);
-  console.log(computed(() => ciStore.ciLastModel).value);
   nextTick(() => {
     router.push({ path: "/cmdb/cidata" });
   });
@@ -285,27 +291,6 @@ const iconName = ref("ElemeFilled");
 const modelId = computed(() => {
   return ciModelInfo.value?.id;
 });
-
-// 获取CI模型属性
-// const getCiModelInfo = async (params, id) => {
-//   let res = await proxy.$api.getCiModel(params, id)
-//   modelId.value = id
-//   console.log(res)
-//   ciModelInfo.value = res.data.model
-//   console.log(ciModelInfo.value)
-
-// }
-
-// onActivated(()=>{
-//   console.log('activated')
-//   getCiModelInfo(route.query,route.query.id);
-
-// })
-// router.beforeRouteEnter((to, from, next) => {
-//   // ...
-//   console.log(111);
-// }
-// )
 
 // 模型编辑和删除
 // 模型表单
@@ -503,7 +488,7 @@ const getModelField = async () => {
 
 onMounted(async () => {
   nowModelId.value = route.path.split("/").at(-1);
-
+  // modelConfigStore.getModel();
   // await getCiModelInfo(route.query, route.query.id)
   await getModelInfo();
   await ciModelFieldRef.value!.getModelField(ciModel.value);

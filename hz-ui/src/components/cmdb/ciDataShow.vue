@@ -1171,6 +1171,9 @@
                         placeholder="请选择"
                         style="width: 240px"
                         filterable
+                        remote
+                        :remote-method="getRemoteOptions"
+                        :loading="remoteLoading"
                       >
                         <el-option
                           v-for="(citem, cIndex) in modelRefOptions[fitem.name]"

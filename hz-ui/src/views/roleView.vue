@@ -42,7 +42,7 @@
               v-permission="`${route.name?.replace('_info', '')}:edit`"
               type="primary"
               :icon="Edit"
-              @click="gotoInfo(scope.row)"
+              @click="handleEdit(scope.row)"
             ></el-button>
             <el-button
               v-permission="`${route.name?.replace('_info', '')}:delete`"
@@ -63,7 +63,7 @@
   <el-dialog
     v-model="dialogVisible"
     :title="action == 'add' ? '新增角色' : '编辑角色'"
-    width="50%"
+    width="30%"
     :before-close="handleClose"
   >
     <el-form
@@ -93,10 +93,10 @@
           placeholder="中文名称"
           style="width: 30%"
           clearable
-          :disabled="isDisabled"
+          :disabled="nowRow.built_in"
         />
       </el-form-item>
-      <el-form-item label="菜单授权" prop="rolePermission">
+      <!-- <el-form-item label="菜单授权" prop="rolePermission">
         <div style="border: 1px solid var(--el-border-color); width: 90%">
           <el-tree
             ref="menuTreeRef"
@@ -118,7 +118,7 @@
             </template>
           </el-tree>
         </div>
-      </el-form-item>
+      </el-form-item> -->
       <el-row style="justify-content: space-around">
         <el-form-item>
           <el-button @click="cancelAdd">取消</el-button>
@@ -198,7 +198,7 @@ onMounted(async () => {
   // api请求获取所有数据
 
   await getRoleData();
-  getMenuListFunc();
+  // getMenuListFunc();
   // selectFirst()
 });
 // 默认选中第1行
@@ -256,14 +256,14 @@ const cancelAdd = () => {
   dialogVisible.value = false;
   // 重置表单
   proxy.$refs.userFrom.resetFields();
-  setCheckedKeys([]);
+  // setCheckedKeys([]);
 };
 // 关闭弹出框
 const handleClose = (done) => {
   ElMessageBox.confirm("是否确认关闭?")
     .then(() => {
       proxy.$refs.userFrom.resetFields();
-      setCheckedKeys([]);
+      // setCheckedKeys([]);
 
       done();
     })
@@ -305,7 +305,7 @@ const handleCommit = () => {
           });
           // 重置表单
           proxy.$refs.userFrom.resetFields();
-          setCheckedKeys([]);
+          // setCheckedKeys([]);
           getRoleData();
           console.log(menuTreeRef.value!.getCheckedKeys());
         } else {
@@ -327,7 +327,7 @@ const handleCommit = () => {
           dialogVisible.value = false;
           // 重置表单
           proxy.$refs.userFrom.resetFields();
-          setCheckedKeys([]);
+          // setCheckedKeys([]);
           console.log(menuTreeRef.value!.getCheckedKeys());
 
           getRoleData();
@@ -356,7 +356,6 @@ const handleCommit = () => {
 // 编辑
 const nowRow = ref({});
 const handleEdit = (row) => {
-  console.log(row);
   action.value = "edit";
   nowRow.value = row;
   dialogVisible.value = true;
@@ -370,7 +369,7 @@ const handleEdit = (row) => {
     });
   });
   // setCheckedKeys(row.menu)
-  setCheckedKeys(row.rolePermission);
+  // setCheckedKeys(row.rolePermission);
   // console.log(JSON.stringify(formInline));
 
   // formInline.rolePermission = row.menu
