@@ -465,8 +465,8 @@ const formatChanges = (row) => {
       } else if (field === "groups") {
         changes.push({
           field: changeMap[field],
-          oldValue: values[0].map((item) => item.path).join("\n"),
-          newValue: values[1].map((item) => item.path).join("\n"),
+          oldValue: values[0]?.map((item) => item.path).join("\n"),
+          newValue: values[1]?.map((item) => item.path).join("\n"),
         });
       } else if (field === "instance_name_template") {
         // console.log(
@@ -477,11 +477,11 @@ const formatChanges = (row) => {
           field: changeMap[field],
           oldValue:
             values[0].length >> 0
-              ? values[0].map((item) => item.verbose_name).join("-")
+              ? values[0]?.map((item) => item.verbose_name).join("-")
               : null,
           newValue:
             values[1].length >> 0
-              ? values[1].map((item) => item.verbose_name).join("-")
+              ? values[1]?.map((item) => item.verbose_name).join("-")
               : null,
         });
       } else {

@@ -90,7 +90,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column fixed="right" label="操作" width="150">
+        <el-table-column fixed="right" label="操作" width="180">
           <template #default="scope">
             <el-button
               v-permission="`${route.name?.replace('_info', '')}:edit`"
@@ -99,6 +99,15 @@
               :icon="Edit"
               @click="handleEdit(scope.row)"
             ></el-button>
+            <el-tooltip content="重置密码" placement="top">
+              <el-button
+                v-permission="`${route.name?.replace('_info', '')}:edit`"
+                link
+                type="primary"
+                :icon="Key"
+                @click="handleResetPassword(scope.row)"
+              ></el-button>
+            </el-tooltip>
             <el-button
               v-permission="`${route.name?.replace('_info', '')}:delete`"
               :disabled="scope.row.username == 'admin' ? true : false"
@@ -126,177 +135,214 @@
         @current-change="handleCurrentChange"
       />
     </div>
-  </div>
-  <!-- 新增的弹出框 -->
-  <el-dialog
-    v-model="dialogVisible"
-    :title="action == 'add' ? '新增用户' : '编辑用户'"
-    width="40%"
-    :before-close="handleClose"
-  >
-    <el-form
-      :inline="true"
-      :model="formInline"
-      class="demo-form-inline"
-      ref="userFrom"
-      label-position="right"
-      label-width="auto"
-      status-icon
-      :rules="rules"
+    <!-- 新增的弹出框 -->
+    <el-dialog
+      v-model="dialogVisible"
+      :title="action == 'add' ? '新增用户' : '编辑用户'"
+      width="40%"
+      :before-close="handleClose"
     >
-      <el-row>
-        <el-col :span="12">
-          <el-form-item
-            label="用户名称"
-            prop="username"
-            :rules="[{ required: true }]"
-          >
-            <el-input
-              v-model="formInline.username"
-              placeholder=""
-              clearable
-              :disabled="action == 'add' ? false : true"
-              style="width: 200px"
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="真实名称" prop="real_name">
-            <el-input
-              v-model="formInline.real_name"
-              placeholder=""
-              clearable
-              style="width: 200px"
-            />
-          </el-form-item>
-        </el-col>
-      </el-row>
+      <el-form
+        :inline="true"
+        :model="formInline"
+        class="demo-form-inline"
+        ref="userFrom"
+        label-position="right"
+        label-width="auto"
+        status-icon
+        :rules="rules"
+      >
+        <el-row>
+          <el-col :span="12">
+            <el-form-item
+              label="用户名称"
+              prop="username"
+              :rules="[{ required: true }]"
+            >
+              <el-input
+                v-model="formInline.username"
+                placeholder=""
+                clearable
+                :disabled="action == 'add' ? false : true"
+                style="width: 200px"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="真实名称" prop="real_name">
+              <el-input
+                v-model="formInline.real_name"
+                placeholder=""
+                clearable
+                style="width: 200px"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
 
-      <!-- <el-form-item label="状态">
+        <!-- <el-form-item label="状态">
       <el-input v-model="formInline.status" placeholder="" clearable />
     </el-form-item> -->
-      <el-row>
-        <el-col :span="12">
-          <el-form-item label="用户组" prop="group_ids" required>
-            <el-select
-              v-model="formInline.group_ids"
-              placeholder=""
-              clearable
-              multiple
-              collapse-tags
-              collapse-tags-tooltip
-              :max-collapse-tags="3"
-              :disabled="isDisabled"
-              style="width: 200px"
-            >
-              <el-option
-                v-for="item in userGroupData"
-                :key="item.id"
-                :label="item.group_name"
-                :value="item.id"
-              />
-              <!-- <el-option label="禁用" value="False" /> -->
-            </el-select>
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="角色" prop="role_ids">
-            <el-select
-              v-model="formInline.role_ids"
-              placeholder=""
-              clearable
-              multiple
-              collapse-tags
-              collapse-tags-tooltip
-              :max-collapse-tags="3"
-              :disabled="isDisabled"
-              style="width: 200px"
-            >
-              <el-option
-                v-for="item in roleInfo"
-                :key="item.id"
-                :label="item.role_name"
-                :value="item.id"
-              />
-              <!-- <el-option label="禁用" value="False" /> -->
-            </el-select>
-          </el-form-item>
-        </el-col>
-      </el-row>
+        <el-row>
+          <el-col :span="12">
+            <el-form-item label="用户组" prop="group_ids" required>
+              <el-select
+                v-model="formInline.group_ids"
+                placeholder=""
+                clearable
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
+                :max-collapse-tags="3"
+                :disabled="isDisabled"
+                style="width: 200px"
+              >
+                <el-option
+                  v-for="item in userGroupData"
+                  :key="item.id"
+                  :label="item.group_name"
+                  :value="item.id"
+                />
+                <!-- <el-option label="禁用" value="False" /> -->
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="角色" prop="role_ids">
+              <el-select
+                v-model="formInline.role_ids"
+                placeholder=""
+                clearable
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
+                :max-collapse-tags="3"
+                :disabled="isDisabled"
+                style="width: 200px"
+              >
+                <el-option
+                  v-for="item in roleInfo"
+                  :key="item.id"
+                  :label="item.role_name"
+                  :value="item.id"
+                />
+                <!-- <el-option label="禁用" value="False" /> -->
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
 
-      <el-row>
-        <el-col :span="12" style="display: flex; flex-direction: column">
-          <!-- 过期时间 -->
-          <el-form-item label="有效期" prop="expire_time">
-            <el-date-picker
-              v-model="formInline.expire_time"
-              type="date"
-              placeholder="选择日期"
-              :disabled="isDisabled"
-              style="width: 200px"
-            />
-          </el-form-item>
-          <el-form-item label="状态" prop="status">
-            <el-switch
-              v-model="formInline.status"
-              class="ml-2"
-              inline-prompt
-              style="
-                --el-switch-on-color: #13ce66;
-                --el-switch-off-color: #ff4949;
-              "
-              active-text="Y"
-              inactive-text="N"
-              :disabled="isDisabled"
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item
-            label="密码"
-            prop="password"
-            :required="action === 'add' || changePassword"
-          >
-            <el-input
-              v-model="formInline.password"
-              type="password"
-              autocomplete="off"
-              :show-password="true"
-              v-if="changePassword"
-            />
-            <el-button link type="primary" @click="resetPassword" v-else
-              >重置密码</el-button
+        <el-row>
+          <el-col :span="12" style="display: flex; flex-direction: column">
+            <!-- 过期时间 -->
+            <el-form-item label="有效期" prop="expire_time">
+              <el-date-picker
+                v-model="formInline.expire_time"
+                type="date"
+                placeholder="选择日期"
+                :disabled="isDisabled"
+                style="width: 200px"
+              />
+            </el-form-item>
+            <el-form-item label="状态" prop="status">
+              <el-switch
+                v-model="formInline.status"
+                class="ml-2"
+                inline-prompt
+                style="
+                  --el-switch-on-color: #13ce66;
+                  --el-switch-off-color: #ff4949;
+                "
+                active-text="Y"
+                inactive-text="N"
+                :disabled="isDisabled"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item
+              label="密码"
+              prop="password"
+              :required="action === 'add' || changePassword"
             >
-          </el-form-item>
-          <el-form-item
-            label="确认密码"
-            prop="confirmPassword"
-            :required="action === 'add' || changePassword"
-            v-show="action === 'add' || changePassword"
-          >
-            <el-input
-              v-model="formInline.confirmPassword"
-              type="password"
-              autocomplete="off"
-              show-password
-            />
-          </el-form-item>
-        </el-col>
-      </el-row>
+              <el-input
+                v-model="formInline.password"
+                type="password"
+                autocomplete="off"
+                :show-password="true"
+                v-if="changePassword"
+              />
+              <el-button link type="primary" @click="resetPassword" v-else
+                >重置密码</el-button
+              >
+            </el-form-item>
+            <el-form-item
+              label="确认密码"
+              prop="confirmPassword"
+              :required="action === 'add' || changePassword"
+              v-show="action === 'add' || changePassword"
+            >
+              <el-input
+                v-model="formInline.confirmPassword"
+                type="password"
+                autocomplete="off"
+                show-password
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
 
-      <el-row style="justify-content: flex-end">
-        <el-form-item>
-          <el-button @click="cancelAdd">取消</el-button>
-          <el-button type="primary" @click="handleCommit"> 确定</el-button>
+        <el-row style="justify-content: flex-end">
+          <el-form-item>
+            <el-button @click="cancelAdd">取消</el-button>
+            <el-button type="primary" @click="handleCommit"> 确定</el-button>
+          </el-form-item>
+        </el-row>
+        <!-- </div> -->
+      </el-form>
+    </el-dialog>
+    <!-- 重置密码弹窗 -->
+    <el-dialog v-model="pwdDialogVisible" title="重置密码" width="30%">
+      <el-form
+        ref="pwdFormRef"
+        :model="pwdForm"
+        :rules="pwdRules"
+        label-width="100px"
+      >
+        <el-form-item label="用户名">
+          <el-input v-model="pwdForm.username" disabled />
         </el-form-item>
-      </el-row>
-      <!-- </div> -->
-    </el-form>
-  </el-dialog>
+        <el-form-item label="新密码" prop="password">
+          <el-input
+            v-model="pwdForm.password"
+            type="password"
+            show-password
+            placeholder="请输入新密码"
+          />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <el-input
+            v-model="pwdForm.confirmPassword"
+            type="password"
+            show-password
+            placeholder="请再次输入新密码"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="pwdDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitResetPassword"
+            >确定</el-button
+          >
+        </span>
+      </template>
+    </el-dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { Delete, Edit } from "@element-plus/icons-vue";
+import { Delete, Edit, Key } from "@element-plus/icons-vue";
 import { useRoute } from "vue-router";
 const route = useRoute();
 import {
@@ -779,6 +825,79 @@ const resetPassword = () => {
   formInline.password = "";
   formInline.confirmPassword = "";
 };
+
+// 添加密码重置相关的变量
+const pwdDialogVisible = ref(false);
+const pwdFormRef = ref<FormInstance>();
+const pwdForm = reactive({
+  username: "",
+  password: "",
+  confirmPassword: "",
+  userId: 0,
+});
+
+// 密码验证规则
+const validatePass = (rule: any, value: any, callback: any) => {
+  if (value === "") {
+    callback(new Error("请输入密码"));
+  } else {
+    if (value.length < 6) {
+      callback(new Error("密码长度不能少于6位"));
+    }
+    callback();
+  }
+};
+
+const validateConfirmPass = (rule: any, value: any, callback: any) => {
+  if (value === "") {
+    callback(new Error("请再次输入密码"));
+  } else if (value !== pwdForm.password) {
+    callback(new Error("两次输入的密码不一致"));
+  } else {
+    callback();
+  }
+};
+
+const pwdRules = reactive<FormRules>({
+  password: [{ validator: validatePass, trigger: "blur" }],
+  confirmPassword: [{ validator: validateConfirmPass, trigger: "blur" }],
+});
+
+// 快速重置密码
+const handleResetPassword = (row) => {
+  pwdForm.username = row.username;
+  pwdForm.userId = row.id;
+  pwdForm.password = "";
+  pwdForm.confirmPassword = "";
+  pwdDialogVisible.value = true;
+
+  // 重置表单验证状态
+  nextTick(() => {
+    pwdFormRef.value?.clearValidate();
+  });
+};
+
+// 提交重置密码
+const submitResetPassword = async () => {
+  if (!pwdFormRef.value) return;
+
+  await pwdFormRef.value.validate(async (valid, fields) => {
+    if (valid) {
+      const res = await proxy.$api.userupdate({
+        id: pwdForm.userId,
+        password: pwdForm.password,
+      });
+
+      if (res.status === 200) {
+        ElMessage.success("密码重置成功");
+        pwdDialogVisible.value = false;
+      } else {
+        ElMessage.error("密码重置失败: " + JSON.stringify(res.data));
+      }
+    }
+  });
+};
+
 onMounted(() => {
   // 初始化数据切片
   getRoleData(pageConfig);

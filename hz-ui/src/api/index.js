@@ -6,13 +6,14 @@ import lokiApis from './loki'
 import nodeApis from './node_mg'
 import auditApis from './audit';
 import commonFunc from '../utils/common'
-
+import permissionApis from './permission'
 const api = {
   ...userApis,
   ...cmdbApis,
   ...lokiApis,
   ...nodeApis,
   ...auditApis,
+  ...permissionApis,
   getRouteInfo(params) {
     return axios.request({
       url: path.routeInfo,

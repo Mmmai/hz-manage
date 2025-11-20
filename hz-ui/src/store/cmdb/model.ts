@@ -2,7 +2,7 @@
 import { defineStore } from "pinia";
 import { json } from "stream/consumers";
 import { ref, computed, getCurrentInstance } from 'vue'
-
+import api from "@/api";
 export const modelConfigStore = defineStore(
   "modelConfigs",
   () => {
@@ -74,10 +74,28 @@ export const modelConfigStore = defineStore(
       let res = await proxy.$api.getValidationRules({ page_size: 2000, page: 1 })
       validationRules.value = res.data.results
     }
+    const allModelCiDataObj = ref({})
+    const getModelTreeInstance = async (model) => {
+      let res = await api.getCiModelTreeNode({
+        model: model,
+      });
+      allModelCiDataObj.value[model] = res.data[0];
+    }
+
+    // 获取所有模型的实例树和实例
+    const getAllModelTreeInstances = async (force = false) => {
+      if (!force && !allModelCiDataObj.value) return;
+      if (!allModels.value.length) {
+        await getModel();
+      }
+      allModels.value.forEach(async (item) => {
+        await getModelTreeInstance(item.id);
+      });
+    }
 
     // 提供给外部调用
     return {
-      allModels, modelObjectByName, modelObjectById, modelOptions, getModel, updateAllModels,
+      allModels, modelObjectByName, modelObjectById, modelOptions, getModel, updateAllModels, allModelCiDataObj, getAllModelTreeInstances,
       validationRules, validationRulesObjectById, validationRulesEnumOptionsObject, getValidationRules, updateValidationRules
     }
   },

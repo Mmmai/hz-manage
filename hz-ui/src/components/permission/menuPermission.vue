@@ -25,13 +25,14 @@ import TreeTransfer from "@/components/common/treeTransfer.vue";
 const { proxy } = getCurrentInstance();
 import { ElMessage } from "element-plus";
 const nowNodeObject = defineModel("nowNodeObject");
+const getPermissionObj = defineModel("permissionObject");
+
 // 权限树数据
 const treeData = ref([]);
 
 // 选中的权限keys
 const selectedKeys = ref([]);
 const allPermissionKeys = ref([]);
-const getPermissionObj = defineModel("permissionObject");
 const treeDataFinal = computed(() => {
   // 深拷贝treeData以避免修改原始数据
   const treeDataCopy = JSON.parse(JSON.stringify(treeData.value));
@@ -41,7 +42,6 @@ const treeDataFinal = computed(() => {
     console.log("没有权限数据或没有选中的对象", getPermissionObj.value);
     return treeDataCopy;
   }
-  console.log("treeDataFinal");
   // 创建一个映射，方便快速查找权限信息
   const permissionMap = new Map();
   allPermissionKeys.value.forEach((item) => {

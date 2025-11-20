@@ -220,11 +220,11 @@ watch(filterText, (val) => {
 const getObjectId = (data) => {
   switch (radio.value) {
     case "user":
-      return { user_id: data };
+      return { user: data };
     case "user_group":
-      return { user_group_id: data };
+      return { user_group: data };
     case "role":
-      return { role_id: data };
+      return { role: data };
   }
 };
 

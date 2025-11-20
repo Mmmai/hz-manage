@@ -126,6 +126,8 @@
         </el-drawer>
 
         <el-dropdown trigger="click">
+          <!-- <el-avatar> {{ userInfo?.username }} </el-avatar> -->
+
           <span class="el-dropdown-link">
             <el-icon>
               <UserFilled />

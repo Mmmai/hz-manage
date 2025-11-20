@@ -280,7 +280,21 @@ class RoleModelSerializer(serializers.ModelSerializer):
         model = Role
         fields = "__all__"
         # depth = 1
-
+    def get_associated_users(self, obj):
+        """获取角色关联的用户简要信息 {id: xx, username: xxx}"""
+        try:
+            users = UserInfo.objects.filter(roles=obj).all()
+            return [{"id": user.id, "username": user.username} for user in users]
+        except Exception as e:
+            return []
+            
+    def get_associated_user_groups(self, obj):
+        """获取角色关联的用户组简要信息 {id: xx, group_name: xxx}"""
+        try:
+            user_groups = UserGroup.objects.filter(roles=obj).all()
+            return [{"id": group.id, "group_name": group.group_name} for group in user_groups]
+        except Exception as e:
+            return []
     def get_user_count(self, obj):
         """获取角色关联的用户总数"""
         try:

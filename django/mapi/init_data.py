@@ -164,6 +164,21 @@ INIT_MENU = [
         "parentid_id": "cmdb"
     },
     {
+        "label": "实例关系",
+        "icon": "clarity:connect-line",
+        "name": "ciRelation",
+        "status": 1,
+        "path": "ciRelation",
+        "is_menu": 1,
+        "sort": 5,
+        "has_info": 0,
+        "info_view_name": "",
+        "is_iframe": 0,
+        "iframe_url": '',
+        "description": "",
+        "parentid_id": "cmdb"
+    },
+    {
         "label": "管控平台",
         "icon": "clarity:nodes-line",
         "name": "node_control",
@@ -387,9 +402,9 @@ INIT_MENU = [
     {
         "label": "菜单管理",
         "icon": "ep:menu",
-        "name": "menu",
+        "name": "menuConfig",
         "status": 1,
-        "path": "/menu",
+        "path": "/menuConfig",
         "is_menu": 1,
         "sort": 4,
         "has_info": 0,

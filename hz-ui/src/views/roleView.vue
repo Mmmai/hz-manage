@@ -33,7 +33,22 @@
           :key="item.prop"
           :label="item.label"
           :prop="item.prop"
+          width="150"
         >
+        </el-table-column>
+        <el-table-column label="关联用户组">
+          <template #default="scope">
+            <el-tag v-for="(item, index) in scope.row.associated_user_groups">{{
+              item.group_name
+            }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="关联用户">
+          <template #default="scope">
+            <el-tag v-for="(item, index) in scope.row.associated_users">{{
+              item.username
+            }}</el-tag>
+          </template>
         </el-table-column>
         <el-table-column fixed="right" label="操作" width="150">
           <template #default="scope">
@@ -175,18 +190,8 @@ const roleListCol = ref([
     prop: "role_name",
     label: "角色名称",
   },
-  {
-    prop: "userGroup_count",
-    label: "用户组数量",
-  },
-  {
-    prop: "user_count",
-    label: "用户数量",
-  },
 ]);
 // 分页变量
-
-const totalCount = ref(0);
 
 // 少于分页需求则不显示分页
 
@@ -230,10 +235,7 @@ const handleClick = (val) => {
   // console.log(val)
   currentSelectRow.value = val;
 };
-const test = () => {
-  console.log(menuTreeRef.value!.getCheckedKeys());
-  console.log(menuTreeRef.value!.getCheckedNodes());
-};
+
 // 弹出框
 
 // 新增按钮

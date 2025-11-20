@@ -578,9 +578,9 @@ class PermissionViewSet(ModelViewSet):
     @action(detail=False, methods=['get'], url_path='get_permission')
     def get_permission(self, request):
         # 获取查询参数
-        user_id = request.query_params.get('user_id', None)
-        user_group_id = request.query_params.get('user_group_id', None)
-        role_id = request.query_params.get('role_id', None)
+        user_id = request.query_params.get('user', None)
+        user_group_id = request.query_params.get('user_group', None)
+        role_id = request.query_params.get('role', None)
         
         # 根据传入的参数过滤权限
         if user_id:
@@ -674,7 +674,7 @@ class PermissionViewSet(ModelViewSet):
                 return Response({'error': '获取角色权限时发生错误'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
             # 如果没有指定任何参数，返回错误
-            return Response({'error': '请提供user_id、user_group_id或role_id中的一个参数'}, 
+            return Response({'error': '请提供user、user_group或role中的一个参数'}, 
                           status=status.HTTP_400_BAD_REQUEST)
         
         return Response({
@@ -689,24 +689,24 @@ class PermissionViewSet(ModelViewSet):
         
         参数:
             request: HTTP请求对象，应包含以下参数中的至少一个:
-                - user_id: 用户ID
-                - user_group_id: 用户组ID
-                - role_id: 角色ID
+                - user: 用户ID
+                - user_group: 用户组ID
+                - role: 角色ID
                 - button_ids: 按钮ID列表
                 
         返回:
             Response: 包含操作结果的响应
         """
-        user_id = request.data.get('user_id', None)
-        user_group_id = request.data.get('user_group_id', None)
-        role_id = request.data.get('role_id', None)
+        user_id = request.data.get('user', None)
+        user_group_id = request.data.get('user_group', None)
+        role_id = request.data.get('role', None)
         button_ids = request.data.get('button_ids', [])
         
         # 参数有效性检查
         target_count = sum(x is not None for x in [user_id, user_group_id, role_id])
         if target_count != 1:
             return Response({
-                'error': '必须且只能提供user_id、user_group_id或role_id中的一个参数'
+                'error': '必须且只能提供user、user_group或role中的一个参数'
             }, status=status.HTTP_400_BAD_REQUEST)
         if not button_ids:
             return Response({
@@ -799,25 +799,24 @@ class PermissionViewSet(ModelViewSet):
         
         参数:
             request: HTTP请求对象，应包含以下参数中的至少一个:
-                - user_id: 用户ID
-                - user_group_id: 用户组ID
-                - role_id: 角色ID
-                - menu_id: 菜单ID
+                - user: 用户ID
+                - user_group: 用户组ID
+                - role: 角色ID
                 - button_ids: 按钮ID列表
                 
         返回:
             Response: 包含操作结果的响应
         """
-        user_id = request.data.get('user_id', None)
-        user_group_id = request.data.get('user_group_id', None)
-        role_id = request.data.get('role_id', None)
+        user_id = request.data.get('user', None)
+        user_group_id = request.data.get('user_group', None)
+        role_id = request.data.get('role', None)
         button_ids = request.data.get('button_ids', [])
         
         # 参数有效性检查
         target_count = sum(x is not None for x in [user_id, user_group_id, role_id])
         if target_count != 1:
             return Response({
-                'error': '必须且只能提供user_id、user_group_id或role_id中的一个参数'
+                'error': '必须且只能提供user、user_group或role中的一个参数'
             }, status=status.HTTP_400_BAD_REQUEST)
             
         if not button_ids:
