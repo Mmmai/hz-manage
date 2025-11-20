@@ -1,8 +1,12 @@
-# 我们创建一个新文件来存放过滤器
+import logging
+
 from rest_framework.filters import BaseFilterBackend
 from django.db.models import Q
+from .models import *
 from .tools import get_user_data_scope
 from .registry import get_handler
+
+logger = logging.getLogger(__name__)
 
 
 class DataScopeFilterBackend(BaseFilterBackend):
@@ -21,6 +25,8 @@ class DataScopeFilterBackend(BaseFilterBackend):
     TARGET_APP = {'cmdb'}
 
     def filter_queryset(self, request, queryset, view):
+        logger.debug(
+            f'Filtering queryset for user: {getattr(request, "username", None)} on model: {queryset.model._meta.label}')
         if queryset.model._meta.app_label not in self.TARGET_APP:
             return queryset
 
@@ -31,7 +37,7 @@ class DataScopeFilterBackend(BaseFilterBackend):
         scope = get_user_data_scope(username)
         scope_type = scope.get('scope_type', 'none')
 
-        if scope_type == 'all':
+        if scope_type == DataScope.ScopeType.ALL:
             return queryset
 
         if scope_type == 'none':
@@ -50,16 +56,13 @@ class DataScopeFilterBackend(BaseFilterBackend):
             final_query |= Q(id__in=allowed_ids)
 
         # 2. 应用 'self' 权限
-        if scope_type == 'self' or scope_type == 'filter':  # filter 模式也应包含 self
+        if scope_type == 'self' or scope_type == 'filter':
             if hasattr(model, 'create_user'):
-                # 特殊处理 cmdb.Models 的 built_in 情况
-                if model_name == 'models' and app_label == 'cmdb' and hasattr(model, 'built_in'):
-                    final_query |= Q(create_user=username) | Q(built_in=True)
-                else:
-                    final_query |= Q(create_user=username)
+                final_query |= Q(create_user=username)
 
         # 3. 应用间接权限（通过注册表）
         indirect_handler = get_handler(app_label)
+        logger.debug(f'Checking for indirect handler for app: {app_label}, found: {indirect_handler is not None}')
         if indirect_handler:
             indirect_query = indirect_handler(scope, model, username)
             if indirect_query:
@@ -68,5 +71,5 @@ class DataScopeFilterBackend(BaseFilterBackend):
         # 如果没有任何查询条件，说明用户无权访问任何数据
         if not final_query:
             return queryset.none()
-
+        logger.debug(f'Final data scope query for user {username} on {model_key}: {final_query}')
         return queryset.filter(final_query).distinct()

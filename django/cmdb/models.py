@@ -310,6 +310,18 @@ class UniqueConstraint(models.Model):
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
 
+class ModelInstanceManager(models.Manager):
+    def get_instance_names(self, instance_ids: list) -> dict:
+        if not instance_ids:
+            return {}
+
+        # 直接使用 self.get_queryset() 或 _base_manager，确保不经过任何外部权限过滤
+        instances = self.get_queryset().filter(id__in=instance_ids).values('id', 'instance_name')
+
+        # 返回一个 {id_str: name_str} 格式的字典
+        return {str(inst['id']): inst['instance_name'] for inst in instances}
+
+
 @register_audit(
     is_field_aware=True,
     dynamic_snapshot_func=get_dynamic_field_snapshot,
@@ -321,6 +333,9 @@ class UniqueConstraint(models.Model):
     locker='cmdb.locker.lock_model_instance_for_update'
 )
 class ModelInstance(models.Model):
+
+    objects = ModelInstanceManager()
+
     class Meta:
         db_table = 'model_instance'
         managed = True

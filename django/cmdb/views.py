@@ -34,21 +34,7 @@ from .filters import *
 from .models import *
 from .serializers import *
 from .message import bulk_creation_audit
-from .schemas import (
-    model_groups_schema,
-    models_schema,
-    model_field_groups_schema,
-    validation_rules_schema,
-    model_fields_schema,
-    model_field_preference_schema,
-    unique_constraint_schema,
-    model_instance_schema,
-    model_ref_schema,
-    model_field_meta_schema,
-    model_instance_group_schema,
-    model_instance_group_relation_schema,
-    password_manage_schema,
-)
+from .schemas import *
 from audit.context import audit_context
 from audit.mixins import AuditContextMixin
 from permissions.manager import PermissionManager
@@ -94,19 +80,19 @@ class CmdbBaseViewSet(AuditContextMixin, viewsets.ModelViewSet):
         return self.queryset
 
     def get_queryset(self):
-        if self._visible_queryset is None:
-            base_queryset = super().get_queryset()
-            self._visible_queryset = self.filter_queryset(base_queryset)
-        return self._visible_queryset
+        base_queryset = self.get_base_queryset()
+        filtered_queryset = super().filter_queryset(base_queryset)
+        return filtered_queryset
 
     def filter_queryset(self, queryset):
-        if self._visible_queryset is not None:
-            return self._visible_queryset
-
-        filtered_queryset = super().filter_queryset(queryset)
-        self._visible_queryset = filtered_queryset
-
-        return self._visible_queryset
+        """
+        【警告】这个方法现在只应该被 DRF 内部的 action (list, retrieve) 调用。
+        为了保证 get_queryset 逻辑的统一性，我们重写它，
+        确保它在被 DRF 意外调用时，仍然走 get_queryset 的完整逻辑。
+        这是一种防御性编程，防止DRF的默认行为绕过我们的设计。
+        """
+        # 直接返回已经完整过滤的 get_queryset 结果，确保数据源唯一。
+        return self.get_queryset()
 
     def get_current_user(self):
         if self.request and hasattr(self.request, 'user'):
@@ -130,22 +116,23 @@ class CmdbReadOnlyBaseViewSet(AuditContextMixin, viewsets.ReadOnlyModelViewSet):
     为只读视图提供的基类。
     """
     pagination_class = StandardResultsSetPagination
-    _visible_queryset = None
+
+    def get_base_queryset(self):
+        if not hasattr(self, 'queryset') or self.queryset is None:
+            raise ImproperlyConfigured(
+                f"{self.__class__.__name__} must define a 'queryset' attribute or override get_base_queryset()."
+            )
+        if hasattr(self.queryset, '_clone'):
+            return self.queryset._clone()
+        return self.queryset
 
     def get_queryset(self):
-        if self._visible_queryset is None:
-            base_queryset = super().get_queryset()
-            self._visible_queryset = self.filter_queryset(base_queryset)
-        return self._visible_queryset
+        base_queryset = self.get_base_queryset()
+        filtered_queryset = super().filter_queryset(base_queryset)
+        return filtered_queryset
 
     def filter_queryset(self, queryset):
-        if self._visible_queryset is not None:
-            return self._visible_queryset
-
-        filtered_queryset = super().filter_queryset(queryset)
-        self._visible_queryset = filtered_queryset
-
-        return self._visible_queryset
+        return self.get_queryset()
 
     def get_current_user(self):
         if self.request and hasattr(self.request, 'user'):
@@ -209,7 +196,8 @@ class ModelsViewSet(CmdbBaseViewSet):
         field_groups_qs = pm.get_queryset(ModelFieldGroups).filter(model=model).order_by('create_time')
         field_groups_data = ModelFieldGroupsSerializer(field_groups_qs, many=True).data
 
-        fields_qs = pm.get_queryset(ModelFields).filter(model=model).order_by('order')
+        pm1 = PermissionManager(user=self.request.username)
+        fields_qs = pm1.get_queryset(ModelFields).filter(model=model).order_by('order')
         fields_data = ModelFieldsSerializer(fields_qs, many=True).data
 
         grouped_fields = {}
@@ -226,6 +214,7 @@ class ModelsViewSet(CmdbBaseViewSet):
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
+        logger.debug(f'Listing models for user: {self.request.username}, total models found: {queryset.count()}')
         page = self.paginate_queryset(queryset)
         if page is not None:
             models_on_page = page
