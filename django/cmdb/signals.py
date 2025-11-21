@@ -2,20 +2,25 @@ import time
 import sys
 import traceback
 import logging
+
 from django.dispatch import receiver, Signal
+from django.contrib.auth.models import AbstractBaseUser
 from django.db.models.signals import post_save, post_delete, pre_save, pre_delete, post_migrate
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.core.cache import cache
 from cacheops import invalidate_model
 from django.db import transaction
 from django.db.utils import OperationalError
-from .config import BUILT_IN_MODELS, BUILT_IN_RELATION_DEFINITION, BUILT_IN_VALIDATION_RULES
+
+
 from node_mg.utils import sys_config
+from audit.context import audit_context
+from .config import BUILT_IN_MODELS, BUILT_IN_RELATION_DEFINITION, BUILT_IN_VALIDATION_RULES
 from .utils.zabbix import ZabbixAPI
 from .constants import ValidationType
 from .message import instance_group_relation_updated
 from .models import *
-from audit.context import audit_context
+from .services import ModelsService
 logger = logging.getLogger(__name__)
 
 
@@ -92,9 +97,11 @@ def _create_model_and_fields(model_name, model_config, model_group=None):
             # 检查模型是否存在
             model = Models.objects.filter(name=model_name).first()
             if not model:
+                user = AbstractBaseUser()
+                user.username = 'system'
                 model_serializer = ModelsSerializer(data=model_data)
                 if model_serializer.is_valid():
-                    model = model_serializer.save()
+                    ModelsService.create_model(model_serializer.validated_data, user=user)
                     logger.info(f"Created new model: {model_name}")
                 else:
                     logger.error(f"Model validation failed: {model_serializer.errors}")
@@ -244,9 +251,9 @@ def _initialize_model_groups():
     """初始化模型分组"""
     from .models import ModelGroups
     from .serializers import ModelGroupsSerializer
-    
+
     invalidate_model(ModelGroups)
-    
+
     with transaction.atomic():
         # 创建初始模型组
         group_configs = [
@@ -301,7 +308,8 @@ def _initialize_relation_definition():
                             if vr:
                                 attr_config['validation_rule'] = str(vr.id)
                             else:
-                                logger.error(f"Validation rule {attr_config['validation_rule']} not found for relation attribute")
+                                logger.error(
+                                    f"Validation rule {attr_config['validation_rule']} not found for relation attribute")
                                 raise ValueError(f"Validation rule {attr_config['validation_rule']} not found")
                 relation_data = {
                     'name': relation_config['name'],
@@ -329,7 +337,8 @@ def _initialize_relation_definition():
         except Exception as e:
             logger.error(f"Error creating relation definition {relation_config['name']}: {str(e)}")
             raise
-    
+
+
 @receiver(post_migrate)
 def initialize_cmdb(sender, **kwargs):
     """初始化 CMDB 应用"""
@@ -359,7 +368,7 @@ def initialize_cmdb(sender, **kwargs):
                 _create_model_and_fields(model_name, model_config, model_group)
 
             _initialize_relation_definition()
-            
+
             logger.info(f'CMDB application initialized successfully')
         except OperationalError:
             logger.warning("Database not ready, skipping initialization")
@@ -400,8 +409,8 @@ def update_instance_name_on_field_change(sender, instance, created, **kwargs):
 
         # 更新名称
         model_instance.instance_name = new_name
-        #model_instance.save(update_fields=['instance_name', 'update_time'])
-        #logger.info(f"Updated instance name to {new_name} for instance {model_instance.id}")
+        # model_instance.save(update_fields=['instance_name', 'update_time'])
+        # logger.info(f"Updated instance name to {new_name} for instance {model_instance.id}")
     except Exception as e:
         logger.error(f"Error generating instance name: {str(e)}")
 
@@ -588,6 +597,7 @@ def handle_group_path(sender, instance, created, **kwargs):
     except Exception as e:
         logger.error(f"Update group path error: {str(e)}")
 
+
 @receiver(pre_save, sender=ModelInstanceGroup)
 def cache_old_path(sender, instance, **kwargs):
     """在保存前缓存旧的path值"""
@@ -598,7 +608,8 @@ def cache_old_path(sender, instance, **kwargs):
         instance._old_path = old_instance.path
     except sender.DoesNotExist:
         instance._old_path = None
-            
+
+
 @receiver(post_save, sender=ModelInstanceGroup)
 def update_descendant_paths(sender, instance, created, **kwargs):
     """
@@ -621,6 +632,7 @@ def update_descendant_paths(sender, instance, created, **kwargs):
             instance.update_child_path()
 
         transaction.on_commit(do_update)
+
 
 @receiver(pre_delete, sender=ModelInstanceGroup)
 def prepare_delete_instance_group(sender, instance, **kwargs):
@@ -755,33 +767,38 @@ def on_validation_rule_delete(sender, instance, **kwargs):
         ValidationRules.clear_specific_enum_cache(instance.id)
 
 
-
 # 信跨应用传递信号
 # 模型
-model_signal = Signal(providing_args=["instance","action"])
-@receiver(post_save,sender=Models)
+model_signal = Signal(providing_args=["instance", "action"])
+
+
+@receiver(post_save, sender=Models)
 def send_model_created_signal(sender, instance, created, **kwargs):
     """
     模型创建或更新时触发同步
     """
     if created:
-        model_signal.send(sender=sender,instance=instance,action='create')
+        model_signal.send(sender=sender, instance=instance, action='create')
 # 实例分组
 
+
 # 模型实例
-model_instance_signal = Signal(providing_args=["instance","action"])
+model_instance_signal = Signal(providing_args=["instance", "action"])
 # 创建或更新时，信号同步给node
-@receiver(post_save, sender=ModelInstance,dispatch_uid="sync_to_nodes")
+
+
+@receiver(post_save, sender=ModelInstance, dispatch_uid="sync_to_nodes")
 def send_model_instance_signal(sender, instance, created, **kwargs):
-    model_instance_signal.send(sender=sender, instance=instance,action=created)
-#删除时，信号同步给node
-@receiver(pre_delete, sender=ModelInstance,dispatch_uid="delete_to_nodes")
+    model_instance_signal.send(sender=sender, instance=instance, action=created)
+# 删除时，信号同步给node
+
+
+@receiver(pre_delete, sender=ModelInstance, dispatch_uid="delete_to_nodes")
 def send_model_instance_delete_signal(sender, instance, **kwargs):
-    model_instance_signal.send(sender=sender, instance=instance,action='delete')
+    model_instance_signal.send(sender=sender, instance=instance, action='delete')
 # @receiver(post_save, sender=ModelInstance,dispatch_uid="111")
 # def send_model_instance_signal(sender, instance, created, **kwargs):
 #     print(123)
 #     if instance.model.name not in model_sync_list:
 #         print("模型不在同步列表中，跳过节点同步")
-#         return 
-
+#         return

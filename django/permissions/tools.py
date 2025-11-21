@@ -1,12 +1,11 @@
 import logging
 from collections import defaultdict
-from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db.models import Q
-from rest_framework.filters import BaseFilterBackend
 
 from mapi.models import UserInfo
-from .models import DataScope, PermissionTarget
+from .models import DataScope
+from .registry import get_handler
 
 logger = logging.getLogger(__name__)
 
@@ -56,3 +55,40 @@ def get_user_data_scope(username: str):
 
     logger.info(f'Computed data scope for user \'{username}\': {result}')
     return result
+
+
+def get_scope_query(username, model):
+
+    if not username or username == 'anonymous':
+        return None
+
+    scope = get_user_data_scope(username)
+    scope_type = scope.get('scope_type', 'none')
+
+    if scope_type == DataScope.ScopeType.ALL:
+        return Q()  # 空 Q 对象表示不过滤，即所有
+
+    if scope_type == 'none':
+        return None  # 明确表示无权
+
+    app_label = model._meta.app_label
+    model_name = model._meta.model_name
+    model_key = f"{app_label}.{model_name}"
+
+    final_query = Q()
+
+    allowed_ids = scope['targets'].get(model_key)
+    if allowed_ids:
+        final_query |= Q(id__in=allowed_ids)
+
+    if scope_type == 'self' or scope_type == 'filter':
+        if hasattr(model, 'create_user'):
+            final_query |= Q(create_user=username)
+
+    indirect_handler = get_handler(app_label)
+    if indirect_handler:
+        indirect_query = indirect_handler(scope, model, username)
+        if indirect_query:
+            final_query |= indirect_query
+
+    return final_query

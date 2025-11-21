@@ -15,6 +15,7 @@ from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.types import OpenApiTypes
 
 from audit.snapshots import capture_audit_snapshots
+from permissions.manager import PermissionManager
 from .models import *
 from .utils import password_handler
 from .validators import FieldValidator
@@ -59,8 +60,18 @@ class ModelsSerializer(serializers.ModelSerializer):
     @extend_schema_field(OpenApiTypes.INT)
     def get_instance_count(self, obj):
         """获取模型关联的实例总数"""
+        # 优先读取已经计算好的缓存数据
+        counts_map = self.context.get('instance_counts_map')
+        if counts_map and str(obj.id) in counts_map:
+            logger.debug(f'Using cached instance count for model {obj.id}')
+            return counts_map.get(str(obj.id))
         try:
-            return ModelInstance.objects.filter(model=obj).count()
+            # 实时查询
+            request = self.context.get('request')
+            if request and hasattr(request, 'user'):
+                pm = PermissionManager(user=request.user)
+                logger.debug(f'Fetching instance count for model {obj.id} with permissions')
+                return pm.get_queryset(ModelInstance).filter(model_id=obj.id).count()
         except Exception as e:
             logger.error(f"Error counting instances for model {obj.id}: {str(e)}")
             return 0
@@ -78,30 +89,6 @@ class ModelsSerializer(serializers.ModelSerializer):
                 'name': f'Model with name {value} already exists'
             })
         return value
-
-    def create(self, validated_data):
-        try:
-            with transaction.atomic():
-                if not validated_data.get('model_group'):
-                    validated_data['model_group'] = ModelGroups.get_default_model_group()
-
-                model = super().create(validated_data)
-                logger.info(f"Created model: {model.name}")
-
-                model_field_group = ModelFieldGroups.get_default_field_group(model)
-                logger.info(f"Created default field group for model: {model.name}")
-
-                root_group = ModelInstanceGroup.get_root_group(model)
-                logger.info(f"Created root group for model: {model.name}")
-
-                unassigned_group = ModelInstanceGroup.get_unassigned_group(model)
-                logger.info(f"Created unassigned pool group for model: {model.name}")
-
-                return model
-
-        except Exception as e:
-            logger.error(f"Error creating model and initial groups: {str(e)}")
-            raise serializers.ValidationError(f"Failed to create model and initial groups: {str(e)}")
 
     def update(self, instance, validated_data):
         # 在实例本身没有分配到模型组且更新时未提供模型组时，分配到默认组
@@ -131,6 +118,37 @@ class ModelsSerializer(serializers.ModelSerializer):
                 f"Invalid fields found: {', '.join(invalid_list)}"
             )
         return value
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        # TODO: 校验模板字段权限
+        # if not instance.instance_name_template:
+        #     return
+
+        # request = self.context.get('request')
+        # if not request or not hasattr(request, 'user'):
+        #     return data
+
+        # pm = PermissionManager(user=request.user)
+        # visible_field_ids = set(
+        #     pm.get_queryset(ModelFields)
+        #     .filter(model=instance)
+        #     .values_list('id', flat=True)
+        # )
+        # visible_field_ids = {str(fid) for fid in visible_field_ids}
+
+        # template_details = []
+        # for field_id in instance.instance_name_template:
+        #     is_visible = field_id in visible_field_ids
+        #     template_details.append({
+        #         'id': field_id,
+        #         'visible': is_visible,
+        #         'label': '***' if not is_visible else None
+        #     })
+
+        # data['instance_name_template_details'] = template_details
+        return data
 
 
 class ModelFieldGroupsSerializer(serializers.ModelSerializer):
@@ -856,17 +874,6 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
         """获取实例关联的分组列表"""
         groups = self.context.get('instance_group', {})
         group = groups.get(str(obj.id), [])
-
-        if not group:
-            group_relations = ModelInstanceGroupRelation.objects.filter(
-                instance=obj
-            ).select_related('group')
-            for relation in group_relations:
-                group.append({
-                    'group_id': str(relation.group.id),
-                    'group_path': relation.group.path
-                })
-
         return group
 
     @extend_schema_field({
@@ -877,14 +884,8 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
     })
     def get_field_values(self, obj):
         """获取实例的字段值"""
-
         field_meta_all = self.context.get('field_meta', {})
         field_meta = field_meta_all.get(str(obj.id), [])
-
-        if not field_meta:
-            field_meta = ModelFieldMeta.objects.filter(
-                model_instance=obj,
-            ).select_related('model_fields', 'model_fields__validation_rule')
 
         return ModelFieldMetaNestedSerializer(
             field_meta,

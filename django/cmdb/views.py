@@ -33,6 +33,7 @@ from .tasks import process_import_data, setup_host_monitoring, sync_zabbix_host_
 from .filters import *
 from .models import *
 from .serializers import *
+from .services import *
 from .message import bulk_creation_audit
 from .schemas import *
 from audit.context import audit_context
@@ -163,105 +164,56 @@ class ModelsViewSet(CmdbBaseViewSet):
     def get_queryset(self):
         return super().get_queryset()
 
-    def perform_create(self, serializer):
-        instance = super().perform_create(serializer)
-        logger.info(f'Created model: {instance.name} by user: {self.get_current_user()}')
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        default_group, created = ModelFieldGroups.objects.get_or_create(
-            name='basic',
-            model=instance,
-            defaults={
-                'verbose_name': '基础配置',
-                'built_in': True,
-                'editable': False,
-                'description': '默认字段组',
-                'create_user': 'system',
-                'update_user': 'system'
-            }
+        instance = ModelsService.create_model(
+            validated_data=serializer.validated_data,
+            user=self.request.user
+        )
+
+        # 重新序列化返回结果
+        return Response(
+            self.get_serializer(instance).data,
+            status=status.HTTP_201_CREATED
         )
 
     def perform_destroy(self, instance):
-        if instance.built_in:
-            logger.warning(f"Attempt to delete built-in model denied: {instance.name}")
-            raise PermissionDenied({
-                'detail': 'Built-in model cannot be deleted'
-            })
-        instance.delete()
-        logger.info(f"Model deleted successfully: {instance.name}")
+        ModelsService.delete_model(
+            model=instance,
+            user=self.request.user
+        )
 
     def retrieve(self, request, *args, **kwargs):
-        model = self.get_object()
+        instance = self.get_object()
 
         pm = PermissionManager(user=self.request.username)
-        field_groups_qs = pm.get_queryset(ModelFieldGroups).filter(model=model).order_by('create_time')
-        field_groups_data = ModelFieldGroupsSerializer(field_groups_qs, many=True).data
+        field_groups_qs = pm.get_queryset(ModelFieldGroups).filter(model=instance).order_by('create_time')
+        fields_qs = pm.get_queryset(ModelFields).filter(model=instance).order_by('order')
 
-        pm1 = PermissionManager(user=self.request.username)
-        fields_qs = pm1.get_queryset(ModelFields).filter(model=model).order_by('order')
-        fields_data = ModelFieldsSerializer(fields_qs, many=True).data
-
-        grouped_fields = {}
-        for field in fields_data:
-            group_id = field.get('model_field_group')
-            grouped_fields.setdefault(str(group_id), []).append(field)
-        for group in field_groups_data:
-            group['fields'] = grouped_fields.get(group['id'], [])
-
-        return Response({
-            'model': ModelsSerializer(model).data,
-            'field_groups': field_groups_data
-        })
+        data = ModelsService.get_model_details(instance, field_groups_qs, fields_qs)
+        return Response(data, status=status.HTTP_200_OK)
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-        logger.debug(f'Listing models for user: {self.request.username}, total models found: {queryset.count()}')
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            models_on_page = page
-        else:
-            models_on_page = list(queryset)
 
-        if not models_on_page:
+        page = self.paginate_queryset(queryset)
+        models_list = page if page is not None else list(queryset)
+
+        if not models_list:
             return self.get_paginated_response([]) if page is not None else Response([])
 
+        model_ids = [m.id for m in models_list]
         pm = PermissionManager(user=self.request.username)
-        model_ids = [model.id for model in models_on_page]
-
-        logger.debug(f'Fetching field groups and fields for model IDs: {model_ids}')
 
         field_groups_qs = pm.get_queryset(ModelFieldGroups).filter(model_id__in=model_ids).order_by('create_time')
         fields_qs = pm.get_queryset(ModelFields).filter(model_id__in=model_ids).order_by('order')
-        # logger.debug(f'Fetched {field_groups_qs.count()} field groups and {fields_qs.count()} fields for models.')
+        instances_qs = pm.get_queryset(ModelInstance).filter(model_id__in=model_ids)
 
-        models_data = self.get_serializer(models_on_page, many=True).data
-        field_groups_data = ModelFieldGroupsSerializer(field_groups_qs, many=True).data
-        fields_data = ModelFieldsSerializer(fields_qs, many=True).data
+        enriched_data = ModelsService.enrich_models_list(models_list, field_groups_qs, fields_qs, instances_qs)
 
-        model_to_groups_map = {str(model_id): [] for model_id in model_ids}
-        for group in field_groups_data:
-            model_id = str(group.get('model'))
-            if model_id in model_to_groups_map:
-                model_to_groups_map[model_id].append(group)
-
-        group_to_fields_map = {group['id']: [] for group in field_groups_data}
-        for field in fields_data:
-            group_id = str(field.get('model_field_group'))
-            if group_id in group_to_fields_map:
-                group_to_fields_map[group_id].append(field)
-
-        for group in field_groups_data:
-            group['fields'] = group_to_fields_map.get(str(group['id']), [])
-        # logger.debug(f'Final group to fields map: {group_to_fields_map}')
-
-        # logger.debug(f'Assembled model to groups map: {model_to_groups_map}')
-        # 将字段组注入到对应的模型中
-        for model_data in models_data:
-            model_id = str(model_data['id'])
-            field_groups = model_to_groups_map.get(model_id, [])
-            # logger.debug(f'Injecting field groups for model ID {model_id}: {field_groups}')
-            model_data['field_groups'] = field_groups
-
-        return self.get_paginated_response(models_data) if page is not None else Response(models_data)
+        return self.get_paginated_response(enriched_data) if page is not None else Response(enriched_data)
 
     @action(detail=True, methods=['post'])
     def rename_instances(self, request, pk=None):
@@ -533,9 +485,11 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
         context = self.get_serializer_context()
         instance_ids = [instance.id for instance in instances]
 
+        pm = PermissionManager(user=self.request.username)
+
         # 获取字段元数据
         field_meta_map = {}
-        meta_qs = ModelFieldMeta.objects.filter(
+        meta_qs = pm.get_queryset(ModelFieldMeta).filter(
             model_instance_id__in=instance_ids
         ).select_related('model_fields', 'model_fields__validation_rule')
         for meta in meta_qs:
@@ -544,7 +498,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
 
         # 获取分组信息
         instance_group_map = {}
-        group_relations = ModelInstanceGroupRelation.objects.filter(
+        group_relations = pm.get_queryset(ModelInstanceGroupRelation).filter(
             instance_id__in=instance_ids
         ).select_related('group').values('instance_id', 'group_id', 'group__path')
         for rel in group_relations:
@@ -562,7 +516,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
         )
         ref_instances_map = {}
         if ref_model_ids:
-            ref_instances = ModelInstance.objects.filter(id__in=ref_model_ids).values('id', 'instance_name')
+            ref_instances = ModelInstance.objects.get_instance_names_by_models(list(ref_model_ids))
             ref_instances_map = {str(inst['id']): inst['instance_name'] for inst in ref_instances}
         context['ref_instances'] = ref_instances_map
 
@@ -576,7 +530,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
+        queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)
         if page is not None:
             context = self._get_serializer_context_for_instances(page)
@@ -679,14 +633,6 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
 
         return self._apply_filters(queryset, model_id, query_params)
 
-    def get_all_child_groups(self, group):
-        """递归获取所有子分组ID"""
-        group_ids = [group.id]
-        children = ModelInstanceGroup.objects.filter(parent=group)
-        for child in children:
-            group_ids.extend(self.get_all_child_groups(child))
-        return group_ids
-
     @action(detail=False, methods=['patch'])
     def bulk_update_fields(self, request):
         instance_ids = request.data.get('instances', [])
@@ -705,7 +651,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             instances = self.get_queryset().all()
             instances = self._apply_filters(instances, model_id, params)
         elif instance_ids:
-            instances = ModelInstance.objects.filter(id__in=instance_ids)
+            instances = self.get_queryset().filter(id__in=instance_ids)
         else:
             # 给定的查询参数不足
             raise ValidationError("Insufficient query parameters provided.")
@@ -745,9 +691,10 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             if not model_id:
                 raise ValidationError({'detail': 'Model ID is required'})
 
+            pm = PermissionManager(user=self.request.username)
             # 获取模型及其字段
-            model = Models.objects.get(id=model_id)
-            fields = ModelFields.objects.filter(
+            model = pm.get_queryset(Models).get(id=model_id)
+            fields = pm.get_queryset(ModelFields).filter(
                 model=model
             ).select_related(
                 'validation_rule',
@@ -797,7 +744,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             if not model_id:
                 raise ValidationError({'detail': 'Model ID is required'})
 
-            instances = ModelInstance.objects.filter(model_id=model_id)
+            instances = self.get_queryset().filter(model_id=model_id)
 
             if group_id:
                 params['model_instance_group'] = group_id
@@ -815,8 +762,9 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
                 instances = instances.filter(id__in=instance_ids)
             logger.info(f'Exporting data for {len(instances)} instances')
 
+            pm = PermissionManager(user=self.request.username)
             field_meta_map = {}
-            instances_meta_qs = ModelFieldMeta.objects.filter(
+            instances_meta_qs = pm.get_queryset(ModelFieldMeta).filter(
                 model_instance__in=instances
             ).select_related('model_fields', 'model_fields__validation_rule')
             for meta in instances_meta_qs:
@@ -833,9 +781,9 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
 
             ref_instances_map = {}
             if ref_model_ids:
-                ref_instances_list = ModelInstance.objects.filter(
-                    model_id__in=ref_model_ids
-                ).values('id', 'instance_name')
+                ref_instances_list = ModelInstance.objects.get_instance_names_by_models(
+                    list(ref_model_ids)
+                )
                 ref_instances_map = {
                     str(instance['id']): instance['instance_name']
                     for instance in ref_instances_list
@@ -927,8 +875,15 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
                 logger.info(f"Excel data loaded successfully: {excel_data}")
 
             headers = excel_data.get('headers', [])
-            model = Models.objects.get(id=model_id)
-            fields_query = ModelFields.objects.filter(model=model).values_list('name', flat=True)
+
+            pm = PermissionManager(user=self.request.username)
+
+            model = pm.get_queryset(Models).get(id=model_id)
+
+            if not model:
+                raise ValidationError({'detail': f'Model {model_id} not found for current user'})
+
+            fields_query = pm.get_queryset(ModelFields).filter(model=model).values_list('name', flat=True)
             if set(fields_query) != set(headers):
                 raise ValidationError({'detail': 'Excel headers do not match model fields'})
 
@@ -1029,8 +984,10 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
         )
 
     def perform_destroy(self, instance):
-        groups = ModelInstanceGroupRelation.objects.filter(instance=instance).values_list('group', flat=True)
-        groups = ModelInstanceGroup.objects.filter(id__in=groups)
+        pm = PermissionManager(user=self.request.username)
+
+        groups = pm.get_queryset(ModelInstanceGroupRelation).filter(instance=instance).values_list('group', flat=True)
+        groups = pm.get_queryset(ModelInstanceGroup).filter(id__in=groups)
         if '空闲池' not in groups.values_list('label', flat=True):
             raise PermissionDenied({'detail': 'Instance is not in unassigned group'})
         ModelInstanceGroup.clear_groups_cache(groups)
@@ -1044,12 +1001,12 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
         params = request.data.get('params', {})
         group_id = request.data.get('group')
         instances = self.get_queryset().all()
-
+        pm = PermissionManager(user=self.request.username)
         if group_id:
-            group = ModelInstanceGroup.objects.get(id=group_id)
+            group = pm.get_queryset(ModelInstanceGroup).get(id=group_id)
             if group and group.label != '空闲池' and group.path != '所有/空闲池':
                 raise ValidationError({'detail': 'Instances not in the unassigned group cannot be deleted'})
-            instance_in_group = ModelInstanceGroupRelation.objects.filter(
+            instance_in_group = pm.get_queryset(ModelInstanceGroupRelation).filter(
                 group=group_id
             ).values_list('instance_id', flat=True)
             instances = instances.filter(id__in=instance_in_group)
@@ -1074,22 +1031,18 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             valid_id = instances.values_list('id', flat=True)
             invalid_id = {}
 
-            unassigned_group = ModelInstanceGroup.objects.get(
-                model=model_id,
-                label='空闲池'
-            )
-            relations = ModelInstanceGroupRelation.objects.filter(instance__in=valid_id)
+            unassigned_group = ModelInstanceGroup.get_unassigned_group(model_id)
+            relations = pm.get_queryset(ModelInstanceGroupRelation).filter(instance__in=valid_id)
             group_invalid_ids = relations.exclude(group=unassigned_group).values_list('instance_id', flat=True)
             invalid_id = {instance_id: 'Instance is not in unassigned group' for instance_id in group_invalid_ids}
 
-            if ModelFields.objects.filter(ref_model_id=model_id).exists():
+            if ModelFields.objects.check_ref_fields_exists(model_id):
                 for instance in instances:
-                    if ModelFieldMeta.objects.filter(data=str(instance.id)).exists():
+                    if ModelFieldMeta.objects.check_data_exists(str(instance.id)):
                         invalid_id[instance.id] = 'Referenced by other model field meta'
             valid_id = set(valid_id) - set(invalid_id.keys())
 
-            ModelInstance.objects.filter(id__in=valid_id).delete()
-
+            self.get_queryset().filter(id__in=valid_id).delete()
             return Response({
                 'success': len(valid_id),
                 'errors': list(invalid_id)
@@ -1203,7 +1156,7 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
             if not directly_visible_groups_qs.exists():
                 try:
                     # 尝试获取根节点，即使没有任何子节点权限，也应返回根节点本身
-                    root_node = ModelInstanceGroup.objects.get_root_group(model_id=model_id)
+                    root_node = ModelInstanceGroup.get_root_group(model=model_id)
                     context = self._prepare_group_tree_context(ModelInstanceGroup.objects.filter(id=root_node.id))
                     return Response(self.get_serializer(root_node, context=context).data)
                 except ModelInstanceGroup.DoesNotExist:
@@ -1222,12 +1175,12 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
             # 获取子分组
             context = self._prepare_group_tree_context(skeleton_tree_nodes_qs)
 
-            absolute_root_node = ModelInstanceGroup.objects.get_root_group(model_id=model_id)
+            absolute_root_node = ModelInstanceGroup.get_root_group(model=model_id)
             serializer = self.get_serializer(absolute_root_node, context=context)
             return Response(serializer.data)
 
         except Exception as e:
-            logger.error(f"Error in list view: {str(e)}")
+            logger.error(f"Error in list view: {traceback.format_exc()}")
             return Response({
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)

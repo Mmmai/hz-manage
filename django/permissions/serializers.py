@@ -36,14 +36,14 @@ class DataScopeSerializer(serializers.ModelSerializer):
     class Meta:
         model = DataScope
         fields = [
-            'id', 'role', 'user', 'user_group', 'scope_type',
+            'id', 'role', 'user', 'user_group', 'app_label', 'scope_type',
             'role_name', 'user_name', 'user_group_name',
             'description', 'targets', 'create_time', 'update_time'
         ]
         read_only_fields = ['id', 'create_time', 'update_time', 'role_name', 'user_name', 'user_group_name']
 
     def _create_or_update_targets(self, scope, targets_data):
-        scope.targets.all().delete()
+        scope.targets.filter(app_label=scope.app_label).delete()
 
         targets_to_create = []
         for target_data in targets_data:
@@ -66,9 +66,22 @@ class DataScopeSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def create(self, validated_data):
         targets_data = validated_data.pop('targets', [])
-        scope = DataScope.objects.create(**validated_data)
+        lookup_fields = {}
+
+        if validated_data.get('role'):
+            lookup_fields['role'] = validated_data['role']
+        elif validated_data.get('user'):
+            lookup_fields['user'] = validated_data['user']
+        elif validated_data.get('user_group'):
+            lookup_fields['user_group'] = validated_data['user_group']
+
+        lookup_fields['app_label'] = validated_data['app_label']
+
+        scope, created = DataScope.objects.update_or_create(defaults=validated_data, **lookup_fields)
         if scope.scope_type == DataScope.ScopeType.FILTER:
             self._create_or_update_targets(scope, targets_data)
+        else:
+            scope.targets.filter(app_label=validated_data['app_label']).delete()
         return scope
 
     @transaction.atomic
@@ -77,8 +90,11 @@ class DataScopeSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Cannot modify data scope for sysadmin role.")
 
         scope_type = validated_data.get('scope_type', instance.scope_type)
+        app_label = validated_data.get('app_label', instance.app_label)
         targets_data = validated_data.pop('targets', None)
         instance = super().update(instance, validated_data)
         if targets_data is not None and scope_type == DataScope.ScopeType.FILTER:
             self._create_or_update_targets(instance, targets_data)
+        elif scope_type != DataScope.ScopeType.FILTER:
+            instance.targets.filter(app_label=app_label).delete()
         return instance
