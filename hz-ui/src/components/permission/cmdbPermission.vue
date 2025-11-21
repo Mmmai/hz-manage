@@ -446,8 +446,9 @@ const handleFieldTreeCheck = () => {
   // 模型实例授权
   const instanceCheckedNodes = instanceTreeRef.value?.getCheckedNodes(false);
   const instanceHalfCheckedNodes = instanceTreeRef.value?.getHalfCheckedNodes();
-  console.log(instanceCheckedNodes);
   console.log(instanceHalfCheckedNodes);
+  // 将全选的实例树和模型，添加到map中
+
   // 获取半选的实例树节点
   const halfCheckedInstanceGroupIds = instanceHalfCheckedNodes
     .filter((node) => node.type === "modelinstancegroup")
@@ -455,12 +456,18 @@ const handleFieldTreeCheck = () => {
   console.log(halfCheckedInstanceGroupIds);
   // 获取全选的实例树节点,只选取最顶上的节点
   const checkedInstanceGroupIds = instanceCheckedNodes
-    .filter(
-      (node) =>
-        node.type === "modelinstancegroup" &&
-        halfCheckedInstanceGroupIds.includes(node.parent_id)
-    )
+    .filter((node) => {
+      if (node.type === "modelinstancegroup") {
+        // 判断父节点的类型
+        if (node.parent.type === "models") return true;
+        if (halfCheckedInstanceGroupIds.includes(node.parent_id)) return true;
+        return false;
+      } else {
+        return false;
+      }
+    })
     .map((item) => item.id);
+  console.log(checkedInstanceGroupIds);
   // 获取半选的实例树节点的实例节点
   const instanceCheckedIds = instanceCheckedNodes
     .filter(
@@ -500,8 +507,10 @@ const savePermissions = async () => {
 
   let params = handleFieldTreeCheck();
   console.log(params);
+  return params;
   let res = await api.setDataScope({
     scope_type: "filter",
+    app_label: "cmdb",
     targets: params,
     ...nowNodeObject.value,
   });
