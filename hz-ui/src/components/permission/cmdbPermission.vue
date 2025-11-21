@@ -608,11 +608,11 @@ const resetPermissions = () => {
   ElMessage.info("权限设置已重置");
 };
 
-onMounted(() => {
-  getCiModelGroupList();
-  getDataScope();
-  modelConfigStore.getModel();
-  modelConfigStore.getAllModelTreeInstances();
+onMounted(async () => {
+  await modelConfigStore.getModel();
+  await modelConfigStore.getAllModelTreeInstances();
+  await getCiModelGroupList();
+  await getDataScope();
 });
 </script>
 <style scoped lang="scss">
