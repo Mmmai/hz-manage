@@ -616,6 +616,7 @@ def update_descendant_paths(sender, instance, created, **kwargs):
     当一个 ModelInstanceGroup 的 path 发生变化时，
     异步或在独立事务中递归更新其所有后代分组的 path。
     """
+    ModelInstanceGroup.get_all_children_ids.cache_clear()
     if created:
         return
     if getattr(instance, '_skip_signal', False) or kwargs.get('_skip_path_update', False):

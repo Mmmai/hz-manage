@@ -571,6 +571,15 @@ class ModelInstanceGroup(models.Model):
         获取指定ID列表的所有子分组ID（递归，广度优先）
         供权限处理器等批量查询使用
         """
+        return cls._get_all_children_ids(tuple(sorted(str(gid) for gid in group_ids)))
+
+    @classmethod
+    @functools.lru_cache(maxsize=1024)
+    def _get_all_children_ids(cls, group_ids) -> set:
+        """
+        获取指定ID列表的所有子分组ID（递归，广度优先）
+        供权限处理器等批量查询使用
+        """
         if not group_ids:
             return set()
 
