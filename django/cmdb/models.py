@@ -237,6 +237,19 @@ class ValidationRules(models.Model):
         ValidationRules.get_enum_dict.cache_clear()
 
 
+class ModelFieldsManager(models.Manager):
+    def check_ref_fields_exists(self, model_id):
+        """检查是否存在引用指定模型的字段"""
+        return self.get_queryset().filter(ref_model_id=model_id).exists()
+
+    def get_all_required_fields(self, model_id):
+        """获取指定模型的所有必填字段"""
+        return self.get_queryset().filter(
+            model_id=model_id,
+            required=True
+        )
+
+
 @register_audit(
     snapshot_fields={'id', 'name', 'verbose_name', 'type', 'unit', 'ref_model'},
     ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
@@ -311,7 +324,17 @@ class UniqueConstraint(models.Model):
 
 
 class ModelInstanceManager(models.Manager):
-    def get_instance_names(self, instance_ids: list) -> dict:
+    def get_instance_names_by_models(self, model_ids: list) -> dict:
+        if not model_ids:
+            return {}
+
+        # 直接使用 self.get_queryset() 或 _base_manager，确保不经过任何外部权限过滤
+        instances = self.get_queryset().filter(model_id__in=model_ids).values('id', 'instance_name')
+
+        # 返回一个 {id_str: name_str} 格式的字典
+        return {str(inst['id']): inst['instance_name'] for inst in instances}
+
+    def get_instance_names_by_instances(self, instance_ids: list) -> dict:
         if not instance_ids:
             return {}
 
@@ -380,7 +403,17 @@ class ModelInstance(models.Model):
         return generate_instance_name(field_values, self.model.instance_name_template)
 
 
+class ModelFieldMetaManager(models.Manager):
+
+    def check_data_exists(self, data):
+        """检查是否存在指定数据的记录"""
+        return self.get_queryset().filter(data=data).exists()
+
+
 class ModelFieldMeta(models.Model):
+
+    objects = ModelFieldMetaManager()
+
     class Meta:
         db_table = 'model_field_meta'
         managed = True
@@ -533,8 +566,48 @@ class ModelInstanceGroup(models.Model):
         return all_children
 
     @classmethod
+    def get_all_children_ids(cls, group_ids):
+        """
+        获取指定ID列表的所有子分组ID（递归，广度优先）
+        供权限处理器等批量查询使用
+        """
+        if not group_ids:
+            return set()
+
+        # 统一转为集合处理
+        if isinstance(group_ids, (str, uuid.UUID)):
+            current_ids = {str(group_ids)}
+        else:
+            current_ids = {str(gid) for gid in group_ids}
+
+        all_children_ids = set()
+
+        while current_ids:
+            # 批量查询下一层子节点
+            # 注意：values_list 返回的是 UUID 对象或字符串，取决于数据库后端，这里统一转字符串
+            next_level_ids = set(
+                cls.objects.filter(parent_id__in=current_ids)
+                .values_list('id', flat=True)
+            )
+            # 转换为字符串以确保兼容性
+            next_level_ids = {str(nid) for nid in next_level_ids}
+
+            # 排除已存在的，防止死循环（如果有环状结构）
+            new_ids = next_level_ids - all_children_ids
+
+            if not new_ids:
+                break
+
+            all_children_ids.update(new_ids)
+            current_ids = new_ids
+
+        return all_children_ids
+
+    @classmethod
     def get_root_group(cls, model):
         """获取或创建根分组【所有】"""
+        if isinstance(model, str):
+            model = Models.objects.get(id=model)
         root_group, created = cls.objects.get_or_create(
             model=model,
             parent=None,

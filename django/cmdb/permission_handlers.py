@@ -13,9 +13,10 @@ def get_cmdb_indirect_query(scope, model, username):
     query = Q()
 
     if model_name == 'models':
-        model_group_ids = scope['targets'].get('cmdb.modelgroups')
-        if model_group_ids:
-            query |= Q(model_group_id__in=model_group_ids)
+        # 不再允许授权模型组权限，忽略该授权
+        # model_group_ids = scope['targets'].get('cmdb.modelgroups')
+        # if model_group_ids:
+        #     query |= Q(model_group_id__in=model_group_ids)
 
         # 如果分配了实例组权限，动态推导出相关模型权限
         instance_group_ids = scope['targets'].get('cmdb.modelinstancegroup')
@@ -27,15 +28,34 @@ def get_cmdb_indirect_query(scope, model, username):
                 query |= Q(id__in=related_model_ids)
         logger.debug(f'CMDB indirect query for models: {query}')
 
+        # 如果分配了模型字段权限，动态推导出相关模型权限
+        model_field_ids = scope['targets'].get('cmdb.modelfields')
+        if model_field_ids:
+            related_model_ids = ModelFields.objects.filter(
+                id__in=model_field_ids
+            ).values_list('model_id', flat=True)
+            if related_model_ids:
+                query |= Q(id__in=related_model_ids)
+
+        # 如果分配了模型字段组权限，动态推导出相关模型权限
+        model_field_group_ids = scope['targets'].get('cmdb.modelfieldgroups')
+        if model_field_group_ids:
+            related_model_ids = ModelFields.objects.filter(
+                model_field_group_id__in=model_field_group_ids
+            ).values_list('model_id', flat=True)
+            if related_model_ids:
+                query |= Q(id__in=related_model_ids)
+
     if model_name == 'modelgroups':
-        model_ids = scope['targets'].get('cmdb.models')
-        # 如果分配了模型权限，动态推导出相关模型组权限
-        if model_ids:
-            model_group_ids = model.__class__.objects.filter(
-                id__in=model_ids
-            ).values_list('model_group_id', flat=True)
-            if model_group_ids:
-                query |= Q(id__in=model_group_ids)
+        # 不再允许进行模型级别的授权，忽略该授权
+        # model_ids = scope['targets'].get('cmdb.models')
+        # # 如果分配了模型权限，动态推导出相关模型组权限
+        # if model_ids:
+        #     model_group_ids = model.__class__.objects.filter(
+        #         id__in=model_ids
+        #     ).values_list('model_group_id', flat=True)
+        #     if model_group_ids:
+        #         query |= Q(id__in=model_group_ids)
         # 如果分配了实例组权限，动态推导出相关模型组权限
         instance_group_ids = scope['targets'].get('cmdb.modelinstancegroup')
         if instance_group_ids:
@@ -48,20 +68,19 @@ def get_cmdb_indirect_query(scope, model, username):
     if model_name == 'modelinstance':
 
         # 模型
-        model_ids = scope['targets'].get('cmdb.models')
-        if model_ids:
-            query |= Q(model_id__in=model_ids)
+        # model_ids = scope['targets'].get('cmdb.models')
+        # if model_ids:
+        #     query |= Q(model_id__in=model_ids)
 
         # 模型组
-        model_group_ids = scope['targets'].get('cmdb.modelgroups')
-        if model_group_ids:
-            models_in_groups = model.__class__.objects.filter(
-                model_group_id__in=model_group_ids
-            ).values_list('id', flat=True)
-            query |= Q(model_id__in=models_in_groups)
+        # model_group_ids = scope['targets'].get('cmdb.modelgroups')
+        # if model_group_ids:
+        #     models_in_groups = model.__class__.objects.filter(
+        #         model_group_id__in=model_group_ids
+        #     ).values_list('id', flat=True)
+        #     query |= Q(model_id__in=models_in_groups)
 
         # 实例组
-        from .models import ModelInstanceGroupRelation
         instance_group_ids = scope['targets'].get('cmdb.modelinstancegroup')
         if instance_group_ids:
             instance_ids = ModelInstanceGroupRelation.objects.filter(
@@ -82,14 +101,14 @@ def get_cmdb_indirect_query(scope, model, username):
         instance_query = Q()
         field_ids = scope['targets'].get('cmdb.modelfields')
         if field_ids:
-            query |= Q(field_id__in=field_ids)
+            query |= Q(model_fields_id__in=field_ids)
 
         field_group_ids = scope['targets'].get('cmdb.modelfieldgroups')
         if field_group_ids:
             fields_in_groups = ModelFields.objects.filter(
                 model_field_group_id__in=field_group_ids
             ).values_list('id', flat=True)
-            query |= Q(field_id__in=fields_in_groups)
+            query |= Q(model_fields_id__in=fields_in_groups)
 
         instance_ids = scope['targets'].get('cmdb.modelinstance')
         if instance_ids:
@@ -103,6 +122,26 @@ def get_cmdb_indirect_query(scope, model, username):
             instance_query |= Q(model_instance_id__in=related_instance_ids)
 
         query &= instance_query
+
+    if model_name == 'modelinstancegroup':
+        group_ids = scope['targets'].get('cmdb.modelinstancegroup')
+        if group_ids:
+            query |= Q(id__in=group_ids)
+
+        children_ids = ModelInstanceGroup.get_all_children_ids(group_ids)
+        if children_ids:
+            query |= Q(id__in=children_ids)
+
+    if model_name == 'modelinstancegrouprelation':
+        instance_ids = scope['targets'].get('cmdb.modelinstance')
+        if instance_ids:
+            query |= Q(instance_id__in=instance_ids)
+
+        group_ids = scope['targets'].get('cmdb.modelinstancegroup')
+        if group_ids:
+            query |= Q(group_id__in=group_ids)
+            children_ids = ModelInstanceGroup.get_all_children_ids(group_ids)
+            query |= Q(group_id__in=children_ids)
 
     if model_name == 'validationrules':
         # 默认全放开

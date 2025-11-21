@@ -33,6 +33,7 @@ class DataScope(models.Model):
         on_delete=models.CASCADE,
         related_name='data_scopes'
     )
+    app_label = models.CharField(max_length=100, null=True, blank=True)
     scope_type = models.CharField(max_length=20, choices=ScopeType.choices, default=ScopeType.SELF)
     description = models.CharField(max_length=255, blank=True)
     create_time = models.DateTimeField(auto_now_add=True)
