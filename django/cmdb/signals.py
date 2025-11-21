@@ -767,6 +767,23 @@ def on_validation_rule_delete(sender, instance, **kwargs):
         ValidationRules.clear_specific_enum_cache(instance.id)
 
 
+@receiver(pre_save, sender=Models)
+def cache_old_instance_name_template(sender, instance, **kwargs):
+    if not instance.pk:
+        return
+    try:
+        old_instance = sender.objects.get(pk=instance.pk)
+        instance._old_instance_name_template = old_instance.instance_name_template
+    except sender.DoesNotExist:
+        instance._old_instance_name_template = None
+
+
+@receiver(post_save, sender=Models)
+def handle_instance_name_template_change(sender, instance, created, **kwargs):
+    if created:
+        return
+
+
 # 信跨应用传递信号
 # 模型
 model_signal = Signal(providing_args=["instance", "action"])

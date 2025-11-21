@@ -43,7 +43,8 @@ class DataScopeSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'create_time', 'update_time', 'role_name', 'user_name', 'user_group_name']
 
     def _create_or_update_targets(self, scope, targets_data):
-        scope.targets.filter(app_label=scope.app_label).delete()
+        ct_ids = ContentType.objects.filter(app_label=scope.app_label)
+        scope.targets.filter(content_type__in=ct_ids).delete()
 
         targets_to_create = []
         for target_data in targets_data:
@@ -81,7 +82,10 @@ class DataScopeSerializer(serializers.ModelSerializer):
         if scope.scope_type == DataScope.ScopeType.FILTER:
             self._create_or_update_targets(scope, targets_data)
         else:
-            scope.targets.filter(app_label=validated_data['app_label']).delete()
+            lookup_fields['app_label'] = None
+            DataScope.objects.filter(**lookup_fields).delete()
+            ct_ids = ContentType.objects.filter(app_label=scope.app_label)
+            scope.targets.filter(content_type__in=ct_ids).delete()
         return scope
 
     @transaction.atomic
