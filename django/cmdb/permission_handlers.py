@@ -141,6 +141,9 @@ def get_cmdb_indirect_query(scope, model, username):
             ).values_list('instance_id', flat=True)
             instance_query |= Q(model_instance_id__in=related_instance_ids)
 
+        if not query:
+            # 没有字段过滤条件时直接设置为空
+            query = Q(id__isnull=True)
         query &= instance_query
 
     if model_name == 'modelinstancegroup':
