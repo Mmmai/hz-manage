@@ -566,7 +566,7 @@ class ModelInstanceGroup(models.Model):
         return all_children
 
     @classmethod
-    def get_all_children_ids(cls, group_ids):
+    def get_all_children_ids(cls, group_ids) -> set:
         """
         获取指定ID列表的所有子分组ID（递归，广度优先）
         供权限处理器等批量查询使用
