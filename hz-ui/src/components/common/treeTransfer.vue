@@ -755,7 +755,7 @@ onMounted(() => {
   border-radius: 4px;
   display: flex;
   flex-direction: column;
-  height: 750px;
+  height: 900px;
   background-color: var(--el-bg-color);
 }
 

@@ -16,6 +16,7 @@
         <template #header>
           <div class="panel-header">
             <span class="panel-title">字段授权</span>
+
             <div class="panel-actions">
               <el-input
                 v-model="fieldQuery"
@@ -40,8 +41,9 @@
             show-checkbox
             ref="fieldTreeRef"
             :filter-method="fieldFilterMethod"
-            :height="500"
+            :height="850"
             class="permission-tree"
+            @check="onTreeCheck"
           >
             <template #default="{ node, data }">
               <div class="custom-tree-node">
@@ -98,8 +100,9 @@
             node-key="id"
             show-checkbox
             ref="instanceTreeRef"
-            :height="500"
+            :height="850"
             class="permission-tree"
+            @check="onTreeCheck"
           >
             <template #default="{ node, data }">
               <div class="custom-tree-node">
@@ -127,10 +130,14 @@
     </div>
 
     <div class="footer-actions">
-      <el-button type="primary" size="large" @click="savePermissions">
-        保存权限设置
+      <el-button
+        type="primary"
+        size="large"
+        @click="savePermissions"
+        :disabled="!isDataChanged"
+      >
+        保存
       </el-button>
-      <el-button size="large" @click="test"> t111 </el-button>
       <!-- <el-button size="large" @click="resetPermissions"> 重置 </el-button> -->
     </div>
   </div>
@@ -166,6 +173,12 @@ const instanceTreeRef = ref<TreeV2Instance>();
 const allModels = computed(() => modelConfigStore.allModels);
 const allModelCiDataObj = computed(() => modelConfigStore.allModelCiDataObj);
 
+// 新增：用于跟踪初始状态和当前状态
+const initialFieldCheckedKeys = ref<string[]>([]);
+const initialInstanceCheckedKeys = ref<string[]>([]);
+const currentFieldCheckedKeys = ref<string[]>([]);
+const currentInstanceCheckedKeys = ref<string[]>([]);
+
 const treeProps = {
   label: "verbose_name",
   children: "children",
@@ -188,6 +201,33 @@ const nodeTagType = {
   modelinstancegroup: "warning",
   modelinstance: "info",
 };
+
+// 新增：计算数据是否发生变化
+const isDataChanged = computed(() => {
+  // 比较字段树的选中状态
+  const fieldChanged =
+    initialFieldCheckedKeys.value.length !==
+      currentFieldCheckedKeys.value.length ||
+    initialFieldCheckedKeys.value.some(
+      (key) => !currentFieldCheckedKeys.value.includes(key)
+    ) ||
+    currentFieldCheckedKeys.value.some(
+      (key) => !initialFieldCheckedKeys.value.includes(key)
+    );
+
+  // 比较实例树的选中状态
+  const instanceChanged =
+    initialInstanceCheckedKeys.value.length !==
+      currentInstanceCheckedKeys.value.length ||
+    initialInstanceCheckedKeys.value.some(
+      (key) => !currentInstanceCheckedKeys.value.includes(key)
+    ) ||
+    currentInstanceCheckedKeys.value.some(
+      (key) => !initialInstanceCheckedKeys.value.includes(key)
+    );
+
+  return fieldChanged || instanceChanged;
+});
 
 const modelTree = computed(() => {
   // 先创建以groupList为第一层的树结构
@@ -330,6 +370,15 @@ const modelCiTree = computed(() => {
   });
   return tree;
 });
+
+// 新增：处理树节点勾选变化
+const onTreeCheck = () => {
+  // 更新当前选中状态
+  currentFieldCheckedKeys.value = fieldTreeRef.value?.getCheckedKeys() || [];
+  currentInstanceCheckedKeys.value =
+    instanceTreeRef.value?.getCheckedKeys() || [];
+};
+
 const onFieldQueryChanged = (query: string) => {
   fieldTreeRef.value!.filter(query);
 };
@@ -354,10 +403,12 @@ const getCiModelGroupList = async () => {
 const refreshCi = async () => {
   modelConfigStore.getAllModelTreeInstances(true);
 };
+
 const test = () => {
   fieldTreeRef.value!.setCheckedKeys(["f887f0ef-fc35-4fb2-9f47-5d35852be18b"]);
   console.log(fieldTreeRef.value);
 };
+
 // 处理字段权限树的勾选状态，按规则提取需要的ID
 const handleFieldTreeCheck = () => {
   let params = [];
@@ -438,8 +489,15 @@ const handleFieldTreeCheck = () => {
 
   return params;
 };
+
 // 保存权限设置
 const savePermissions = async () => {
+  // 如果数据没有变化，则不提交
+  if (!isDataChanged.value) {
+    ElMessage.info("权限设置未发生变化，无需保存");
+    return;
+  }
+
   let params = handleFieldTreeCheck();
   console.log(params);
   let res = await api.setDataScope({
@@ -448,8 +506,73 @@ const savePermissions = async () => {
     ...nowNodeObject.value,
   });
   console.log(res);
+
+  // 更新初始状态为当前状态
+  initialFieldCheckedKeys.value = [...currentFieldCheckedKeys.value];
+  initialInstanceCheckedKeys.value = [...currentInstanceCheckedKeys.value];
+
   ElMessage.success("权限设置已保存");
 };
+
+const filedCheckedKeys = ref([]);
+const instanceCheckedKeys = ref([]);
+
+const getDataScope = async () => {
+  try {
+    let res = await api.getDataScope({
+      ...nowNodeObject.value,
+    });
+    // 清空之前的数据，避免累积
+    filedCheckedKeys.value = [];
+    instanceCheckedKeys.value = [];
+
+    res.data.results.forEach((item) => {
+      if (item.scope_type == "filter") {
+        Object.entries(item.targets_detail).forEach(([tkey, tvalue]) => {
+          if (
+            ["cmdb.modelfields", "cmdb.modelfieldgroups"].indexOf(tkey) !== -1
+          ) {
+            if (tvalue) {
+              filedCheckedKeys.value.push(...tvalue);
+            }
+          } else if (
+            ["cmdb.modelinstance", "cmdb.modelinstancegroup"].indexOf(tkey) !==
+            -1
+          ) {
+            if (tvalue) {
+              instanceCheckedKeys.value.push(...tvalue);
+            }
+          }
+        });
+      }
+    });
+    // 设置已配置的权限
+    nextTick(() => {
+      fieldTreeRef.value!.setCheckedKeys(filedCheckedKeys.value);
+      instanceTreeRef.value!.setCheckedKeys(instanceCheckedKeys.value);
+
+      // 初始化初始状态
+      initialFieldCheckedKeys.value = [...filedCheckedKeys.value];
+      initialInstanceCheckedKeys.value = [...instanceCheckedKeys.value];
+      currentFieldCheckedKeys.value = [...filedCheckedKeys.value];
+      currentInstanceCheckedKeys.value = [...instanceCheckedKeys.value];
+    });
+  } catch (error) {
+    console.error("获取数据范围失败:", error);
+    // 清空数据以防止使用旧数据
+    filedCheckedKeys.value = [];
+    instanceCheckedKeys.value = [];
+    fieldTreeRef.value!.setCheckedKeys([]);
+    instanceTreeRef.value!.setCheckedKeys([]);
+
+    // 同样初始化初始状态
+    initialFieldCheckedKeys.value = [];
+    initialInstanceCheckedKeys.value = [];
+    currentFieldCheckedKeys.value = [];
+    currentInstanceCheckedKeys.value = [];
+  }
+};
+
 // 重置权限设置
 const resetPermissions = () => {
   fieldTreeRef.value?.setCheckedKeys([], false);
@@ -459,11 +582,11 @@ const resetPermissions = () => {
 
 onMounted(() => {
   getCiModelGroupList();
+  getDataScope();
   modelConfigStore.getModel();
   modelConfigStore.getAllModelTreeInstances();
 });
 </script>
-
 <style scoped lang="scss">
 .permission-container {
   // padding: 10px;
@@ -484,6 +607,7 @@ onMounted(() => {
   }
 
   .permission-content {
+    height: 90%;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
@@ -491,6 +615,8 @@ onMounted(() => {
   }
 
   .permission-panel {
+    height: 100%;
+
     border-radius: 8px;
     box-shadow: var(--el-box-shadow-light);
 
@@ -517,7 +643,7 @@ onMounted(() => {
       }
 
       .search-input {
-        width: 200px;
+        width: 150px;
       }
 
       .refresh-btn {
@@ -527,7 +653,7 @@ onMounted(() => {
     }
 
     .tree-container {
-      height: 500px;
+      height: 100%;
       overflow: auto;
 
       .permission-tree {
@@ -566,7 +692,6 @@ onMounted(() => {
     display: flex;
     justify-content: center;
     gap: 20px;
-    padding: 20px 0;
 
     .el-button {
       padding: 12px 30px;

@@ -235,7 +235,7 @@ const filterNode: FilterNodeMethodFunction = (value: string, data: Tree) => {
 
 const activeName = ref("menu");
 const handleClick = (tab: TabsPaneContext, event: Event) => {
-  console.log(tab, event);
+  // console.log(tab, event);
 };
 
 const nowTreeName = ref("");
@@ -327,6 +327,7 @@ const handleRadioChange = (val) => {
 :deep(.el-card__body) {
   height: 100%;
 }
+
 .permission-container {
   height: 100%;
   width: 100%;
@@ -353,6 +354,8 @@ const handleRadioChange = (val) => {
 
     :deep(.el-splitter__pane) {
       overflow: hidden;
+      scrollbar-width: auto !important;
+      background-color: yellow;
     }
   }
 
