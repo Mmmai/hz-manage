@@ -1,8 +1,11 @@
+import logging
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework import status
 from .models import DataScope
 from .serializers import DataScopeSerializer
+
+logger = logging.getLogger(__name__)
 
 
 class DataScopeViewSet(ModelViewSet):
@@ -21,13 +24,18 @@ class DataScopeViewSet(ModelViewSet):
         return data
 
     def _get_targets_detail_map(self, queryset):
+        logger.debug(f'Building targets detail map for queryset of size: {len(queryset)}')
         targets_map = {}
         for scope in queryset:
+            logger.debug(f'Processing DataScope ID: {scope.id} for targets detail mapping')
             detail = {}
             for target in scope.targets.all():
                 key = f"{target.content_type.app_label}.{target.content_type.model}"
                 detail.setdefault(key, []).append(str(target.object_id))
+                logger.debug(f'Added target {str(target.object_id)} under key {key} for DataScope ID: {scope.id}')
             targets_map[str(scope.id)] = detail
+
+        logger.debug(f'Constructed targets detail map: {targets_map}')
         return targets_map
 
     def _get_targets_detail(self, instance):

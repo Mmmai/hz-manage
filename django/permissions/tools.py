@@ -10,7 +10,7 @@ from .registry import get_handler
 logger = logging.getLogger(__name__)
 
 
-def get_user_data_scope(username: str):
+def get_user_data_scope(username: str) -> dict:
 
     try:
         user = UserInfo.objects.get(username=username)
