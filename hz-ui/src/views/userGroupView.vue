@@ -41,7 +41,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column fixed="right" width="100" label="操作">
+      <el-table-column fixed="right" width="120" label="操作">
         <template #default="scope">
           <el-tooltip
             class="box-item"
@@ -55,6 +55,15 @@
               type="primary"
               :icon="Edit"
               @click="editRow(scope.row)"
+            ></el-button>
+          </el-tooltip>
+          <el-tooltip content="权限配置" placement="top">
+            <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
+              link
+              type="primary"
+              :icon="Key"
+              @click="goToPermission(scope.row)"
             ></el-button>
           </el-tooltip>
           <el-tooltip
@@ -160,7 +169,7 @@
 </template>
 
 <script lang="ts" setup>
-import { Delete, Edit } from "@element-plus/icons-vue";
+import { Delete, Edit, Key } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import {
   ref,
@@ -299,8 +308,6 @@ const submitAction = async (formEl) => {
           });
         }
       } else {
-        console.log(formInline);
-
         let res = await proxy.$api.updateUserGroup({
           id: nowRow.value.id,
           ...formInline,
@@ -326,7 +333,14 @@ const submitAction = async (formEl) => {
     }
   });
 };
-
+import { useRouter } from "vue-router";
+const router = useRouter();
+const goToPermission = (row) => {
+  router.push({
+    name: "permission",
+    query: { user_group: row.id },
+  });
+};
 onMounted(async () => {
   await getRoleData();
   await getUserData();

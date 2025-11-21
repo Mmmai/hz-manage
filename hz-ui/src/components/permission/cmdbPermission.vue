@@ -15,8 +15,14 @@
       <el-card class="permission-panel">
         <template #header>
           <div class="panel-header">
-            <span class="panel-title">字段授权</span>
-
+            <span class="panel-title"
+              >字段授权
+              <el-tooltip placement="top">
+                <template #content>
+                  如果勾选一个模型内字段组的所有字段，则添加的是此分组权限，后续此组有新增字段，也会有权限
+                </template>
+                <el-icon><InfoFilled /></el-icon> </el-tooltip
+            ></span>
             <div class="panel-actions">
               <el-input
                 v-model="fieldQuery"
@@ -44,6 +50,7 @@
             :height="850"
             class="permission-tree"
             @check="onTreeCheck"
+            v-loading="loading"
           >
             <template #default="{ node, data }">
               <div class="custom-tree-node">
@@ -67,7 +74,14 @@
       <el-card class="permission-panel">
         <template #header>
           <div class="panel-header">
-            <span class="panel-title">实例授权</span>
+            <span class="panel-title"
+              >实例授权
+              <el-tooltip placement="top">
+                <template #content>
+                  如果勾选一个实例树内的所有实例，则添加的是此实例树权限，后续此组有新增实例，也会有权限
+                </template>
+                <el-icon><InfoFilled /></el-icon> </el-tooltip
+            ></span>
             <div class="panel-actions">
               <el-input
                 v-model="fieldQuery"
@@ -103,6 +117,7 @@
             :height="850"
             class="permission-tree"
             @check="onTreeCheck"
+            v-loading="loading"
           >
             <template #default="{ node, data }">
               <div class="custom-tree-node">
@@ -162,7 +177,7 @@ import type {
   TreeV2Instance,
   TreeNodeData,
 } from "element-plus";
-import { RefreshLeft, Search } from "@element-plus/icons-vue";
+import { InfoFilled, RefreshLeft, Search } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 const nowNodeObject = defineModel("nowNodeObject");
 const getPermissionObj = defineModel("permissionObject");
@@ -446,20 +461,19 @@ const handleFieldTreeCheck = () => {
   // 模型实例授权
   const instanceCheckedNodes = instanceTreeRef.value?.getCheckedNodes(false);
   const instanceHalfCheckedNodes = instanceTreeRef.value?.getHalfCheckedNodes();
-  console.log(instanceHalfCheckedNodes);
   // 将全选的实例树和模型，添加到map中
 
   // 获取半选的实例树节点
   const halfCheckedInstanceGroupIds = instanceHalfCheckedNodes
     .filter((node) => node.type === "modelinstancegroup")
     .map((item) => item.id);
-  console.log(halfCheckedInstanceGroupIds);
   // 获取全选的实例树节点,只选取最顶上的节点
   const checkedInstanceGroupIds = instanceCheckedNodes
     .filter((node) => {
       if (node.type === "modelinstancegroup") {
         // 判断父节点的类型
-        if (node.parent.type === "models") return true;
+        const pNode = instanceTreeRef.value!.getNode(node.parent_id);
+        if (pNode.data.type === "models") return true;
         if (halfCheckedInstanceGroupIds.includes(node.parent_id)) return true;
         return false;
       } else {
@@ -467,7 +481,6 @@ const handleFieldTreeCheck = () => {
       }
     })
     .map((item) => item.id);
-  console.log(checkedInstanceGroupIds);
   // 获取半选的实例树节点的实例节点
   const instanceCheckedIds = instanceCheckedNodes
     .filter(
@@ -507,27 +520,29 @@ const savePermissions = async () => {
 
   let params = handleFieldTreeCheck();
   console.log(params);
-  return params;
   let res = await api.setDataScope({
     scope_type: "filter",
     app_label: "cmdb",
     targets: params,
     ...nowNodeObject.value,
   });
-  console.log(res);
-
+  if (res.status == "201") {
+    ElMessage.success("权限更新成功!");
+    getDataScope();
+  } else {
+    ElMessage.error("保存失败," + JSON.stringify(res.data));
+  }
   // 更新初始状态为当前状态
   initialFieldCheckedKeys.value = [...currentFieldCheckedKeys.value];
   initialInstanceCheckedKeys.value = [...currentInstanceCheckedKeys.value];
-
-  ElMessage.success("权限设置已保存");
 };
 
 const filedCheckedKeys = ref([]);
 const instanceCheckedKeys = ref([]);
-
+const loading = ref(true);
 const getDataScope = async () => {
   try {
+    loading.value = true;
     let res = await api.getDataScope({
       ...nowNodeObject.value,
     });
@@ -579,6 +594,10 @@ const getDataScope = async () => {
     initialInstanceCheckedKeys.value = [];
     currentFieldCheckedKeys.value = [];
     currentInstanceCheckedKeys.value = [];
+  } finally {
+    setTimeout(() => {
+      loading.value = false;
+    }, 500);
   }
 };
 
@@ -640,6 +659,9 @@ onMounted(() => {
       align-items: center;
 
       .panel-title {
+        display: flex;
+        align-items: center;
+        justify-content: center;
         font-size: 16px;
         font-weight: 600;
         color: var(--el-text-color-primary);

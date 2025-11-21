@@ -274,6 +274,11 @@ import type { FilterNodeMethodFunction, TreeInstance } from "element-plus";
 const { proxy } = getCurrentInstance();
 const treeRef = ref<TreeInstance>();
 const resultContentRef = ref();
+
+import useModelStore from "@/store/cmdb/model";
+const modelConfigStore = useModelStore();
+const hostsModel = computed(() => modelConfigStore.modelObjectByName?.hosts);
+
 defineOptions({ name: "ansibleCli" });
 const filterText = ref("");
 watch(filterText, (val) => {

@@ -131,7 +131,14 @@ def get_cmdb_indirect_query(scope, model, username):
         children_ids = ModelInstanceGroup.get_all_children_ids(group_ids)
         if children_ids:
             query |= Q(id__in=children_ids)
-
+        # 如果分配了实例权限，从实例推导实例组权限
+        instance_ids = scope['targets'].get('cmdb.modelinstance')
+        if instance_ids:
+            related_group_ids = ModelInstanceGroupRelation.objects.filter(
+                instance_id__in=instance_ids
+            ).values_list('group_id', flat=True)
+            if related_group_ids:
+                query |= Q(id__in=related_group_ids)
     if model_name == 'modelinstancegrouprelation':
         instance_ids = scope['targets'].get('cmdb.modelinstance')
         if instance_ids:

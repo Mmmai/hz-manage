@@ -476,11 +476,11 @@ const formatChanges = (row) => {
         changes.push({
           field: changeMap[field],
           oldValue:
-            values[0].length >> 0
+            values[0]?.length >> 0
               ? values[0]?.map((item) => item.verbose_name).join("-")
               : null,
           newValue:
-            values[1].length >> 0
+            values[1]?.length >> 0
               ? values[1]?.map((item) => item.verbose_name).join("-")
               : null,
         });
@@ -569,10 +569,10 @@ const fetchAuditLogs = async () => {
       page: currentPage.value,
       page_size: pageSize.value,
       // 添加筛选条件
-      target_type: selectedModels.value.length
+      target_type: selectedModels.value?.length
         ? selectedModels.value.join(",")
         : undefined,
-      action: selectedOperations.value.length
+      action: selectedOperations.value?.length
         ? selectedOperations.value.join(",")
         : undefined,
       time_after:

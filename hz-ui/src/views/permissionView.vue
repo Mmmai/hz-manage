@@ -180,7 +180,9 @@ interface Tree {
 }
 
 const { proxy } = getCurrentInstance();
-
+import { useRouter, useRoute } from "vue-router";
+const router = useRouter();
+const route = useRoute();
 const radio = ref("user");
 const treeData = ref<Tree[]>([]);
 const filterText = ref("");
@@ -202,11 +204,6 @@ const splitterHeight = computed(() => {
 const handleResize = () => {
   // 响应式调整将在样式中自动处理
 };
-
-onMounted(() => {
-  window.addEventListener("resize", handleResize);
-  handleRadioChange("user");
-});
 
 onBeforeUnmount(() => {
   window.removeEventListener("resize", handleResize);
@@ -306,6 +303,7 @@ const getRoleList = async () => {
 };
 
 const handleRadioChange = (val) => {
+  console.log(111);
   switch (val) {
     case "user":
       getUserList();
@@ -321,6 +319,81 @@ const handleRadioChange = (val) => {
       break;
   }
 };
+// 新增：处理路由参数，自动选择对应的节点
+const handleRouteQuery = async () => {
+  // 检查是否存在查询参数
+  if (Object.keys(route.query).length > 0) {
+    console.log("Route query:", route.query);
+
+    // 根据不同的参数类型处理
+    if (route.query.role) {
+      // 设置为角色模式
+      radio.value = "role";
+      // 加载角色列表
+      await getRoleList();
+      // 设置当前选中节点
+      treeRef.value!.setCurrentKey(route.query.role);
+      // 获取当前节点信息
+      const nowNode = treeRef.value!.getNode(route.query.role);
+      if (nowNode) {
+        nowTreeName.value = nowNode.data.label;
+        nowNodeObject.value = getObjectId(route.query.role);
+
+        // 加载权限数据
+        nextTick(() => {
+          menuPermissionRef.value?.getPermissionTreeData();
+          menuPermissionRef.value?.getPermissionOnRight();
+        });
+      }
+    } else if (route.query.user) {
+      // 设置为用户模式
+      radio.value = "user";
+      // 加载用户列表
+      await getUserList();
+      // 设置当前选中节点
+      treeRef.value!.setCurrentKey(route.query.user);
+      // 获取当前节点信息
+      const nowNode = treeRef.value!.getNode(route.query.user);
+      if (nowNode) {
+        nowTreeName.value = nowNode.data.label;
+        nowNodeObject.value = getObjectId(route.query.user);
+
+        // 加载权限数据
+        nextTick(() => {
+          menuPermissionRef.value?.getPermissionTreeData();
+          menuPermissionRef.value?.getPermissionOnRight();
+        });
+      }
+    } else if (route.query.user_group) {
+      // 设置为用户组模式
+      radio.value = "user_group";
+      // 加载用户组列表
+      await getUserGroupList();
+      // 设置当前选中节点
+      treeRef.value!.setCurrentKey(route.query.user_group);
+      // 获取当前节点信息
+      const nowNode = treeRef.value!.getNode(route.query.user_group);
+      if (nowNode) {
+        nowTreeName.value = nowNode.data.label;
+        nowNodeObject.value = getObjectId(route.query.user_group);
+
+        // 加载权限数据
+        nextTick(() => {
+          menuPermissionRef.value?.getPermissionTreeData();
+          menuPermissionRef.value?.getPermissionOnRight();
+        });
+      }
+    }
+  } else {
+    // 默认加载用户列表
+    handleRadioChange("user");
+  }
+};
+onMounted(() => {
+  window.addEventListener("resize", handleResize);
+  // 处理路由参数
+  handleRouteQuery();
+});
 </script>
 
 <style scoped lang="scss">

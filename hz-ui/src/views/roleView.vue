@@ -59,6 +59,15 @@
               :icon="Edit"
               @click="handleEdit(scope.row)"
             ></el-button>
+            <el-tooltip content="权限配置" placement="top">
+              <el-button
+                v-permission="`${route.name?.replace('_info', '')}:edit`"
+                link
+                type="primary"
+                :icon="Key"
+                @click="goToPermission(scope.row)"
+              ></el-button>
+            </el-tooltip>
             <el-button
               v-permission="`${route.name?.replace('_info', '')}:delete`"
               :disabled="scope.row.built_in"
@@ -431,7 +440,7 @@ const handleSelectionChange = (val) => {
 import { ElTree } from "element-plus";
 
 import type Node from "element-plus/es/components/tree/src/model/node";
-import { Delete, Edit } from "@element-plus/icons-vue";
+import { Delete, Edit, Key } from "@element-plus/icons-vue";
 
 const menuTreeRef = ref<InstanceType<typeof ElTree>>();
 interface Tree {
@@ -465,6 +474,13 @@ watch(
     }
   }
 );
+
+const goToPermission = (row) => {
+  router.push({
+    name: "permission",
+    query: { role: row.id },
+  });
+};
 </script>
 <style  scoped>
 .el-pagination {

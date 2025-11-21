@@ -84,8 +84,9 @@ export const modelConfigStore = defineStore(
 
     // 获取所有模型的实例树和实例
     const getAllModelTreeInstances = async (force = false) => {
-      if (!force && !allModelCiDataObj.value) return;
-      if (!allModels.value.length) {
+
+      if (!force && Object.keys(allModelCiDataObj.value).length > 0) return;
+      if (allModels.value.length == 0) {
         await getModel();
       }
       allModels.value.forEach(async (item) => {

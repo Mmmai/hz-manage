@@ -104,8 +104,17 @@
                 v-permission="`${route.name?.replace('_info', '')}:edit`"
                 link
                 type="primary"
-                :icon="Key"
+                :icon="Lock"
                 @click="handleResetPassword(scope.row)"
+              ></el-button>
+            </el-tooltip>
+            <el-tooltip content="权限配置" placement="top">
+              <el-button
+                v-permission="`${route.name?.replace('_info', '')}:edit`"
+                link
+                type="primary"
+                :icon="Key"
+                @click="goToPermission(scope.row)"
               ></el-button>
             </el-tooltip>
             <el-button
@@ -342,8 +351,8 @@
 </template>
 
 <script setup lang="ts">
-import { Delete, Edit, Key } from "@element-plus/icons-vue";
-import { useRoute } from "vue-router";
+import { Delete, Edit, Key, Lock } from "@element-plus/icons-vue";
+import { useRoute, useRouter } from "vue-router";
 const route = useRoute();
 import {
   getCurrentInstance,
@@ -358,8 +367,7 @@ defineOptions({ name: "user" });
 import type { FormInstance, FormRules } from "element-plus";
 import { ElMessageBox, ElMessage } from "element-plus";
 import { PassThrough } from "stream";
-import { el } from "element-plus/es/locale/index.mjs";
-
+const router = useRouter();
 const { proxy } = getCurrentInstance();
 // 搜素框变量
 const filterObject = reactive({
@@ -895,6 +903,12 @@ const submitResetPassword = async () => {
         ElMessage.error("密码重置失败: " + JSON.stringify(res.data));
       }
     }
+  });
+};
+const goToPermission = (row) => {
+  router.push({
+    name: "permission",
+    query: { user: row.id },
   });
 };
 
