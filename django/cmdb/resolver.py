@@ -5,6 +5,7 @@ from .utils import password_handler
 
 logger = logging.getLogger(__name__)
 
+
 def resolve_model_field_id_list(value):
     """
     一个“值解析器”，专门用于处理 ModelFields的ID列表字段。
@@ -17,6 +18,7 @@ def resolve_model_field_id_list(value):
         # 根据ID列表查询出所有关联的 ModelFields 对象
         return list(ModelFields.objects.filter(id__in=value))
     return []
+
 
 def resolve_dynamic_value(model_field, value):
     """
@@ -36,7 +38,8 @@ def resolve_dynamic_value(model_field, value):
                 'label': enum_dict.get(value, f"[未知选项: {value}]")
             }, ensure_ascii=False)
         except Exception:
-            logger.error(f"Failed to resolve enum value for field '{model_field.name}' with value: {value}", exc_info=True)
+            logger.error(
+                f"Failed to resolve enum value for field '{model_field.name}' with value: {value}", exc_info=True)
             return value
 
     if model_field.type == FieldType.MODEL_REF:
@@ -52,9 +55,10 @@ def resolve_dynamic_value(model_field, value):
                 'instance_name': f'[已删除的实例: {value}]'
             }, ensure_ascii=False)
         except Exception:
-            logger.error(f"Failed to resolve model reference value for field '{model_field.name}' with value: {value}", exc_info=True)
+            logger.error(
+                f"Failed to resolve model reference value for field '{model_field.name}' with value: {value}", exc_info=True)
             return value
-        
+
     if model_field.type == FieldType.PASSWORD:
         try:
             decrypted_value = password_handler.decrypt(value)
@@ -69,6 +73,7 @@ def resolve_dynamic_value(model_field, value):
 
     return value
 
+
 def resolve_model(value):
     """
     一个“值解析器”，专门用于处理指向Models的ManyToManyField。
@@ -78,12 +83,12 @@ def resolve_model(value):
     if not models:
         return []
     logger.debug(f'Resolved models: {models}')
-    
+
     return [
         {
             'id': str(model.id),
             'name': model.name,
             'verbose_name': model.verbose_name
-        } 
+        }
         for model in models
     ]

@@ -18,6 +18,7 @@ from cmdb.message import instance_group_relations_audit, instance_bulk_update_au
 
 logger = logging.getLogger(__name__)
 
+
 def build_audit_comment(action, instance):
     verb = {"CREATE": "创建", "UPDATE": "更新", "DELETE": "删除"}.get(action, action)
     model_name = ""
@@ -36,14 +37,13 @@ def build_audit_comment(action, instance):
         field_verbose_name = getattr(instance, "verbose_name", field_name)
         model_label = getattr(getattr(instance, "model", None), "verbose_name", "模型")
         return f"{verb}了{model_label}的字段: {field_verbose_name} ({field_name})"
-    
+
     if model_name == "modelinstance":
         # model_label = getattr(getattr(instance, "model", None), "name", "模型")
         model_label = getattr(getattr(instance, "model", None), "verbose_name", "模型")
 
         instance_name = getattr(instance, "instance_name", str(instance))
         return f"{verb}了{model_label}实例：{instance_name}"
-
 
     if model_name == "modelinstancegroup":
         group_name = getattr(instance, "label", str(instance))
@@ -61,11 +61,11 @@ def build_audit_comment(action, instance):
         inst_name = getattr(inst, "instance_name", inst) or inst
         group_name = getattr(group, "label", group) or group
         return f"{verb}了{model_label}实例 <{inst_name}> 与分组 <{group_name}> 的关联关系"
-    
+
     if model_name == "validationrules":
         rule_name = getattr(instance, "name", str(instance))
         return f"{verb}了校验规则：{rule_name}"
-    
+
     if model_name == "uniqueconstraint":
         _model_name = getattr(getattr(instance, "model", None), "name", "模型")
         model_label = getattr(getattr(instance, "model", None), "verbose_name", "模型")
@@ -87,12 +87,13 @@ def build_audit_comment(action, instance):
     readable = getattr(instance.__class__, "__name__", model_name)
     return f"{verb}了{readable}"
 
+
 @receiver(pre_save)
 def capture_old_state(sender, instance, **kwargs):
     """在保存前，捕获旧的实例状态和动态字段值"""
     if not registry.is_registered(sender) or not instance.pk:
         return
-    
+
     prefetched = get_prefetched_snapshot(instance)
     if prefetched:
         instance._old_instance_snapshot = prefetched["static"]
@@ -110,6 +111,7 @@ def capture_old_state(sender, instance, **kwargs):
     else:
         instance._old_dynamic_fields_snapshot = {}
 
+
 @receiver(post_save)
 def log_changes(sender, instance, created, **kwargs):
     """
@@ -122,7 +124,7 @@ def log_changes(sender, instance, created, **kwargs):
     # logger.debug(f"Context snapshot captured: {context_snapshot}")
 
     # new_static_snapshot = get_static_field_snapshot(instance)
-    
+
     old_static_snapshot = getattr(instance, '_old_instance_snapshot', {})
     old_dynamic_snapshot = getattr(instance, '_old_dynamic_fields_snapshot', {})
 
@@ -134,7 +136,7 @@ def log_changes(sender, instance, created, **kwargs):
             final_instance = sender.objects.get(pk=instance.pk)
         except sender.DoesNotExist:
             return
-        
+
         new_static_snapshot = get_static_field_snapshot(final_instance)
         new_dynamic_snapshot = get_dynamic_field_snapshot(final_instance)
 
@@ -148,6 +150,7 @@ def log_changes(sender, instance, created, **kwargs):
                     get_field_value_snapshot(old_val),
                     get_field_value_snapshot(new_val)
                 ]
+        logger.info(f'Static changes prepared for {instance} {action.lower()}: {static_changes}')
 
         resolver = registry.get_dynamic_value_resolver(sender)
         dynamic_changes = []
@@ -176,14 +179,14 @@ def log_changes(sender, instance, created, **kwargs):
                 key: [None, get_field_value_snapshot(val)]
                 for key, val in new_static_snapshot.items()
             }
-            
+
             # ModelInstance创建记录初始分组信息/单独适配
             if hasattr(instance, '_initial_groups'):
                 group_field_name = 'groups'
                 group_values = getattr(instance, '_initial_groups', [])
                 static_changes[group_field_name] = [None, group_values]
                 delattr(instance, '_initial_groups')
-                
+
             dynamic_changes = [{
                 'name': key,
                 'verbose_name': data.get('verbose_name', ''),
@@ -193,10 +196,10 @@ def log_changes(sender, instance, created, **kwargs):
 
         if not created and not static_changes and not dynamic_changes:
             return
-        
+
         # 不记录 ModelFields 仅 order 字段的变更
         if not created and sender.__name__ == 'ModelFields' and \
-            static_changes.keys() == {'order'} and not dynamic_changes:
+                static_changes.keys() == {'order'} and not dynamic_changes:
             return
 
         comment = context.get("comment") or build_audit_comment(action, instance)
@@ -206,7 +209,7 @@ def log_changes(sender, instance, created, **kwargs):
         reverted_from = context.get("reverted_from", None)
         if is_rollback:
             comment = f"[回退操作] {comment}"
-        
+
         log = AuditLog.objects.create(
             content_object=instance,
             action=action,
@@ -241,13 +244,15 @@ def log_deletion(sender, instance, **kwargs):
         return
 
     context = get_audit_context()
-    
+
     static_snapshot = get_static_field_snapshot(instance)
     dynamic_snapshot = get_dynamic_field_snapshot(instance)
 
     resolver = registry.get_dynamic_value_resolver(sender)
 
     static_changes = {key: [get_field_value_snapshot(val), None] for key, val in static_snapshot.items()}
+    logger.info(f'Static changes prepared for {instance} deletion: {static_changes}')
+
     dynamic_changes = []
     for key, data in dynamic_snapshot.items():
         old_val = data.get('value')
@@ -260,7 +265,7 @@ def log_deletion(sender, instance, **kwargs):
             'old_value': old_val,
             'new_value': None,
         })
-    
+
     comment = context.get("comment") or build_audit_comment("DELETE", instance)
 
     log = AuditLog.objects.create(
@@ -285,8 +290,8 @@ def log_deletion(sender, instance, **kwargs):
             ) for change in dynamic_changes
         ]
         FieldAuditDetail.objects.bulk_create(details_to_create)
-        
-        
+
+
 @receiver(instance_group_relations_audit)
 def log_instance_group_relation_audit(sender, instance, old_groups, new_groups, **kwargs):
     if not instance:
@@ -302,7 +307,7 @@ def log_instance_group_relation_audit(sender, instance, old_groups, new_groups, 
             content_object=instance,
             action=AuditLog.Action.UPDATE,
             changed_fields={
-                'groups': [old_groups, new_groups]    
+                'groups': [old_groups, new_groups]
             },
             operator=context.get('operator', ''),
             operator_ip=context.get('operator_ip', None),
@@ -312,7 +317,8 @@ def log_instance_group_relation_audit(sender, instance, old_groups, new_groups, 
         )
 
     transaction.on_commit(delayed_audit_log)
-    
+
+
 @receiver(instance_bulk_update_audit)
 def log_instance_bulk_update_audit(sender, snapshots_list, **kwargs):
     if not snapshots_list:
@@ -323,7 +329,7 @@ def log_instance_bulk_update_audit(sender, snapshots_list, **kwargs):
     first_instance_class = snapshots_list[0]['instance'].__class__
     if not registry.is_registered(first_instance_class):
         return
-        
+
     resolver = registry.get_dynamic_value_resolver(first_instance_class)
 
     def delayed_process(context=context_snapshot):
@@ -335,11 +341,11 @@ def log_instance_bulk_update_audit(sender, snapshots_list, **kwargs):
             old_snapshot = info['old_snapshot']
             new_snapshot = info['new_snapshot']
             update_fields = info.get('update_fields', [])
-            
+
             dynamic_changes = []
 
             all_keys = set(old_snapshot.keys()) | set(new_snapshot.keys())
-            
+
             for field_name in all_keys:
                 if field_name not in update_fields:
                     continue
@@ -354,7 +360,7 @@ def log_instance_bulk_update_audit(sender, snapshots_list, **kwargs):
                     if resolver and model_field:
                         old_val = resolver(model_field, old_val)
                         new_val = resolver(model_field, new_val)
-                    
+
                     dynamic_changes.append({
                         'name': field_name,
                         'verbose_name': new_field_data.get('verbose_name') or old_field_data.get('verbose_name', ''),
@@ -366,7 +372,7 @@ def log_instance_bulk_update_audit(sender, snapshots_list, **kwargs):
                 continue
 
             comment = context.get("comment") or build_audit_comment('UPDATE', instance)
-            
+
             log = AuditLog(
                 content_object=instance,
                 action='UPDATE',
@@ -377,9 +383,9 @@ def log_instance_bulk_update_audit(sender, snapshots_list, **kwargs):
                 correlation_id=context.get('correlation_id', ''),
                 comment=comment
             )
-            
+
             details = []
-            
+
             for change in dynamic_changes:
                 details.append(FieldAuditDetail(
                     name=change['name'],
@@ -406,7 +412,8 @@ def log_instance_bulk_update_audit(sender, snapshots_list, **kwargs):
             FieldAuditDetail.objects.bulk_create(all_details_to_create)
 
     transaction.on_commit(delayed_process)
-    
+
+
 @receiver(m2m_changed)
 def log_generic_m2m_changes(sender, instance, action, reverse, model, pk_set, **kwargs):
     """
@@ -433,13 +440,14 @@ def log_generic_m2m_changes(sender, instance, action, reverse, model, pk_set, **
         if registered_model == instance.__class__ and through_model == sender:
             field_name = registered_field_name
             break
-    
+
     # 没有查询到字段，或者字段没有配置resolver
     if not field_name:
         return
     resolver = registry.get_field_resolver(instance.__class__, field_name)
     if not resolver:
-        logger.warning(f"No resolver configured for M2M field '{field_name}' on model {instance.__class__.__name__}. Skipping merge.")
+        logger.warning(
+            f"No resolver configured for M2M field '{field_name}' on model {instance.__class__.__name__}. Skipping merge.")
         return
 
     def delayed_merge(context=context_snapshot):
@@ -447,33 +455,34 @@ def log_generic_m2m_changes(sender, instance, action, reverse, model, pk_set, **
             manager = getattr(instance, field_name)
             instance_id = instance.pk
             main_log = AuditLog.objects.get(
-                correlation_id=correlation_id, 
-                object_id=str(instance_id), 
+                correlation_id=correlation_id,
+                object_id=str(instance_id),
                 content_type__model=instance.__class__.__name__.lower()
             )
 
-
             new_value_snapshot = resolver(manager.all())
-            
+
             old_value_snapshot = main_log.changed_fields.get(field_name, [None, None])[0]
             if old_value_snapshot is None and action != 'post_clear':
                 old_value_snapshot = []
 
             if main_log.changed_fields is None:
                 main_log.changed_fields = {}
-            
+
             main_log.changed_fields[field_name] = [old_value_snapshot, new_value_snapshot]
-            
+
             main_log.save(update_fields=['changed_fields', 'timestamp'])
             logger.debug(f"Merged M2M change for field '{field_name}' into AuditLog {main_log.id}")
 
         except AuditLog.DoesNotExist:
-            logger.warning(f"Could not find main AuditLog with correlation_id {correlation_id} to merge M2M changes. It might not have been created yet.")
+            logger.warning(
+                f"Could not find main AuditLog with correlation_id {correlation_id} to merge M2M changes. It might not have been created yet.")
         except Exception as e:
             logger.error(f"Failed to merge M2M audit changes: {e}", exc_info=True)
 
     transaction.on_commit(delayed_merge)
-    
+
+
 @receiver(bulk_creation_audit)
 def log_bulk_creation(sender, instances, **kwargs):
     context = get_audit_context()
@@ -481,7 +490,7 @@ def log_bulk_creation(sender, instances, **kwargs):
 
     for instance in instances:
         static_snapshot = get_static_field_snapshot(instance)
-        
+
         static_changes = {}
         for field, value in static_snapshot.items():
             static_changes[field] = [None, value]

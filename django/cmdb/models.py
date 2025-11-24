@@ -9,6 +9,7 @@ from rest_framework.exceptions import PermissionDenied
 from django.core.cache import cache
 from django.db.models import OuterRef, Exists
 
+from .managers import *
 from .constants import ValidationType
 from .resolver import resolve_model_field_id_list, resolve_dynamic_value, resolve_model
 from audit.decorators import register_audit
@@ -23,6 +24,9 @@ logger = logging.getLogger(__name__)
     public_name='model_group'
 )
 class ModelGroups(models.Model):
+
+    objects = ModelGroupsManager()
+
     class Meta:
         db_table = 'model_groups'
         managed = True
@@ -34,36 +38,17 @@ class ModelGroups(models.Model):
     editable = models.BooleanField(default=True, null=False, blank=False)
     verbose_name = models.CharField(max_length=50, null=False, blank=False)
     description = models.TextField(blank=True, null=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
-    @classmethod
-    def get_default_model_group(cls):
-        """获取或创建默认模型组"""
-        default_group, created = cls.objects.get_or_create(
-            name='others',
-            defaults={
-                'verbose_name': '其他',
-                'built_in': True,
-                'editable': False,
-                'description': '默认模型组',
-                'create_user': 'system',
-                'update_user': 'system'
-            }
-        )
-        return default_group
-
     def delete(self, *args, **kwargs):
         if self.built_in:
-            raise PermissionDenied('Built-in model group cannot be deleted')
+            raise PermissionDenied('Cannot delete a built-in model group.')
         if not self.editable:
-            raise PermissionDenied('Non-editable model group cannot be deleted')
-        with transaction.atomic():
-            default_group = self.__class__.get_default_model_group()
-            Models.objects.filter(model_group=self).update(model_group=default_group)
-            super().delete(*args, **kwargs)
+            raise PermissionDenied('Cannot delete a non-editable model group.')
+        super().delete(*args, **kwargs)
 
 
 @register_audit(
@@ -88,43 +73,15 @@ class Models(models.Model):
     description = models.TextField(blank=True, null=True)
     built_in = models.BooleanField(default=False, null=False, blank=False)
     icon = models.CharField(max_length=50, blank=True, null=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
-    def save(self, *args, **kwargs):
-        # 保存模型
-        super().save(*args, **kwargs)
-
-        self.sync_unique_constraint()
-
-    def sync_unique_constraint(self):
-        constraint = UniqueConstraint.objects.filter(
-            model=self,
-            built_in=True,
-            description='自动生成的实例名称唯一性约束'
-        ).first()
-
-        if self.instance_name_template:
-            if constraint:
-                # 更新现有约束
-                constraint.fields = self.instance_name_template
-                constraint.save()
-            else:
-                # 创建新约束
-                UniqueConstraint.objects.create(
-                    model=self,
-                    fields=self.instance_name_template,
-                    built_in=True,
-                    validate_null=False,
-                    description='自动生成的实例名称唯一性约束',
-                    create_user='system',
-                    update_user='system'
-                )
-        else:
-            if constraint:
-                constraint.delete()
+    def delete(self, *args, **kwargs):
+        if self.built_in:
+            raise PermissionDenied('Cannot delete a built-in model.')
+        super().delete(*args, **kwargs)
 
 
 @register_audit(
@@ -133,6 +90,8 @@ class Models(models.Model):
     public_name='model_field_group'
 )
 class ModelFieldGroups(models.Model):
+    objects = ModelFieldGroupsManager()
+
     class Meta:
         db_table = 'model_field_groups'
         managed = True
@@ -145,29 +104,17 @@ class ModelFieldGroups(models.Model):
     built_in = models.BooleanField(default=False, null=False, blank=False)
     editable = models.BooleanField(default=True, null=False, blank=False)
     description = models.TextField(blank=True, null=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
-    @classmethod
-    def get_default_field_group(cls, model):
-        """获取或创建默认模型组"""
-        default_field_group, created = cls.objects.get_or_create(
-            name='basic',
-            model=model,
-            defaults={
-                'name': 'basic',
-                'verbose_name': '基础配置',
-                'model': model,
-                'built_in': True,
-                'editable': False,
-                'description': '默认字段组',
-                'create_user': 'system',
-                'update_user': 'system'
-            }
-        )
-        return default_field_group
+    def delete(self, *args, **kwargs):
+        if self.built_in:
+            raise PermissionDenied('Cannot delete a built-in model field group.')
+        if not self.editable:
+            raise PermissionDenied('Cannot delete a non-editable model field group.')
+        super().delete(*args, **kwargs)
 
 
 @register_audit(
@@ -276,8 +223,8 @@ class ModelFields(models.Model):
     validation_rule = models.ForeignKey('ValidationRules', on_delete=models.SET_NULL, null=True, blank=True)
     description = models.TextField(blank=True, null=True)
     order = models.IntegerField(blank=True, null=True, db_index=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
@@ -291,14 +238,14 @@ class ModelFieldPreference(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True)
     fields_preferred = models.JSONField(default=list, blank=True, null=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
 
 @register_audit(
-    snapshot_fields={'id', 'fields', 'validate_null'},
+    snapshot_fields={'id', 'model', 'fields', 'validate_null'},
     ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
     public_name='unique_constraint',
     field_resolvers={
@@ -306,6 +253,8 @@ class ModelFieldPreference(models.Model):
     }
 )
 class UniqueConstraint(models.Model):
+    objects = UniqueConstraintManager()
+
     class Meta:
         db_table = 'unique_constraint'
         managed = True
@@ -317,10 +266,16 @@ class UniqueConstraint(models.Model):
     validate_null = models.BooleanField(default=False, null=False, blank=False)
     built_in = models.BooleanField(default=False, null=False, blank=False)
     description = models.TextField(blank=True, null=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
+
+    def delete(self, *args, **kwargs):
+        # 防止越过视图层调用意外删除
+        if self.built_in:
+            raise PermissionDenied('Cannot delete a built-in unique constraint.')
+        super().delete(*args, **kwargs)
 
 
 class ModelInstanceManager(models.Manager):
@@ -379,8 +334,8 @@ class ModelInstance(models.Model):
         ('import', '表格导入'),
         ('discover', '自动发现')
     ], default='manual', db_index=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
@@ -426,78 +381,10 @@ class ModelFieldMeta(models.Model):
     model_instance = models.ForeignKey('ModelInstance', on_delete=models.CASCADE, related_name='field_values')
     model_fields = models.ForeignKey('ModelFields', on_delete=models.CASCADE)
     data = models.TextField(blank=True, null=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
-
-
-class ModelInstanceGroupManager(models.Manager):
-    @transaction.atomic
-    def delete_group(self, group, performing_user):
-        """
-        删除一个分组及其所有子分组，并将无其他分组关联的实例迁移到空闲池。
-        """
-        if group.built_in:
-            raise PermissionDenied(f'Can not delete built-in group "{group.label}"')
-
-        unassigned_group = self.model.get_unassigned_group(group.model)
-
-        # 递归获取所有待删除的子分组
-        all_groups_to_delete = [group] + list(group.get_all_children())
-        all_group_ids_to_delete = {g.id for g in all_groups_to_delete}
-        logger.debug(f"Preparing to delete {len(all_groups_to_delete)} groups, including '{group.label}'.")
-
-        instances_in_deleted_groups = ModelInstance.objects.filter(
-            group_relations__group_id__in=all_group_ids_to_delete
-        ).distinct()
-
-        # 检查实例是否存在其他关联分组
-        other_groups_subquery = ModelInstanceGroupRelation.objects.filter(
-            instance_id=OuterRef('pk'),
-        ).exclude(
-            group_id__in=all_group_ids_to_delete
-        )
-
-        instances_to_move_qs = instances_in_deleted_groups.annotate(
-            in_other_groups=Exists(other_groups_subquery)
-        ).filter(in_other_groups=False)
-
-        instances_to_move_ids = list(instances_to_move_qs.values_list('id', flat=True))
-        logger.debug(f"Found {len(instances_to_move_ids)} instances to move to unassigned pool.")
-
-        deleted_relations_count, _ = ModelInstanceGroupRelation.objects.filter(
-            group_id__in=all_group_ids_to_delete
-        ).delete()
-        logger.debug(f"Deleted {deleted_relations_count} existing group relations.")
-
-        # 创建到 空闲池 的关联
-        if instances_to_move_ids:
-            relations_to_create = [
-                ModelInstanceGroupRelation(
-                    instance_id=instance_id,
-                    group=unassigned_group,
-                    create_user=performing_user,
-                    update_user=performing_user
-                ) for instance_id in instances_to_move_ids
-            ]
-            ModelInstanceGroupRelation.objects.bulk_create(relations_to_create)
-            logger.debug(f"Created {len(relations_to_create)} new relations in unassigned pool.")
-
-        # 删除所有分组对象
-        deleted_groups_count, _ = self.get_queryset().filter(id__in=all_group_ids_to_delete).delete()
-        logger.debug(f"Successfully deleted {deleted_groups_count} groups from database.")
-
-        self.model.clear_groups_cache(all_groups_to_delete)
-
-        return {
-            'deleted_groups_count': deleted_groups_count,
-            'moved_instances_count': len(instances_to_move_ids)
-        }
-
-    def get_root_group(self, model_id):
-        """获取指定模型的根分组"""
-        return self.get_queryset().filter(model_id=model_id, parent=None).first()
 
 
 @register_audit(
@@ -506,7 +393,6 @@ class ModelInstanceGroupManager(models.Manager):
     public_name='model_instance_group'
 )
 class ModelInstanceGroup(models.Model):
-
     objects = ModelInstanceGroupManager()
 
     class Meta:
@@ -522,8 +408,8 @@ class ModelInstanceGroup(models.Model):
     path = models.CharField(max_length=200, null=True, blank=True)
     order = models.IntegerField(blank=True, null=True, db_index=True)
     built_in = models.BooleanField(default=False, null=False, blank=False)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
@@ -552,131 +438,32 @@ class ModelInstanceGroup(models.Model):
             child.save(update_fields=['path', 'update_time'], _skip_signal=True)
             child.update_child_path()
 
-    def get_all_children(self):
-        """获取所有子分组"""
-        all_children = set()
+    # @classmethod
+    # def clear_group_cache(cls, group):
+    #     """清除指定分组和空闲池的缓存"""
+    #     unassigned_group = cls.objects.get_unassigned_group(str(group.model.id))
+    #     logger.info(f'Clearing instance count cache for group: {group.id}, {unassigned_group.id}')
+    #     cache.delete(f'group_count_{group.id}')
+    #     cache.delete(f'group_count_{unassigned_group.id}')
+    #     logger.info(f'Cache cleared successfully')
 
-        def _get_children(group):
-            children = self.__class__.objects.filter(parent=group)
-            for child in children:
-                all_children.add(child)
-                _get_children(child)
+    # @classmethod
+    # def clear_groups_cache(cls, groups):
+    #     """批量清除多个分组的缓存"""
+    #     groups_to_clear = set()
 
-        _get_children(self)
-        return all_children
+    #     # 收集所有需要清除的分组ID
+    #     for group in groups:
+    #         groups_to_clear.add(group.id)
+    #         parent = group.parent
+    #         while parent:
+    #             groups_to_clear.add(parent.id)
+    #             parent = parent.parent
+    #     logger.info(f'Clearing instance count cache for groups: {groups_to_clear}')
 
-    @classmethod
-    def get_all_children_ids(cls, group_ids) -> set:
-        """
-        获取指定ID列表的所有子分组ID（递归，广度优先）
-        供权限处理器等批量查询使用
-        """
-        return cls._get_all_children_ids(tuple(sorted(str(gid) for gid in group_ids)))
-
-    @classmethod
-    @functools.lru_cache(maxsize=1024)
-    def _get_all_children_ids(cls, group_ids) -> set:
-        """
-        获取指定ID列表的所有子分组ID（递归，广度优先）
-        供权限处理器等批量查询使用
-        """
-        if not group_ids:
-            return set()
-
-        # 统一转为集合处理
-        if isinstance(group_ids, (str, uuid.UUID)):
-            current_ids = {str(group_ids)}
-        else:
-            current_ids = {str(gid) for gid in group_ids}
-
-        all_children_ids = set()
-
-        while current_ids:
-            # 批量查询下一层子节点
-            # 注意：values_list 返回的是 UUID 对象或字符串，取决于数据库后端，这里统一转字符串
-            next_level_ids = set(
-                cls.objects.filter(parent_id__in=current_ids)
-                .values_list('id', flat=True)
-            )
-            # 转换为字符串以确保兼容性
-            next_level_ids = {str(nid) for nid in next_level_ids}
-
-            # 排除已存在的，防止死循环（如果有环状结构）
-            new_ids = next_level_ids - all_children_ids
-
-            if not new_ids:
-                break
-
-            all_children_ids.update(new_ids)
-            current_ids = new_ids
-
-        return all_children_ids
-
-    @classmethod
-    def get_root_group(cls, model):
-        """获取或创建根分组【所有】"""
-        if isinstance(model, str):
-            model = Models.objects.get(id=model)
-        root_group, created = cls.objects.get_or_create(
-            model=model,
-            parent=None,
-            defaults={
-                'label': '所有',
-                'built_in': True,
-                'level': 1,
-                'path': '所有',
-                'order': 1,
-                'create_user': 'system',
-                'update_user': 'system'
-            }
-        )
-        return root_group
-
-    @classmethod
-    def get_unassigned_group(cls, model):
-        """获取或创建【空闲池】分组"""
-        root_group = cls.get_root_group(model)
-        unassigned_group, created = cls.objects.get_or_create(
-            model=model,
-            parent=root_group,
-            label='空闲池',
-            defaults={
-                'built_in': True,
-                'level': 2,
-                'path': '所有/空闲池',
-                'order': 1,
-                'create_user': 'system',
-                'update_user': 'system'
-            }
-        )
-        return unassigned_group
-
-    @classmethod
-    def clear_group_cache(cls, group):
-        """清除指定分组和空闲池的缓存"""
-        unassigned_group = cls.get_unassigned_group(group.model)
-        logger.info(f'Clearing instance count cache for group: {group.id}, {unassigned_group.id}')
-        cache.delete(f'group_count_{group.id}')
-        cache.delete(f'group_count_{unassigned_group.id}')
-        logger.info(f'Cache cleared successfully')
-
-    @classmethod
-    def clear_groups_cache(cls, groups):
-        """批量清除多个分组的缓存"""
-        groups_to_clear = set()
-
-        # 收集所有需要清除的分组ID
-        for group in groups:
-            groups_to_clear.add(group.id)
-            parent = group.parent
-            while parent:
-                groups_to_clear.add(parent.id)
-                parent = parent.parent
-        logger.info(f'Clearing instance count cache for groups: {groups_to_clear}')
-
-        cache_keys = [f'group_count_{gid}' for gid in groups_to_clear]
-        cache.delete_many(cache_keys)
-        logger.info(f'Cache cleared successfully')
+    #     cache_keys = [f'group_count_{gid}' for gid in groups_to_clear]
+    #     cache.delete_many(cache_keys)
+    #     logger.info(f'Cache cleared successfully')
 
 
 class ModelInstanceGroupRelation(models.Model):

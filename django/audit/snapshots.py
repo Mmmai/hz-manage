@@ -9,15 +9,16 @@ from .registry import registry
 _thread_locals = local()
 logger = logging.getLogger(__name__)
 
+
 def get_static_field_snapshot(instance):
     if not instance:
         return {}
     config = registry.config(instance.__class__)
     ignore_fields = set(config.get('ignore_fields', ()))
     ignore_fields.add(instance._meta.pk.name)
-    
+
     snapshot = {}
-    
+
     # TODO: 使用 select_related 和 prefetch_related 来优化查询
 
     for field in instance._meta.get_fields():
@@ -26,7 +27,7 @@ def get_static_field_snapshot(instance):
         # 跳过反向关系和多对多字段
         if not field.concrete or field.many_to_many:
             continue
-        
+
         field_name = field.name
         field_value = getattr(instance, field_name)
 
@@ -40,7 +41,7 @@ def get_static_field_snapshot(instance):
         if isinstance(field, ForeignKey):
             snapshot[field_name] = get_field_value_snapshot(field_value)
             continue
-            
+
         snapshot[field_name] = field_value
 
     return snapshot
@@ -91,7 +92,7 @@ def capture_audit_snapshots(instances, create=False):
         finally:
             clear_prefetched_snapshots()
         return
-    
+
     try:
         for inst in instances:
             if not inst.pk:
@@ -105,8 +106,8 @@ def capture_audit_snapshots(instances, create=False):
         yield
     finally:
         clear_prefetched_snapshots()
-        
-        
+
+
 def get_field_definition_snapshot(model):
     """
     获取一个模型(Model)的所有字段定义的快照。
@@ -116,7 +117,7 @@ def get_field_definition_snapshot(model):
         return {}
 
     fields = model.fields.all().order_by('display_order')
-    
+
     snapshot = {}
     for field in fields:
         # 将每个字段的关键定义信息序列化
@@ -137,7 +138,7 @@ def get_field_definition_snapshot(model):
     return snapshot
 
 
-def get_field_value_snapshot(value):
+def get_field_value_snapshot(value, end_recursion=False):
     """
     为给定的值创建一个详细的、可序列化的快照。
     - 如果值是模型实例，则根据注册表的配置生成快照字典。
@@ -147,7 +148,7 @@ def get_field_value_snapshot(value):
     if isinstance(value, Model):
         model_class = value.__class__
         if not registry.is_registered(model_class):
-            return str(value.pk) # 如果模型未注册，则回退到只存主键
+            return str(value.pk)  # 如果模型未注册，则回退到只存主键
 
         snapshot_fields = registry.get_snapshot_fields(model_class)
         snapshot = {}
@@ -156,6 +157,10 @@ def get_field_value_snapshot(value):
             if hasattr(value, field):
                 if resolver:
                     snapshot[field] = resolver(getattr(value, field))
+                elif isinstance(getattr(value, field), Model) and not end_recursion:
+                    snapshot[field] = get_field_value_snapshot(getattr(value, field), end_recursion=True)
+                elif isinstance(getattr(value, field), Model) and end_recursion:
+                    snapshot[field] = str(getattr(value, field))
                 else:
                     snapshot[field] = getattr(value, field)
 
