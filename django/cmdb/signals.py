@@ -4,7 +4,7 @@ import traceback
 import logging
 
 from django.dispatch import receiver, Signal
-from django.contrib.auth.models import AbstractBaseUser
+from django.contrib.auth.models import User
 from django.db.models.signals import post_save, post_delete, pre_save, pre_delete, post_migrate
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.core.cache import cache
@@ -15,6 +15,7 @@ from django.db.utils import OperationalError
 
 from node_mg.utils import sys_config
 from audit.context import audit_context
+from mapi.models import UserInfo
 from .config import BUILT_IN_MODELS, BUILT_IN_RELATION_DEFINITION, BUILT_IN_VALIDATION_RULES
 from .utils.zabbix import ZabbixAPI
 from .constants import ValidationType
@@ -97,11 +98,10 @@ def _create_model_and_fields(model_name, model_config, model_group=None):
             # 检查模型是否存在
             model = Models.objects.filter(name=model_name).first()
             if not model:
-                user = AbstractBaseUser()
-                user.username = 'system'
+                user = UserInfo(username='system', password='_')
                 model_serializer = ModelsSerializer(data=model_data)
                 if model_serializer.is_valid():
-                    ModelsService.create_model(model_serializer.validated_data, user=user)
+                    model = ModelsService.create_model(model_serializer.validated_data, user=user)
                     logger.info(f"Created new model: {model_name}")
                 else:
                     logger.error(f"Model validation failed: {model_serializer.errors}")
@@ -616,7 +616,7 @@ def update_descendant_paths(sender, instance, created, **kwargs):
     当一个 ModelInstanceGroup 的 path 发生变化时，
     异步或在独立事务中递归更新其所有后代分组的 path。
     """
-    ModelInstanceGroup.get_all_children_ids.cache_clear()
+    ModelInstanceGroup.objects.get_all_children_ids.cache_clear()
     if created:
         return
     if getattr(instance, '_skip_signal', False) or kwargs.get('_skip_path_update', False):
@@ -766,23 +766,6 @@ def on_validation_rule_save(sender, instance, **kwargs):
 def on_validation_rule_delete(sender, instance, **kwargs):
     if instance.type == ValidationType.ENUM:
         ValidationRules.clear_specific_enum_cache(instance.id)
-
-
-@receiver(pre_save, sender=Models)
-def cache_old_instance_name_template(sender, instance, **kwargs):
-    if not instance.pk:
-        return
-    try:
-        old_instance = sender.objects.get(pk=instance.pk)
-        instance._old_instance_name_template = old_instance.instance_name_template
-    except sender.DoesNotExist:
-        instance._old_instance_name_template = None
-
-
-@receiver(post_save, sender=Models)
-def handle_instance_name_template_change(sender, instance, created, **kwargs):
-    if created:
-        return
 
 
 # 信跨应用传递信号

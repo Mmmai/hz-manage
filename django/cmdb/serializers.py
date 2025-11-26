@@ -17,6 +17,7 @@ from drf_spectacular.types import OpenApiTypes
 from audit.snapshots import capture_audit_snapshots
 from permissions.manager import PermissionManager
 from .models import *
+from .services import *
 from .utils import password_handler
 from .validators import FieldValidator
 from .constants import FieldMapping, ValidationType, FieldType, limit_field_names
@@ -94,7 +95,7 @@ class ModelsSerializer(serializers.ModelSerializer):
         # 在实例本身没有分配到模型组且更新时未提供模型组时，分配到默认组
         if not self.instance.model_group and (not validated_data.get('model_group') or not ModelGroups.objects.filter(
                 id=validated_data['model_group'].id).exists()):
-            validated_data['model_group'] = ModelGroups.get_default_model_group()
+            validated_data['model_group'] = ModelGroups.objects.get_default_model_group()
         return super().update(instance, validated_data)
 
     def validate_instance_name_template(self, value):
@@ -493,7 +494,8 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         if not validated_data.get('model_field_group') or \
                 not ModelFieldGroups.objects.filter(id=validated_data['model_field_group'].id).exists():
-            validated_data['model_field_group'] = ModelFieldGroups.get_default_field_group(validated_data['model'])
+            validated_data['model_field_group'] = ModelFieldGroups.objects.get_default_field_group(
+                validated_data['model'])
 
         if 'order' not in validated_data or validated_data['order'] is None:
             model_field_group = validated_data.get('model_field_group')
@@ -511,8 +513,8 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
             })
         if request and request.method == 'PUT':
             if 'model_field_group' not in validated_data:
-                validated_data['model_field_group'] = ModelFieldGroups.get_default_field_group(
-                    instance.model
+                validated_data['model_field_group'] = ModelFieldGroups.objects.get_default_field_group(
+                    validated_data.get('model')
                 )
         else:
             if 'model_field_group' not in validated_data:
@@ -521,7 +523,7 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
         if not validated_data['model_field_group'] or not ModelFieldGroups.objects.filter(
             id=validated_data['model_field_group'].id
         ).exists():
-            validated_data['model_field_group'] = ModelFieldGroups.get_default_field_group(
+            validated_data['model_field_group'] = ModelFieldGroups.objects.get_default_field_group(
                 instance.model
             )
 
@@ -1090,7 +1092,7 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                     group_cache_to_clear.append(unassigned_group)
 
                 setattr(instance, '_initial_groups', group_info)
-                ModelInstanceGroup.clear_groups_cache(group_cache_to_clear)
+                # ModelInstanceGroup.clear_groups_cache(group_cache_to_clear)
 
                 return instance
 
@@ -1719,7 +1721,7 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
                         new_groups=new_groups_snapshot
                     )
                 logger.info(f'Moved instances from group {parent.label} to {instance.label}')
-                ModelInstanceGroup.clear_group_cache(parent)
+                # ModelInstanceGroup.clear_group_cache(parent)
         return instance
 
     def update(self, instance, validated_data):
@@ -1745,7 +1747,7 @@ class ModelInstanceGroupSerializer(serializers.ModelSerializer):
                     if level_diff != 0:
                         self._update_descendants_level(instance.id, level_diff)
 
-                    ModelInstanceGroup.clear_groups_cache(groups_to_update)
+                    # ModelInstanceGroup.clear_groups_cache(groups_to_update)
 
                     return instance
 
@@ -2011,7 +2013,7 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
                 groups_to_clear.update(
                     relation.group for relation in created_relations
                 )
-                ModelInstanceGroup.clear_groups_cache(groups_to_clear)
+                # ModelInstanceGroup.clear_groups_cache(groups_to_clear)
                 if hostgroups and hosts:
                     instance_group_relation_updated.send(
                         sender=ModelInstanceGroupRelation,

@@ -27,3 +27,7 @@ echo
 echo '***************************************** Restarting apps *****************************************'
 docker-compose -f ../docker-compose.yaml up -d
 echo
+
+echo '******************************************* Tailing logs *******************************************'
+sleep 1
+docker logs -f --tail 1000 manage-django

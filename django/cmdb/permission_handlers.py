@@ -87,7 +87,7 @@ def get_cmdb_indirect_query(scope, model, username):
 
         # 实例组
         instance_group_ids = scope['targets'].get('cmdb.modelinstancegroup')
-        children_ids = ModelInstanceGroup.get_all_children_ids(instance_group_ids)
+        children_ids = ModelInstanceGroup.objects.get_all_children_ids(instance_group_ids)
         if instance_group_ids:
             instance_ids = ModelInstanceGroupRelation.objects.filter(
                 group_id__in=set(instance_group_ids) | children_ids
@@ -134,7 +134,7 @@ def get_cmdb_indirect_query(scope, model, username):
             instance_query |= Q(model_instance_id__in=instance_ids)
 
         instance_group_ids = scope['targets'].get('cmdb.modelinstancegroup')
-        children_ids = ModelInstanceGroup.get_all_children_ids(instance_group_ids)
+        children_ids = ModelInstanceGroup.objects.get_all_children_ids(instance_group_ids)
         if instance_group_ids:
             related_instance_ids = ModelInstanceGroupRelation.objects.filter(
                 group_id__in=set(instance_group_ids) | children_ids
@@ -151,7 +151,7 @@ def get_cmdb_indirect_query(scope, model, username):
         if group_ids:
             query |= Q(id__in=group_ids)
 
-        children_ids = ModelInstanceGroup.get_all_children_ids(group_ids)
+        children_ids = ModelInstanceGroup.objects.get_all_children_ids(group_ids)
         if children_ids:
             query |= Q(id__in=children_ids)
         # 如果分配了实例权限，从实例推导实例组权限
@@ -170,7 +170,7 @@ def get_cmdb_indirect_query(scope, model, username):
         group_ids = scope['targets'].get('cmdb.modelinstancegroup')
         if group_ids:
             query |= Q(group_id__in=group_ids)
-            children_ids = ModelInstanceGroup.get_all_children_ids(group_ids)
+            children_ids = ModelInstanceGroup.objects.get_all_children_ids(group_ids)
             query |= Q(group_id__in=children_ids)
 
     if model_name == 'validationrules':
