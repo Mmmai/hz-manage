@@ -23,6 +23,7 @@
             v-model="filterObject.search"
             placeholder="请输入用户名"
             clearable
+            @keyup.enter="hanldeSearch"
           />
         </el-form-item>
 

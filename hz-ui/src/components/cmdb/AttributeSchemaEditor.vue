@@ -10,16 +10,32 @@
         <template #default="scope">
           <el-select v-model="scope.row.value.type" placeholder="类型">
             <el-option label="字符串" value="string"></el-option>
+            <el-option label="浮点数" value="float"></el-option>
+            <el-option label="整数" value="integer"></el-option>
+            <el-option label="枚举类" value="enum" v-if="relation"></el-option>
           </el-select>
         </template>
       </el-table-column>
 
-      <el-table-column label="显示名称" width="150">
+      <el-table-column label="显示名称" width="200">
         <template #default="scope">
           <el-input
+            v-if="scope.row.value.type !== 'enum'"
             v-model="scope.row.value.verbose_name"
             placeholder="显示名称"
           ></el-input>
+          <el-select
+            v-else
+            v-model="scope.row.value.verbose_name"
+            placeholder="选择枚举规则"
+          >
+            <el-option
+              v-for="(item, index) in props.validationRulesOptions"
+              :key="item.index"
+              :label="item.label"
+              :value="item.label"
+            ></el-option>
+          </el-select>
         </template>
       </el-table-column>
       <el-table-column
@@ -37,11 +53,29 @@
       <el-table-column
         prop="value.default"
         label="默认值"
-        width="120"
+        width="150"
         v-if="relation"
       >
         <template #default="scope">
-          <el-input v-model="scope.row.value.default" placeholder="单位" />
+          <el-input
+            v-model="scope.row.value.default"
+            placeholder="默认值"
+            v-if="scope.row.value.type !== 'enum'"
+          />
+          <el-select
+            v-else
+            v-model="scope.row.value.default"
+            placeholder="默认值"
+          >
+            <el-option
+              v-for="(item, index) in props.validationRulesEnumOptionsObject[
+                findLabelFromRules(scope.row.value.verbose_name)
+              ]"
+              :key="item.index"
+              :label="item.label"
+              :value="item.value"
+            ></el-option>
+          </el-select>
         </template>
       </el-table-column>
       <el-table-column label="必填" width="80">
@@ -85,7 +119,14 @@
         label="默认值"
         width="120"
         v-if="relation"
-      ></el-table-column>
+      >
+        <template #default="scope">
+          <span v-if="scope.row.value.type !== 'enum'">{{
+            scope.row.value.default
+          }}</span>
+          <span v-else>{{ formatDefaultValue(scope.row) }}</span>
+        </template>
+      </el-table-column>
       <el-table-column label="必填" width="80">
         <template #default="scope">
           <el-tag v-if="scope.row.value.required" type="success">是</el-tag>
@@ -115,16 +156,64 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  validationRulesOptions: {
+    type: Array,
+    default: () => [],
+  },
+  validationRulesEnumOptionsObject: {
+    type: Object,
+    default: () => {},
+  },
+  validationRulesObjectById: {
+    type: Object,
+    default: () => {},
+  },
 });
 
 const attributes = ref([]);
 
+const findLabelFromRules = (rules) => {
+  if (rules === undefined) return "";
+  return props.validationRulesOptions.filter((item) => item.label === rules)[0]
+    ?.value;
+};
+const formatDefaultValue = (row) => {
+  try {
+    const validationRule = row.value.validation_rule;
+    const ruleObj = props.validationRulesObjectById[validationRule];
+    // 检查规则对象和rule属性是否存在
+    if (!ruleObj || !ruleObj.rule) {
+      return undefined;
+    }
+
+    // 解析JSON并获取默认值
+    const parsedRule = JSON.parse(ruleObj.rule);
+    return parsedRule[row.value.default];
+  } catch (error) {
+    // 如果解析失败或其他错误，返回undefined
+    console.warn("Failed to parse validation rule:", error);
+    return undefined;
+  }
+};
 const convertSchemaToArray = () => {
-  if (schema.value === undefined) return;
-  attributes.value = Object.keys(schema.value).map((key) => ({
-    key,
-    value: { ...schema.value[key] },
-  }));
+  if (schema.value === undefined && !schema) return;
+  attributes.value = Object.keys(schema.value).map((key) => {
+    if (props.relation && schema.value[key].type == "enum") {
+      // 确保即使第一次也能正确获取 validation_rule
+      const validationRule = findLabelFromRules(schema.value[key].verbose_name);
+      return {
+        key,
+        value: {
+          ...schema.value[key],
+          validation_rule: validationRule,
+        },
+      };
+    } else
+      return {
+        key,
+        value: { ...schema.value[key] },
+      };
+  });
 };
 
 const convertArrayToSchema = () => {
@@ -179,26 +268,54 @@ watch(
   },
   { deep: true, immediate: true }
 );
+
+// 监听验证规则的变化，确保 enum 类型字段能及时更新
+watch(
+  () => props.validationRulesOptions,
+  (newVal, oldVal) => {
+    if (props.relation && newVal && newVal.length > 0) {
+      // 更新现有的 enum 属性的 validation_rule
+      attributes.value = attributes.value.map((attr) => {
+        if (attr.value.type === "enum") {
+          const validationRule = findLabelFromRules(attr.value.verbose_name);
+          return {
+            ...attr,
+            value: {
+              ...attr.value,
+              validation_rule: validationRule,
+            },
+          };
+        }
+        return attr;
+      });
+    }
+  },
+  { deep: true }
+);
+
 // 父组件点击提交时，才更新schema
 const updateSchema = () => {
+  // 在更新前再次确保所有 enum 类型都有正确的 validation_rule
+  if (props.relation) {
+    attributes.value = attributes.value.map((attr) => {
+      if (attr.value.type === "enum" && !attr.value.validation_rule) {
+        const validationRule = findLabelFromRules(attr.value.verbose_name);
+        return {
+          ...attr,
+          value: {
+            ...attr.value,
+            validation_rule: validationRule,
+          },
+        };
+      }
+      return attr;
+    });
+  }
+
   schema.value = convertArrayToSchema();
 };
+
 defineExpose({ updateSchema });
-// const debouncedUpdateSchema = useDebounceFn(() => {
-//   const newSchema = convertArrayToSchema();
-//   if (JSON.stringify(newSchema) !== JSON.stringify(schema.value)) {
-//     schema.value = newSchema;
-//   }
-// }, 900);
-// // 监听 attributes 变化
-// watch(
-//   attributes,
-//   (newAttributes, oldAttributes) => {
-//     debouncedUpdateSchema();
-//     console.log("222", newAttributes);
-//   },
-//   { deep: true }
-// );
 </script>
 
 <style scoped>

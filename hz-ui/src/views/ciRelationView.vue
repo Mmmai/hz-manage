@@ -1145,6 +1145,7 @@ const resetAddRelationForm = () => {
   })
     .then(() => {
       resetAddForm();
+      addRelationDialogVisible.value = false;
     })
     .catch(() => {
       ElMessage({

@@ -590,7 +590,7 @@ const getRules = async (params = null) => {
   });
   validationRules.value = res.data.results;
   totalCount.value = res.data.count;
-  modelConfigStore.updateValidationRules(res.data.results);
+  modelConfigStore.getValidationRules(true);
 };
 const getModelFieldType = async () => {
   let res = await proxy.$api.getCiModelFieldType();

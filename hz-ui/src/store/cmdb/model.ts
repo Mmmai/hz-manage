@@ -41,12 +41,23 @@ export const modelConfigStore = defineStore(
     }
     // 校验规则
     const validationRules = ref([])
+    const validationRulesOptions = computed(() => {
+      return validationRules.value.map((item) => {
+        return {
+          label: item.verbose_name,
+          name: item.name,
+          type: item.type,
+          value: item.id,
+        };
+      });
+    });
     const validationRulesObjectById = computed(() => {
       return validationRules.value.reduce((acc, cur) => {
         acc[cur.id] = cur;
         return acc;
       }, {});
     });
+
     const validationRulesEnumOptionsObject = computed(() => {
       return validationRules.value
         .filter(item => item.type === 'enum')
@@ -97,7 +108,7 @@ export const modelConfigStore = defineStore(
     // 提供给外部调用
     return {
       allModels, modelObjectByName, modelObjectById, modelOptions, getModel, updateAllModels, allModelCiDataObj, getAllModelTreeInstances,
-      validationRules, validationRulesObjectById, validationRulesEnumOptionsObject, getValidationRules, updateValidationRules
+      validationRules, validationRulesObjectById, validationRulesEnumOptionsObject, getValidationRules, updateValidationRules, validationRulesOptions
     }
   },
   // 插件外参

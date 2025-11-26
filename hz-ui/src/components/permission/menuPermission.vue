@@ -33,6 +33,7 @@ const treeData = ref([]);
 // 选中的权限keys
 const selectedKeys = ref([]);
 const allPermissionKeys = ref([]);
+// ... existing code ...
 const treeDataFinal = computed(() => {
   // 深拷贝treeData以避免修改原始数据
   const treeDataCopy = JSON.parse(JSON.stringify(treeData.value));
@@ -42,10 +43,15 @@ const treeDataFinal = computed(() => {
     console.log("没有权限数据或没有选中的对象", getPermissionObj.value);
     return treeDataCopy;
   }
+
   // 创建一个映射，方便快速查找权限信息
+  // 修改为存储数组，支持同一个button_id对应多个权限来源
   const permissionMap = new Map();
   allPermissionKeys.value.forEach((item) => {
-    permissionMap.set(item.button_id, item);
+    if (!permissionMap.has(item.button_id)) {
+      permissionMap.set(item.button_id, []);
+    }
+    permissionMap.get(item.button_id).push(item);
   });
 
   // 递归处理树节点
@@ -55,19 +61,38 @@ const treeDataFinal = computed(() => {
       const newNode = { ...node };
 
       // 检查该节点是否在权限列表中
-      const permissionInfo = permissionMap.get(newNode.id);
+      const permissionInfos = permissionMap.get(newNode.id);
 
-      // 如果找到了权限信息且source_type不等于getPermissionObj的值
-      if (
-        permissionInfo &&
-        permissionInfo.source_type !== getPermissionObj.value
-      ) {
-        // 设置节点为禁用状态
-        newNode.disabled = true;
-        // 添加提示信息
-        newNode.disabledTooltip = `权限来源于${getSourceTypeName(
-          permissionInfo.source_type
-        )}:${permissionInfo.source_name}，无法在此处修改`;
+      // 如果找到了权限信息
+      if (permissionInfos && permissionInfos.length > 0) {
+        // 过滤出非当前对象的权限来源
+        const otherSourcePermissions = permissionInfos.filter(
+          (info) => info.source_type !== getPermissionObj.value
+        );
+
+        // 如果存在其他来源的权限
+        if (otherSourcePermissions.length > 0) {
+          // 设置节点为禁用状态
+          newNode.disabled = true;
+
+          // 根据来源数量生成不同的提示信息
+          if (otherSourcePermissions.length === 1) {
+            // 单一来源
+            const permissionInfo = otherSourcePermissions[0];
+            newNode.disabledTooltip = `权限来源于${getSourceTypeName(
+              permissionInfo.source_type
+            )}:${permissionInfo.source_name}，无法在此处修改`;
+          } else {
+            // 多个来源
+            const sourceNames = otherSourcePermissions
+              .map(
+                (info) =>
+                  `${getSourceTypeName(info.source_type)}:${info.source_name}`
+              )
+              .join("、");
+            newNode.disabledTooltip = `权限同时被【${sourceNames}】授权，无法移除`;
+          }
+        }
       }
 
       // 递归处理子节点
@@ -81,6 +106,7 @@ const treeDataFinal = computed(() => {
 
   return processNodes(treeDataCopy);
 });
+// ... existing code ...
 
 // 辅助函数：获取权限来源类型的中文名称
 const getSourceTypeName = (sourceType) => {

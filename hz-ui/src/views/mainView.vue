@@ -11,7 +11,11 @@
         <!-- <tabNewCom /> -->
         <tabNewCom />
 
-        <el-main>
+        <el-main
+          ref="mainRef"
+          v-loading="isRefreshing"
+          element-loading-text="页面刷新中..."
+        >
           <!-- <el-scrollbar> -->
           <!-- <tabCom /> -->
 
@@ -28,7 +32,10 @@
           <router-view>
             <template #default="{ Component, route }">
               <keep-alive :include="keepAliveName">
-                <component :is="Component" :key="route.path" />
+                <component
+                  :is="Component"
+                  :key="`${route.path}-${refreshKey}`"
+                />
               </keep-alive>
             </template>
           </router-view>
@@ -46,13 +53,14 @@
   </div>
 </template>
 <script setup lang="ts">
+// ... existing code ...
 import headerCom from "../components/layout/headerCom.vue";
 import asideCom from "../components/layout/asideCom.vue";
 import tabNewCom from "../components/layout/tabNewCom.vue";
 import iframeView from "./fromOtherView.vue";
-import { onMounted } from "vue";
+import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { getCurrentInstance, ref, nextTick, provide } from "vue";
+import { getCurrentInstance, nextTick, provide } from "vue";
 const { proxy } = getCurrentInstance();
 // import router from '../router';
 // proxy.$api.test().then(res => {
@@ -82,13 +90,51 @@ const isRouterShow = ref(true);
 const refreshCurrentPage = (val: boolean) => (isRouterShow.value = val);
 provide("refresh", refreshCurrentPage);
 
+// 添加刷新状态
+const isRefreshing = ref(false);
+// 添加刷新key
+const refreshKey = ref(0);
+// 添加main区域引用
+const mainRef = ref();
+
+// 刷新方法
+const forceRefresh = () => {
+  refreshKey.value = Date.now();
+};
+
+// 提供刷新方法给子组件
+provide("forceRefresh", forceRefresh);
+
+// 监听刷新事件
+const handleRefreshStart = () => {
+  isRefreshing.value = true;
+};
+
+const handleRefreshFinish = () => {
+  isRefreshing.value = false;
+};
+
+// 监听强制刷新事件
+const handleForceRefresh = () => {
+  forceRefresh();
+};
+
 onMounted(async () => {
   await configStore.getAppVersion();
+  // 监听刷新事件
+  window.addEventListener("refresh-page", handleRefreshStart);
+  window.addEventListener("refresh-page-finished", handleRefreshFinish);
+  // 监听强制刷新事件
+  window.addEventListener("force-refresh", handleForceRefresh);
   // await store.dispatch("getSecret");
   // console.log("route", route);
   // console.log("router", router, router.getRoutes());
 });
+
+// 清理事件监听器
+// 如果需要在组件卸载时清理，可以使用 onUnmounted 钩子
 </script>
+// ... rest of the code ...
 <style scoped lang="scss">
 header {
   /* 元素呈现为块级弹性框 */

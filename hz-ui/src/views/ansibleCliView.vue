@@ -9,10 +9,20 @@
           placeholder="输入关键字过滤节点"
           clearable
           size="default"
-          prefix-icon="el-icon-search"
+          :prefix-icon="Search"
         />
+        <el-tooltip content="刷新资产树" placement="top">
+          <el-button
+            type="primary"
+            :icon="Refresh"
+            size="large"
+            link
+            @click="reloadTree()"
+          ></el-button>
+        </el-tooltip>
       </div>
-      <el-tree
+
+      <el-tree-v2
         ref="treeRef"
         :data="treeData"
         show-checkbox
@@ -20,8 +30,9 @@
         node-key="id"
         highlight-current
         :props="defaultProps"
-        :filter-node-method="filterNode"
+        :filter-method="filterNode"
         @check-change="handleCheckChange"
+        :height="900"
       >
         <template #default="{ node, data }">
           <el-tooltip
@@ -51,7 +62,7 @@
             <span>{{ node.label }}</span>
           </span>
         </template>
-      </el-tree>
+      </el-tree-v2>
     </div>
 
     <!-- 右侧命令和结果区域 -->
@@ -269,31 +280,36 @@ import {
 } from "vue";
 import { ElMessage } from "element-plus";
 import { AnsiUp } from "ansi_up";
-import type { FilterNodeMethodFunction, TreeInstance } from "element-plus";
-
+import type {
+  FilterNodeMethodFunction,
+  TreeV2Instance,
+  TreeNodeData,
+} from "element-plus";
 const { proxy } = getCurrentInstance();
-const treeRef = ref<TreeInstance>();
+const treeRef = ref<TreeV2Instance>();
 const resultContentRef = ref();
 
 import useModelStore from "@/store/cmdb/model";
+import { Refresh, Search } from "@element-plus/icons-vue";
 const modelConfigStore = useModelStore();
-const hostsModel = computed(() => modelConfigStore.modelObjectByName?.hosts);
-
+const hostsModelId = computed(
+  () => modelConfigStore.modelObjectByName?.hosts.id
+);
+const hostModelCiDataObj = computed(
+  () => modelConfigStore.allModelCiDataObj[hostsModelId.value]
+);
 defineOptions({ name: "ansibleCli" });
 const filterText = ref("");
 watch(filterText, (val) => {
   treeRef.value!.filter(val);
 });
 
-const filterNode: FilterNodeMethodFunction = (value: string, data: Tree) => {
-  if (!value) return true;
-  return data.label.includes(value);
-};
+const filterNode = (query: string, node: TreeNodeData) =>
+  node.label!.includes(query);
+
 const currentChange = (data, obj) => {
   console.log(data, obj);
 };
-// 树数据
-const treeData = ref([]);
 
 // 选中的主机
 const selectedHosts = ref([]);
@@ -927,7 +943,7 @@ const convertToTreeFormat1 = (treeData) => {
   // 处理根节点数组
   return treeData.map(convertNode);
 };
-const convertToTreeFormat = (treeData) => {
+const convertToTreeFormat = (data) => {
   /**
    * 递归转换节点
    * @param {Object} node - 原始节点
@@ -974,9 +990,13 @@ const convertToTreeFormat = (treeData) => {
   };
 
   // 处理根节点数组并过滤掉null节点
-  const result = treeData.map(convertNode).filter((node) => node !== null);
+  const result = data.map(convertNode).filter((node) => node !== null);
   return result;
 };
+
+// 树数据
+const treeData = ref([]);
+
 // 处理选中变化
 const handleCheckChange = (data, checked, indeterminate) => {
   // 获取所有选中的叶子节点
@@ -1194,10 +1214,16 @@ const getHostTreeData = async () => {
   });
   treeData.value = convertToTreeFormat(res.data);
 };
-
+const reloadTree = async () => {
+  // await modelConfigStore.getModel(true);
+  await modelConfigStore.getAllModelTreeInstances(true);
+};
 onMounted(async () => {
-  await getCiModel();
-  await getHostTreeData();
+  await modelConfigStore.getModel();
+  await modelConfigStore.getAllModelTreeInstances();
+  nextTick(() => {
+    treeData.value = convertToTreeFormat([hostModelCiDataObj.value]);
+  });
 });
 
 onUnmounted(() => {
@@ -1218,6 +1244,8 @@ onUnmounted(() => {
   box-sizing: border-box;
 }
 .tree-filter {
+  display: flex;
+  gap: 10px;
   margin-bottom: 10px;
 }
 .host-tree-panel {

@@ -121,6 +121,7 @@ import useModelStore from "@/store/cmdb/model";
 const modelConfigStore = useModelStore();
 const modelOptions = computed(() => modelConfigStore.modelOptions);
 const modelObjectById = computed(() => modelConfigStore.modelObjectById);
+
 const { proxy } = getCurrentInstance();
 
 const router = useRouter();

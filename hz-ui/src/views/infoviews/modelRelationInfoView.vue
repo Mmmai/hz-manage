@@ -165,11 +165,13 @@
         </el-tab-pane>
         <el-tab-pane label="关系属性">
           <AttributeSchemaEditor
-            :schema="relationData.attribute_schema.relation"
             ref="relationSchemaRef"
             v-model:schema="relationData.attribute_schema.relation"
             :editable="editMode"
             :relation="true"
+            :validationRulesOptions="validationRulesOptions"
+            :validationRulesEnumOptionsObject="validationRulesEnumOptionsObject"
+            :validationRulesObjectById="validationRulesObjectById"
           >
           </AttributeSchemaEditor>
         </el-tab-pane>
@@ -197,6 +199,15 @@ const { proxy } = getCurrentInstance();
 const route = useRoute();
 const router = useRouter();
 const modelOptions = computed(() => modelConfigStore.modelOptions);
+const validationRulesOptions = computed(() =>
+  modelConfigStore.validationRulesOptions.filter((item) => item.type === "enum")
+);
+const validationRulesEnumOptionsObject = computed(
+  () => modelConfigStore.validationRulesEnumOptionsObject
+);
+const validationRulesObjectById = computed(
+  () => modelConfigStore.validationRulesObjectById
+);
 const goBack = () => {
   router.push({ path: "/cmdb/cimodelManage/modelRelation" });
 };
@@ -238,6 +249,7 @@ const saveRelationType = () => {
 const cancelEdit = () => {
   editMode.value = false;
   Object.assign(relationData, originalData.value);
+  goBack();
 };
 
 // watch(

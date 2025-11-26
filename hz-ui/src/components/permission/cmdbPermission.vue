@@ -179,6 +179,7 @@ import type {
 } from "element-plus";
 import { InfoFilled, RefreshLeft, Search } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
+import { fi } from "element-plus/es/locale/index.mjs";
 const nowNodeObject = defineModel("nowNodeObject");
 const getPermissionObj = defineModel("permissionObject");
 const fieldQuery = ref("");
@@ -573,7 +574,9 @@ const getDataScope = async () => {
     // 设置已配置的权限
     nextTick(() => {
       fieldTreeRef.value!.setCheckedKeys(filedCheckedKeys.value);
+      fieldTreeRef.value!.setExpandedKeys(filedCheckedKeys.value);
       instanceTreeRef.value!.setCheckedKeys(instanceCheckedKeys.value);
+      instanceTreeRef.value!.setExpandedKeys(instanceCheckedKeys.value);
 
       // 初始化初始状态
       initialFieldCheckedKeys.value = [...filedCheckedKeys.value];

@@ -220,18 +220,39 @@ const closeAllTab = () => {
 // 刷新
 // 刷新当前页
 const refreshCurrentPage: Function = inject("refresh") as Function;
+// ... existing code ...
 const refresh = () => {
-  setTimeout(() => {
-    route.meta.isKeepAlive &&
-      keepAliveStore.removeKeepAliveName(route.fullPath as string);
-    refreshCurrentPage(false);
-    nextTick(() => {
-      route.meta.isKeepAlive &&
+  // 触发全局刷新事件，让mainView显示加载效果
+  window.dispatchEvent(new CustomEvent("refresh-page"));
+
+  // 先移除keep-alive缓存
+  if (route.meta.isKeepAlive) {
+    keepAliveStore.removeKeepAliveName(route.fullPath as string);
+  }
+
+  // 隐藏组件
+  refreshCurrentPage(false);
+
+  // 使用nextTick确保DOM更新完成后，再显示组件
+  nextTick(() => {
+    // 稍微延迟一下再恢复组件显示，确保完全重新渲染
+    setTimeout(() => {
+      // 触发强制刷新事件，让mainView更新refreshKey
+      window.dispatchEvent(new CustomEvent("force-refresh"));
+
+      if (route.meta.isKeepAlive) {
         keepAliveStore.addKeepAliveName(route.fullPath as string);
+      }
       refreshCurrentPage(true);
-    });
-  }, 0);
+
+      // 刷新完成后，隐藏加载效果
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("refresh-page-finished"));
+      }, 100);
+    }, 50);
+  });
 };
+// ... existing code ...
 </script>
 
 <style scoped lang="scss">
