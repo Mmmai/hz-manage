@@ -1,0 +1,189 @@
+import json
+from abc import ABC, abstractmethod
+from .constants import FieldType
+from .utils import password_handler
+
+
+class FieldMetaConverter(ABC):
+    """字段转换器基类"""
+    @abstractmethod
+    def to_internal(self, value, **kwargs):
+        """转换为内部存储格式"""
+        if value is None:
+            return None
+        return str(value)
+
+    @abstractmethod
+    def to_representation(self, value, **kwargs):
+        """转换为外部表示格式"""
+        return value
+
+
+class PasswordConverter(FieldMetaConverter):
+    """密码字段转换器"""
+
+    def to_internal(self, value, **kwargs):
+        if value is None or value == "":
+            return ""
+        plain = kwargs.get("plain", False)
+        if plain:
+            _value = password_handler.encrypt_to_sm4(value)
+            return password_handler.encrypt(_value)
+        return password_handler.encrypt(value)
+
+    def to_representation(self, value, **kwargs):
+        if value is None or value == "":
+            return ""
+        plain = kwargs.get("plain", False)
+        masked = kwargs.get("masked", False)
+        if plain:
+            return password_handler.decrypt_to_plain(value) if not masked else "******"
+        return password_handler.decrypt(value) if not masked else password_handler.encrypt_to_sm4("******")
+
+
+class EnumConverter(FieldMetaConverter):
+    """枚举字段转换器"""
+
+    def to_internal(self, value, **kwargs):
+        if value is None:
+            return None
+        enum_dict = kwargs.get("enum_dict", {})
+
+        from_excel = kwargs.get("from_excel", False)
+        if from_excel:
+            # Excel 导入时，将label映射为value
+            reversed_enum_dict = {v: k for k, v in enum_dict.items()}
+            if str(value) in reversed_enum_dict.keys():
+                return reversed_enum_dict[str(value)]
+            raise ValueError(f"Invalid enum label: {value}")
+
+        # 非Excel导入时，直接验证value
+        if value in enum_dict.keys():
+            return value
+        raise ValueError(f"Invalid enum value: {value}")
+
+    def to_representation(self, value, **kwargs):
+        enum_dict = kwargs.get("enum_dict", {})
+        return json.dumps({
+            "value": value,
+            "label": enum_dict.get(value, "")
+        }, ensure_ascii=False)
+
+
+class ModelRefConverter(FieldMetaConverter):
+    """模型引用字段转换器"""
+
+    def to_internal(self, value, **kwargs):
+        if value is None:
+            return None
+
+        instance_map = kwargs.get("instance_map", {})
+
+        # Excel 导入时，将instance_name映射为实例ID
+        from_excel = kwargs.get("from_excel", False)
+        if from_excel:
+            reversed_instance_map = {v: k for k, v in instance_map.items()}
+            if str(value) in reversed_instance_map.keys():
+                return reversed_instance_map[str(value)]
+            raise ValueError(f"Invalid reference instance name: {value}")
+
+        # 非Excel导入时，直接验证实例ID
+        if str(value) in instance_map.keys():
+            return value
+        raise ValueError(f"Invalid reference instance id: {value}")
+
+    def to_representation(self, value, **kwargs):
+        instance_map = kwargs.get("instance_map", {})
+        return json.dumps({
+            "id": value,
+            "instance_name": instance_map.get(str(value), "")
+        }, ensure_ascii=False)
+
+
+class BooleanConverter(FieldMetaConverter):
+    """布尔字段转换器"""
+
+    def to_internal(self, value, **kwargs):
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            val_lower = value.lower()
+            if val_lower in ['true', '1', 'yes']:
+                return True
+            elif val_lower in ['false', '0', 'no']:
+                return False
+        if isinstance(value, int):
+            return bool(value)
+        raise ValueError(f"Invalid boolean value: {value}")
+
+    def to_representation(self, value, **kwargs):
+        if value is None:
+            return None
+        return bool(value)
+
+
+class IntegerConverter(FieldMetaConverter):
+    """整数字段转换器"""
+
+    def to_internal(self, value, **kwargs):
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid integer value: {value}")
+
+    def to_representation(self, value, **kwargs):
+        if value is None:
+            return None
+        return int(value)
+
+
+class FloatConverter(FieldMetaConverter):
+    """浮点字段转换器"""
+
+    def to_internal(self, value, **kwargs):
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid float value: {value}")
+
+    def to_representation(self, value, **kwargs):
+        if value is None:
+            return None
+        return float(value)
+
+
+class StringConverter(FieldMetaConverter):
+    """字符串字段转换器"""
+
+    def to_internal(self, value, **kwargs):
+        return super().to_internal(value, **kwargs)
+
+    def to_representation(self, value, **kwargs):
+        return super().to_representation(value, **kwargs)
+
+
+class ConverterFactory:
+    """转换器工厂类"""
+
+    @staticmethod
+    def get_converter(field_type):
+        if field_type == FieldType.PASSWORD:
+            return PasswordConverter()
+        elif field_type == FieldType.ENUM:
+            return EnumConverter()
+        elif field_type == FieldType.MODEL_REF:
+            return ModelRefConverter()
+        elif field_type == FieldType.BOOLEAN:
+            return BooleanConverter()
+        elif field_type == FieldType.INTEGER:
+            return IntegerConverter()
+        elif field_type == FieldType.FLOAT:
+            return FloatConverter()
+        else:
+            return StringConverter()

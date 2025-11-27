@@ -238,7 +238,11 @@ class ModelsViewSet(CmdbBaseViewSet):
         field_groups_qs = pm.get_queryset(ModelFieldGroups).filter(model=instance).order_by('create_time')
         fields_qs = pm.get_queryset(ModelFields).filter(model=instance).order_by('order')
 
-        data = ModelsService.get_model_details(instance, field_groups_qs, fields_qs)
+        model_data = self.get_serializer(instance).data
+        field_groups_data = ModelFieldGroupsSerializer(field_groups_qs, many=True).data
+        fields_data = ModelFieldsSerializer(fields_qs, many=True).data
+
+        data = ModelsService.get_model_details(model_data, field_groups_data, fields_data)
         return Response(data, status=status.HTTP_200_OK)
 
     def list(self, request, *args, **kwargs):
@@ -257,7 +261,11 @@ class ModelsViewSet(CmdbBaseViewSet):
         fields_qs = pm.get_queryset(ModelFields).filter(model_id__in=model_ids).order_by('order')
         instances_qs = pm.get_queryset(ModelInstance).filter(model_id__in=model_ids)
 
-        enriched_data = ModelsService.enrich_models_list(models_list, field_groups_qs, fields_qs, instances_qs)
+        models_data = ModelsSerializer(models_list, many=True).data
+        field_groups_data = ModelFieldGroupsSerializer(field_groups_qs, many=True).data
+        fields_data = ModelFieldsSerializer(fields_qs, many=True).data
+
+        enriched_data = ModelsService.enrich_models_list(models_data, field_groups_data, fields_data, instances_qs)
 
         return self.get_paginated_response(enriched_data) if page is not None else Response(enriched_data)
 
@@ -425,40 +433,19 @@ class ModelFieldPreferenceViewSet(CmdbBaseViewSet):
     ordering_fields = ['model', 'create_time', 'update_time']
 
     def get_queryset(self):
-        # TODO: 字段展示列表暂不启用权限控制, 后续改造为根据不同用户展示不同的
-        return super().get_base_queryset()
+        return super().get_queryset()
 
     def list(self, request, *args, **kwargs):
-        user = request.query_params.get('user', 'system')
+        username = self.get_current_user()
         model = request.query_params.get('model')
-        if user and model:
+        if username and model:
             model = Models.objects.get(id=model)
-            preference = ModelFieldPreference.objects.filter(model=model, create_user=user).first()
+            preference = ModelFieldPreference.objects.filter(model=model, create_user=username).first()
             if not preference:
-                fields = list(
-                    ModelFields.objects.filter(
-                        model=model
-                    ).order_by('order').values_list('id', flat=True)
-                )
-                serializer = ModelFieldPreferenceSerializer(
-                    data={
-                        'model': model.id,
-                        'fields_preferred': fields,
-                        'create_user': user,
-                        'update_user': user
-                    }
-                )
-                serializer.is_valid(raise_exception=True)
-                serializer.save()
-                # fields_str_list = [str(field_id) for field_id in system_preference.fields_preferred]
-                # system_preference.fields_preferred = fields_str_list
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            else:
-                # fields_str_list = [str(field_id) for field_id in preference.fields_preferred]
-                # preference.fields_preferred = fields_str_list
-                return Response(ModelFieldPreferenceSerializer(preference).data, status=status.HTTP_200_OK)
+                preference = ModelFieldPreferenceService.create_default_user_preference(model, self.request.user)
+            return Response(ModelFieldPreferenceSerializer(preference).data, status=status.HTTP_200_OK)
         else:
-            return super().list(request, *args, **kwargs)
+            return Response([], status=status.HTTP_200_OK)
 
 
 @unique_constraint_schema
@@ -511,45 +498,11 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
     search_fields = ['model', 'instance_name', 'create_user', 'update_user']
 
     def _get_serializer_context_for_instances(self, instances):
-        context = self.get_serializer_context()
-        instance_ids = [instance.id for instance in instances]
+        base_context = self.get_serializer_context()
+        read_context = ModelInstanceService.get_read_context(instances, self.request.user)
+        base_context.update(read_context)
 
-        pm = PermissionManager(user=self.request.username)
-
-        # 获取字段元数据
-        field_meta_map = {}
-        meta_qs = pm.get_queryset(ModelFieldMeta).filter(
-            model_instance_id__in=instance_ids
-        ).select_related('model_fields', 'model_fields__validation_rule')
-        for meta in meta_qs:
-            field_meta_map.setdefault(str(meta.model_instance_id), []).append(meta)
-        context['field_meta'] = field_meta_map
-
-        # 获取分组信息
-        instance_group_map = {}
-        group_relations = pm.get_queryset(ModelInstanceGroupRelation).filter(
-            instance_id__in=instance_ids
-        ).select_related('group').values('instance_id', 'group_id', 'group__path')
-        for rel in group_relations:
-            instance_group_map.setdefault(str(rel['instance_id']), []).append({
-                'group_id': str(rel['group_id']),
-                'group_path': rel['group__path']
-            })
-        context['instance_group'] = instance_group_map
-
-        # 获取引用实例的名称
-        ref_model_ids = set(
-            meta_qs.filter(
-                model_fields__type=FieldType.MODEL_REF
-            ).values_list('data', flat=True)
-        )
-        ref_instances_map = {}
-        if ref_model_ids:
-            ref_instances = ModelInstance.objects.get_instance_names_by_models(list(ref_model_ids))
-            ref_instances_map = {str(inst['id']): inst['instance_name'] for inst in ref_instances}
-        context['ref_instances'] = ref_instances_map
-
-        return context
+        return base_context
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -662,12 +615,72 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
 
         return self._apply_filters(queryset, model_id, query_params)
 
+    def create(self, request, *args, **kwargs):
+        request.data['input_mode'] = 'manual'
+
+        model_id = request.data.get('model')
+        if not model_id:
+            raise ValidationError({'detail': 'Model ID is required'})
+        pm = PermissionManager(user=self.request.user)
+        model = pm.get_queryset(Models).get(id=model_id)
+        if not model:
+            raise ValidationError({'detail': f'Model {model_id} not found for user {self.request.user.username}'})
+
+        context = self.get_serializer_context()
+        write_context = ModelInstanceService.get_write_context(
+            model,
+            request.data.get('fields', {}),
+            self.request.user
+        )
+        context.update(write_context)
+
+        serializer = self.get_serializer(data=request.data, context=context)
+        serializer.is_valid(raise_exception=True)
+
+        # 获取分组
+        instance_group_ids = request.data.get('instance_group', [])
+        if isinstance(instance_group_ids, str):
+            instance_group_ids = [instance_group_ids]
+
+        # 创建实例
+        instance = ModelInstanceService.create_instance(
+            validated_data=serializer.validated_data,
+            user=self.request.user,
+            instance_group_ids=instance_group_ids
+        )
+
+        # 重新获取完整数据用于返回
+        context = self._get_serializer_context_for_instances([instance])
+        return Response(
+            self.get_serializer(instance, context=context).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+
+        # 调用 Service 更新实例
+        updated_instance = ModelInstanceService.update_instance(
+            instance=instance,
+            validated_data=serializer.validated_data,
+            user=self.request.user
+        )
+
+        if getattr(instance, '_prefetched_objects_cache', None):
+            instance._prefetched_objects_cache = {}
+
+        context = self._get_serializer_context_for_instances([updated_instance])
+        return Response(self.get_serializer(updated_instance, context=context).data)
+
     @action(detail=False, methods=['patch'])
     def bulk_update_fields(self, request):
         instance_ids = request.data.get('instances', [])
         model_id = request.data.get('model')
         fields_data = request.data.get('fields', {})
-        update_user = self.get_current_user()
         filter_by_params = request.data.get('all', False)
         params = request.data.get('params', {})
         group_id = request.data.get('group')
@@ -682,23 +695,44 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
         elif instance_ids:
             instances = self.get_queryset().filter(id__in=instance_ids)
         else:
-            # 给定的查询参数不足
             raise ValidationError("Insufficient query parameters provided.")
 
         if not instances.exists():
             raise ValidationError("No instances found with the provided criteria.")
 
-        model_count = instances.values('model').distinct().count()
-        if model_count > 1:
+        # 批量更新必须针对同一模型
+        first_instance = instances.first()
+        target_model_id = first_instance.model_id
+
+        # 如果前端没传 model_id，使用实例的 model_id
+        if not model_id:
+            model_id = str(target_model_id)
+
+        if instances.filter(model_id=target_model_id).count() != instances.count():
             raise ValidationError("Instances belong to multiple models; bulk update requires a single model.")
 
+        # 调用 Serializer 进行数据校验
+        validation_data = {
+            'model': model_id,
+            'fields': fields_data
+        }
+
+        serializer = self.get_serializer(data=validation_data, partial=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+            validated_fields = serializer.validated_data.get('fields', {})
+        except ValidationError as e:
+            logger.error(f"Bulk update validation failed: {e}")
+            raise e
+
+        # 记录审计信息并执行批量更新
         correlation_id = str(uuid.uuid4())
         with audit_context(correlation_id=correlation_id):
-            updated_count = self.get_serializer_class().bulk_update_instances(
+            updated_count = ModelInstanceService.bulk_update_instances(
                 instances_qs=instances,
-                fields_data=fields_data,
-                using_template=using_template,
-                context=self.get_serializer_context()
+                validated_fields=validated_fields,
+                user=self.request.user,
+                using_template=using_template
             )
 
         return Response({
@@ -825,8 +859,8 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             serialized_instances_data = self.get_serializer(instances, many=True, context=context).data
 
             # 获取模型及其字段
-            model = Models.objects.get(id=model_id)
-            fields_query = ModelFields.objects.filter(model=model)
+            model = pm.get_queryset(Models).get(id=model_id)
+            fields_query = pm.get_queryset(ModelFields).filter(model=model)
 
             # 字段过滤
             if restricted_fields:
@@ -1134,8 +1168,38 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
 
             # 获取所有模型的分组树
             if not model_id:
-                tree_data = ModelInstanceGroupService.build_model_groups_tree(self.request.user)
-                return Response(tree_data)
+                tree_structure, context = ModelInstanceGroupService.build_model_groups_tree(self.request.user)
+                response_data = []
+                for group_item in tree_structure:
+                    model_group = group_item['model_group']
+                    models_list = []
+
+                    for model_item in group_item['models']:
+                        model = model_item['model']
+                        groups = model_item['groups']
+
+                        # 调用序列化器
+                        groups_data = ModelInstanceGroupSerializer(
+                            groups,
+                            many=True,
+                            context=context
+                        ).data
+
+                        models_list.append({
+                            'model_id': str(model.id),
+                            'model_name': model.name,
+                            'model_verbose_name': model.verbose_name,
+                            'groups': groups_data
+                        })
+
+                    response_data.append({
+                        'model_group_id': str(model_group.id),
+                        'model_group_name': model_group.name,
+                        'model_group_verbose_name': model_group.verbose_name,
+                        'models': models_list
+                    })
+
+                return Response(response_data)
 
             # 获取特定模型的分组树
             root_node, context = ModelInstanceGroupService.get_single_model_group_tree(model_id, self.request.user)
@@ -1193,7 +1257,11 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
     @action(detail=False, methods=['get'])
     def tree(self, request):
         model_id = request.query_params.get('model')
-        data = ModelInstanceGroupService.get_tree(request.user, model_id)
+        model = Models.objects.filter(id=model_id).first()
+        if not model:
+            return Response({'detail': f'Model {model_id} not found'}, status=status.HTTP_404_NOT_FOUND)
+        root_nodes, context = ModelInstanceGroupService.get_tree(model, request.user)
+        data = ModelInstanceGroupTreeSerializer(root_nodes, many=True, context=context).data
         return Response(data, status=status.HTTP_200_OK)
 
 
@@ -1606,6 +1674,9 @@ class PasswordManageViewSet(CmdbBaseViewSet):
     @action(detail=False, methods=['post'])
     def re_encrypt(self, request):
         """重新加密密码"""
+        username = self.get_current_user()
+        if username != 'admin':
+            raise PermissionDenied("Only admin can perform password re-encryption.")
         try:
             password_meta = ModelFieldMeta.objects.filter(model_fields__type='password').values('id', 'data')
             if not password_meta:
@@ -1637,6 +1708,9 @@ class PasswordManageViewSet(CmdbBaseViewSet):
     @action(detail=False, methods=['post'])
     def reset_passwords(self, request):
         """将所有密码置空"""
+        username = self.get_current_user()
+        if username != 'admin':
+            raise PermissionDenied("Only admin can perform password reset.")
         try:
             password_meta = ModelFieldMeta.objects.filter(model_fields__type='password').values('id')
             if not password_meta:
@@ -1656,6 +1730,9 @@ class SystemCacheViewSet(CmdbBaseViewSet):
     @action(detail=False, methods=['post'])
     def clear_cache(self, request):
         """清理系统缓存"""
+        username = self.get_current_user()
+        if username != 'admin':
+            raise PermissionDenied("Only admin can perform cache clearing.")
         try:
             conn = get_redis_connection("default")
             key_prefix = settings.CACHES['default'].get('KEY_PREFIX', '')
@@ -1684,227 +1761,3 @@ class SystemCacheViewSet(CmdbBaseViewSet):
                 'status': 'failed',
                 'message': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-class ZabbixSyncHostViewSet(CmdbBaseViewSet):
-    # queryset = ZabbixSyncHost.objects.all().order_by('create_time')
-    serializer_class = ZabbixSyncHostSerializer
-    pagination_class = StandardResultsSetPagination
-    filterset_class = ZabbixSyncHostFilter
-    ordering_fields = ['host_id', 'ip', 'name', 'agent_installed', 'interface_available', 'create_time', 'update_time']
-
-    @action(detail=False, methods=['post'])
-    def update_zabbix_availability(self, request):
-        """手动触发 Zabbix 接口可用性更新"""
-        try:
-            result = update_zabbix_interface_availability.delay()
-
-            return Response({
-                'status': 'success',
-                'task_id': result.id
-            }, status=status.HTTP_200_OK)
-        except Exception as e:
-            logger.error(f"Error triggering Zabbix interface availability update: {str(e)}")
-            return Response(
-                {'status': 'fail', 'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    @action(detail=False, methods=['post'])
-    def sync_zabbix_host(self, request):
-        try:
-            # 触发异步任务
-            task = sync_zabbix_host_task.delay()
-
-            return Response({
-                'status': 'success',
-                'task_id': task.id
-            }, status=status.HTTP_202_ACCEPTED)
-
-        except Exception as e:
-            logger.error(f"Failed to trigger sync task: {str(e)}")
-            return Response({
-                'status': 'error',
-                'message': f'Failed to trigger sync task: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    @action(detail=False, methods=['post'])
-    def install_agents(self, request):
-        try:
-            ids = request.data.get('ids', [])
-            all_failed = request.data.get('all', False)
-
-            force_flag = False
-
-            if not ids and not all_failed:
-                return Response({
-                    'status': 'failed',
-                    'message': 'No IDs provided and all failed flag is not set.'
-                })
-
-            if all_failed:
-                hosts = ZabbixSyncHost.objects.filter(agent_installed=False)
-            else:
-                force_flag = True
-                hosts = ZabbixSyncHost.objects.filter(id__in=ids)
-
-            if not hosts.exists():
-                return Response({
-                    'status': 'failed',
-                    'message': 'No hosts found matching the criteria.'
-                }, status=status.HTTP_200_OK)
-
-            # hosts.update(agent_installed=False, installation_error=None)
-
-            cache_key = f'install_status_{str(uuid.uuid4())}'
-            task_info = {
-                'host_task_map': {},
-                'total': hosts.count()
-            }
-
-            for host in hosts:
-                # 获取主机的密码
-                try:
-                    # 从实例中获取密码字段
-                    host_instance = host.instance
-                    password_meta = ModelFieldMeta.objects.filter(
-                        model_instance=host_instance,
-                        model_fields__name='system_password'
-                    ).first()
-
-                    if not password_meta or not password_meta.data:
-                        logger.warning(f"No password found for host {host.ip}")
-                        continue
-
-                    # 获取解密后的密码
-                    password = password_handler.decrypt_to_plain(password_meta.data)
-
-                    # 触发安装任务
-                    task = setup_host_monitoring.delay(
-                        str(host.instance.id),
-                        host.name,
-                        host.ip,
-                        password,
-                        force=force_flag)
-                    logger.info(f"Triggered Zabbix agent installation for host {host.ip}")
-
-                    task_info['host_task_map'][str(host.id)] = task.id
-
-                except Exception as e:
-                    logger.error(f"Failed to trigger Zabbix agent installation for host {host.ip}: {str(e)}")
-                    continue
-
-            cache.set(cache_key, task_info, timeout=1200)
-            return Response(
-                {'status': 'success', 'cache_key': cache_key},
-                status=status.HTTP_200_OK
-            )
-
-        except Exception as e:
-            logger.error(f"Error triggering Zabbix agent installation: {str(e)}")
-            return Response(
-                {'status': 'failed', 'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    @action(detail=False, methods=['get'])
-    def installation_status_sse(self, request):
-        """使用 SSE 实时获取 Zabbix 安装状态"""
-        try:
-            cache_key = request.query_params.get('cache_key')
-            if not cache_key:
-                raise ValidationError({'detail': 'Missing cache key'})
-            task_info = cache.get(cache_key)
-            logger.info(f'{task_info}')
-            if not task_info:
-                raise ValidationError({'detail': 'Cache key not found'})
-
-            result = {
-                'status': 'pending',
-                'total': task_info['total'],
-                'success': 0,
-                'failed': 0,
-                'progress': 0
-            }
-
-            def event_stream():
-                result['status'] = 'processing'
-                last_progress = 0
-                completed_hosts = set()
-
-                for _ in range(600):
-                    for zsh_id, task_id in task_info['host_task_map'].items():
-                        if zsh_id in completed_hosts:
-                            continue
-
-                        check_result = self.check_chain_task(task_id)
-                        if check_result is None:
-                            continue
-                        elif check_result == 1:
-                            result['success'] += 1
-                            completed_hosts.add(zsh_id)
-                        elif check_result == -1:
-                            result['failed'] += 1
-                            completed_hosts.add(zsh_id)
-
-                    result['progress'] = (result['success'] + result['failed']) * 100 // result['total']
-
-                    if result['progress'] == 100:
-                        result['status'] = 'completed'
-                        yield f"data: {result}\n\n"
-                        break
-
-                    if result['progress'] != last_progress:
-                        last_progress = result['progress']
-                        yield f"data: {result}\n\n"
-
-                    # 暂停 2 秒后继续检查
-                    time.sleep(2)
-
-            # 返回 SSE 响应
-            response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
-            response['Cache-Control'] = 'no-cache'
-            response['X-Accel-Buffering'] = 'no'
-            return response
-
-        except Exception as e:
-            logger.error(f"Error in installation status SSE: {str(e)}")
-            return Response({
-                'error': f'Error in installation status SSE: {str(e)}'
-            }, status=500)
-
-    @staticmethod
-    def check_chain_task(task_id):
-        """检查链式任务的状态"""
-        task = AsyncResult(task_id)
-        if not task.ready():
-            return None
-        if task.successful():
-            if task.result:
-                chain_task_id = task.result.get('chain_task_id')
-                chain_task = AsyncResult(chain_task_id)
-                if not chain_task.ready():
-                    return None
-                if chain_task.successful():
-                    return 1
-                else:
-                    return -1
-            else:
-                logger.info(f"Task {task_id} has no result")
-                return -1
-        else:
-            return -1
-
-
-class ZabbixProxyViewSet(CmdbBaseViewSet):
-    # queryset = ZabbixProxy.objects.all().order_by('create_time')
-    serializer_class = ZabbixProxySerializer
-    filterset_class = ZabbixProxyFilter
-    ordering_fields = ['proxy_id', 'name', 'ip', 'create_time', 'update_time']
-
-
-class ProxyAssignRuleViewSet(CmdbBaseViewSet):
-    # queryset = ProxyAssignRule.objects.all().order_by('create_time')
-    serializer_class = ProxyAssignRuleSerializer
-    filterset_class = ProxyAssignRuleFilter
-    ordering_fields = ['rule', 'type', 'proxy', 'create_time', 'update_time']
