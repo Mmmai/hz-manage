@@ -142,6 +142,7 @@ DATABASES = {
 #     'cmdb': 'default',
 #     'node_mg': 'default'
 # }
+CACHEOPS_SERIALIZER = "dill"
 
 CACHEOPS_REDIS = {
     'host': REDIS_HOST,

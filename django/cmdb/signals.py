@@ -21,7 +21,7 @@ from .utils.zabbix import ZabbixAPI
 from .constants import ValidationType
 from .message import instance_group_relation_updated
 from .models import *
-from .services import ModelsService
+from .services import ModelsService, ModelFieldPreferenceService
 logger = logging.getLogger(__name__)
 
 
@@ -158,28 +158,11 @@ def _create_model_and_fields(model_name, model_config, model_group=None):
                         logger.error(f"Field validation failed: {field_serializer.errors}")
                         raise ValueError(f"Invalid field data for {field_name}")
 
-            # 创建字段偏好设置
+            # 创建默认字段偏好设置
             if not ModelFieldPreference.objects.filter(model=model).exists():
-                preferred_fields = list(
-                    ModelFields.objects.filter(
-                        model=model
-                    ).order_by('order').values_list('id', flat=True)[:8]
-                )
-
-                preference_data = {
-                    'model': model.id,
-                    'fields_preferred': [str(f) for f in preferred_fields],
-                    'create_user': 'system',
-                    'update_user': 'system'
-                }
-
-                preference_serializer = ModelFieldPreferenceSerializer(data=preference_data)
-                if preference_serializer.is_valid(raise_exception=True):
-                    preference_serializer.save()
-                    logger.info(f"Created field preference for model {model_name}")
-                else:
-                    logger.error(f"Preference validation failed: {preference_serializer.errors}")
-
+                user = UserInfo(username='admin', password='_')
+                ModelFieldPreferenceService.create_default_field_preference(model, user)
+                logger.info(f'Created default field preference for model {model_name} for admin user')
             # 为每个内置模型添加一个默认的唯一性校验规则：使用ip字段校验
             # 只给hosts 和 network设备添加
             # if model_name in ['hosts', 'switches', 'firewalls', 'dwdm', 'virtual_machines']:

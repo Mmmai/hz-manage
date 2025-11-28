@@ -95,13 +95,3 @@ class DataScopeViewSet(ModelViewSet):
         targets_map = self._get_targets_detail_map([instance])
         formatted_data = self._format_response_data(response_serializer.data, targets_map)
         return Response(formatted_data)
-
-    # @action(detail=False, methods=['get'])
-    # def get_permissions(self, request):
-    #     """
-    #     获取当前用户对数据范围的权限列表
-    #     """
-    #     user = request.user
-    #     permissions = DataScope.get_user_permissions(user)
-
-    #     return Response({"permissions": permissions}, status=status.HTTP_200_OK)

@@ -184,25 +184,14 @@ class ValidationRules(models.Model):
         ValidationRules.get_enum_dict.cache_clear()
 
 
-class ModelFieldsManager(models.Manager):
-    def check_ref_fields_exists(self, model_id):
-        """检查是否存在引用指定模型的字段"""
-        return self.get_queryset().filter(ref_model_id=model_id).exists()
-
-    def get_all_required_fields(self, model_id):
-        """获取指定模型的所有必填字段"""
-        return self.get_queryset().filter(
-            model_id=model_id,
-            required=True
-        )
-
-
 @register_audit(
     snapshot_fields={'id', 'name', 'verbose_name', 'type', 'unit', 'ref_model'},
     ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
     public_name='model_field'
 )
 class ModelFields(models.Model):
+    objects = ModelFieldsManager()
+
     class Meta:
         db_table = 'model_fields'
         managed = True
@@ -276,28 +265,6 @@ class UniqueConstraint(models.Model):
         if self.built_in:
             raise PermissionDenied('Cannot delete a built-in unique constraint.')
         super().delete(*args, **kwargs)
-
-
-class ModelInstanceManager(models.Manager):
-    def get_instance_names_by_models(self, model_ids: list) -> dict:
-        if not model_ids:
-            return {}
-
-        # 直接使用 self.get_queryset() 或 _base_manager，确保不经过任何外部权限过滤
-        instances = self.get_queryset().filter(model_id__in=model_ids).values('id', 'instance_name')
-
-        # 返回一个 {id_str: name_str} 格式的字典
-        return {str(inst['id']): inst['instance_name'] for inst in instances}
-
-    def get_instance_names_by_instances(self, instance_ids: list) -> dict:
-        if not instance_ids:
-            return {}
-
-        # 直接使用 self.get_queryset() 或 _base_manager，确保不经过任何外部权限过滤
-        instances = self.get_queryset().filter(id__in=instance_ids).values('id', 'instance_name')
-
-        # 返回一个 {id_str: name_str} 格式的字典
-        return {str(inst['id']): inst['instance_name'] for inst in instances}
 
 
 @register_audit(

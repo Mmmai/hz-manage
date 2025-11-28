@@ -3,7 +3,7 @@ from collections import defaultdict
 from django.core.cache import cache
 from django.db.models import Q
 
-from mapi.models import UserInfo
+from mapi.models import UserInfo, Permission
 from .models import DataScope
 from .registry import get_handler
 
@@ -92,3 +92,18 @@ def get_scope_query(username, model):
             final_query |= indirect_query
 
     return final_query
+
+
+def has_password_permission(user: UserInfo) -> bool:
+    """
+    检查用户是否有权限查看密码字段
+    """
+    query = Q(role__in=user.roles.all()) | Q(role__in=user.groups.values_list('roles', flat=True))
+    user_permissions = Permission.objects.filter(
+        query
+    ).distinct().select_related('button')
+
+    for perm in user_permissions:
+        if perm.button and perm.button.action == 'showPassword':
+            return True
+    return False
