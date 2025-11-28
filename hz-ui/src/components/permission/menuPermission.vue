@@ -134,6 +134,7 @@ const getPermissionOnRight = async () => {
   selectedKeys.value = res.data.results.map((item) => {
     return item.button_id;
   });
+  console.log("selectedKeys", selectedKeys.value);
 };
 
 // 权限变更处理

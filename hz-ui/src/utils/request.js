@@ -81,11 +81,15 @@ instance.interceptors.response.use(
           window.location.href = '/#/login'
         }
       }, 1500)
+      return Promise.reject(error)
 
     }
 
     // errorHandle(response.status,response.data)
-    return Promise.reject(error)
+    const { response } = error;
+
+    // errorHandle(response.status,response.data)
+    return response
   }
 )
 

@@ -150,7 +150,7 @@ const api = {
       data: params
     })
   },
-  portalDel(params) {
+  portalDelete(params) {
     return axios.request({
       url: path.portal + params + '/',
       method: 'delete',

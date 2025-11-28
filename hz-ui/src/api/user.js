@@ -149,4 +149,25 @@ export default {
       data: params
     })
   },
+  updatePortalOrder(params) {
+    return axios.request({
+      url: path.portal + 'update_user_sort_order/',
+      method: 'post',
+      data: params
+    })
+  },
+  // 添加收藏
+  addFavorite(params) {
+    return axios.request({
+      url: path.portal + params.id + '/add_to_favorites/',
+      method: 'post',
+    })
+  },
+  // 删除收藏
+  removeFavorite(params) {
+    return axios.request({
+      url: path.portal + params.id + '/remove_from_favorites/',
+      method: 'delete'
+    })
+  },
 }

@@ -67,7 +67,9 @@ class ModelInstanceGroupManager(models.Manager):
         供权限处理器等批量查询使用
         """
         return self._get_all_children_ids(tuple(sorted(str(gid) for gid in group_ids)))
-
+    def clear_children_cache(self):
+        """清理子分组缓存"""
+        self._get_all_children_ids.cache_clear()
     @functools.lru_cache(maxsize=1024)
     def _get_all_children_ids(self, group_ids) -> set:
         """

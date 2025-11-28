@@ -5,7 +5,7 @@
         <div class="login-left">
           <div class="welcome-text">
             <h1>欢迎登录</h1>
-            <p>安全、高效、便捷的管理系统</p>
+            <p>高效、便捷的自动化运维系统</p>
           </div>
           <div class="decoration-elements">
             <div class="circle circle-1"></div>

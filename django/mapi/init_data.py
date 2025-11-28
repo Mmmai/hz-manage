@@ -563,7 +563,7 @@ INIT_CONFIG = [
     {
         "verbose_name": "开启同步",
         "param_name": "zabbix_is_sync",
-        "param_value": os.environ.get('ZABBIX_SERVER', 1),
+        "param_value": os.environ.get('ZABBIX_SERVER', 0),
         "param_type": "int",
         "system": "zabbix",
         "description":"是否开启资产同步zabbix监控",

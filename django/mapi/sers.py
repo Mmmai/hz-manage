@@ -3,7 +3,7 @@ from rest_framework import serializers
 from mapi.models import (
     UserInfo,Role,Menu,Button,Permission,Portal,
     Pgroup,Datasource,
-    sysConfigParams,UserGroup
+    sysConfigParams,UserGroup,PortalFavorites,UserPgroupSortOrder,UserPortalSortOrder
                          )
 import secrets
 from cmdb.utils import password_handler
@@ -365,45 +365,139 @@ class PermissionModelSerializer(serializers.ModelSerializer):
         # 表名
         model = Permission
         fields = "__all__"
-class getPortalModelSerializer(serializers.ModelSerializer):
-    group_name = serializers.CharField(source='group.group')
-
-    class Meta:
-        # 表名
-        model = Portal
-        fields = "__all__"
-        
-class PortalModelSerializer(serializers.ModelSerializer):
-    class Meta:
-        # 表名
-        model = Portal
-        fields = "__all__"        
-        
 class PgroupModelSerializer(serializers.ModelSerializer):
+    owner_name = serializers.CharField(source='owner.username', read_only=True, allow_null=True)
+    # 添加门户列表字段
+    portals = serializers.SerializerMethodField()
+    
     class Meta:
-        # 表名
         model = Pgroup
         fields = "__all__"
-    
-    def validate_for_delete(self, instance):
-        """
-        删除前验证参数组
-        """
-        # 可以添加特定的删除验证逻辑
+        read_only_fields = ('owner',)
+        
+    def get_portals(self, obj):
+        # 返回该分组下的门户列表，并按照用户自定义排序
+        portals = obj.portals.all()
+        
+        # 获取当前请求用户（如果有的话）
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            user = request.user
+            # 获取该用户对该分组内门户的排序偏好
+            user_sort_prefs = UserPortalSortOrder.objects.filter(
+                user=user,
+                portal__in=portals,
+                group=obj
+            )
+            
+            if user_sort_prefs.exists():
+                # 如果用户有自定义排序，则使用用户排序
+                user_sort_dict = {str(pref.portal_id): pref.sort_order for pref in user_sort_prefs}
+                
+                def sort_key(portal):
+                    return user_sort_dict.get(str(portal.id), portal.sort_order)
+                
+                portals = sorted(portals, key=sort_key)
+            else:
+                # 默认按sort_order字段排序
+                portals = portals.order_by('sort_order')
+        else:
+            # 如果没有用户上下文或用户未认证，按默认排序
+            portals = portals.order_by('sort_order')
+            
+        return PortalModelSerializer(portals, many=True, context=self.context).data
+    def create(self, validated_data):
+        # 在创建时，owner将在view中设置
+        return super().create(validated_data)
+        
+    def update(self, instance, validated_data):
+        # 不允许更改owner
+        validated_data.pop('owner', None)
+        return super().update(instance, validated_data)
+
+
+class getPortalModelSerializer(serializers.ModelSerializer):
+    # 修改为支持多分组
+    groups = serializers.SerializerMethodField()
+    owner_name = serializers.CharField(source='owner.username', read_only=True, allow_null=True)
+
+    class Meta:
+        model = Portal
+        fields = "__all__"
+        
+    def get_groups(self, obj):
+        # 返回该门户所属的分组列表
+        groups = obj.groups.all()
+        return [{'id': group.id, 'group': group.group} for group in groups]
+
+
+class PortalModelSerializer(serializers.ModelSerializer):
+    # 定义 groups 字段以支持多对多关系
+    groups = serializers.PrimaryKeyRelatedField(
+        queryset=Pgroup.objects.all(), 
+        many=True, 
+        required=False
+    )
+    is_favorite = serializers.SerializerMethodField()
+    class Meta:
+        model = Portal
+        fields = "__all__"
+        read_only_fields = ('owner',)
+    def get_is_favorite(self, obj):
+        """获取用户是否收藏了该门户"""
+        user = self.context.get('request').user
+        return PortalFavorites.objects.filter(portal=obj, user=user).exists()
+    def create(self, validated_data):
+        # 在创建时，owner将在view中设置
+        groups_data = validated_data.pop('groups', [])
+        portal = Portal.objects.create(**validated_data)
+        if groups_data:
+            portal.groups.set(groups_data)
+        return portal
+        
+    def update(self, instance, validated_data):
+        # 不允许更改owner
+        validated_data.pop('owner', None)
+        groups_data = validated_data.pop('groups', None)
+        
+        # 更新门户基本信息
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        # 更新分组关系
+        if groups_data is not None:
+            instance.groups.set(groups_data)
+            
         return instance
+
+
+class PortalFavoritesSerializer(serializers.ModelSerializer):
+    portal_info = serializers.SerializerMethodField()
     
+    class Meta:
+        model = PortalFavorites
+        fields = ['id', 'portal', 'create_time', 'portal_info']
+        read_only_fields = ['user', 'create_time']
+    
+    def get_portal_info(self, obj):
+        # 返回门户的基本信息
+        portal = obj.portal
+        return {
+            'id': portal.id,
+            'name': portal.name,
+            'url': portal.url,
+            'describe': portal.describe,
+            'status': portal.status,
+            'sharing_type': portal.sharing_type,
+            'owner_name': portal.owner.username if portal.owner else None,
+            'groups': [{'id': group.id, 'group': group.group} for group in portal.groups.all()]
+        }
 class DatasourceModelSerializer(serializers.ModelSerializer):
     class Meta:
         # 表名
         model = Datasource
         fields = "__all__"
-
-# class LogModuleModelSerializer(serializers.ModelSerializer):
-#   class Meta:
-#     # 表名
-#     model = LogModule
-#     fields = "__all__"
-
 
 class SysConfigSerializer(serializers.ModelSerializer):
 

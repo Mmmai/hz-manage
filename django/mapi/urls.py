@@ -47,6 +47,8 @@ router.register('button',views.ButtonViewSet)
 # router.register('permission',views.PermissionViewSet)
 router.register('portal',views.PortalViewSet)
 router.register('pgroup',views.PgroupViewSet)
+router.register(r'portal_favorites', views.PortalFavoritesViewSet, basename='portal_favorites')
+
 router.register('datasource',views.dataSourceViewSet)
 router.register('sysconfig',views.sysConfigViewSet)
 router.register('permission',views.PermissionViewSet)

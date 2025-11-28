@@ -1,4 +1,3 @@
-
 import { defineStore } from "pinia";
 import { ref, computed, getCurrentInstance } from 'vue'
 import api from '../api/index'
@@ -35,15 +34,32 @@ export const useConfigStore = defineStore(
     // 动态菜单
     const menuInfo = ref([])
     const getMenuInfo = async () => {
-      let res = await api.getMenuList()
+      try {
+        let res = await api.getMenuList()
 
-      if (res.status === 403) {
-        // 弹出提示没有认证,清除token等，重新登录
-        ElMessage.error(JSON.stringify(res.data))
-        setUserConfig({ token: null, userinfo: null, permission: null })
-        // 只有在提供了router实例时才进行跳转
-      } else {
-        menuInfo.value = res.data.results
+        if (res.status === 403) {
+          // 弹出提示没有认证,清除token等，重新登录
+          ElMessage.error("认证失败，请重新登录")
+          setUserConfig({ token: null, userinfo: null, permission: null })
+          throw new Error('认证失败');
+        } else if (res.status >= 500) {
+          // 处理服务器错误
+          ElMessage.error("服务器错误，请稍后再试")
+          throw new Error('服务器错误');
+        } else {
+          menuInfo.value = res.data.results
+        }
+      } catch (error) {
+        // 处理网络错误或其他异常
+        if (error.response?.status === 403) {
+          ElMessage.error("认证失败，请重新登录")
+          setUserConfig({ token: null, userinfo: null, permission: null })
+        } else if (error.response?.status >= 500) {
+          ElMessage.error("服务器错误，请稍后再试")
+        } else {
+          ElMessage.error("获取菜单失败，请检查网络连接")
+        }
+        throw error;
       }
     }
     const gmCry = ref({});
@@ -98,8 +114,5 @@ export const useConfigStore = defineStore(
       ]
     }
   }
-
-
-);
-
-export default useConfigStore;
+)
+export default useConfigStore

@@ -1193,7 +1193,11 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
     @action(detail=False, methods=['get'])
     def tree(self, request):
         model_id = request.query_params.get('model')
-        data = ModelInstanceGroupService.get_tree(request.user, model_id)
+        model = Models.objects.filter(id=model_id).first()
+        if not model:
+            return Response({'detail': f'Model {model_id} not found'}, status=status.HTTP_404_NOT_FOUND)
+        root_nodes, context = ModelInstanceGroupService.get_tree(model, request.user)
+        data = ModelInstanceGroupTreeSerializer(root_nodes, many=True, context=context).data
         return Response(data, status=status.HTTP_200_OK)
 
 

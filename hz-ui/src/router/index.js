@@ -83,8 +83,30 @@ router.beforeEach(async (to, from, next) => {
           next({ ...to, replace: true })
         } catch (error) {
           // 处理token认证失败的情况
-          next('/login')
-          return
+          console.error('获取菜单信息失败:', error);
+
+          // 添加重试次数限制，避免无限循环
+          const retryCount = sessionStorage.getItem('menuRetryCount') || '0';
+          const newRetryCount = parseInt(retryCount) + 1;
+
+          // 如果重试次数超过3次，则跳转到登录页
+          if (newRetryCount > 3) {
+            sessionStorage.removeItem('menuRetryCount');
+            // 清除本地存储的token等信息
+            localStorage.removeItem('configs');
+            ElMessage.error('获取菜单信息失败，请重新登录');
+            next('/login');
+            return;
+          }
+
+          // 记录重试次数
+          sessionStorage.setItem('menuRetryCount', newRetryCount.toString());
+
+          // 延迟一段时间再重试
+          setTimeout(() => {
+            next('/login');
+          }, 1000);
+          return;
         }
       }
       else {
