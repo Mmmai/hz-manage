@@ -38,7 +38,7 @@
           <el-card
             class="group-card"
             shadow="hover"
-            @click="openGroupDialog(favoritesData)"
+            @click="openFavoritesDia(favoritesData)"
           >
             <div class="group-card-header">
               <div class="group-info">
@@ -580,6 +580,93 @@
       </div>
     </template>
   </el-dialog>
+  <!-- 收藏夹专用dialog -->
+  <!-- 分组详情对话框 -->
+  <el-dialog
+    v-model="favoritesDialogVisible"
+    title="收藏夹"
+    width="800px"
+    class="group-detail-dialog"
+    :before-close="closeFavoritesDia"
+  >
+    <div class="dialog-content">
+      <!-- 分组内门户列表 -->
+      <div class="portals-grid">
+        <el-card
+          v-for="portal in favoritesData"
+          :key="portal.id"
+          class="portal-card"
+          shadow="hover"
+        >
+          <div class="portal-card-content">
+            <div class="portal-icon-wrapper">
+              <div
+                class="portal-icon"
+                :style="{
+                  backgroundColor: getRandomColor(portal.id + portal.name),
+                }"
+              >
+                {{ portal.name.charAt(0).toUpperCase() }}
+              </div>
+              <el-tag
+                :type="portal.sharing_type === 'public' ? 'success' : 'warning'"
+                size="small"
+                class="portal-sharing-tag-detail"
+              >
+                {{ portal.sharing_type === "public" ? "公" : "私" }}
+              </el-tag>
+
+              <!-- <el-icon
+                class="drag-handle"
+                :size="16"
+                @click="editPortal(portal)"
+              >
+                <MoreFilled />
+              </el-icon> -->
+            </div>
+
+            <div class="portal-info">
+              <div class="portal-name">{{ portal.name }}</div>
+              <div class="portal-url" :title="portal.url">
+                {{ portal.url }}
+              </div>
+              <div class="portal-description" v-if="portal.describe">
+                {{ portal.describe }}
+              </div>
+            </div>
+
+            <div class="portal-actions">
+              <el-tooltip
+                :content="portal.is_favorite ? '取消收藏' : '收藏'"
+                placement="top"
+              >
+                <el-icon
+                  v-if="portal.is_favorite"
+                  :class="{ favorited: portal.is_favorite }"
+                  @click.stop="toggleFavorite(portal)"
+                  color="#e6a23c"
+                  size="large"
+                >
+                  <StarFilled />
+                </el-icon>
+                <el-icon
+                  v-else
+                  size="large"
+                  :class="{ favorited: portal.is_favorite }"
+                  @click.stop="toggleFavorite(portal)"
+                >
+                  <Star />
+                </el-icon>
+              </el-tooltip>
+              <el-button type="primary" link @click="openPortal(portal)">
+                打开
+              </el-button>
+            </div>
+          </div>
+        </el-card>
+      </div>
+    </div>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
@@ -651,7 +738,13 @@ const pgroupOptions = computed(() => {
     };
   });
 });
-
+const favoritesDialogVisible = ref(false);
+const openFavoritesDia = () => {
+  favoritesDialogVisible.value = true;
+};
+const closeFavoritesDia = () => {
+  favoritesDialogVisible.value = false;
+};
 const groupForm = reactive({
   group: "",
   sharing_type: "public",
@@ -892,7 +985,7 @@ const editPortal = (portal) => {
   // portalForm.sort = portal.sort;
   // portalForm.describe = portal.describe;
   // portalForm.groups = portal.groups;
-    Object.assign(portalForm, {
+  Object.assign(portalForm, {
     id: portal.id,
     name: portal.name,
     url: portal.url,
@@ -905,7 +998,7 @@ const editPortal = (portal) => {
     describe: portal.describe || "",
     status: portal.status !== undefined ? portal.status : true,
   });
-  
+
   // 显示门户编辑对话框
   portalDialogVisible.value = true;
 };
