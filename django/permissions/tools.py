@@ -2,6 +2,7 @@ import logging
 from collections import defaultdict
 from django.core.cache import cache
 from django.db.models import Q
+from threading import local
 
 from mapi.models import UserInfo, Permission
 from .models import DataScope
@@ -18,6 +19,11 @@ def get_user_data_scope(username: str) -> dict:
         logger.warning(f"User '{username}' not found while getting data scope.")
         return {'scope_type': 'none', 'targets': {}}
 
+    cache_key = f'user_data_scope_{username}'
+    cached_scope = cache.get(cache_key)
+    if cached_scope:
+        return cached_scope
+
     roles = set()
     for group in user.groups.all():
         roles.update(group.roles.all())
@@ -27,7 +33,9 @@ def get_user_data_scope(username: str) -> dict:
     ).prefetch_related('targets', 'targets__content_type').distinct()
     if not user_scopes.exists():
         logger.info(f"No data scopes found for user '{username}'.")
-        return {'scope_type': 'none', 'targets': {}}
+        result = {'scope_type': 'none', 'targets': {}}
+        cache.set(cache_key, result)
+        return result
 
     logger.info(f'Found {user_scopes.count()} data scopes for user \'{username}\'.')
 
@@ -52,6 +60,7 @@ def get_user_data_scope(username: str) -> dict:
         'scope_type': final_scope_type,
         'targets': dict(final_targets)  # 将 defaultdict 转换为普通 dict
     }
+    cache.set(cache_key, result)
 
     logger.info(f'Computed data scope for user \'{username}\': {result}')
     return result
@@ -98,6 +107,21 @@ def has_password_permission(user: UserInfo) -> bool:
     """
     检查用户是否有权限查看密码字段
     """
+    if hasattr(user, 'username'):
+        username = user.username
+    elif isinstance(user, str):
+        username = user
+    else:
+        return False
+
+    cache_key = f'password_permission_{username}'
+
+    # 检查缓存
+    request_cache = cache.get(cache_key)
+    if request_cache is not None:
+        return request_cache
+
+    # 缓存未命中，查询数据库
     query = Q(role__in=user.roles.all()) | Q(role__in=user.groups.values_list('roles', flat=True))
     user_permissions = Permission.objects.filter(
         query
@@ -105,5 +129,7 @@ def has_password_permission(user: UserInfo) -> bool:
 
     for perm in user_permissions:
         if perm.button and perm.button.action == 'showPassword':
+            cache.set(cache_key, True)
             return True
+    cache.set(cache_key, False)
     return False

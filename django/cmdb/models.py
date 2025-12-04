@@ -143,26 +143,12 @@ class ValidationRules(models.Model):
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
-    # @classmethod
-    # def get_enum_dict(cls, rule_id):
-    #     @cached_as(ValidationRules, timeout=60 * 60)
-    #     def _get_enum_dict(rule_id):
-    #         """获取枚举规则字典"""
-    #         try:
-    #             rule = cls.objects.get(id=rule_id)
-    #             if rule.type == ValidationType.ENUM:
-    #                 return json.loads(rule.rule)
-    #         except (cls.DoesNotExist, json.JSONDecodeError):
-    #             pass
-    #         return {}
-    #     return _get_enum_dict(rule_id)
-
     @staticmethod
     @functools.lru_cache(maxsize=128)  # maxsize 可根据枚举规则的数量调整
     def get_enum_dict(rule_id):
-        logger.debug(
-            f"LRU Cache MISS for get_enum_dict(rule_id={rule_id})."
-            f"Executing function body. Cache info: {ValidationRules.get_enum_dict.cache_info()}")
+        # logger.debug(
+        #     f"LRU Cache MISS for get_enum_dict(rule_id={rule_id})."
+        #     f"Executing function body. Cache info: {ValidationRules.get_enum_dict.cache_info()}")
         try:
             rule_instance = ValidationRules.objects.get(id=rule_id)
             if rule_instance.type == ValidationType.ENUM and rule_instance.rule:
@@ -325,13 +311,6 @@ class ModelInstance(models.Model):
         return generate_instance_name(field_values, self.model.instance_name_template)
 
 
-class ModelFieldMetaManager(models.Manager):
-
-    def check_data_exists(self, data):
-        """检查是否存在指定数据的记录"""
-        return self.get_queryset().filter(data=data).exists()
-
-
 class ModelFieldMeta(models.Model):
 
     objects = ModelFieldMetaManager()
@@ -341,8 +320,6 @@ class ModelFieldMeta(models.Model):
         managed = True
         app_label = 'cmdb'
 
-    # TODO: 添加实例name字段，用于存储实例名称，作为唯一性校验
-    # TODO: 在模型删除时，如果没有删除子实例，保留字段信息等 待修改
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     model = models.ForeignKey('Models', on_delete=models.CASCADE)
     model_instance = models.ForeignKey('ModelInstance', on_delete=models.CASCADE, related_name='field_values')
@@ -360,6 +337,7 @@ class ModelFieldMeta(models.Model):
     public_name='model_instance_group'
 )
 class ModelInstanceGroup(models.Model):
+
     objects = ModelInstanceGroupManager()
 
     class Meta:
@@ -536,50 +514,5 @@ class ZabbixProxy(models.Model):
     user = models.CharField(default='root', max_length=50, null=False, blank=False)
     password = models.CharField(max_length=50, null=False, blank=False)
     proxy_id = models.CharField(max_length=50, null=False, blank=False)
-    create_time = models.DateTimeField(auto_now_add=True)
-    update_time = models.DateTimeField(auto_now=True)
-
-
-class ZabbixSyncHost(models.Model):
-    class Meta:
-        db_table = 'zabbix_sync_host'
-        managed = True
-        app_label = 'cmdb'
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    instance = models.OneToOneField('ModelInstance', on_delete=models.CASCADE)
-    host_id = models.IntegerField(null=False, blank=False)
-    ip = models.CharField(max_length=50, null=False, blank=False)
-    name = models.CharField(max_length=100, null=False, blank=False)
-    agent_installed = models.BooleanField(default=False)
-    installation_error = models.TextField(null=True, blank=True)
-    interface_available = models.IntegerField(default=0)
-    proxy = models.ForeignKey('ZabbixProxy', on_delete=models.CASCADE, null=True, blank=True)
-    create_time = models.DateTimeField(auto_now_add=True)
-    update_time = models.DateTimeField(auto_now=True)
-
-
-class ProxyAssignRule(models.Model):
-    class Meta:
-        db_table = 'proxy_assign_rule'
-        managed = True
-        app_label = 'cmdb'
-
-    RULE_TYPES = (
-        # 使用优先级从高到低
-        ('ip_exclude', 'IP排除式'),
-        ('ip_list', 'IP列表'),
-        ('ip_cidr', 'IP子网划分式'),
-        ('ip_range', 'IP范围'),
-        ('ip_regex', 'IP正则式'),
-    )
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=50, null=False, blank=False)
-    description = models.TextField(blank=True, null=True)
-    proxy = models.ForeignKey('ZabbixProxy', on_delete=models.CASCADE, null=False, blank=False)
-    type = models.CharField(max_length=50, choices=RULE_TYPES, null=False, blank=False)
-    rule = models.TextField()
-    active = models.BooleanField(default=True, null=False, blank=False)
     create_time = models.DateTimeField(auto_now_add=True)
     update_time = models.DateTimeField(auto_now=True)
