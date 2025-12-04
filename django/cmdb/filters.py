@@ -348,7 +348,7 @@ class RelationDefinitionFilter(filters.FilterSet):
     def filter_attribute_schema_key(self, queryset, name, value):
         if not value:
             return queryset
-        
+
         key_to_search = f'"{value}"'
         query = (
             Q(source_text__icontains=key_to_search) |
@@ -359,6 +359,7 @@ class RelationDefinitionFilter(filters.FilterSet):
         return queryset.annotate(
             text=Cast('attribute_schema', output_field=models.TextField()),
         ).filter(query)
+
     class Meta:
         model = RelationDefinition
         fields = [
@@ -377,7 +378,7 @@ class RelationsFilter(filters.FilterSet):
     relation = filters.UUIDFilter(field_name='relation')
     model = filters.UUIDFilter(method='filter_model')
     instance_name = filters.CharFilter(method='filter_instance_name')
-    
+
     def filter_instances(self, queryset, name, value):
         if not value:
             return queryset
@@ -385,7 +386,7 @@ class RelationsFilter(filters.FilterSet):
         return queryset.filter(
             Q(source_instance__id__in=instance_ids) | Q(target_instance__id__in=instance_ids)
         ).distinct()
-    
+
     def filter_model(self, queryset, name, value):
         logger.info(f'Filtering model with value: {value}')
         if not value:
@@ -393,21 +394,21 @@ class RelationsFilter(filters.FilterSet):
         return queryset.filter(
             Q(source_instance__model__id=value) | Q(target_instance__model__id=value)
         ).distinct()
-    
+
     def filter_instance_name(self, queryset, name, value):
         if not value:
             return queryset
         return queryset.filter(
             Q(source_instance__instance_name__icontains=value) | Q(target_instance__instance_name__icontains=value)
         ).distinct()
-        
+
     class Meta:
         model = Relations
         fields = [
             'source_instance',
             'target_instance',
             'relation',
-            
+
         ]
 
     def filter_instances(self, queryset, name, value):
@@ -417,65 +418,3 @@ class RelationsFilter(filters.FilterSet):
         return queryset.filter(
             Q(source_instance__id__in=instance_ids) | Q(target_instance__id__in=instance_ids)
         ).distinct()
-
-class ZabbixSyncHostFilter(filters.FilterSet):
-    ip = filters.CharFilter(field_name='ip', lookup_expr='icontains')
-    host_id = filters.CharFilter(field_name='hostid', lookup_expr='exact')
-    name = filters.CharFilter(field_name='name', lookup_expr='icontains')
-    agent_installed = filters.BooleanFilter(field_name='agent_installed')
-    installation_error = filters.CharFilter(field_name='installation_error', lookup_expr='icontains')
-    interface_available = filters.NumberFilter(field_name='interface_available')
-    interface_available__in = filters.BaseCSVFilter(field_name='interface_available', lookup_expr='in')
-    create_time_after = filters.DateTimeFilter(field_name='create_time', lookup_expr='gte')
-    create_time_before = filters.DateTimeFilter(field_name='create_time', lookup_expr='lte')
-    update_time_after = filters.DateTimeFilter(field_name='update_time', lookup_expr='gte')
-    update_time_before = filters.DateTimeFilter(field_name='update_time', lookup_expr='lte')
-
-    class Meta:
-        model = ZabbixSyncHost
-        fields = [
-            'ip',
-            'host_id',
-            'name',
-            'agent_installed',
-            'interface_available',
-            'interface_available__in',
-            'create_time_after',
-            'create_time_before',
-            'update_time_after',
-            'update_time_before',
-        ]
-
-
-class ZabbixProxyFilter(filters.FilterSet):
-    name = filters.CharFilter(field_name='name', lookup_expr='icontains')
-    ip = filters.CharFilter(field_name='ip', lookup_expr='icontains')
-    port = filters.NumberFilter(field_name='port', lookup_expr='exact')
-    proxy_id = filters.CharFilter(field_name='proxyid', lookup_expr='exact')
-
-    class Meta:
-        model = ZabbixProxy
-        fields = [
-            'name',
-            'ip',
-            'port',
-            'proxy_id'
-        ]
-
-
-class ProxyAssignRuleFilter(filters.FilterSet):
-    name = filters.CharFilter(field_name='name', lookup_expr='icontains')
-    type = filters.CharFilter(field_name='type', lookup_expr='exact')
-    rule = filters.CharFilter(field_name='rule', lookup_expr='icontains')
-    proxy = filters.UUIDFilter(field_name='proxy')
-    active = filters.BooleanFilter(field_name='active')
-
-    class Meta:
-        model = ProxyAssignRule
-        fields = [
-            'name',
-            'type',
-            'rule',
-            'proxy',
-            'active'
-        ]

@@ -29,7 +29,7 @@ from celery.result import AsyncResult
 from .utils import password_handler, celery_manager
 from .excel import ExcelHandler
 from .constants import FieldMapping, FieldType, limit_field_names
-from .tasks import process_import_data, setup_host_monitoring, sync_zabbix_host_task, update_instance_names_for_model_template_change, update_zabbix_interface_availability
+from .tasks import process_import_data, update_instance_names_for_model_template_change
 from .filters import *
 from .models import *
 from .serializers import *
@@ -491,7 +491,7 @@ class BinaryFileRenderer(BaseRenderer):
 
 @model_instance_schema
 class ModelInstanceViewSet(CmdbBaseViewSet):
-    queryset = ModelInstance.objects.all().order_by('-create_time').prefetch_related('field_values__model_fields')
+    queryset = ModelInstance.objects.all().order_by('-create_time')
     serializer_class = ModelInstanceSerializer
     filterset_class = ModelInstanceFilter
     ordering_fields = ['create_time', 'update_time']
@@ -596,7 +596,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
         queryset = queryset.filter(query)
         return queryset
 
-    @cached_as(ModelInstance, timeout=600)
+    # @cached_as(ModelInstance, timeout=600)
     def get_queryset(self):
         queryset = super().get_queryset().order_by('-create_time').select_related('model')
 
@@ -749,22 +749,21 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
     def export_template(self, request):
         """导出实例数据模板"""
         try:
-            # 获取模型ID
             model_id = request.data.get('model')
             if not model_id:
                 raise ValidationError({'detail': 'Model ID is required'})
 
-            pm = PermissionManager(user=self.request.username)
-            # 获取模型及其字段
+            pm = PermissionManager(user=self.request.user)
             model = pm.get_queryset(Models).get(id=model_id)
             fields = pm.get_queryset(ModelFields).filter(
                 model=model
             ).select_related(
                 'validation_rule',
-                'model_field_group'
+                'model_field_group',
+                'ref_model'
             ).order_by('model_field_group__create_time', 'order')
 
-            # 生成Excel模板
+            # 生成 Excel 模板
             excel_handler = ExcelHandler()
             workbook = excel_handler.generate_template(fields)
 
@@ -772,7 +771,6 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             workbook.save(excel_file)
             excel_file.seek(0)
 
-            # 返回文件响应
             headers = {
                 'Content-Disposition': f'attachment; filename="{model.name}_template.xlsx"'
             }
@@ -795,7 +793,10 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
 
     @action(detail=False, methods=['post'])
     def export_data(self, request):
-        """导出实例数据"""
+        """
+        导出实例数据。
+        导出格式与导入模板一致，包含枚举/引用的锁定 sheet。
+        """
         try:
             instance_ids = request.data.get('instances', [])
             model_id = request.data.get('model')
@@ -807,13 +808,16 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             if not model_id:
                 raise ValidationError({'detail': 'Model ID is required'})
 
+            pm = PermissionManager(user=self.request.user)
+            model = pm.get_queryset(Models).get(id=model_id)
+
+            # 构建实例查询集
             instances = self.get_queryset().filter(model_id=model_id)
 
             if group_id:
                 params['model_instance_group'] = group_id
 
             if filter_by_params and params:
-                instances = self.get_queryset().all()
                 instances = self._apply_filters(instances, model_id, params)
             elif instance_ids:
                 instances = instances.filter(id__in=instance_ids)
@@ -821,84 +825,41 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             if not instances.exists():
                 raise ValidationError("No instances found with the provided criteria.")
 
-            if instance_ids:
-                instances = instances.filter(id__in=instance_ids)
-            logger.info(f'Exporting data for {len(instances)} instances')
+            # 获取字段查询集
+            fields_qs = pm.get_queryset(ModelFields).filter(model=model)
 
-            pm = PermissionManager(user=self.request.username)
-            field_meta_map = {}
-            instances_meta_qs = pm.get_queryset(ModelFieldMeta).filter(
-                model_instance__in=instances
-            ).select_related('model_fields', 'model_fields__validation_rule')
-            for meta in instances_meta_qs:
-                field_meta_map.setdefault(str(meta.model_instance_id), []).append(meta)
+            # 调用服务层导出数据
+            export_result = ModelInstanceService.export_instances_data(
+                model=model,
+                instances_qs=instances,
+                fields_qs=fields_qs,
+                user=self.request.user,
+                restricted_field_names=restricted_fields if restricted_fields else None
+            )
 
-            ref_model_ids = set()
-            ref_model_qs = instances_meta_qs.filter(
-                model_fields__type=FieldType.MODEL_REF
-            ).exclude(
-                model_fields__ref_model_id__isnull=True
-            ).values_list('model_fields__ref_model_id', flat=True)
-            for id in ref_model_qs:
-                ref_model_ids.add(str(id))
+            if not export_result['fields']:
+                raise ValidationError({'detail': 'No fields available for export'})
 
-            ref_instances_map = {}
-            if ref_model_ids:
-                ref_instances_list = ModelInstance.objects.get_instance_names_by_models(
-                    list(ref_model_ids)
-                )
-                ref_instances_map = {
-                    str(instance['id']): instance['instance_name']
-                    for instance in ref_instances_list
-                }
-
-            context = self.get_serializer_context()
-            context['field_meta'] = field_meta_map
-            context['ref_instances'] = ref_instances_map
-
-            serialized_instances_data = self.get_serializer(instances, many=True, context=context).data
-
-            # 获取模型及其字段
-            model = pm.get_queryset(Models).get(id=model_id)
-            fields_query = pm.get_queryset(ModelFields).filter(model=model)
-
-            # 字段过滤
-            if restricted_fields:
-                fields_query = fields_query.filter(name__in=restricted_fields)
-
-            fields = fields_query.select_related(
-                'validation_rule',
-                'model_field_group'
-            ).order_by('model_field_group__create_time', 'order')
-
-            for instance_data in serialized_instances_data:
-                for field in fields:
-                    if field.type == FieldType.ENUM:
-                        data = instance_data['fields'].get(field.name, {})
-                        if data:
-                            instance_data['fields'][field.name] = data.get('label')
-                    elif field.type == FieldType.MODEL_REF:
-                        data = instance_data['fields'].get(field.name, {})
-                        if data:
-                            instance_data['fields'][field.name] = data.get('instance_name')
-                    elif field.type == FieldType.PASSWORD:
-                        data = instance_data['fields'].get(field.name, None)
-                        instance_data['fields'][field.name] = password_handler.decrypt_sm4(data)
-
-            # 生成Excel导出
+            # 生成 Excel 文件（复用模板格式）
             excel_handler = ExcelHandler()
-            workbook = excel_handler.generate_data_export(fields, serialized_instances_data)
+            workbook = excel_handler.generate_data_export_with_template(
+                fields=export_result['fields'],
+                instances_data=export_result['instances_data'],
+                enum_data=export_result['enum_data'],
+                ref_data=export_result['ref_data']
+            )
 
             excel_file = io.BytesIO()
             workbook.save(excel_file)
             excel_file.seek(0)
 
-            # 返回文件响应
             headers = {
                 'Content-Disposition': f'attachment; filename="{model.name}_data.xlsx"'
             }
 
-            logger.info(f"Data exported successfully for model: {model.name}")
+            logger.info(
+                f"Data exported successfully for model: {model.name}, instances: {len(export_result['instances_data'])}")
+
             return Response(
                 {
                     'filename': f"{model.name}_data.xlsx",
@@ -908,12 +869,106 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
                 headers=headers
             )
 
+        except Models.DoesNotExist:
+            raise ValidationError({'detail': f'Model {model_id} not found'})
         except Exception as e:
             logger.error(f"Error exporting data: {traceback.format_exc()}")
             raise ValidationError({'detail': f'Failed to export data: {str(e)}'})
 
     @action(detail=False, methods=['post'])
     def import_data(self, request):
+        file = request.FILES.get('file')
+        model_id = request.data.get('model')
+
+        if not file or not model_id:
+            raise ValidationError({'detail': 'Missing file or model ID'})
+
+        results = {'cache_key': None}
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp:
+            for chunk in file.chunks():
+                temp.write(chunk)
+            temp_path = temp.name
+        logger.info(f"Temp file created: {temp_path}")
+
+        try:
+            excel_handler = ExcelHandler()
+            excel_data = excel_handler.load_data(temp_path)
+            if excel_data['status'] == 'failed':
+                raise ValidationError({'detail': f'Failed to load Excel data: {excel_data["errors"][-1]}'})
+
+            headers = excel_data.get('headers', [])
+            pm = PermissionManager(user=request.user)
+            model = pm.get_queryset(Models).get(id=model_id)
+
+            if not model:
+                raise ValidationError({'detail': f'Model {model_id} not found for current user'})
+
+            warning_msg = ''
+
+            # 检查实例权限
+            disarded_instance_names = []
+            instance_names_query = pm.get_queryset(ModelInstance).filter(
+                model=model).values_list('instance_name', flat=True)
+            for instance_name in excel_data.get('instance_names', []):
+                if ModelInstance.objects.check_instance_name_exists(model_id, instance_name) and instance_name not in instance_names_query:
+                    logger.warning(f'Discarding instance name without permission: {instance_name}...')
+                    disarded_instance_names.append(instance_name)
+            if disarded_instance_names:
+                warning_msg = f'Discarded instance names without permission: {", ".join(disarded_instance_names)}'
+
+            # 检查是否有未知字段
+            fields_query = pm.get_queryset(ModelFields).filter(model=model).values_list('name', flat=True)
+            unknown_fields = set(headers) - set(fields_query)
+            if unknown_fields:
+                logger.warning(f'Discarding unknown fields in import: {unknown_fields}...')
+                if warning_msg:
+                    warning_msg += '; '
+                warning_msg += f'Unknown fields in Excel: {", ".join(unknown_fields)}'
+
+            if not celery_manager.check_heartbeat():
+                raise ValidationError({'detail': 'Celery worker is not available'})
+
+            audit_ctx = self.get_audit_context()
+            logger.debug(f'Audit context for import: {audit_ctx}')
+            task = process_import_data.delay(
+                excel_data,
+                model_id,
+                str(request.user.id),
+                audit_ctx
+            )
+
+            cache_key = f'import_task_{task.id}'
+            cache_results = {
+                'status': 'pending',
+                'total': len(excel_data.get('instances', [])),
+                'progress': 0,
+                'created': 0,
+                'updated': 0,
+                'skipped': 0,
+                'failed': 0,
+                'errors': [],
+                'error_file_key': None
+            }
+            cache.set(cache_key, cache_results, timeout=600)
+
+            results['cache_key'] = cache_key
+            if warning_msg:
+                results['warning'] = warning_msg
+            return Response(results, status=status.HTTP_200_OK)
+
+        except Models.DoesNotExist:
+            raise ValidationError({'detail': f'Model {model_id} not found'})
+        except Exception as e:
+            logger.error(f"Error loading Excel data: {traceback.format_exc()}")
+            raise ValidationError({'detail': f'Failed to load Excel data: {str(e)}'})
+        finally:
+            import os
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    @action(detail=False, methods=['post'])
+    def _import_data(self, request):
         file = request.FILES.get('file')
         model_id = request.data.get('model')
 
@@ -1053,7 +1108,6 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
         groups = pm.get_queryset(ModelInstanceGroup).filter(id__in=groups)
         if '空闲池' not in groups.values_list('label', flat=True):
             raise PermissionDenied({'detail': 'Instance is not in unassigned group'})
-        # ModelInstanceGroup.clear_groups_cache(groups)
         instance.delete()
 
     @action(detail=False, methods=['post'])
@@ -1112,6 +1166,113 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             }, status=status.HTTP_200_OK)
         except Exception as e:
             raise ValidationError(f'Error deleting instances: {str(e)}')
+
+    @action(detail=False, methods=['post'])
+    def search(self, request):
+        """
+        全文检索实例数据
+
+        使用 MySQL FULLTEXT 索引进行高效搜索，支持：
+        - 跨模型搜索
+        - 枚举 key/value 自动转换
+        - 引用字段 instance_name/instance_id 自动转换
+        - 中文分词（ngram）
+
+        请求体:
+        {
+            "query": "搜索关键词",
+            "models": ["model_id1", "model_id2"],  // 可选，限定搜索模型
+            "limit": 100,  // 可选，默认100，最大500
+            "threshold": 0.0,  // 可选，相似度阈值，默认0
+            "search_mode": "boolean"  // 可选：natural/boolean/expansion
+        }
+        """
+        query = request.data.get('query', '')
+        model_ids = request.data.get('models', [])
+        limit = request.data.get('limit', 100)
+        threshold = request.data.get('threshold', 0.0)
+        search_mode = request.data.get('search_mode', 'boolean')
+        logger.debug(f"Search request: query={query}, models={model_ids}, limit={limit}, "
+                     f"threshold={threshold}, search_mode={search_mode}")
+        if not query:
+            raise ValidationError({'detail': 'Search query is required'})
+
+        # 参数验证
+        try:
+            limit = max(1, min(int(limit), 500))
+            threshold = max(0.0, min(float(threshold), 0.0))
+        except (ValueError, TypeError):
+            raise ValidationError({'detail': 'Invalid limit or threshold value'})
+
+        if search_mode not in ('natural', 'boolean', 'expansion'):
+            search_mode = 'boolean'
+
+        result = ModelFieldMetaSearchService.search(
+            query=query,
+            user=self.request.user,
+            model_ids=model_ids if model_ids else None,
+            limit=limit,
+            threshold=threshold,
+            search_mode=search_mode
+        )
+
+        return Response(result, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'])
+    def quick_search(self, request):
+        """
+        快速搜索（GET 方式，适合前端搜索框/自动补全）
+
+        查询参数:
+        - q: 搜索关键词（必填）
+        - model: 模型ID（可选）
+        - limit: 返回数量（可选，默认20，最大100）
+        """
+        query = request.query_params.get('query', '')
+        model_id = request.query_params.get('model')
+        limit = request.query_params.get('limit', 20)
+
+        if not query:
+            return Response({
+                'results': [],
+                'total': 0,
+                'query': ''
+            })
+
+        try:
+            limit = max(1, min(int(limit), 100))
+        except (ValueError, TypeError):
+            limit = 20
+
+        result = ModelFieldMetaSearchService.search(
+            query=query,
+            user=self.request.user,
+            model_ids=[model_id] if model_id else None,
+            limit=limit,
+            threshold=0.0,
+            search_mode='boolean',
+            quick=True
+        )
+
+        # 简化返回结果，适合下拉框展示
+        simplified_results = []
+        for item in result['results']:
+            best_match = item['matches'][0] if item['matches'] else None
+            simplified_results.append({
+                'instance_id': item['instance_id'],
+                'instance_name': item['instance_name'],
+                'model_id': item['model_id'],
+                'model_name': item['model_verbose_name'] or item['model_name'],
+                'matched_field': best_match['field_verbose_name'] if best_match else None,
+                'matched_value': best_match['display_value'] if best_match else None,
+                'score': item['max_score']
+            })
+
+        return Response({
+            'results': simplified_results,
+            'total': result['total'],
+            'query': query
+        })
 
 
 @model_ref_schema
