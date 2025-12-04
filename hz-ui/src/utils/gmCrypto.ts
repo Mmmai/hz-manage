@@ -28,6 +28,7 @@ export function decrypt_sm4(key: string, mode: string, text: string): string {
       console.error(`解密失败,密文:${text}`);
       return text
     }
+    console.log(decryptedText)
     return decryptedText
   } catch {
     console.error("解密失败")

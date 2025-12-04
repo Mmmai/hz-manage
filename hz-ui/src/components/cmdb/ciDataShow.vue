@@ -300,7 +300,11 @@
       >
         <!-- 新增管理口跳转 -->
         <template #default="scope" v-if="data.name === 'mgmt_ip'">
-          <div v-if="scope.row[data.name] !== null">
+          <div
+            v-if="
+              scope.row[data.name] !== null || scope.row[data.name]?.length == 0
+            "
+          >
             <el-tooltip content="跳转管理口" placement="right" effect="dark">
               <el-link
                 :href="`https://${scope.row[data.name]}`"
@@ -434,21 +438,24 @@
               :icon="Grid"
               @click="showqCode(scope.row)"
             ></el-button>
-            <!-- <span style="margin-left: 12px">
-              <el-popover
-                placement="bottom"
-                title="实例二维码"
-                :width="250"
-                trigger="click"
-              >
-                <template #reference>
-                  <el-button link type="primary" :icon="Grid"></el-button>
-                </template>
-                <a-qrcode :value="JSON.stringify(scope.row)" :size="200" />
-              </el-popover>
-            </span> -->
           </el-tooltip>
-
+          <el-tooltip
+            class="box-item"
+            effect="dark"
+            content="删除"
+            placement="top"
+          >
+            <el-button
+              v-permission="`${route.name?.replace('_info', '')}:delete`"
+              link
+              type="danger"
+              :icon="Delete"
+              @click="ciDataDelete(scope.row.id)"
+              v-show="
+                isDelete(scope.row.instance_group) && treeAllId != currentNodeId
+              "
+            ></el-button>
+          </el-tooltip>
           <!-- <el-tooltip class="box-item" effect="dark" content="扫描二维码" placement="top">
         </el-tooltip> -->
           <!-- <el-button link type="primary" size="small">Edit</el-button> -->
@@ -1164,24 +1171,19 @@
                         <span v-else>--</span>
                       </div>
 
-                      <el-select
+                      <el-select-v2
                         v-else
                         v-model="ciDataForm[fitem.name]"
                         clearable
                         placeholder="请选择"
                         style="width: 240px"
                         filterable
-                        remote
-                        :remote-method="getRemoteOptions"
-                        :loading="remoteLoading"
-                      >
-                        <el-option
-                          v-for="(citem, cIndex) in modelRefOptions[fitem.name]"
-                          :key="cIndex"
-                          :label="citem.label"
-                          :value="citem.value"
-                        />
-                      </el-select>
+                        :options="
+                          allModelCiDataTreeObj[
+                            allModelFieldByNameObj[fitem.name]?.ref_model
+                          ]
+                        "
+                      />
                     </el-form-item>
                   </el-col>
                 </el-row>
@@ -1411,12 +1413,17 @@
                   : true
               "
             >
-              <el-select
+              <el-select-v2
                 v-model="multipleForm.updateParams[item]"
                 placeholder="请选择"
                 style="width: 240px"
                 filterable
                 clearable
+                :options="
+                  allModelCiDataTreeObj[
+                    allModelFieldByNameObj[fitem.name]?.ref_model
+                  ]
+                "
               >
                 <!--                 @visible-change="
                   getModelRefCiData($event, {
@@ -1424,13 +1431,13 @@
                     name: item,
                   })
                 " -->
-                <el-option
+                <!-- <el-option
                   v-for="(citem, cIndex) in modelRefOptions[item]"
                   :key="cIndex"
                   :label="citem.label"
                   :value="citem.value"
-                />
-              </el-select>
+                /> -->
+              </el-select-v2>
             </div>
             <div
               v-else-if="
@@ -1699,19 +1706,26 @@ import {
   computed,
   onMounted,
 } from "vue";
-import { da, pa } from "element-plus/es/locale/index.mjs";
 const { proxy } = getCurrentInstance();
 import { EditOutlined, DownOutlined, StarTwoTone } from "@ant-design/icons-vue";
 import { encrypt_sm4, decrypt_sm4 } from "@/utils/gmCrypto.ts";
 import useConfigStore from "@/store/config";
-
 const configStore = useConfigStore();
+import useModelStore from "@/store/cmdb/model";
+const modelConfigStore = useModelStore();
+const modelObjectByName = computed(() => {
+  return modelConfigStore.modelObjectByName;
+});
+const allModelCiDataTreeObj = computed(
+  () => modelConfigStore.allModelCiDataTreeObj
+);
 import type { FormInstance, FormItemInstance, FormRules } from "element-plus";
 import ciDataFilter from "./ciDataFilter.vue";
 import { useStore } from "vuex";
 import { useClipboard } from "vue-clipboard3";
 import { debounce } from "lodash";
 import { useRoute, useRouter } from "vue-router";
+import modelConfigStore from "../../store/cmdb/model";
 const router = useRouter();
 const route = useRoute();
 const store = useStore();
@@ -1961,6 +1975,8 @@ const treeDataCommit = async () => {
     });
     clearMultipleSelect();
     emit("getTree");
+    // 更新实例树
+    await modelConfigStore.getModelTreeInstance(props.ciModelId);
   } else {
     ElMessage({
       showClose: true,
@@ -2395,7 +2411,7 @@ const reloadWind = () => {
 // watch(() => hasConfigField.value, (n,) => {
 // }, { deep: true })
 const isDelete = (params) => {
-  let tempArr = params.map((item) => item.id === treeIdleId.value);
+  let tempArr = params.filter((item) => item.group_id === treeIdleId.value);
   return tempArr.length >> 0;
 };
 // 枚举类的字段下拉框
@@ -2576,19 +2592,29 @@ const modelFieldType = computed(() => {
   });
   return tempObj;
 });
-watch(
-  () => modelFieldType.value.model_ref,
-  (n) => {
-    // console.log();
-    modelFieldType.value.model_ref.forEach((item) => {
-      getModelRefCiData(true, {
-        id: allModelFieldByNameObj.value[item].ref_model,
-        name: item,
-      });
-    });
-  },
-  { deep: true }
-);
+// watch(
+//   () => modelFieldType.value.model_ref,
+//   (n) => {
+//     // console.log();
+//     modelFieldType.value.model_ref.forEach((item) => {
+//       // getModelRefCiData(true, {
+//       //   id: allModelFieldByNameObj.value[item].ref_model,
+//       //   name: item,
+//       // });
+
+//       modelRefOptions.value[item] =
+//         allModelCiDataTreeObj.value[
+//           allModelFieldByNameObj.value[item].ref_model
+//         ].length > 0
+//           ? allModelCiDataTreeObj.value[
+//               allModelFieldByNameObj.value[item].ref_model
+//             ]
+//           : [{ value: null, label: "无" }];
+//     });
+//     console.log(modelRefOptions.value);
+//   },
+//   { deep: true }
+// );
 
 // 获取ci数据
 const ciDataList = ref([]);
@@ -2774,7 +2800,8 @@ const cpCiData = (params) => {
         // if (ciDataForm.hasOwnProperty(item)) ciDataForm[item] = params[item]
         if (item === "id" || item === "instance_group") return;
         if (modelFieldType.value.model_ref.indexOf(item) !== -1) {
-          // console.log(123, params[item]);
+          console.log(item);
+          console.log(123, params[item]);
           if (params[item] !== null) {
             ciDataForm[item] = params[item].id;
           } else {
@@ -2798,6 +2825,7 @@ const cpCiData = (params) => {
       } // isDisabled.value = params.built_in
     );
     // ciDataForm = params
+    console.log("ddd", ciDataForm);
   });
   ElNotification({
     title: "Warning",
@@ -2887,9 +2915,9 @@ const ciDataCommit = async (
           using_template: ciDataForm.using_template,
           instance_group: [props.currentNodeId],
         });
-        setTimeout(() => {
-          loading.close();
-        }, 200);
+        // setTimeout(() => {
+        //   loading.close();
+        // }, 200);
 
         // console.log(res)
         // console.log(123)
@@ -2905,6 +2933,7 @@ const ciDataCommit = async (
             model_instance_group: props.currentNodeId,
           });
           emit("getTree");
+          modelConfigStore.getModelTreeInstance(props.ciModelId);
         } else {
           ElMessage({
             showClose: true,
@@ -2912,10 +2941,9 @@ const ciDataCommit = async (
             type: "error",
           });
         }
+        loading.close();
       } else {
         // console.log(111)
-        console.log(JSON.stringify(beforeEditCiDataForm.value));
-        console.log(JSON.stringify(ciDataForm));
 
         if (
           JSON.stringify(beforeEditCiDataForm.value) ===
@@ -2982,9 +3010,6 @@ const ciDataCommit = async (
           updateObj["instance_name"] = updateParams.value.instance_name;
           updateObj["fields"] = rmNameObjUpdate.value;
         }
-        console.log(modelFieldType.value);
-        console.log(updateObj);
-        console.log();
         let res = await proxy.$api.updateCiModelInstance(updateObj);
         // console.log(123)
 
@@ -3011,7 +3036,6 @@ const ciDataCommit = async (
       }
       // console.log('submit!')
     } else {
-      console.log("error submit!", fields);
       ElNotification({
         title: "表单校验",
         message: "表单填写异常",
@@ -3044,7 +3068,7 @@ const ciDataCancel = (formEl) => {
   isEdit.value = false;
 };
 // 实例删除
-const ciDataDelete = (params = null) => {
+const ciDataDelete = (id = null) => {
   ElMessageBox.confirm("是否确认删除?", "实例删除", {
     confirmButtonText: "确认删除",
     cancelButtonText: "取消",
@@ -3053,7 +3077,7 @@ const ciDataDelete = (params = null) => {
   })
     .then(async () => {
       // 发起删除请求
-      let res = await proxy.$api.deleteCiModelInstance(currentRow.value.id);
+      let res = await proxy.$api.deleteCiModelInstance(id);
       //
       // let res = {status:204}
       if (res.status == 204) {
@@ -3132,6 +3156,8 @@ const leftHeaderStyle = ({ row, column, rowIndex, columnIndex }) => {
     return "selectAllBtnDis";
   }
 };
+
+const getRemoteOptions = (model) => {};
 </script>
 <style scoped lang="scss">
 :deep(.el-transfer-panel__item).el-checkbox {

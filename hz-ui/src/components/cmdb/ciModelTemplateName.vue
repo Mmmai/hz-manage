@@ -119,7 +119,6 @@ const cancelAction = () => {
 
 const updateCiName = async () => {
   let res = await proxy.$api.updateInstanceName(props.modelId);
-  console.log(res);
   if (res.status == "200") {
     ElNotification({
       title: "Success",

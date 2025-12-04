@@ -182,6 +182,8 @@ import { TreeOptionsEnum } from "element-plus/es/components/tree-v2/src/virtual-
 const showTree = ref(true);
 import useCiStore from "@/store/cmdb/ci";
 const ciStore = useCiStore();
+import useModelStore from "@/store/cmdb/model";
+const modelStore = useModelStore();
 const ciModelId = ref("");
 // const modelInfo = ref("");
 // const currentIconName = defineModel('iconName')
@@ -250,7 +252,6 @@ const getCiModelList = async () => {
   // 设置默认为host
   // ciModelId.value = ciStore.ciLastModel
   // modelInfo.value = modelist.value.find((item) => item.name === "hosts");
-  console.log(newCiModelId.value);
   if (newCiModelId.value === undefined || newCiModelId.value === null) {
     ciModelId.value = modelist.value.find((item) => item.name === "hosts").id;
     nextTick(() => {
@@ -467,6 +468,8 @@ const editSave = async (val, data) => {
           // 重置表单
           data.label = groupNameInput.value;
           getCiModelTree();
+          // 更新实例树
+          await modelStore.getModelTreeInstance(ciModelId.value);
           groupNameInput.value = "";
         } else {
           ElMessage({
@@ -487,6 +490,8 @@ const editSave = async (val, data) => {
         // 重置表单
         getCiModelTree();
         groupNameInput.value = "";
+        // 更新实例树
+        await modelStore.getModelTreeInstance(ciModelId.value);
       } else {
         ElMessage({
           showClose: true,
@@ -520,6 +525,8 @@ const deleteNode = (node) => {
           });
           // 重新加载页面数据
           await getCiModelTree();
+          // 更新实例树
+          await modelStore.getModelTreeInstance(ciModelId.value);
           // resetForm(modelFieldFormRef.value);
           // modelFieldDrawer.value = false
         } else {

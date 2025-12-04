@@ -372,7 +372,7 @@
                         v-if="isEdit"
                       ></el-input>
                       <div v-else>
-                        <el-text v-if="useConfigStore.isShowPass">
+                        <el-text v-if="configStore.showAllPass">
                           {{
                             decrypt_sm4(
                               gmConfig.key,
@@ -563,7 +563,21 @@
                           </el-tooltip>
                         </el-space>
                       </template>
-                      <el-select
+                      <el-select-v2
+                        v-model="editForm[fitem.name]"
+                        clearable
+                        placeholder="请选择"
+                        style="width: 240px"
+                        filterable
+                        :options="
+                          allModelCiDataTreeObj[
+                            allModelFieldByNameObj[fitem.name]?.ref_model
+                          ]
+                        "
+                        v-if="isEdit"
+                      />
+
+                      <!-- <el-select
                         v-model="editForm[fitem.name]"
                         clearable
                         placeholder="请选择"
@@ -581,7 +595,7 @@
                           :label="citem.instance_name"
                           :value="citem.id"
                         />
-                      </el-select>
+                      </el-select> -->
                       <el-text v-else>
                         {{ instanceData.fields[fitem.name]?.instance_name }}
                       </el-text>
@@ -647,6 +661,9 @@ const modelInfo = ref({});
 const validationRulesEnumObject = computed(
   () => modelConfigStore.validationRulesEnumOptionsObject
 );
+const allModelCiDataTreeObj = computed(
+  () => modelConfigStore.allModelCiDataTreeObj
+);
 const { proxy } = getCurrentInstance();
 const route = useRoute();
 const router = useRouter();
@@ -695,19 +712,22 @@ const initEditForm = () => {
       } else {
         editForm[item] = null;
       }
-    } else if (modelFieldType.value.password.includes(item)) {
-      if (configStore.showAllPass) {
-        editForm[item] = decrypt_sm4(
-          configStore.gmCry.key,
-          instanceData.value.fields[item]
-        );
-      } else {
-        editForm[item] = instanceData.value.fields[item];
-      }
-    } else {
+    }
+    // else if (modelFieldType.value.password.includes(item)) {
+    //   if (configStore.showAllPass) {
+    //     editForm[item] = decrypt_sm4(
+    //       configStore.gmCry.key,
+    //       instanceData.value.fields[item]
+    //     );
+    //   } else {
+    //     editForm[item] = instanceData.value.fields[item];
+    //   }
+    // }
+    else {
       editForm[item] = instanceData.value.fields[item];
     }
   });
+  console.log(editForm);
 };
 const hasUnassignedPool = computed(() => {
   return instanceData.value?.instance_group?.some((item) =>

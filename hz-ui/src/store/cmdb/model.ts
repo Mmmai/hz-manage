@@ -85,13 +85,46 @@ export const modelConfigStore = defineStore(
       let res = await proxy.$api.getValidationRules({ page_size: 2000, page: 1 })
       validationRules.value = res.data.results
     }
+    // 递归提取所有 instances
+    const extractInstances = (node: any): Array<{ id: string; instance_name: string }> => {
+      let instances: Array<{ id: string; instance_name: string }> = []
+
+      // 如果当前节点有 instances，则添加到结果中
+      if (node.instances && Array.isArray(node.instances)) {
+        instances = instances.concat(node.instances)
+      }
+
+      // 递归处理子节点
+      if (node.children && Array.isArray(node.children)) {
+        node.children.forEach((child: any) => {
+          instances = instances.concat(extractInstances(child))
+        })
+      }
+
+      return instances
+    }
     const allModelCiDataObj = ref({})
+
+    const allModelCiDataTreeObj = computed(() => {
+      let tempObj = {}
+      Object.keys(allModelCiDataObj.value).forEach((item) => {
+        let temp = allModelCiDataObj.value[item]
+        let instances = extractInstances(temp)
+        tempObj[item] = instances.map(instance => ({
+          value: instance.id,
+          label: instance.instance_name
+        }))
+      })
+      return tempObj
+    })
     const getModelTreeInstance = async (model) => {
       let res = await api.getCiModelTreeNode({
         model: model,
       });
       allModelCiDataObj.value[model] = res.data[0];
+      console.log(allModelCiDataObj.value[model]);
     }
+
 
     // 获取所有模型的实例树和实例
     const getAllModelTreeInstances = async (force = false) => {
@@ -107,7 +140,7 @@ export const modelConfigStore = defineStore(
 
     // 提供给外部调用
     return {
-      allModels, modelObjectByName, modelObjectById, modelOptions, getModel, updateAllModels, allModelCiDataObj, getAllModelTreeInstances,
+      allModels, modelObjectByName, modelObjectById, modelOptions, getModel, updateAllModels, allModelCiDataObj, getModelTreeInstance, getAllModelTreeInstances, allModelCiDataTreeObj,
       validationRules, validationRulesObjectById, validationRulesEnumOptionsObject, getValidationRules, updateValidationRules, validationRulesOptions
     }
   },

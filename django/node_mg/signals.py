@@ -206,7 +206,8 @@ def sync_node(sender, instance, action, **kwargs):
             logger.info(f"节点[{instance.instance_name}]IP[{ip}]触发了zabbix同步任务")
     # 判断模型是否可管理
     obj = ModelConfig.objects.get(model=instance.model)
-
+    if not obj.is_manage:
+        return
     # 删除动作
     if action == 'delete':
         try:
@@ -226,9 +227,6 @@ def sync_node(sender, instance, action, **kwargs):
             logger.error(f"节点[{instance.instance_name}]不存在，无法删除")
         return
     else:
-        # 除删除操作,其他操作需要判断模型是否可管理
-        if not obj.is_manage:
-            return
         transaction.on_commit(delayed_process)
 
 
