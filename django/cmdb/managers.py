@@ -274,6 +274,10 @@ class ModelInstanceGroupManager(models.Manager):
         root_group = self.get_root_group(model_id)
         return self.filter(model_id=model_id, parent=root_group, label='空闲池').first()
 
+    def filter_groups_by_model(self, model_id, group_ids):
+        """筛选给定分组列表中属于指定模型下的可用分组"""
+        return self.filter(model_id=model_id, id__in=group_ids).all()
+
     def get_all_children_ids(self, group_ids, model_id=None) -> set:
         """
         获取指定ID列表的所有子分组ID（递归，广度优先）

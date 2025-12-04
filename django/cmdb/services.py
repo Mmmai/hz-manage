@@ -680,25 +680,24 @@ class ModelInstanceService:
             validated_data['instance_name'] = instance_name
 
         instance = ModelInstance.objects.create(**validated_data)
+        model_id = str(instance.model_id)
+        pm = PermissionManager(user)
 
         # 处理字段值
         if fields_data:
             cls._save_field_values(instance, fields_data, username, from_excel=from_excel)
 
-        # 处理分组关联，如果未指定分组，加入默认空闲池
-        if not instance_group_ids:
-            unassigned_group = ModelInstanceGroup.objects.get_unassigned_group(str(instance.model_id))
-            if unassigned_group:
-                instance_group_ids = [unassigned_group.id]
+        # 处理实例分组关系
+        valid_instance_group_ids = ModelInstanceGroupService.validate_group_ids(model_id, instance_group_ids, user)
 
-        if instance_group_ids:
+        if valid_instance_group_ids:
             relations = [
                 ModelInstanceGroupRelation(
                     instance=instance,
                     group_id=gid,
                     create_user=username,
                     update_user=username
-                ) for gid in instance_group_ids
+                ) for gid in valid_instance_group_ids
             ]
             ModelInstanceGroupRelation.objects.bulk_create(relations)
 
@@ -1203,6 +1202,86 @@ class ModelInstanceGroupService:
             'deleted_groups_count': deleted_groups_count,
             'moved_instances_count': len(instances_to_move_ids)
         }
+
+    @classmethod
+    @require_valid_user
+    def validate_group_ids(cls, model_id: str, group_ids: list, user: UserInfo) -> tuple:
+        """
+        校验并规范化实例分组 ID 列表
+
+        规则:
+        1. 未提交分组 -> 分配到空闲池
+        2. 仅提交根分组 -> 转换为空闲池
+        3. 提交多个分组时移除根分组和空闲池（除非仅剩空闲池）
+        4. 过滤无权限和不属于当前模型的分组
+        5. 过滤后无有效分组 -> 分配到空闲池
+
+        Args:
+            model_id: 模型 ID
+            group_ids: 原始分组 ID 列表
+            user: 用户信息
+
+        Returns:
+            tuple: (valid_group_ids: list, validation_info: dict)
+                - valid_group_ids: 校验后的有效分组 ID 列表
+        """
+        pm = PermissionManager(user)
+
+        # 获取特殊分组
+        root_group = ModelInstanceGroup.objects.get_root_group(model_id)
+        unassigned_group = ModelInstanceGroup.objects.get_unassigned_group(model_id)
+
+        if not root_group or not unassigned_group:
+            raise ValidationError({'groups': f'Model {model_id} is missing required root or unassigned group'})
+
+        root_group_id = str(root_group.id)
+        unassigned_group_id = str(unassigned_group.id)
+
+        # 未提交分组 -> 空闲池
+        if not group_ids:
+            return [unassigned_group_id]
+
+        # 转换为字符串集合
+        original_group_ids = set(str(gid) for gid in group_ids)
+        working_group_ids = original_group_ids.copy()
+
+        # 移除根分组
+        if root_group_id in working_group_ids:
+            working_group_ids.discard(root_group_id)
+
+        # 如果有多个分组，移除空闲池
+        if len(working_group_ids) > 1 and unassigned_group_id in working_group_ids:
+            working_group_ids.discard(unassigned_group_id)
+
+        # 过滤无效分组（不属于当前模型或用户无权限）
+        if working_group_ids:
+            # 获取属于当前模型的分组
+            valid_model_groups = set(
+                str(gid) for gid in ModelInstanceGroup.objects.filter_groups_by_model(
+                    model_id, list(working_group_ids)
+                ).values_list('id', flat=True)
+            )
+
+            # 获取用户有权限的分组
+            visible_groups = set(
+                str(gid) for gid in pm.get_queryset(ModelInstanceGroup).filter(
+                    model_id=model_id,
+                    id__in=working_group_ids
+                ).values_list('id', flat=True)
+            )
+
+            # 找出无效的分组
+            # invalid_model_groups = working_group_ids - valid_model_groups
+            # invalid_permission_groups = (working_group_ids & valid_model_groups) - visible_groups
+
+            # 保留有效分组
+            working_group_ids = working_group_ids & valid_model_groups & visible_groups
+
+        # 无有效分组 -> 空闲池
+        if not working_group_ids:
+            return [unassigned_group_id]
+
+        return list(working_group_ids)
 
     @classmethod
     @require_valid_user
