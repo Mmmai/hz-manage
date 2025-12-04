@@ -8,6 +8,7 @@ from rest_framework.decorators import action
 from django.db.models import Q
 
 from mapi.models import UserInfo, UserGroup, Role
+from .tools import clear_data_scope_cache
 from .models import DataScope
 from .serializers import DataScopeSerializer
 
@@ -275,6 +276,7 @@ class DataScopeViewSet(ModelViewSet):
 
         formatted_data = self._build_response_with_targets(serializer.instance)
         headers = self.get_success_headers(formatted_data)
+        clear_data_scope_cache(self.request.user.username)
         return Response(formatted_data, status=status.HTTP_201_CREATED, headers=headers)
 
     def update(self, request, *args, **kwargs):
@@ -283,6 +285,7 @@ class DataScopeViewSet(ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        clear_data_scope_cache(self.request.user.username)
 
         if getattr(instance, '_prefetched_objects_cache', None):
             instance._prefetched_objects_cache = {}
