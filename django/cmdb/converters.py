@@ -80,10 +80,10 @@ class EnumConverter(FieldMetaConverter):
 
     def to_representation(self, value, **kwargs):
         enum_dict = kwargs.get("enum_dict", {})
-        return json.dumps({
+        return {
             "value": value,
             "label": enum_dict.get(value, "")
-        }, ensure_ascii=False)
+        }
 
 
 class ModelRefConverter(FieldMetaConverter):
@@ -110,10 +110,10 @@ class ModelRefConverter(FieldMetaConverter):
 
     def to_representation(self, value, **kwargs):
         instance_map = kwargs.get("instance_map", {})
-        return json.dumps({
+        return {
             "id": value,
             "instance_name": instance_map.get(str(value), "")
-        }, ensure_ascii=False)
+        }
 
 
 class BooleanConverter(FieldMetaConverter):
@@ -174,6 +174,31 @@ class FloatConverter(FieldMetaConverter):
         return float(value)
 
 
+class JsonConverter(FieldMetaConverter):
+    """JSON字段转换器"""
+
+    def to_internal(self, value, **kwargs):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            try:
+                json.loads(value)
+                return value
+            except json.JSONDecodeError:
+                raise ValueError(f"Invalid JSON string: {value}")
+        elif isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False)
+        return value
+
+    def to_representation(self, value, **kwargs):
+        if value is None:
+            return None
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            raise ValueError(f"Invalid JSON value: {value}")
+
+
 class StringConverter(FieldMetaConverter):
     """字符串字段转换器"""
 
@@ -206,6 +231,7 @@ class ConverterFactory:
             FieldType.BOOLEAN: BooleanConverter,
             FieldType.INTEGER: IntegerConverter,
             FieldType.FLOAT: FloatConverter,
+            FieldType.JSON: JsonConverter,
             FieldType.STRING: StringConverter
         }
         return converters.get(field_type, StringConverter)
