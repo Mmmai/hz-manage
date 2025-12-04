@@ -1,53 +1,10 @@
 from audit.context import audit_context
-from cmdb.models import (
-    Models,
-    ModelInstance,
-    ModelFieldMeta
-)
-from cmdb.serializers import ModelInstanceSerializer
-from cmdb.utils import password_handler, sys_config
-import os
+from mapi.system_user import SYSTEM_USER
+from cmdb.public_services import PublicModelInstanceService
 import json
 import uuid
 import logging
 logger = logging.getLogger(__name__)
-
-
-def get_instance_field_value(obj, field_name):
-    """获取节点关联的实例IP"""
-    field_values = ModelFieldMeta.objects.filter(
-        model_instance=obj
-    ).select_related('model_fields')
-    # print(field_values)
-    for field in field_values:
-        if field.model_fields.name == field_name:
-            if field.model_fields.type == 'password':
-                return password_handler.decrypt_to_plain(field.data)
-            else:
-                return field.data
-    return None
-
-
-def get_instance_field_value_info(obj, field_name_list):
-    """获取节点关联的实例IP"""
-    res = {}
-    field_values = ModelFieldMeta.objects.filter(
-        model_instance=obj
-    ).select_related('model_fields')
-
-    # print(field_values)
-    for field in field_values:
-        if field.model_fields.name in field_name_list:
-            # return field.data
-            if field.model_fields.type == 'password':
-                logger.debug(f"字段解密: {field.data}")
-                res[field.model_fields.name] = password_handler.decrypt_to_plain(field.data)
-            else:
-                # print(field.model_fields.name,field.data)
-                res[field.model_fields.name] = field.data
-        # else:
-        #     res[field.model_fields.name] = None
-    return res
 
 
 def update_asset_info(instance, info, context=None):
@@ -72,7 +29,7 @@ def update_asset_info(instance, info, context=None):
     info.pop('ip', None)
 
     # 获取实例当前字段值信息
-    res = get_instance_field_value_info(instance, info.keys())
+    res = PublicModelInstanceService.get_instance_fields(instance, info.keys())
     # 比较并筛选出需要更新的字段
     update_fields = {}
     if res:
@@ -98,24 +55,15 @@ def update_asset_info(instance, info, context=None):
         }
     with audit_context(**context):
         if update_fields and instance:
-            serializer = ModelInstanceSerializer(
-                instance=instance,
-                data={
-                    "model": instance.model.id,
-                    "fields": update_fields
-                },
-                partial=True,
-                context={
-                    'request': None,
-                    'from_excel': False
-                }
-            )
-            if serializer.is_valid(raise_exception=True):
-                try:
-                    serializer.save()
-                    logger.info(f"update field success. update_fields: {update_fields}")
-                except Exception as e:
-                    logger.error(f"Failed to save updated fields: {e}")
+            logger.debug(f"Updating fields for {instance.instance_name}: {update_fields}")
+            try:
+                PublicModelInstanceService.update_instance(
+                    instance,
+                    update_fields,
+                    user=SYSTEM_USER
+                )
+            except Exception as e:
+                logger.error(f"Failed to update instance {instance.instance_name}: {e}")
         else:
             logger.debug(f"{instance.instance_name} has no fields to update")
 
@@ -131,9 +79,9 @@ def node_inventory(node):
         dict: 包含节点SSH连接配置的inventory字典，格式为Ansible所需格式
     """
     proxy = node.proxy
-    ssh_user = get_instance_field_value(node.model_instance, 'system_user') or 'root'
-    ssh_pass = get_instance_field_value(node.model_instance, 'system_password') or ''
-    ssh_port = get_instance_field_value(node.model_instance, 'ssh_port') or 22
+    ssh_user = PublicModelInstanceService.get_instance_field_value(node.model_instance, 'system_user') or 'root'
+    ssh_pass = PublicModelInstanceService.get_instance_field_value(node.model_instance, 'system_password') or ''
+    ssh_port = PublicModelInstanceService.get_instance_field_value(node.model_instance, 'ssh_port') or 22
 
     # 构建基础inventory配置
     inventory = {'all': {'hosts': {node.ip_address: {
@@ -173,9 +121,9 @@ def nodes_inventory(nodes):
     # 遍历所有节点，为每个节点构建inventory配置
     for node in nodes:
         proxy = node.proxy
-        ssh_user = get_instance_field_value(node.model_instance, 'system_user') or 'root'
-        ssh_pass = get_instance_field_value(node.model_instance, 'system_password') or ''
-        ssh_port = get_instance_field_value(node.model_instance, 'ssh_port') or 22
+        ssh_user = PublicModelInstanceService.get_instance_field_value(node.model_instance, 'system_user') or 'root'
+        ssh_pass = PublicModelInstanceService.get_instance_field_value(node.model_instance, 'system_password') or ''
+        ssh_port = PublicModelInstanceService.get_instance_field_value(node.model_instance, 'ssh_port') or 22
 
         # 为当前节点构建inventory配置
         host_config = {
