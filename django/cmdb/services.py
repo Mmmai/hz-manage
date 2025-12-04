@@ -1958,8 +1958,8 @@ class ModelFieldMetaSearchService:
                 inst_name = inst['instance_name']
                 ref_instance_cache[inst_id] = inst_name
                 # 反向映射：名称 -> ID
-                if inst_name not in ref_instance_cache:
-                    ref_instance_cache[inst_name] = inst_id
+                # if inst_name not in ref_instance_cache:
+                #     ref_instance_cache[inst_name] = inst_id
 
         return enum_cache, ref_instance_cache
 
@@ -1985,9 +1985,9 @@ class ModelFieldMetaSearchService:
                 if label.lower() == query_lower or query_lower in label.lower():
                     variants.add(key)
 
-        # instance_name/instance_id 互转
+        # 只搜索实例名
         for key, value in ref_instance_cache.items():
-            if query_lower in key.lower():
+            if query_lower in value.lower():
                 variants.add(value)
 
         return variants

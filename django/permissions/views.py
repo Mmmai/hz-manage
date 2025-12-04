@@ -60,220 +60,193 @@ class DataScopeViewSet(ModelViewSet):
         targets_map = self._get_targets_detail_map([instance])
         return self._format_response_data(serializer.data, targets_map)
 
-    # ============ 权限聚合相关方法 ============
-
-    def _get_permission_source_label(self, scope) -> dict:
-        """获取权限来源的标签信息"""
-        if scope.user_id:
-            return {
-                'type': 'user',
-                'id': str(scope.user_id),
-                'name': getattr(scope.user, 'username', str(scope.user_id)) if scope.user else str(scope.user_id)
-            }
-        elif scope.user_group_id:
-            return {
-                'type': 'user_group',
-                'id': str(scope.user_group_id),
-                'name': getattr(scope.user_group, 'group_name', str(scope.user_group_id)) if scope.user_group else str(scope.user_group_id)
-            }
-        elif scope.role_id:
-            return {
-                'type': 'role',
-                'id': str(scope.role_id),
-                'name': getattr(scope.role, 'role_name', str(scope.role_id)) if scope.role else str(scope.role_id)
-            }
-        return {'type': 'unknown', 'id': None, 'name': 'Unknown'}
-
-    def _collect_scopes_for_user(self, user):
-        """收集用户相关的所有 DataScope（直接权限 + 用户组权限 + 角色权限）"""
-
+    def _collect_scopes_for_user(self, user) -> list:
+        """
+        收集用户相关的所有 DataScope（直接权限 + 用户组权限 + 角色权限）
+        返回格式：[{scope, owner_type, owner_id, owner_name}]
+        """
         scopes_with_sources = []
 
+        # 用户直接权限
         user_scopes = DataScope.objects.filter(user=user).prefetch_related(
-            'targets', 'targets__content_type', 'user'
+            'targets', 'targets__content_type'
         )
         for scope in user_scopes:
             scopes_with_sources.append({
                 'scope': scope,
-                'source': {
-                    'type': 'user',
-                    'id': str(user.id),
-                    'name': user.username
-                }
+                'owner_type': 'user',
+                'owner_id': str(user.id),
+                'owner_name': user.username,
             })
 
+        # 用户组权限
         user_groups = user.groups.all()
         for group in user_groups:
             group_scopes = DataScope.objects.filter(user_group=group).prefetch_related(
-                'targets', 'targets__content_type', 'user_group'
+                'targets', 'targets__content_type'
             )
             for scope in group_scopes:
                 scopes_with_sources.append({
                     'scope': scope,
-                    'source': {
-                        'type': 'user_group',
-                        'id': str(group.id),
-                        'name': group.group_name
-                    }
+                    'owner_type': 'user_group',
+                    'owner_id': str(group.id),
+                    'owner_name': group.group_name
                 })
 
+            # 用户组关联的角色权限
             group_roles = group.roles.all()
             for role in group_roles:
                 role_scopes = DataScope.objects.filter(role=role).prefetch_related(
-                    'targets', 'targets__content_type', 'role'
+                    'targets', 'targets__content_type'
                 )
                 for scope in role_scopes:
                     scopes_with_sources.append({
                         'scope': scope,
-                        'source': {
-                            'type': 'role',
-                            'id': str(role.id),
-                            'name': role.role_name,
-                            'via': {
-                                'type': 'user_group',
-                                'id': str(group.id),
-                                'name': group.group_name
-                            }
-                        }
+                        'owner_type': 'role',
+                        'owner_id': str(role.id),
+                        'owner_name': role.role_name
                     })
 
+        # 用户直接关联的角色权限
         user_roles = user.roles.all()
         for role in user_roles:
             role_scopes = DataScope.objects.filter(role=role).prefetch_related(
-                'targets', 'targets__content_type', 'role'
+                'targets', 'targets__content_type'
             )
             for scope in role_scopes:
                 scopes_with_sources.append({
                     'scope': scope,
-                    'source': {
-                        'type': 'role',
-                        'id': str(role.id),
-                        'name': role.role_name,
-                        'via': {
-                            'type': 'user',
-                            'id': str(user.id),
-                            'name': user.username
-                        }
-                    }
+                    'owner_type': 'role',
+                    'owner_id': str(role.id),
+                    'owner_name': role.role_name
                 })
 
         return scopes_with_sources
 
-    def _collect_scopes_for_user_group(self, user_group):
+    def _collect_scopes_for_user_group(self, user_group) -> list:
         """收集用户组相关的所有 DataScope（直接权限 + 角色权限）"""
         scopes_with_sources = []
 
+        # 用户组直接权限
         group_scopes = DataScope.objects.filter(user_group=user_group).prefetch_related(
-            'targets', 'targets__content_type', 'user_group'
+            'targets', 'targets__content_type'
         )
         for scope in group_scopes:
             scopes_with_sources.append({
                 'scope': scope,
-                'source': {
-                    'type': 'user_group',
-                    'id': str(user_group.id),
-                    'name': user_group.group_name
-                }
+                'owner_type': 'user_group',
+                'owner_id': str(user_group.id),
+                'owner_name': user_group.group_name
             })
 
+        # 用户组关联的角色权限
         group_roles = user_group.roles.all()
         for role in group_roles:
             role_scopes = DataScope.objects.filter(role=role).prefetch_related(
-                'targets', 'targets__content_type', 'role'
+                'targets', 'targets__content_type'
             )
             for scope in role_scopes:
                 scopes_with_sources.append({
                     'scope': scope,
-                    'source': {
-                        'type': 'role',
-                        'id': str(role.id),
-                        'name': role.role_name,
-                        'via': {
-                            'type': 'user_group',
-                            'id': str(user_group.id),
-                            'name': user_group.group_name
-                        }
-                    }
+                    'owner_type': 'role',
+                    'owner_id': str(role.id),
+                    'owner_name': role.role_name
                 })
 
         return scopes_with_sources
 
-    def _collect_scopes_for_role(self, role):
+    def _collect_scopes_for_role(self, role) -> list:
         """收集角色相关的所有 DataScope"""
         scopes_with_sources = []
 
         role_scopes = DataScope.objects.filter(role=role).prefetch_related(
-            'targets', 'targets__content_type', 'role'
+            'targets', 'targets__content_type'
         )
         for scope in role_scopes:
             scopes_with_sources.append({
                 'scope': scope,
-                'source': {
-                    'type': 'role',
-                    'id': str(role.id),
-                    'name': role.role_name
-                }
+                'owner_type': 'role',
+                'owner_id': str(role.id),
+                'owner_name': role.role_name
             })
 
         return scopes_with_sources
 
-    def _aggregate_permissions_with_sources(self, scopes_with_sources: list) -> dict:
+    def _aggregate_permissions_to_list(self, scopes_with_sources: list) -> list:
         """
-        聚合权限并标注来源
-        返回格式：
-        {
-            "app_label.model": {
-                "object_id_1": {
-                    "sources": [
-                        {"type": "user", "id": "xxx", "name": "用户A"},
-                        {"type": "role", "id": "xxx", "name": "角色A", "via": {...}}
-                    ],
-                    "scope_types": ["read", "write"]
-                }
-            }
-        }
-        """
-        aggregated = defaultdict(lambda: defaultdict(lambda: {
-            'sources': [],
-            'scope_types': set()
-        }))
+        将权限聚合为列表格式
 
-        # 用于去重来源
-        seen_sources = defaultdict(lambda: defaultdict(set))
+        返回格式：
+        [
+            {
+                "app_label": "cmdb",
+                "model": "model_instance",
+                "target": "obj_id",
+                "owner_type": "user",
+                "owner_id": "111",
+                "owner_name": "test",
+                "scope_type": "read"
+            },
+            ...
+        ]
+
+        每个权限来源单独一条记录
+        """
+        result = []
 
         for item in scopes_with_sources:
             scope = item['scope']
-            source = item['source']
-
-            # 创建来源的唯一标识用于去重
-            source_key = f"{source['type']}:{source['id']}"
-            if 'via' in source:
-                source_key += f":via:{source['via']['type']}:{source['via']['id']}"
+            owner_type = item['owner_type']
+            owner_id = item['owner_id']
+            owner_name = item['owner_name']
 
             for target in scope.targets.all():
-                target_key = self._build_target_key(target)
-                object_id = str(target.object_id)
-
-                # 检查是否已添加该来源
-                if source_key not in seen_sources[target_key][object_id]:
-                    seen_sources[target_key][object_id].add(source_key)
-                    aggregated[target_key][object_id]['sources'].append(source)
-
-                # 添加权限类型
-                if scope.scope_type:
-                    aggregated[target_key][object_id]['scope_types'].add(scope.scope_type)
-
-        # 将 set 转换为 list 以便 JSON 序列化
-        result = {}
-        for target_key, objects in aggregated.items():
-            result[target_key] = {}
-            for object_id, data in objects.items():
-                result[target_key][object_id] = {
-                    'sources': data['sources'],
-                    'scope_types': list(data['scope_types'])
+                record = {
+                    'app_label': target.content_type.app_label,
+                    'model': target.content_type.model,
+                    'target': str(target.object_id),
+                    'owner_type': owner_type,
+                    'owner_id': owner_id,
+                    'owner_name': owner_name,
+                    'scope_type': scope.scope_type,
+                    'scope_id': str(scope.id),
                 }
 
+                result.append(record)
+
         return result
+
+    def _aggregate_permissions_grouped(self, permissions_list: list) -> dict:
+        """
+        将权限列表按 app_label.model 和 target 分组
+
+        返回格式：
+        {
+            "cmdb.model_instance": {
+                "obj_id_1": [
+                    {"owner_type": "user", "owner_id": "111", ...},
+                    {"owner_type": "role", "owner_id": "222", ...}
+                ]
+            }
+        }
+        """
+        grouped = defaultdict(lambda: defaultdict(list))
+
+        for perm in permissions_list:
+            key = f"{perm['app_label']}.{perm['model']}"
+            target = perm['target']
+
+            grouped[key][target].append({
+                'owner_type': perm['owner_type'],
+                'owner_id': perm['owner_id'],
+                'owner_name': perm['owner_name'],
+                'scope_type': perm['scope_type'],
+                'scope_id': perm['scope_id'],
+                'via': perm['via']
+            })
+
+        # 转换为普通字典
+        return {k: dict(v) for k, v in grouped.items()}
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -311,7 +284,6 @@ class DataScopeViewSet(ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
 
-        # 清除预取缓存以获取最新数据
         if getattr(instance, '_prefetched_objects_cache', None):
             instance._prefetched_objects_cache = {}
 
@@ -321,7 +293,7 @@ class DataScopeViewSet(ModelViewSet):
     @action(detail=False, methods=['get'])
     def aggregated_permissions(self, request):
         """
-        获取用户/用户组/角色的聚合权限，包含权限来源信息
+        获取用户/用户组/角色的聚合权限列表
 
         Query Parameters:
             - user_id: 用户ID
@@ -330,23 +302,52 @@ class DataScopeViewSet(ModelViewSet):
 
         返回格式:
         {
-            "subject": {
-                "type": "user",
-                "id": "xxx",
-                "name": "用户A"
-            },
-            "permissions": {
-                "app_label.model": {
-                    "object_id_1": {
-                        "sources": [
-                            {"type": "user", "id": "xxx", "name": "用户A"},
-                            {"type": "user_group", "id": "xxx", "name": "用户组A"},
-                            {"type": "role", "id": "xxx", "name": "角色A", "via": {"type": "user", ...}}
-                        ],
-                        "scope_types": ["read", "write"]
-                    }
+            "results": [
+                {
+                    "app_label": "cmdb",
+                    "model": "model_instance",
+                    "target": "obj_id",
+                    "owner_type": "user",
+                    "owner_id": "111",
+                    "owner_name": "test",
+                    "scope_type": "read",
+                    "scope_id": "xxx",
+                    "via": null
+                },
+                {
+                    "app_label": "cmdb",
+                    "model": "model_instance",
+                    "target": "obj_id",
+                    "owner_type": "user_group",
+                    "owner_id": "222",
+                    "owner_name": "测试组",
+                    "scope_type": "read",
+                    "scope_id": "yyy",
+                    "via": null
+                },
+                {
+                    "app_label": "cmdb",
+                    "model": "model_instance",
+                    "target": "obj_id",
+                    "owner_type": "role",
+                    "owner_id": "333",
+                    "owner_name": "管理员",
+                    "scope_type": "write",
+                    "scope_id": "zzz",
+                    "via": {"type": "user", "id": "111", "name": "test"}
+                },
+                {
+                    "app_label": "cmdb",
+                    "model": "model_instance",
+                    "target": "obj_id",
+                    "owner_type": "role",
+                    "owner_id": "444",
+                    "owner_name": "运维角色",
+                    "scope_type": "read",
+                    "scope_id": "aaa",
+                    "via": {"type": "user_group", "id": "222", "name": "测试组"}
                 }
-            }
+            ]
         }
         """
         user_id = request.query_params.get('user_id')
@@ -357,73 +358,94 @@ class DataScopeViewSet(ModelViewSet):
         params_count = sum(1 for p in [user_id, user_group_id, role_id] if p)
         if params_count == 0:
             return Response(
-                {'error': '请提供 user_id、user_group_id 或 role_id 参数'},
+                {'error': 'Please provide one of user_id, user_group_id, or role_id parameters'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         if params_count > 1:
             return Response(
-                {'error': '只能指定 user_id、user_group_id 或 role_id 中的一个'},
+                {'error': 'Only one of user_id, user_group_id, or role_id can be specified'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         try:
             if user_id:
-                user = UserInfo.objects.prefetch_related('groups', 'groups__roles', 'roles').get(id=user_id)
+                user = UserInfo.objects.prefetch_related(
+                    'groups', 'groups__roles', 'roles'
+                ).get(id=user_id)
                 scopes_with_sources = self._collect_scopes_for_user(user)
-                subject = {
-                    'type': 'user',
-                    'id': str(user.id),
-                    'name': user.username
-                }
             elif user_group_id:
                 user_group = UserGroup.objects.prefetch_related('roles').get(id=user_group_id)
                 scopes_with_sources = self._collect_scopes_for_user_group(user_group)
-                subject = {
-                    'type': 'user_group',
-                    'id': str(user_group.id),
-                    'name': user_group.group_name
-                }
             else:  # role_id
                 role = Role.objects.get(id=role_id)
                 scopes_with_sources = self._collect_scopes_for_role(role)
-                subject = {
-                    'type': 'role',
-                    'id': str(role.id),
-                    'name': role.role_name
-                }
 
-            permissions = self._aggregate_permissions_with_sources(scopes_with_sources)
+            # 聚合为列表格式
+            permissions_list = self._aggregate_permissions_to_list(scopes_with_sources)
+
+            permissions = permissions_list
 
             return Response({
-                'subject': subject,
-                'permissions': permissions
+                'results': permissions
             })
 
-        except (UserInfo.DoesNotExist if user_id else
-                UserGroup.DoesNotExist if user_group_id else
-                Role.DoesNotExist) as e:
+        except UserInfo.DoesNotExist:
             return Response(
-                {'error': f'Cannot find specified subject: {str(e)}'},
+                {'error': f'User {user_id} does not exist'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except UserGroup.DoesNotExist:
+            return Response(
+                {'error': f'UserGroup {user_group_id} does not exist'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Role.DoesNotExist:
+            return Response(
+                {'error': f'Role {role_id} does not exist'},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
             logger.exception(f'Error in aggregated_permissions: {e}')
             return Response(
-                {'error': f'Error occurred while querying permissions: {str(e)}'},
+                {'error': f'Error occurred in aggregated_permissions: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     @action(detail=False, methods=['get'], url_path='check-permission')
     def check_permission(self, request):
         """
-        检查用户对特定对象是否有权限，并返回权限来源
+        检查用户对特定对象是否有权限，并返回权限来源列表
 
         Query Parameters:
             - user_id: 用户ID（必填）
             - app_label: 应用标签（必填）
             - model: 模型名称（必填）
             - object_id: 对象ID（必填）
-            - scope_type: 权限类型（可选）
+            - scope_type: 权限类型（可选，如指定则检查是否有该类型权限）
+
+        返回格式:
+        {
+            "has_permission": true,
+            "sources": [
+                {
+                    "owner_type": "user",
+                    "owner_id": "111",
+                    "owner_name": "test",
+                    "scope_type": "read",
+                    "scope_id": "xxx",
+                    "via": null
+                },
+                {
+                    "owner_type": "role",
+                    "owner_id": "333",
+                    "owner_name": "管理员",
+                    "scope_type": "write",
+                    "scope_id": "yyy",
+                    "via": {"type": "user_group", "id": "222", "name": "测试组"}
+                }
+            ],
+            "scope_types": ["read", "write"]
+        }
         """
         user_id = request.query_params.get('user_id')
         app_label = request.query_params.get('app_label')
@@ -438,42 +460,64 @@ class DataScopeViewSet(ModelViewSet):
             )
 
         try:
-            user = UserInfo.objects.prefetch_related('groups', 'groups__roles', 'roles').get(id=user_id)
+            user = UserInfo.objects.prefetch_related(
+                'groups', 'groups__roles', 'roles'
+            ).get(id=user_id)
 
             scopes_with_sources = self._collect_scopes_for_user(user)
-            permissions = self._aggregate_permissions_with_sources(scopes_with_sources)
+            permissions_list = self._aggregate_permissions_to_list(scopes_with_sources)
 
-            target_key = f"{app_label}.{model}"
+            # 筛选匹配的权限
+            matched_permissions = [
+                p for p in permissions_list
+                if p['app_label'] == app_label
+                and p['model'] == model
+                and p['target'] == object_id
+            ]
 
-            if target_key in permissions and object_id in permissions[target_key]:
-                permission_data = permissions[target_key][object_id]
-
-                # 如果指定了 scope_type，检查是否包含
-                if scope_type and scope_type not in permission_data['scope_types']:
-                    return Response({
-                        'has_permission': False,
-                        'message': f'User does not have {scope_type} permission on the object'
-                    })
-
-                return Response({
-                    'has_permission': True,
-                    'sources': permission_data['sources'],
-                    'scope_types': permission_data['scope_types']
-                })
-            else:
+            if not matched_permissions:
                 return Response({
                     'has_permission': False,
-                    'message': 'User does not have permission on the object'
+                    'message': 'User does not have permission for the object'
                 })
+
+            # 提取权限来源和类型
+            sources = [
+                {
+                    'owner_type': p['owner_type'],
+                    'owner_id': p['owner_id'],
+                    'owner_name': p['owner_name'],
+                    'scope_type': p['scope_type'],
+                    'scope_id': p['scope_id'],
+                    'via': p['via']
+                }
+                for p in matched_permissions
+            ]
+            scope_types = list(set(p['scope_type'] for p in matched_permissions if p['scope_type']))
+
+            # 如果指定了 scope_type，检查是否包含
+            if scope_type:
+                if scope_type not in scope_types:
+                    return Response({
+                        'has_permission': False,
+                        'message': f'User does not have {scope_type} permission for the object',
+                        'available_scope_types': scope_types
+                    })
+
+            return Response({
+                'has_permission': True,
+                'sources': sources,
+                'scope_types': scope_types
+            })
 
         except UserInfo.DoesNotExist:
             return Response(
-                {'error': 'User not found'},
+                {'error': '用户不存在'},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
             logger.exception(f'Error in check_permission: {e}')
             return Response(
-                {'error': f'Error occurred while checking permission: {str(e)}'},
+                {'error': f'Error in check_permission: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

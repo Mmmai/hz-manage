@@ -31,7 +31,7 @@ urlpatterns = [
     path('api/v1/node_mg/', include('node_mg.urls')),
     path('api/v1/permissions/', include('permissions.urls')),
     path('api/v1/audit/', include('audit.urls')),
-    path('silk/', include('silk.urls', namespace='silk')),
+    # path('silk/', include('silk.urls', namespace='silk')),
     # OpenAPI schema
     path('api/schema/', SpectacularAPIView.as_view(api_version='v1'), name='schema'),
     # Swagger UI
