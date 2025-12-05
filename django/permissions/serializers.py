@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from .models import DataScope, PermissionTarget
+from mapi.models import UserInfo, Role, UserGroup
 
 
 class PermissionTargetInputSerializer(serializers.Serializer):
