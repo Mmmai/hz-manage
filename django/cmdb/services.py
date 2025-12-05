@@ -1141,30 +1141,31 @@ class ModelInstanceGroupService:
     @staticmethod
     @require_valid_user
     @transaction.atomic
-    def delete_group(group, user: UserInfo) -> dict:
+    def delete_group(group: ModelInstanceGroup, user: UserInfo) -> dict:
         """
         删除一个分组及其所有子分组，并将无其他分组关联的实例迁移到空闲池。
         """
         username = user.username
+        model_id = str(group.model.id)
         if group.built_in:
             raise PermissionDenied(f'Can not delete built-in group "{group.label}"')
 
-        unassigned_group = ModelInstanceGroup.objects.get_unassigned_group(str(group.model.id))
+        unassigned_group = ModelInstanceGroup.objects.get_unassigned_group(model_id)
 
         # 递归获取所有待删除的子分组
-        all_groups_to_delete = [group] + list(group.get_all_children())
-        all_group_ids_to_delete = {g.id for g in all_groups_to_delete}
-        logger.debug(f"Preparing to delete {len(all_groups_to_delete)} groups, including '{group.label}'.")
+        children_ids = ModelInstanceGroup.objects.get_all_children_ids(group.id, model_id)
+        children_ids.add(str(group.id))
+        logger.debug(f"Preparing to delete {len(children_ids)} groups, including '{group.label}'.")
 
         instances_in_deleted_groups = ModelInstance.objects.filter(
-            group_relations__group_id__in=all_group_ids_to_delete
+            group_relations__group_id__in=children_ids
         ).distinct()
 
         # 检查实例是否存在其他关联分组
         other_groups_subquery = ModelInstanceGroupRelation.objects.filter(
             instance_id=OuterRef('pk'),
         ).exclude(
-            group_id__in=all_group_ids_to_delete
+            group_id__in=children_ids
         )
 
         instances_to_move_qs = instances_in_deleted_groups.annotate(
@@ -1175,7 +1176,7 @@ class ModelInstanceGroupService:
         logger.debug(f"Found {len(instances_to_move_ids)} instances to move to unassigned pool.")
 
         deleted_relations_count, _ = ModelInstanceGroupRelation.objects.filter(
-            group_id__in=all_group_ids_to_delete
+            group_id__in=children_ids
         ).delete()
         logger.debug(f"Deleted {deleted_relations_count} existing group relations.")
 
@@ -1193,7 +1194,7 @@ class ModelInstanceGroupService:
             logger.debug(f"Created {len(relations_to_create)} new relations in unassigned pool.")
 
         # 删除所有分组对象
-        deleted_groups_count, _ = ModelInstanceGroup.objects.filter(id__in=all_group_ids_to_delete).delete()
+        deleted_groups_count, _ = ModelInstanceGroup.objects.filter(id__in=children_ids).delete()
         logger.debug(f"Successfully deleted {deleted_groups_count} groups from database.")
 
         # ModelInstanceGroup.clear_groups_cache(all_groups_to_delete)
