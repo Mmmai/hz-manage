@@ -287,7 +287,6 @@ class ModelInstanceGroupManager(models.Manager):
             group_ids: 分组ID列表
             model_id: 可选，指定模型ID以限定查询范围，提升性能
         """
-        a = time.perf_counter()
         if not group_ids:
             return set()
 
@@ -303,9 +302,6 @@ class ModelInstanceGroupManager(models.Manager):
             queryset = queryset.filter(model_id=model_id)
 
         all_groups = queryset.values_list('id', 'parent_id')
-
-        b = time.perf_counter()
-        logger.debug(f'Fetched all groups for model_id={model_id} in {b - a:.4f} seconds.')
 
         # 构建父子关系映射: parent_id -> [child_ids]
         parent_to_children = {}
@@ -334,9 +330,8 @@ class ModelInstanceGroupManager(models.Manager):
 
             all_children_ids.update(new_ids)
             current_ids = new_ids
+        logger.debug(f'children ids: {all_children_ids}')
 
-        c = time.perf_counter()
-        logger.debug(f'Computed all children IDs for group_ids={group_ids} in {c - b:.4f} seconds.')
         return all_children_ids
 
     def get_all_children_ids_with_cache(self, group_ids, model_id=None) -> set:

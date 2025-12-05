@@ -15,7 +15,7 @@ from django.db.utils import OperationalError
 
 from node_mg.utils import sys_config
 from audit.context import audit_context
-from mapi.models import UserInfo
+from mapi.system_user import SYSTEM_USER
 from .config import BUILT_IN_MODELS, BUILT_IN_RELATION_DEFINITION, BUILT_IN_VALIDATION_RULES
 from .utils.zabbix import ZabbixAPI
 from .constants import ValidationType
@@ -98,7 +98,7 @@ def _create_model_and_fields(model_name, model_config, model_group=None):
             # 检查模型是否存在
             model = Models.objects.filter(name=model_name).first()
             if not model:
-                user = UserInfo(username='system', password='_')
+                user = SYSTEM_USER
                 model_serializer = ModelsSerializer(data=model_data)
                 if model_serializer.is_valid():
                     model = ModelsService.create_model(model_serializer.validated_data, user=user)
@@ -158,11 +158,6 @@ def _create_model_and_fields(model_name, model_config, model_group=None):
                         logger.error(f"Field validation failed: {field_serializer.errors}")
                         raise ValueError(f"Invalid field data for {field_name}")
 
-            # 创建默认字段偏好设置
-            if not ModelFieldPreference.objects.filter(model=model).exists():
-                user = UserInfo(username='admin', password='_')
-                ModelFieldPreferenceService.create_default_field_preference(model, user)
-                logger.info(f'Created default field preference for model {model_name} for admin user')
             # 为每个内置模型添加一个默认的唯一性校验规则：使用ip字段校验
             # 只给hosts 和 network设备添加
             # if model_name in ['hosts', 'switches', 'firewalls', 'dwdm', 'virtual_machines']:
@@ -398,62 +393,6 @@ def update_instance_name_on_field_change(sender, instance, created, **kwargs):
         logger.error(f"Error generating instance name: {str(e)}")
 
 
-# @receiver(post_save, sender=ModelInstance)
-# def sync_zabbix_host(sender, instance, created, **kwargs):
-#     print(4444)
-#     """同步Zabbix主机"""
-#     if not sys_config.is_zabbix_sync_enabled():
-#         return
-
-#     def delayed_process():
-#         try:
-#             model = Models.objects.get(id=instance.model_id)
-#             if model.name != 'hosts':
-#                 return
-
-#             # 获取主机信息
-#             host_info = {}
-#             field_values = ModelFieldMeta.objects.filter(
-#                 model_instance=instance
-#             ).select_related('model_fields')
-
-#             for field in field_values:
-#                 logger.debug(f"Field: {field.model_fields.name}, Value: {field.data}")
-#                 if field.model_fields.name == 'ip':
-#                     host_info[field.model_fields.name] = field.data
-#                 elif field.model_fields.name == 'system_password':
-#                     host_info[field.model_fields.name] = password_handler.decrypt_to_plain(field.data)
-
-#             groups = []
-#             instance_group_relations = ModelInstanceGroupRelation.objects.filter(
-#                 instance=instance
-#             ).select_related('group')
-#             for relation in instance_group_relations:
-#                 if relation.group.path not in ['所有', '所有/空闲池']:
-#                     groups.append(relation.group.path.replace('所有/', ''))
-
-#             if not host_info.get('ip'):
-#                 logger.warning(f"Missing required host information for instance {instance.id}")
-#                 return
-
-#             logger.info(f"Syncing Zabbix host for IP: {host_info.get('ip')} instance: {instance.id}")
-
-#             # 异步创建Zabbix主机
-#             setup_host_monitoring.delay(
-#                 instance_id=str(instance.id),
-#                 instance_name=instance.instance_name,
-#                 ip=host_info['ip'],
-#                 password=host_info['system_password'],
-#                 groups=groups
-#             )
-
-#         except Exception as e:
-#             logger.error(f"Failed to sync Zabbix host: {str(e)}")
-
-#     transaction.on_commit(delayed_process)
-#     logger.info(f'Syncing Zabbix host for instance {instance.id} completed')
-
-
 @receiver(pre_delete, sender=ModelInstance)
 def prepare_delete_zabbix_host(sender, instance, **kwargs):
     """准备删除Zabbix主机"""
@@ -487,45 +426,6 @@ def prepare_delete_zabbix_host(sender, instance, **kwargs):
     except Exception as e:
         logger.error(f"Failed to prepare delete Zabbix host: {str(e)}")
 
-
-# @receiver(post_delete, sender=ModelInstance)
-# def delete_zabbix_host(sender, instance, **kwargs):
-#     """删除Zabbix主机"""
-#     if not sys_config.is_zabbix_sync_enabled():
-#         return
-#     a = time.perf_counter()
-
-#     def delayed_process():
-#         logger.debug(f'Delayed process started for instance {instance.id}')
-#         try:
-#             model = Models.objects.get(id=instance.model_id)
-#             if model.name != 'hosts':
-#                 return
-
-#             # 获取主机信息
-#             cache_key = f'delete_zabbix_host_{instance.id}'
-#             cache_data = cache.get(cache_key)
-#             if not cache_data:
-#                 logger.warning(f"Missing required host information for instance {instance.id}")
-#                 return
-
-#             logger.info(f"Deleting Zabbix host for IP: {cache_data.get('ip')} instance: {instance.id}")
-#             # 异步删除Zabbix主机
-#             setup_host_monitoring.delay(
-#                 instance_id=str(instance.id),
-#                 instance_name=instance.instance_name,
-#                 ip=cache_data.get('ip'),
-#                 password=None,
-#                 delete=True
-#             )
-
-#         except Exception as e:
-#             logger.error(f"Failed to delete Zabbix host: {str(e)}")
-
-#     logger.debug(f'Scheduling delayed process for instance {instance.id}')
-#     transaction.on_commit(delayed_process)
-#     b = time.perf_counter()
-#     logger.info(f'Deleting Zabbix host for instance {instance.id} completed in {b - a}s')
 
 # 此信号弃用，实例自身path由模型方法主动计算，子节点path更新由update_descendant_paths处理
 # @receiver(post_save, sender=ModelInstanceGroup)
@@ -780,9 +680,3 @@ def send_model_instance_signal(sender, instance, created, **kwargs):
 @receiver(pre_delete, sender=ModelInstance, dispatch_uid="delete_to_nodes")
 def send_model_instance_delete_signal(sender, instance, **kwargs):
     model_instance_signal.send(sender=sender, instance=instance, action='delete')
-# @receiver(post_save, sender=ModelInstance,dispatch_uid="111")
-# def send_model_instance_signal(sender, instance, created, **kwargs):
-#     print(123)
-#     if instance.model.name not in model_sync_list:
-#         print("模型不在同步列表中，跳过节点同步")
-#         return

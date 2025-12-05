@@ -11,6 +11,36 @@ from .registry import get_handler
 logger = logging.getLogger(__name__)
 
 
+def get_data_scope_cache(username: str) -> dict:
+    cache_key = f'user_data_scope_{username}'
+    return cache.get(cache_key)
+
+
+def set_data_scope_cache(username: str, data: dict):
+    cache_key = f'user_data_scope_{username}'
+    cache.set(cache_key, data)
+
+
+def clear_data_scope_cache(username: str):
+    cache_key = f'user_data_scope_{username}'
+    cache.delete(cache_key)
+
+
+def get_password_permission_cache(username: str) -> bool:
+    cache_key = f'password_permission_{username}'
+    return cache.get(cache_key)
+
+
+def set_password_permission_cache(username: str, has_permission: bool):
+    cache_key = f'password_permission_{username}'
+    cache.set(cache_key, has_permission)
+
+
+def clear_password_permission_cache(username: str):
+    cache_key = f'password_permission_{username}'
+    cache.delete(cache_key)
+
+
 def get_user_data_scope(username: str) -> dict:
 
     try:
@@ -19,8 +49,7 @@ def get_user_data_scope(username: str) -> dict:
         logger.warning(f"User '{username}' not found while getting data scope.")
         return {'scope_type': 'none', 'targets': {}}
 
-    cache_key = f'user_data_scope_{username}'
-    cached_scope = cache.get(cache_key)
+    cached_scope = get_data_scope_cache(username)
     if cached_scope:
         return cached_scope
 
@@ -34,7 +63,7 @@ def get_user_data_scope(username: str) -> dict:
     if not user_scopes.exists():
         logger.info(f"No data scopes found for user '{username}'.")
         result = {'scope_type': 'none', 'targets': {}}
-        cache.set(cache_key, result)
+        set_data_scope_cache(username, result)
         return result
 
     logger.info(f'Found {user_scopes.count()} data scopes for user \'{username}\'.')
@@ -60,7 +89,7 @@ def get_user_data_scope(username: str) -> dict:
         'scope_type': final_scope_type,
         'targets': dict(final_targets)  # 将 defaultdict 转换为普通 dict
     }
-    cache.set(cache_key, result)
+    set_data_scope_cache(username, result)
 
     logger.info(f'Computed data scope for user \'{username}\': {result}')
     return result
@@ -114,10 +143,8 @@ def has_password_permission(user: UserInfo) -> bool:
     else:
         return False
 
-    cache_key = f'password_permission_{username}'
-
     # 检查缓存
-    request_cache = cache.get(cache_key)
+    request_cache = get_password_permission_cache(username)
     if request_cache is not None:
         return request_cache
 
@@ -129,7 +156,7 @@ def has_password_permission(user: UserInfo) -> bool:
 
     for perm in user_permissions:
         if perm.button and perm.button.action == 'showPassword':
-            cache.set(cache_key, True)
+            set_password_permission_cache(username, True)
             return True
-    cache.set(cache_key, False)
+    set_password_permission_cache(username, False)
     return False

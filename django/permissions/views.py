@@ -8,6 +8,7 @@ from rest_framework.decorators import action
 from django.db.models import Q
 
 from mapi.models import UserInfo, UserGroup, Role
+from .tools import clear_data_scope_cache
 from .models import DataScope
 from .serializers import DataScopeSerializer
 
@@ -248,6 +249,31 @@ class DataScopeViewSet(ModelViewSet):
         # 转换为普通字典
         return {k: dict(v) for k, v in grouped.items()}
 
+    def _filter_permissions(self, permissions_list: list, app_label: str = None, model: str = None) -> list:
+        """
+        根据条件过滤权限列表
+
+        Args:
+            permissions_list: 原始权限列表
+            app_label: 应用标签过滤
+            model: 模型名称过滤
+
+        Returns:
+            过滤后的权限列表
+        """
+        if not any([app_label, model]):
+            return permissions_list
+
+        filtered = permissions_list
+
+        if app_label:
+            filtered = [p for p in filtered if p['app_label'] == app_label]
+
+        if model:
+            filtered = [p for p in filtered if p['model'] == model]
+
+        return filtered
+
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
@@ -275,6 +301,7 @@ class DataScopeViewSet(ModelViewSet):
 
         formatted_data = self._build_response_with_targets(serializer.instance)
         headers = self.get_success_headers(formatted_data)
+        clear_data_scope_cache(self.request.user.username)
         return Response(formatted_data, status=status.HTTP_201_CREATED, headers=headers)
 
     def update(self, request, *args, **kwargs):
@@ -283,6 +310,7 @@ class DataScopeViewSet(ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        clear_data_scope_cache(self.request.user.username)
 
         if getattr(instance, '_prefetched_objects_cache', None):
             instance._prefetched_objects_cache = {}
@@ -296,9 +324,11 @@ class DataScopeViewSet(ModelViewSet):
         获取用户/用户组/角色的聚合权限列表
 
         Query Parameters:
-            - user_id: 用户ID
-            - user_group_id: 用户组ID  
-            - role_id: 角色ID
+            - user: 用户ID
+            - user_group: 用户组ID  
+            - role: 角色ID
+            - app_label: 应用标签（可选）
+            - model: 模型名称（可选）
 
         返回格式:
         {
@@ -311,48 +341,17 @@ class DataScopeViewSet(ModelViewSet):
                     "owner_id": "111",
                     "owner_name": "test",
                     "scope_type": "read",
-                    "scope_id": "xxx",
-                    "via": null
+                    "scope_id": "xxx"
                 },
-                {
-                    "app_label": "cmdb",
-                    "model": "model_instance",
-                    "target": "obj_id",
-                    "owner_type": "user_group",
-                    "owner_id": "222",
-                    "owner_name": "测试组",
-                    "scope_type": "read",
-                    "scope_id": "yyy",
-                    "via": null
-                },
-                {
-                    "app_label": "cmdb",
-                    "model": "model_instance",
-                    "target": "obj_id",
-                    "owner_type": "role",
-                    "owner_id": "333",
-                    "owner_name": "管理员",
-                    "scope_type": "write",
-                    "scope_id": "zzz",
-                    "via": {"type": "user", "id": "111", "name": "test"}
-                },
-                {
-                    "app_label": "cmdb",
-                    "model": "model_instance",
-                    "target": "obj_id",
-                    "owner_type": "role",
-                    "owner_id": "444",
-                    "owner_name": "运维角色",
-                    "scope_type": "read",
-                    "scope_id": "aaa",
-                    "via": {"type": "user_group", "id": "222", "name": "测试组"}
-                }
+                ...
             ]
         }
         """
         user_id = request.query_params.get('user')
         user_group_id = request.query_params.get('user_group')
         role_id = request.query_params.get('role')
+        app_label = request.query_params.get('app_label')
+        model = request.query_params.get('model')
 
         # 验证参数：只能指定一个
         params_count = sum(1 for p in [user_id, user_group_id, role_id] if p)
@@ -383,7 +382,11 @@ class DataScopeViewSet(ModelViewSet):
             # 聚合为列表格式
             permissions_list = self._aggregate_permissions_to_list(scopes_with_sources)
 
-            permissions = permissions_list
+            permissions = self._filter_permissions(
+                permissions_list,
+                app_label=app_label,
+                model=model,
+            )
 
             return Response({
                 'results': permissions
@@ -426,32 +429,21 @@ class DataScopeViewSet(ModelViewSet):
         返回格式:
         {
             "has_permission": true,
-            "sources": [
+            "results": [
                 {
                     "owner_type": "user",
                     "owner_id": "111",
                     "owner_name": "test",
-                    "scope_type": "read",
-                    "scope_id": "xxx",
-                    "via": null
+                    "scope_id": "xxx"
                 },
-                {
-                    "owner_type": "role",
-                    "owner_id": "333",
-                    "owner_name": "管理员",
-                    "scope_type": "write",
-                    "scope_id": "yyy",
-                    "via": {"type": "user_group", "id": "222", "name": "测试组"}
-                }
-            ],
-            "scope_types": ["read", "write"]
+                ...
+            ]
         }
         """
         user_id = request.query_params.get('user_id')
         app_label = request.query_params.get('app_label')
         model = request.query_params.get('model')
         object_id = request.query_params.get('object_id')
-        scope_type = request.query_params.get('scope_type')
 
         if not all([user_id, app_label, model, object_id]):
             return Response(
@@ -482,37 +474,24 @@ class DataScopeViewSet(ModelViewSet):
                 })
 
             # 提取权限来源和类型
-            sources = [
+            results = [
                 {
                     'owner_type': p['owner_type'],
                     'owner_id': p['owner_id'],
                     'owner_name': p['owner_name'],
-                    'scope_type': p['scope_type'],
                     'scope_id': p['scope_id'],
-                    'via': p['via']
                 }
                 for p in matched_permissions
             ]
-            scope_types = list(set(p['scope_type'] for p in matched_permissions if p['scope_type']))
-
-            # 如果指定了 scope_type，检查是否包含
-            if scope_type:
-                if scope_type not in scope_types:
-                    return Response({
-                        'has_permission': False,
-                        'message': f'User does not have {scope_type} permission for the object',
-                        'available_scope_types': scope_types
-                    })
 
             return Response({
                 'has_permission': True,
-                'sources': sources,
-                'scope_types': scope_types
+                'results': results
             })
 
         except UserInfo.DoesNotExist:
             return Response(
-                {'error': '用户不存在'},
+                {'error': f'User {user_id} does not exist'},
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
