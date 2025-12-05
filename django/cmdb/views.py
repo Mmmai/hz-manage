@@ -1192,8 +1192,11 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
         limit = request.data.get('limit', 100)
         threshold = request.data.get('threshold', 0.0)
         search_mode = request.data.get('search_mode', 'boolean')
-        logger.debug(f"Search request: query={query}, models={model_ids}, limit={limit}, "
-                     f"threshold={threshold}, search_mode={search_mode}")
+        regexp = request.data.get('regexp', False)
+        case_sensitive = request.data.get('case_sensitive', False)
+        logger.debug(f'Searching with query: {query}, models: {model_ids}, limit: {limit}, '
+                     f'threshold: {threshold}, search_mode: {search_mode}, regexp: {regexp}, '
+                     f'case_sensitive: {case_sensitive}')
         if not query:
             raise ValidationError({'detail': 'Search query is required'})
 
@@ -1207,14 +1210,20 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
         if search_mode not in ('natural', 'boolean', 'expansion'):
             search_mode = 'boolean'
 
-        result = ModelFieldMetaSearchService.search(
-            query=query,
-            user=self.request.user,
-            model_ids=model_ids if model_ids else None,
-            limit=limit,
-            threshold=threshold,
-            search_mode=search_mode
-        )
+        try:
+            result = ModelFieldMetaSearchService.search(
+                query=query,
+                user=self.request.user,
+                model_ids=model_ids if model_ids else None,
+                limit=limit,
+                threshold=threshold,
+                search_mode=search_mode,
+                regexp=regexp,
+                case_sensitive=case_sensitive
+            )
+        except Exception as e:
+            logger.error(f"Error during search: {traceback.format_exc()}")
+            return Response({'detail': f'Search failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response(result, status=status.HTTP_200_OK)
 

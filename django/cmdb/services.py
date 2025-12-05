@@ -1,3 +1,4 @@
+import re
 import logging
 import inspect
 import Levenshtein
@@ -1562,10 +1563,12 @@ class ModelFieldMetaSearchService:
     NGRAM_TOKEN_SIZE = 2
     # 默认最大返回结果数
     MAX_RESULTS = 5000
+    RE_CASE_SENSITIVE = 'c'
+    RE_CASE_INSENSITIVE = 'i'
 
     @classmethod
     @require_valid_user
-    def search(cls, query: str, user: UserInfo, model_ids: list = None, limit: int = 100, threshold: float = 0.0, search_mode: str = 'boolean', quick: bool = False) -> dict:
+    def search(cls, query: str, user: UserInfo, model_ids: list = None, limit: int = 100, threshold: float = 0.0, regexp: bool = False, case_sensitive: bool = False, search_mode: str = 'boolean', quick: bool = False) -> dict:
         """
         全文检索 ModelFieldMeta
 
@@ -1575,6 +1578,8 @@ class ModelFieldMetaSearchService:
             model_ids: 限定搜索的模型ID列表
             limit: 返回结果数量限制
             threshold: 相似度阈值（FULLTEXT relevance score）
+            regexp: 是否启用正则表达式搜索
+            case_sensitive: 是否区分大小写
             search_mode: 搜索模式
                 - 'natural': 自然语言模式
                 - 'boolean': 布尔模式（支持 +, -, *, "" 等操作符）
@@ -1592,6 +1597,13 @@ class ModelFieldMetaSearchService:
 
         query = query.strip()
         pm = PermissionManager(user)
+
+        if regexp:
+            try:
+                re.compile(query)
+            except re.error as e:
+                logger.warning(f'Invalid regular expression "{query}": {e}. Skipping search.')
+                return {'results': [], 'total': 0, 'query': query, 'error': f'Invalid regular expression: {str(e)}'}
 
         # 加载模型列表
         models_qs = pm.get_queryset(Models)
@@ -1619,8 +1631,16 @@ class ModelFieldMetaSearchService:
         # 加载枚举和引用映射
         enum_cache, ref_instance_cache = cls._build_conversion_cache(fields_qs)
 
-        # 构建搜索变体
-        search_variants = cls._build_search_variants(query, enum_cache, ref_instance_cache)
+        if regexp:
+            search_variants = {query}
+        else:
+            # 构建搜索变体
+            search_variants = cls._build_search_variants(
+                query,
+                enum_cache,
+                ref_instance_cache,
+                case_sensitive=case_sensitive
+            )
         logger.debug(f'Search variants generated: {list(search_variants)[:10]}')
 
         # 获取候选实例列表
@@ -1636,17 +1656,27 @@ class ModelFieldMetaSearchService:
             query=query,
             search_variants=search_variants,
             instance_ids=instance_ids,
-            models_map=models_map
+            models_map=models_map,
+            regexp=regexp,
+            case_sensitive=case_sensitive
         )
 
         # 搜索字段值，快速搜索时不匹配字段值
         if fields_by_id and not quick:
-            meta_results = cls._execute_field_search(
-                query=query,
-                search_variants=search_variants,
-                instance_ids=instance_ids,
-                field_ids=list(fields_by_id.keys())
-            )
+            if regexp:
+                meta_results = cls._execute_field_regexp_search(
+                    pattern=query,
+                    case_sensitive=case_sensitive,
+                    instance_ids=instance_ids,
+                    field_ids=list(fields_by_id.keys())
+                )
+            else:
+                meta_results = cls._execute_field_fulltext_search(
+                    query=query,
+                    search_variants=search_variants,
+                    instance_ids=instance_ids,
+                    field_ids=list(fields_by_id.keys())
+                )
 
             # 合并字段匹配结果
             cls._merge_field_matches(
@@ -1656,7 +1686,8 @@ class ModelFieldMetaSearchService:
                 enum_cache=enum_cache,
                 ref_instance_cache=ref_instance_cache,
                 search_variants=search_variants,
-                threshold=threshold
+                threshold=threshold,
+                regexp=regexp
             )
             logger.debug(f'Found {len(meta_results)} matching ModelFieldMeta entries.')
 
@@ -1678,7 +1709,14 @@ class ModelFieldMetaSearchService:
         }
 
     @classmethod
-    def _search_instance_names(cls, query: str, search_variants: set, instance_ids: list, models_map: dict) -> dict:
+    def _get_regexp_flag(cls, case_sensitive: bool) -> str:
+        """
+        获取正则表达式标志
+        """
+        return cls.RE_CASE_SENSITIVE if case_sensitive else cls.RE_CASE_INSENSITIVE
+
+    @classmethod
+    def _search_instance_names(cls, query: str, search_variants: set, instance_ids: list, models_map: dict, regexp: bool = False, case_sensitive: bool = False) -> dict:
         """
         搜索 ModelInstance.instance_name
         返回初始的 instance_matches 字典
@@ -1691,52 +1729,76 @@ class ModelFieldMetaSearchService:
         instance_id_strs = [UUIDFormatter.normalize(uid) for uid in instance_ids]
         instance_placeholders = ','.join(['%s'] * len(instance_id_strs))
 
-        # 转义 LIKE 特殊字符
-        def escape_like(s):
-            return s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        if regexp:
+            match_type = cls._get_regexp_flag(case_sensitive)
+            sql = f"""
+                SELECT 
+                    id,
+                    instance_name,
+                    model_id,
+                    CASE
+                        WHEN REGEXP_LIKE(instance_name, %s, %s) THEN 80.0
+                        ELSE 0.0
+                    END AS relevance
+                FROM model_instance
+                WHERE id IN ({instance_placeholders})
+                    AND REGEXP_LIKE(instance_name, %s, %s)
+                ORDER BY relevance DESC, LENGTH(instance_name) ASC
+                LIMIT {cls.MAX_RESULTS}
+            """
 
-        exact_query = escape_like(query)
+            params = [
+                query, match_type,  # CASE 语句
+            ] + instance_id_strs + [
+                query, match_type   # WHERE 条件
+            ]
+        else:
+            # 转义 LIKE 特殊字符
+            def escape_like(s):
+                return s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
-        # 构建变体的 LIKE 条件
-        like_conditions = []
-        like_params = []
-        for variant in search_variants:
-            escaped = escape_like(variant)
-            like_conditions.append("instance_name LIKE %s")
-            like_params.append(f'%{escaped}%')
+            exact_query = escape_like(query)
 
-        like_clause = ' OR '.join(like_conditions) if like_conditions else '1=0'
+            # 构建变体的 LIKE 条件
+            like_conditions = []
+            like_params = []
+            for variant in search_variants:
+                escaped = escape_like(variant)
+                like_conditions.append("instance_name LIKE %s")
+                like_params.append(f'%{escaped}%')
 
-        sql = f"""
-            SELECT 
-                id,
-                instance_name,
-                model_id,
-                CASE
-                    WHEN instance_name = %s THEN 100.0
-                    WHEN instance_name LIKE %s THEN 80.0
-                    WHEN instance_name LIKE %s THEN 80.0
-                    WHEN instance_name LIKE %s THEN 70.0
-                    ELSE 30.0
-                END AS relevance
-            FROM model_instance
-            WHERE id IN ({instance_placeholders})
-                AND ({like_clause})
-            ORDER BY 
-                CASE WHEN instance_name = %s THEN 0 ELSE 1 END,
-                relevance DESC,
-                LENGTH(instance_name) ASC
-            LIMIT {cls.MAX_RESULTS}
-        """
+            like_clause = ' OR '.join(like_conditions) if like_conditions else '1=0'
 
-        params = [
-            query,                  # 精确匹配
-            f'{exact_query}%',      # 前缀匹配
-            f'%{exact_query}',      # 后缀匹配
-            f'%{exact_query}%',     # 包含匹配
-        ] + instance_id_strs + like_params + [
-            query  # ORDER BY
-        ]
+            sql = f"""
+                SELECT 
+                    id,
+                    instance_name,
+                    model_id,
+                    CASE
+                        WHEN instance_name = %s THEN 100.0
+                        WHEN instance_name LIKE %s THEN 80.0
+                        WHEN instance_name LIKE %s THEN 80.0
+                        WHEN instance_name LIKE %s THEN 70.0
+                        ELSE 30.0
+                    END AS relevance
+                FROM model_instance
+                WHERE id IN ({instance_placeholders})
+                    AND ({like_clause})
+                ORDER BY 
+                    CASE WHEN instance_name = %s THEN 0 ELSE 1 END,
+                    relevance DESC,
+                    LENGTH(instance_name) ASC
+                LIMIT {cls.MAX_RESULTS}
+            """
+
+            params = [
+                query,                  # 精确匹配
+                f'{exact_query}%',      # 前缀匹配
+                f'%{exact_query}',      # 后缀匹配
+                f'%{exact_query}%',     # 包含匹配
+            ] + instance_id_strs + like_params + [
+                query  # ORDER BY
+            ]
 
         try:
             with connection.cursor() as cursor:
@@ -1754,14 +1816,17 @@ class ModelFieldMetaSearchService:
                 relevance = float(row.get('relevance', 0))
 
                 # 计算分数
-                if relevance >= 100:
-                    score = 1.0
-                elif relevance >= 80:
-                    score = 0.95
-                elif relevance >= 60:
-                    score = 0.85
+                if regexp:
+                    score = Levenshtein.ratio(query, row['instance_name'])
                 else:
-                    score = 0.7
+                    if relevance >= 100:
+                        score = 1.0
+                    elif relevance >= 80:
+                        score = 0.95
+                    elif relevance >= 60:
+                        score = 0.85
+                    else:
+                        score = 0.7
 
                 instance_matches[inst_id] = {
                     'instance_name': row['instance_name'],
@@ -1783,11 +1848,74 @@ class ModelFieldMetaSearchService:
             logger.debug(f'Instance name search returned {len(results)} results')
         except Exception as e:
             logger.warning(f'Instance name search failed: {e}')
+            raise Exception(f'Instance name search failed: {str(e)}')
 
         return instance_matches
 
     @classmethod
-    def _execute_field_search(cls, query: str, search_variants: set, instance_ids: list, field_ids: list, search_mode: str = 'boolean', threshold: float = 0.0) -> list:
+    def _execute_field_regexp_search(cls, pattern: str, instance_ids: list, field_ids: list, case_sensitive: bool = False) -> list:
+        """
+        使用 MySQL REGEXP_LIKE 执行正则表达式搜索
+
+        Args:
+            pattern: 正则表达式模式
+            instance_ids: 实例 ID 列表
+            field_ids: 字段 ID 列表
+            case_sensitive: 是否区分大小写
+
+        Returns:
+            匹配结果列表
+        """
+        if not instance_ids or not field_ids:
+            return []
+
+        instance_id_strs = [UUIDFormatter.normalize(uid) for uid in instance_ids]
+        field_id_strs = [UUIDFormatter.normalize(uid) for uid in field_ids]
+
+        instance_placeholders = ','.join(['%s'] * len(instance_id_strs))
+        field_placeholders = ','.join(['%s'] * len(field_id_strs))
+
+        match_type = cls._get_regexp_flag(case_sensitive)
+
+        sql = f"""
+            SELECT 
+                id,
+                model_instance_id,
+                model_fields_id,
+                `data`,
+                80.0 AS relevance,
+                0 AS is_exact_match
+            FROM model_field_meta
+            WHERE model_instance_id IN ({instance_placeholders})
+                AND model_fields_id IN ({field_placeholders})
+                AND `data` IS NOT NULL
+                AND `data` <> ''
+                AND REGEXP_LIKE(`data`, %s, %s)
+            ORDER BY LENGTH(`data`) ASC
+            LIMIT {cls.MAX_RESULTS}
+        """
+
+        params = instance_id_strs + field_id_strs + [pattern, match_type]
+
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(sql, params)
+                logger.debug(f'Executed REGEXP_LIKE search SQL: {connection.queries[-1]["sql"]}')
+                columns = [col[0] for col in cursor.description]
+                raw_results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+            results = UUIDFormatter.convert_rows(
+                raw_results,
+                uuid_fields=['id', 'model_instance_id', 'model_fields_id']
+            )
+            logger.debug(f'REGEXP_LIKE search returned {len(results)} results (case_sensitive={case_sensitive})')
+            return results
+        except Exception as e:
+            logger.warning(f'Error occurred during REGEXP_LIKE search: {e}')
+            raise Exception(f'REGEXP_LIKE search failed: {str(e)}')
+
+    @classmethod
+    def _execute_field_fulltext_search(cls, query: str, search_variants: set, instance_ids: list, field_ids: list, search_mode: str = 'boolean', threshold: float = 0.0) -> list:
         """
         使用原生 SQL 执行 MySQL FULLTEXT 搜索
         结合精确匹配提升相关性
@@ -1952,7 +2080,7 @@ class ModelFieldMetaSearchService:
         ]
 
     @classmethod
-    def _merge_field_matches(cls, instance_matches: dict, meta_results: list, fields_by_id: dict, enum_cache: dict, ref_instance_cache: dict, search_variants: set, threshold: float):
+    def _merge_field_matches(cls, instance_matches: dict, meta_results: list, fields_by_id: dict, enum_cache: dict, ref_instance_cache: dict, search_variants: set, threshold: float, regexp: bool = False):
         """
         将字段匹配结果合并到 instance_matches 中
         """
@@ -1973,15 +2101,18 @@ class ModelFieldMetaSearchService:
                 raw_data, field, enum_cache, ref_instance_cache
             )
 
-            # 计算分数
-            if relevance >= 100:
-                score = 1.0
-            elif relevance >= 80:
-                score = 0.95
-            elif relevance >= 70:
-                score = 0.85
-            elif relevance > 0:
-                score = cls._calculate_similarity(search_variants, raw_data, display_value)
+            if regexp:
+                score = Levenshtein.ratio(next(iter(search_variants)), raw_data)
+            else:
+                # 计算分数
+                if relevance >= 100:
+                    score = 1.0
+                elif relevance >= 80:
+                    score = 0.95
+                elif relevance >= 70:
+                    score = 0.85
+                elif relevance > 0:
+                    score = cls._calculate_similarity(search_variants, raw_data, display_value)
 
             if score < threshold:
                 continue
@@ -2044,30 +2175,32 @@ class ModelFieldMetaSearchService:
         return enum_cache, ref_instance_cache
 
     @staticmethod
-    def _build_search_variants(query: str, enum_cache: dict, ref_instance_cache: dict) -> set:
+    def _build_search_variants(query: str, enum_cache: dict, ref_instance_cache: dict, case_sensitive: bool = False) -> set:
         """
         构建搜索变体集合
         包含原始查询、枚举转换、实例名称/ID转换
         """
         variants = {query}
-        query_lower = query.lower()
 
-        # 添加大小写变体
-        variants.add(query_lower)
-        variants.add(query.upper())
+        if not case_sensitive:
+            variants.add(query.lower())
+            variants.add(query.upper())
+        else:
+            variants.add(query)
+
+        search_key = query if case_sensitive else query.lower()
 
         # 枚举 key/value 互转
         for field_id, cache in enum_cache.items():
             for key, label in cache['key_to_label'].items():
-                # 完全匹配或包含匹配
-                if key.lower() == query_lower or query_lower in key.lower():
+                if search_key == (key if case_sensitive else key.lower()):
                     variants.add(label)
-                if label.lower() == query_lower or query_lower in label.lower():
+                if search_key == (label if case_sensitive else label.lower()):
                     variants.add(key)
 
         # 只搜索实例名
         for key, value in ref_instance_cache.items():
-            if query_lower in value.lower():
+            if search_key in (value if case_sensitive else value.lower()):
                 variants.add(value)
 
         return variants
@@ -2098,7 +2231,7 @@ class ModelFieldMetaSearchService:
 
     @staticmethod
     def _calculate_similarity(search_variants: set, raw_data: str, display_value: str) -> float:
-        """计算字符串相似度（作为 FULLTEXT 的补充）"""
+        """计算字符串相似度"""
         if not raw_data and not display_value:
             return 0.0
 
