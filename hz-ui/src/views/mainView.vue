@@ -14,6 +14,7 @@
         <el-main
           ref="mainRef"
           v-loading="isRefreshing"
+          class="scroll-container"
           element-loading-text="页面刷新中..."
         >
           <!-- <el-scrollbar> -->
@@ -42,6 +43,7 @@
           <!-- <iframe-view v-show="route.meta.is_iframe"></iframe-view>
           <router-view v-if="['model'].includes($route.name)"></router-view> -->
           <!-- </el-scrollbar> -->
+          <el-backtop target=".scroll-container" :right="40" :bottom="40" />
         </el-main>
         <el-footer class="efooter">
           <el-text tag="p">

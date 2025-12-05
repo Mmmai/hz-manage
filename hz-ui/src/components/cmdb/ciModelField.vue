@@ -217,6 +217,7 @@
               --el-switch-on-color: #13ce66;
               --el-switch-off-color: #ff4949;
             "
+            :disabled="nowModelField.built_in"
           />
         </el-form-item>
         <el-form-item label="字段类型" prop="type">
@@ -261,12 +262,14 @@
               --el-switch-off-color: #ff4949;
               margin-right: 10px;
             "
+            :disabled="nowModelField.built_in"
           />
           <el-select
             v-model="modelFieldForm.validation_rule"
             placeholder="选择校验规则"
             style="width: 240px"
             v-show="isValidation"
+            :disabled="nowModelField.built_in"
           >
             <el-option
               v-for="item in validationRulesTypeOptions"
@@ -286,6 +289,7 @@
             placeholder="选择校验规则"
             style="width: 240px"
             @change="getRuleList(modelFieldForm.validation_rule)"
+            :disabled="nowModelField.built_in || isEdit ? true : false"
           >
             <el-option
               v-for="item in validationRulesTypeOptions"
@@ -422,7 +426,8 @@ import {
 import { useStore } from "vuex";
 // import { value } from 'lodash-es';
 const store = useStore();
-
+import useModelStore from "@/store/cmdb/model";
+const modelConfigStore = useModelStore();
 const route = useRoute();
 // const emits = defineEmits(["getModelField"]);
 // const router = useRouter();
@@ -592,7 +597,7 @@ const validationRulesTypeOptions = computed(() => {
 });
 
 // 获取模型字段信息
-const getModelField = async (params) => {
+const getModelField = async (params = null) => {
   if (params != null) {
     modelInfo.value = params.model;
     ciModelFieldsList.value = params.field_groups;
@@ -800,6 +805,7 @@ const deleteModelFieldGroup = (config) => {
         // 刷新页面
         // location.reload();
         await getModelField();
+        await modelConfigStore.getModel(true);
       } else {
         ElMessage({
           type: "error",
@@ -947,7 +953,6 @@ const modelFieldFormCommit = async (formEl: FormInstance | undefined) => {
           update_user: store.state.username,
           ...modelFieldForm,
         });
-        console.log(res);
         // console.log(123)
         if (res.status == "201") {
           ElMessage({ type: "success", message: "添加成功" });
@@ -955,6 +960,8 @@ const modelFieldFormCommit = async (formEl: FormInstance | undefined) => {
           modelFieldDrawer.value = false;
           resetForm(formEl);
           getModelField();
+          await modelConfigStore.getModel(true);
+
           // 刷新页面
           // location.reload();
         } else {
@@ -973,7 +980,6 @@ const modelFieldFormCommit = async (formEl: FormInstance | undefined) => {
           update_user: store.state.username,
           ...modelFieldForm,
         });
-        console.log(res);
         // console.log(123)
         if (res.status == "200") {
           ElMessage({ type: "success", message: "更新成功" });
@@ -981,6 +987,8 @@ const modelFieldFormCommit = async (formEl: FormInstance | undefined) => {
           modelFieldDrawer.value = false;
           resetForm(formEl);
           getModelField();
+          await modelConfigStore.getModel(true);
+
           // 刷新页面
           // location.reload();
           // console.log(modelFieldForm);
@@ -1037,6 +1045,7 @@ const modelFieldDelete = (params) => {
         });
         // 重新加载页面数据
         await getModelField();
+        await modelConfigStore.getModel(true);
 
         resetForm(modelFieldFormRef.value);
         modelFieldDrawer.value = false;

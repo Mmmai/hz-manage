@@ -77,7 +77,6 @@ class Role(models.Model):
         verbose_name_plural = verbose_name
         app_label = 'mapi'
 
-
 class Menu(models.Model):
     class MenuTypeChoices(models.IntegerChoices):
         DIRETORY = '0', '目录'

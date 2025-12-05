@@ -317,6 +317,27 @@
           </div>
           <div v-else></div>
         </template>
+        <template
+          #default="scope"
+          v-if="['mgmt_url', 'access_url'].indexOf(data.name) != -1"
+        >
+          <div
+            v-if="
+              scope.row[data.name] !== null || scope.row[data.name]?.length == 0
+            "
+          >
+            <el-tooltip content="跳转链接" placement="right" effect="dark">
+              <el-link
+                :href="`${scope.row[data.name]}`"
+                type="primary"
+                target="_blank"
+              >
+                {{ scope.row[data.name] }}<el-icon><TopRight /></el-icon
+              ></el-link>
+            </el-tooltip>
+          </div>
+          <div v-else></div>
+        </template>
         <!-- 列表显示布尔值按钮，以及模型关联、枚举类的label值 -->
         <template
           #default="scope"
@@ -1721,14 +1742,11 @@ const allModelCiDataTreeObj = computed(
 );
 import type { FormInstance, FormItemInstance, FormRules } from "element-plus";
 import ciDataFilter from "./ciDataFilter.vue";
-import { useStore } from "vuex";
 import { useClipboard } from "vue-clipboard3";
 import { debounce } from "lodash";
 import { useRoute, useRouter } from "vue-router";
-import modelConfigStore from "../../store/cmdb/model";
 const router = useRouter();
 const route = useRoute();
-const store = useStore();
 const emit = defineEmits(["getTree", "show-info"]);
 // 审计功能
 const ciDataAuditRef = ref("");
@@ -1872,16 +1890,13 @@ const bulkDelete = async () => {
   if (isSelectAll.value) {
     // 条件下的全量更新
     params = {
-      update_user: store.state.username,
       ...multipleParams.value,
     };
   } else {
     params = {
-      update_user: store.state.username,
       instances: multipleSelectId.value,
     };
   }
-  console.log(params);
   tableLoading.value = true;
   let res = await proxy.$api.bulkDeleteCiModelInstance(params, 60 * 1000);
   console.log(res);
@@ -2247,7 +2262,6 @@ const editCol = () => {
 const updateCiData = async (params) => {
   setLoading(true);
   let res = await proxy.$api.updateCiModelInstance({
-    update_user: store.state.username,
     ...params,
   });
   // console.log(123)
@@ -2904,12 +2918,10 @@ const ciDataCommit = async (
         // delete rmNameObj.name
         // 加密转换
         // for (let [key, value] of Object.entries(obj))
-        console.log(rmNameObj.value);
 
         let res = await proxy.$api.addCiModelInstance({
           model: props.ciModelId,
-          create_user: store.state.username,
-          update_user: store.state.username,
+
           fields: rmNameObj.value,
           instance_name: ciDataForm.instance_name,
           using_template: ciDataForm.using_template,
@@ -3001,7 +3013,6 @@ const ciDataCommit = async (
         let updateObj = {
           id: currentRow.value.id,
           model: props.ciModelId,
-          update_user: store.state.username,
         };
         if (Object.keys(updateParams.value).indexOf("instance_name") === -1) {
           updateObj["fields"] = rmNameObjUpdate.value;

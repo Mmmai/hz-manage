@@ -115,7 +115,7 @@ class ZabbixAPI:
             "id": 1,
             "auth": self.auth
         }
-        response = self.session.post(self.url, json=payload)
+        response = self.session.post(self.url, json=payload,timeout=10)
         result = response.json()
         if result.get('result'):
             logger.info(f"status: success action: {method} params: {payload} result: {result}")

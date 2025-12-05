@@ -350,20 +350,20 @@ class DataScopeViewSet(ModelViewSet):
             ]
         }
         """
-        user_id = request.query_params.get('user_id')
-        user_group_id = request.query_params.get('user_group_id')
-        role_id = request.query_params.get('role_id')
+        user_id = request.query_params.get('user')
+        user_group_id = request.query_params.get('user_group')
+        role_id = request.query_params.get('role')
 
         # 验证参数：只能指定一个
         params_count = sum(1 for p in [user_id, user_group_id, role_id] if p)
         if params_count == 0:
             return Response(
-                {'error': 'Please provide one of user_id, user_group_id, or role_id parameters'},
+                {'error': 'Please provide one of user, user_group, or role parameters'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         if params_count > 1:
             return Response(
-                {'error': 'Only one of user_id, user_group_id, or role_id can be specified'},
+                {'error': 'Only one of user, user_group, or role can be specified'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

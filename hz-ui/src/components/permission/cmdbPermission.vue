@@ -53,18 +53,24 @@
             v-loading="loading"
           >
             <template #default="{ node, data }">
-              <div class="custom-tree-node">
-                <el-tag
-                  size="small"
-                  :type="
-                    nodeTagType[data.type] ? nodeTagType[data.type] : 'info'
-                  "
-                  class="node-tag"
-                >
-                  {{ nodeTypeMap[data.type] }}
-                </el-tag>
-                <span class="node-label">{{ node.label }}</span>
-              </div>
+              <el-tooltip
+                :content="data.tooltip"
+                :disabled="!data.disabled || !data.tooltip"
+                placement="top"
+              >
+                <div class="custom-tree-node">
+                  <el-tag
+                    size="small"
+                    :type="
+                      nodeTagType[data.type] ? nodeTagType[data.type] : 'info'
+                    "
+                    class="node-tag"
+                  >
+                    {{ nodeTypeMap[data.type] }}
+                  </el-tag>
+                  <span class="node-label">{{ node.label }}</span>
+                </div>
+              </el-tooltip>
             </template>
           </el-tree-v2>
         </div>
@@ -120,24 +126,30 @@
             v-loading="loading"
           >
             <template #default="{ node, data }">
-              <div class="custom-tree-node">
-                <el-tag
-                  size="small"
-                  :type="
-                    nodeTagType[data.type] ? nodeTagType[data.type] : 'info'
-                  "
-                  class="node-tag"
-                >
-                  {{ nodeTypeMap[data.type] }}
-                </el-tag>
-                <span class="node-label">{{ node.label }}</span>
-                <span
-                  v-if="data.instance_count !== undefined"
-                  class="instance-count"
-                >
-                  ({{ data.instance_count }})
-                </span>
-              </div>
+              <el-tooltip
+                :content="data.tooltip"
+                :disabled="!data.disabled || !data.tooltip"
+                placement="top"
+              >
+                <div class="custom-tree-node">
+                  <el-tag
+                    size="small"
+                    :type="
+                      nodeTagType[data.type] ? nodeTagType[data.type] : 'info'
+                    "
+                    class="node-tag"
+                  >
+                    {{ nodeTypeMap[data.type] }}
+                  </el-tag>
+                  <span class="node-label">{{ node.label }}</span>
+                  <span
+                    v-if="data.instance_count !== undefined"
+                    class="instance-count"
+                  >
+                    ({{ data.instance_count }})
+                  </span>
+                </div>
+              </el-tooltip>
             </template>
           </el-tree-v2>
         </div>
@@ -177,9 +189,13 @@ import type {
   TreeV2Instance,
   TreeNodeData,
 } from "element-plus";
-import { InfoFilled, RefreshLeft, Search } from "@element-plus/icons-vue";
+import {
+  Apple,
+  InfoFilled,
+  RefreshLeft,
+  Search,
+} from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
-import { fi } from "element-plus/es/locale/index.mjs";
 const nowNodeObject = defineModel("nowNodeObject");
 const getPermissionObj = defineModel("permissionObject");
 const fieldQuery = ref("");
@@ -244,7 +260,147 @@ const isDataChanged = computed(() => {
 
   return fieldChanged || instanceChanged;
 });
+// 处理树节点权限的函数
+const processTreeDataWithPermissions = (treeData, permissionData) => {
+  // 创建一个映射，将target映射到权限来源信息
+  const permissionMap = new Map();
 
+  // 处理权限数据，按target分组
+  permissionData.results.forEach((permission) => {
+    if (!permissionMap.has(permission.target)) {
+      permissionMap.set(permission.target, []);
+    }
+    permissionMap.get(permission.target).push({
+      owner_type: permission.owner_type,
+      owner_name: permission.owner_name,
+      owner_id: permission.owner_id,
+    });
+  });
+
+  // 递归处理树节点
+  const processNode = (node, parentDisabled = false, parentTooltip = "") => {
+    // 克隆节点以避免修改原始数据
+    const processedNode = { ...node };
+
+    // 检查当前节点是否有权限限制
+    const permissions = permissionMap.get(node.id);
+
+    let isDisabled = parentDisabled;
+    let tooltipText = parentTooltip;
+
+    if (permissions && !parentDisabled) {
+      // 如果权限来源于不是当前正在编辑的对象，则禁用节点
+      // nowNodeObject.value 包含了当前正在编辑的对象信息
+      const inheritedPermissions = permissions.filter(
+        (p) => !(p.owner_id === Object.values(nowNodeObject.value)[0])
+      );
+
+      if (inheritedPermissions.length > 0) {
+        // 构建tooltip文本
+        tooltipText = inheritedPermissions
+          .map((p) => {
+            switch (p.owner_type) {
+              case "user":
+                return `来自用户: ${p.owner_name}`;
+              case "user_group":
+                return `来自用户组: ${p.owner_name}`;
+              case "role":
+                return `来自角色: ${p.owner_name}`;
+            }
+          })
+          .join("\n");
+
+        isDisabled = true;
+      }
+    }
+
+    // 设置禁用和提示信息
+    if (isDisabled) {
+      processedNode.disabled = true;
+      processedNode.tooltip = tooltipText;
+    }
+
+    // 递归处理子节点
+    if (processedNode.children && processedNode.children.length > 0) {
+      processedNode.children = processedNode.children.map((child) =>
+        processNode(child, isDisabled, tooltipText)
+      );
+    }
+
+    return processedNode;
+  };
+
+  // 处理整棵树
+  return Array.isArray(treeData)
+    ? treeData.map((node) => processNode(node))
+    : processNode(treeData);
+};
+// 处理树节点权限的函数
+const processTreeDataWithPermissions2 = (treeData, permissionData) => {
+  // 创建一个映射，将target映射到权限来源信息
+  const permissionMap = new Map();
+
+  // 处理权限数据，按target分组
+  permissionData.results.forEach((permission) => {
+    if (!permissionMap.has(permission.target)) {
+      permissionMap.set(permission.target, []);
+    }
+    permissionMap.get(permission.target).push({
+      owner_type: permission.owner_type,
+      owner_name: permission.owner_name,
+      owner_id: permission.owner_id,
+    });
+  });
+
+  // 递归处理树节点
+  const processNode = (node) => {
+    // 克隆节点以避免修改原始数据
+    const processedNode = { ...node };
+
+    // 检查当前节点是否有权限限制
+    const permissions = permissionMap.get(node.id);
+
+    if (permissions) {
+      // 如果权限来源于不是当前正在编辑的对象，则禁用节点
+      // nowNodeObject.value 包含了当前正在编辑的对象信息
+      const inheritedPermissions = permissions.filter(
+        (p) => !(p.owner_id === Object.values(nowNodeObject.value)[0])
+      );
+
+      if (inheritedPermissions.length > 0) {
+        // 构建tooltip文本
+        const tooltipText = inheritedPermissions
+          .map((p) => {
+            switch (p.owner_type) {
+              case "user":
+                return `来自用户: ${p.owner_name}`;
+              case "user_group":
+                return `来自用户组: ${p.owner_name}`;
+              case "role":
+                return `来自角色: ${p.owner_name}`;
+            }
+          })
+          .join("\n");
+
+        // 设置禁用和提示信息
+        processedNode.disabled = true;
+        processedNode.tooltip = tooltipText;
+      }
+    }
+
+    // 递归处理子节点
+    if (processedNode.children && processedNode.children.length > 0) {
+      processedNode.children = processedNode.children.map(processNode);
+    }
+
+    return processedNode;
+  };
+
+  // 处理整棵树
+  return Array.isArray(treeData)
+    ? treeData.map(processNode)
+    : processNode(treeData);
+};
 const modelTree = computed(() => {
   // 先创建以groupList为第一层的树结构
   const tree = groupList.value.map((group) => ({
@@ -304,7 +460,16 @@ const modelTree = computed(() => {
       groupNode.children.push(modelNode);
     }
   });
-
+  // 如果有权限数据，则处理节点的禁用状态和tooltip
+  if (permissionData.value) {
+    console.log("permissionData:", permissionData.value);
+    let treeDataFinal = processTreeDataWithPermissions(
+      tree,
+      permissionData.value
+    );
+    console.log("treeDataFinal:", treeDataFinal);
+    return treeDataFinal;
+  }
   return tree;
 });
 
@@ -384,6 +549,10 @@ const modelCiTree = computed(() => {
       groupNode.children.push(modelNode);
     }
   });
+  // 如果有权限数据，则处理节点的禁用状态和tooltip
+  if (permissionData.value) {
+    return processTreeDataWithPermissions(tree, permissionData.value);
+  }
   return tree;
 });
 
@@ -541,7 +710,7 @@ const savePermissions = async () => {
 const filedCheckedKeys = ref([]);
 const instanceCheckedKeys = ref([]);
 const loading = ref(true);
-const getDataScope = async () => {
+const getDataScope_old = async () => {
   try {
     loading.value = true;
     let res = await api.getDataScope({
@@ -603,7 +772,69 @@ const getDataScope = async () => {
     }, 500);
   }
 };
+// 权限数据存储
+const permissionData = ref(null);
 
+const getDataScope = async () => {
+  try {
+    loading.value = true;
+    let res = await api.getDataScopeAll({
+      ...nowNodeObject.value,
+      app_label: "cmdb",
+    });
+
+    // 保存权限数据供modelCiTree计算属性使用
+    permissionData.value = res.data;
+
+    // 清空之前的数据，避免累积
+    filedCheckedKeys.value = [];
+    instanceCheckedKeys.value = [];
+
+    res.data.results.forEach((item) => {
+      if (item.scope_type == "filter") {
+        if (["modelfields", "modelfieldgroups"].indexOf(item.model) !== -1) {
+          filedCheckedKeys.value.push(item.target);
+        } else if (
+          ["modelinstance", "modelinstancegroup"].indexOf(item.model) !== -1
+        ) {
+          instanceCheckedKeys.value.push(item.target);
+        }
+      }
+    });
+
+    // 设置已配置的权限
+    nextTick(() => {
+      fieldTreeRef.value!.setCheckedKeys(filedCheckedKeys.value);
+      fieldTreeRef.value!.setExpandedKeys(filedCheckedKeys.value);
+      instanceTreeRef.value!.setCheckedKeys(instanceCheckedKeys.value);
+      instanceTreeRef.value!.setExpandedKeys(instanceCheckedKeys.value);
+
+      // 初始化初始状态
+      initialFieldCheckedKeys.value = [...filedCheckedKeys.value];
+      initialInstanceCheckedKeys.value = [...instanceCheckedKeys.value];
+      currentFieldCheckedKeys.value = [...filedCheckedKeys.value];
+      currentInstanceCheckedKeys.value = [...instanceCheckedKeys.value];
+    });
+  } catch (error) {
+    console.error("获取数据范围失败:", error);
+    // 清空数据以防止使用旧数据
+    filedCheckedKeys.value = [];
+    instanceCheckedKeys.value = [];
+    fieldTreeRef.value!.setCheckedKeys([]);
+    instanceTreeRef.value!.setCheckedKeys([]);
+    permissionData.value = null;
+
+    // 同样初始化初始状态
+    initialFieldCheckedKeys.value = [];
+    initialInstanceCheckedKeys.value = [];
+    currentFieldCheckedKeys.value = [];
+    currentInstanceCheckedKeys.value = [];
+  } finally {
+    setTimeout(() => {
+      loading.value = false;
+    }, 500);
+  }
+};
 // 重置权限设置
 const resetPermissions = () => {
   fieldTreeRef.value?.setCheckedKeys([], false);
@@ -617,6 +848,7 @@ onMounted(async () => {
   await getCiModelGroupList();
   await getDataScope();
 });
+defineExpose({ getDataScope });
 </script>
 <style scoped lang="scss">
 .permission-container {
@@ -721,7 +953,36 @@ onMounted(async () => {
       color: var(--el-text-color-secondary);
     }
   }
+  // 自定义禁用节点样式，使其看起来像选中状态
+  :deep(.el-tree-node .el-checkbox__input.is-disabled .el-checkbox__inner) {
+    background-color: var(--el-color-danger);
+    border-color: var(--el-color-danger);
+    opacity: 0.8;
+    &::after {
+      transform: rotate(45deg) scaleY(1);
+      border: 1px solid #fff;
+      border-left: 0;
+      border-top: 0;
+      height: 8px;
+      left: 5px;
+      position: absolute;
+      top: 1px;
+      width: 3px;
+      transition: transform 0.15s ease-in 0.05s;
+      transform-origin: center;
+    }
+  }
 
+  .inherited-node {
+    .node-label {
+      color: #909399; // 灰色文字表示继承的权限
+      font-style: italic;
+    }
+
+    .node-tag {
+      opacity: 0.7;
+    }
+  }
   .footer-actions {
     display: flex;
     justify-content: center;

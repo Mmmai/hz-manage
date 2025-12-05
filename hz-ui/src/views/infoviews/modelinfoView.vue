@@ -119,7 +119,9 @@
       status-icon
     >
       <el-form-item label="模型图标" prop="icon">
-        <el-button @click="isShowIconSelect" :icon="modelForm.icon"></el-button>
+        <el-button @click="isShowIconSelect">
+          <iconifyOffline :icon="modelForm.icon" />
+        </el-button>
         <iconSelectCom
           v-model:isShow="isShow"
           v-model:iconName="modelForm.icon"
@@ -355,8 +357,9 @@ const modelCommit = async (formEl: FormInstance | undefined) => {
         // 重置表单
         addModel.value = false;
         resetForm(formEl);
-        getCiModelInfo(route.query, route.query.id);
+        // getCiModelInfo(route.query, route.query.id);
         // 获取数据源列表
+        await modelConfigStore.getModel(true);
       } else {
         ElMessage({
           showClose: true,
@@ -424,6 +427,8 @@ const deleteCiModel = (params) => {
         });
         // 刷新页面
         tabsStore.removeTabs(route.path, true);
+        await modelConfigStore.getModel(true);
+
         // router.push({ name: "model" });
         // router.go(-1)
 

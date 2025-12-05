@@ -273,6 +273,7 @@ const nodeClick = (data: Tree) => {
   nextTick(() => {
     menuPermissionRef.value!.getPermissionTreeData();
     menuPermissionRef.value!.getPermissionOnRight();
+    cmdbPermissionRef.value!.getDataScope();
   });
 };
 

@@ -177,7 +177,7 @@ export default {
     return axios.request({ url: path.cmdbCiDataTree + params + '/search_instances', method: 'get' })
   },
   deleteCiModelTree(params) {
-    return axios.delete(path.cmdbCiDataTree + params)
+    return axios.delete(path.cmdbCiDataTree + params + '/')
   },
   addCiModelTree(params) {
     return axios.request({ url: path.cmdbCiDataTree, method: 'post', data: params })
@@ -221,19 +221,6 @@ export default {
   reEncrypt(params, timeout = 60000) {
     return axios.request({ url: path.cmdbReEncrypt, method: 'post', data: params, timeout: timeout })
   },
-  // zabbix主机同步状态
-  // getZabbixSync(params) {
-  //   return axios.request({ url: path.cmdbSyncZabbix, params: params, method: 'get' })
-  // },
-  // syncZabbixHost(params) {
-  //   return axios.request({ url: path.cmdbSyncZabbix + 'sync_zabbix_host/', method: 'post', data: params })
-  // },
-  // updateZabbixAvailability(params) {
-  //   return axios.request({ url: path.cmdbSyncZabbix + 'update_zabbix_availability/', method: 'post', data: params })
-  // },
-  // installAgent(params) {
-  //   return axios.request({ url: path.cmdbSyncZabbix + 'install_agents/', method: 'post', data: params })
-  // }
   // 模型关联定义
   getModelRelationDefine(params) {
     return axios.request({ url: path.cmdbRelationDefinition, method: 'get', params: params })
@@ -268,5 +255,10 @@ export default {
   },
   bulkAddModelInstanceRelation(params) {
     return axios.request({ url: path.cmdbRelation + 'bulk_create/', method: 'post', data: params })
+  },
+  // 资源检索
+  searchCiData(params) {
+    // params: {query:xxx,limit:100,models: [id1,id2],search_model: "boolean"}
+    return axios.request({ url: path.cmdbCiModelInstance + 'search/', method: 'post', data: params })
   },
 }
