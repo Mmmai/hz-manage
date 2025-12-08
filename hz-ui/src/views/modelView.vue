@@ -230,12 +230,15 @@ import {
   reactive,
 } from "vue";
 import { vDraggable } from "vue-draggable-plus";
-import { ElMessageBox, ElMessage } from "element-plus";
 import type { ComponentSize, FormInstance, FormRules } from "element-plus";
-import { fa } from "element-plus/es/locale/index.mjs";
+import { useRouter, useRoute } from "vue-router";
+import { ElLoading, ElMessage, ElMessageBox } from "element-plus";
+const router = useRouter();
+const route = useRoute();
 import iconSelectCom from "../components/iconSelectCom.vue";
 defineOptions({ name: "model" });
-
+import useModelStore from "@/store/cmdb/model";
+const modelConfigStore = useModelStore();
 const { proxy } = getCurrentInstance();
 const modelGroupAction = ref(false);
 const modelAction = ref(false);
@@ -303,6 +306,7 @@ const modelist = ref([]);
 const getCiModelList = async () => {
   let res = await proxy.$api.getCiModel();
   modelist.value = res.data.results;
+  modelConfigStore.updateAllModels(res.data.results);
 };
 
 // 模型表单
@@ -585,39 +589,18 @@ const isShowIconSelect = () => {
   isShow.value = true;
 };
 
-import { useStore } from "vuex";
-import { useRouter, useRoute } from "vue-router";
-const router = useRouter();
-const store = useStore();
-const route = useRoute();
 // console.log(route)
 // 跳转路由详情
 const goToModelInfo = (params) => {
-  router.push({ path: route.path + "/" + params.id });
-
-  // console.log(params);
-  // // console.log(store.state.getMenuInfo())
-  // // // 获取详情页面的菜单信息
-  // // let res = proxy.$api.getMenuList()
-  // let modelInfoParam = {
-  //   name_id: params.id,
-  //   label: store.state.currentMenu + "-" + params.verbose_name,
-  //   name: route.name + "_info",
-  //   path: route.path + "/" + params.name,
-  //   is_info: true,
-  //   // query:{id:params.id,tab:'field'}
-  //   query: { id: params.id },
-  // };
-  // console.log(modelInfoParam);
-  // // 路由跳转
-  // router.push({
-  //   path: route.path + "/" + params.name,
-  //   query: { id: params.id, verbose_name: params.verbose_name },
-  //   // meta: {test:1,...route.meta}
-  // });
-  // store更新
-
-  // store.commit("selectMenu", modelInfoParam)
+  const loading = ElLoading.service({
+    lock: true,
+    text: "正在跳转...",
+    background: "rgba(0, 0, 0, 0.7)",
+  });
+  router.push({ path: route.path + "/" + params.id }).finally(() => {
+    // 跳转完成后关闭loading
+    loading.close();
+  });
 };
 
 // onmunt

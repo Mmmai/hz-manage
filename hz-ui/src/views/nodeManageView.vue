@@ -1,5 +1,5 @@
 <template>
-  <div class="card">
+  <div class="card" style="display: flex; flex-direction: column">
     <el-tabs
       v-model="activeName"
       type="card"
@@ -75,154 +75,167 @@
         <!-- <el-button :icon="Refresh" circle @click="reloadWind" /> -->
       </div>
     </div>
-    <el-table
-      v-loading="isLoading"
-      ref="multipleTableRef"
-      :data="syncHosts"
-      style="width: 100%"
-      border
-      :row-key="(row) => row.id"
-      @sort-change="sortMethod"
-      @selection-change="handleSelectionChange"
-      @filter-change="filterMethod"
-    >
-      <el-table-column type="selection" :reserve-selection="true" width="55" />
+    <div class="card table-main" style="width: 100%">
+      <el-table
+        v-loading="isLoading"
+        ref="multipleTableRef"
+        :data="syncHosts"
+        style="width: 100%"
+        height="100%"
+        border
+        :row-key="(row) => row.id"
+        @sort-change="sortMethod"
+        @selection-change="handleSelectionChange"
+        @filter-change="filterMethod"
+      >
+        <el-table-column
+          type="selection"
+          :reserve-selection="true"
+          width="55"
+        />
 
-      <el-table-column
-        property="model_instance_name"
-        label="唯一标识"
-        sortable="custom"
-      />
-      <el-table-column property="ip_address" sortable="custom" label="ip地址" />
-      <el-table-column
-        property="proxy_name"
-        label="代理"
-        sortable="custom"
-        width="120"
-      >
-        <template #default="scope">
-          <el-tag v-if="scope.row.proxy_name ? true : false">
-            {{ scope.row.proxy_name }}
-          </el-tag>
-          <!-- <el-tag
+        <el-table-column
+          property="model_instance_name"
+          label="唯一标识"
+          sortable="custom"
+        />
+        <el-table-column
+          property="ip_address"
+          sortable="custom"
+          label="ip地址"
+        />
+        <el-table-column
+          property="proxy_name"
+          label="代理"
+          sortable="custom"
+          width="120"
+        >
+          <template #default="scope">
+            <el-tag v-if="scope.row.proxy_name ? true : false">
+              {{ scope.row.proxy_name }}
+            </el-tag>
+            <!-- <el-tag
             :type="scope.row.status ? 'success' : 'danger'"
             effect="dark"
             >{{ scope.row.status ? "正常" : "异常" }}</el-tag
           > -->
-        </template>
-      </el-table-column>
+          </template>
+        </el-table-column>
 
-      <el-table-column
-        column-key="manage_status"
-        property="manage_status"
-        label="管理状态"
-        sortable="custom"
-        width="140"
-        :filters="[
-          { text: '正常', value: 1 },
-          { text: '异常', value: 0 },
-          { text: '未知', value: 2 },
-        ]"
-        v-if="activeName === 'hosts'"
-      >
-        <template #default="scope">
-          <el-tag :type="getStatusType(scope.row.manage_status)" effect="dark">
-            {{ getStatusText(scope.row.manage_status) }}
-          </el-tag>
-          <!-- <el-tag
+        <el-table-column
+          column-key="manage_status"
+          property="manage_status"
+          label="管理状态"
+          sortable="custom"
+          width="140"
+          :filters="[
+            { text: '正常', value: 1 },
+            { text: '异常', value: 0 },
+            { text: '未知', value: 2 },
+          ]"
+          v-if="activeName === 'hosts'"
+        >
+          <template #default="scope">
+            <el-tag
+              :type="getStatusType(scope.row.manage_status)"
+              effect="dark"
+            >
+              {{ getStatusText(scope.row.manage_status) }}
+            </el-tag>
+            <!-- <el-tag
             :type="scope.row.status ? 'success' : 'danger'"
             effect="dark"
             >{{ scope.row.status ? "正常" : "异常" }}</el-tag
           > -->
-        </template>
-      </el-table-column>
-      <el-table-column
-        column-key="enable_sync"
-        property="enable_sync"
-        label="是否同步"
-        sortable="custom"
-        width="140"
-        :filters="[
-          { text: '启用', value: true },
-          { text: '禁用', value: false },
-        ]"
-      >
-        <template #default="scope">
-          <el-switch
-            v-model="scope.row.enable_sync"
-            class="ml-2"
-            style="
-              --el-switch-on-color: #13ce66;
-              --el-switch-off-color: #ff4949;
-            "
-            @change="switchUpdate(scope.row, 'enable_sync')"
-          />
-        </template>
-      </el-table-column>
-      <el-table-column
-        column-key="agent_status"
-        property="agent_status"
-        label="agent状态"
-        sortable="custom"
-        width="140"
-        :filters="[
-          { text: '正常', value: 1 },
-          { text: '异常', value: 0 },
-          { text: '未知', value: 2 },
-        ]"
-        v-if="activeName === 'hosts'"
-      >
-        <template #default="scope">
-          <el-tag :type="getStatusType(scope.row.agent_status)" effect="dark">
-            {{ getStatusText(scope.row.agent_status) }}
-          </el-tag>
-          <!-- <el-tag
+          </template>
+        </el-table-column>
+        <el-table-column
+          column-key="enable_sync"
+          property="enable_sync"
+          label="是否同步"
+          sortable="custom"
+          width="140"
+          :filters="[
+            { text: '启用', value: true },
+            { text: '禁用', value: false },
+          ]"
+        >
+          <template #default="scope">
+            <el-switch
+              v-model="scope.row.enable_sync"
+              class="ml-2"
+              style="
+                --el-switch-on-color: #13ce66;
+                --el-switch-off-color: #ff4949;
+              "
+              @change="switchUpdate(scope.row, 'enable_sync')"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column
+          column-key="agent_status"
+          property="agent_status"
+          label="agent状态"
+          sortable="custom"
+          width="140"
+          :filters="[
+            { text: '正常', value: 1 },
+            { text: '异常', value: 0 },
+            { text: '未知', value: 2 },
+          ]"
+          v-if="activeName === 'hosts'"
+        >
+          <template #default="scope">
+            <el-tag :type="getStatusType(scope.row.agent_status)" effect="dark">
+              {{ getStatusText(scope.row.agent_status) }}
+            </el-tag>
+            <!-- <el-tag
             :type="scope.row.status ? 'success' : 'danger'"
             effect="dark"
             >{{ scope.row.status ? "正常" : "异常" }}</el-tag
           > -->
-        </template>
-      </el-table-column>
-      <el-table-column
-        column-key="zbx_status"
-        property="zbx_status"
-        label="ZBX状态"
-        sortable="custom"
-        width="140"
-        :filters="[
-          { text: '正常', value: 1 },
-          { text: '异常', value: 0 },
-          { text: '未知', value: 2 },
-        ]"
-        v-if="activeName === 'hosts'"
-      >
-        <template #default="scope">
-          <el-tag :type="getStatusType(scope.row.zbx_status)" effect="dark">
-            {{ getStatusText(scope.row.zbx_status) }}
-          </el-tag>
-          <!-- <el-tag
+          </template>
+        </el-table-column>
+        <el-table-column
+          column-key="zbx_status"
+          property="zbx_status"
+          label="ZBX状态"
+          sortable="custom"
+          width="140"
+          :filters="[
+            { text: '正常', value: 1 },
+            { text: '异常', value: 0 },
+            { text: '未知', value: 2 },
+          ]"
+          v-if="activeName === 'hosts'"
+        >
+          <template #default="scope">
+            <el-tag :type="getStatusType(scope.row.zbx_status)" effect="dark">
+              {{ getStatusText(scope.row.zbx_status) }}
+            </el-tag>
+            <!-- <el-tag
             :type="scope.row.status ? 'success' : 'danger'"
             effect="dark"
             >{{ scope.row.status ? "正常" : "异常" }}</el-tag
           > -->
-        </template>
-      </el-table-column>
-      <el-table-column
-        property="manage_error_message"
-        label="管理错误信息"
-        width="500"
-        v-if="activeName === 'hosts'"
-      />
-      <el-table-column
-        property="agent_error_message"
-        label="agent错误信息"
-        width="500"
-        v-if="activeName === 'hosts'"
-      />
+          </template>
+        </el-table-column>
+        <el-table-column
+          property="manage_error_message"
+          label="管理错误信息"
+          width="500"
+          v-if="activeName === 'hosts'"
+        />
+        <el-table-column
+          property="agent_error_message"
+          label="agent错误信息"
+          width="500"
+          v-if="activeName === 'hosts'"
+        />
 
-      <el-table-column fixed="right" width="120" label="操作">
-        <template #default="scope">
-          <!-- <el-tooltip
+        <el-table-column fixed="right" width="120" label="操作">
+          <template #default="scope">
+            <!-- <el-tooltip
             class="box-item"
             effect="dark"
             content="查看详情"
@@ -236,66 +249,67 @@
               @click="showInfo({ id: scope.row.id })"
             ></el-button>
           </el-tooltip> -->
-          <el-tooltip
-            class="box-item"
-            effect="dark"
-            content="触发同步"
-            placement="top"
-          >
-            <el-button
-              v-permission="`${route.name?.replace('_info', '')}:edit`"
-              link
-              type="primary"
-              :icon="Promotion"
-              @click="syncNodeToZabbix({ id: scope.row.id })"
-            ></el-button>
-          </el-tooltip>
-          <el-tooltip
-            class="box-item"
-            effect="dark"
-            content="管理状态更新"
-            placement="top"
-            v-if="activeName === 'hosts'"
-          >
-            <el-button
-              v-permission="`${route.name?.replace('_info', '')}:edit`"
-              link
-              type="primary"
-              :icon="Compass"
-              @click="assetInfoTask({ id: scope.row.id })"
-            ></el-button>
-          </el-tooltip>
-          <el-tooltip
-            class="box-item"
-            effect="dark"
-            content="触发agent安装"
-            placement="top"
-            v-if="activeName === 'hosts'"
-          >
-            <el-button
-              v-permission="`${route.name?.replace('_info', '')}:edit`"
-              link
-              type="primary"
-              :icon="Refresh"
-              @click="installAgentTask({ id: scope.row.id })"
-            ></el-button>
-          </el-tooltip>
-        </template>
-      </el-table-column>
-    </el-table>
-    <el-pagination
-      v-model:current-page="currentPage"
-      v-model:page-size="pageSize"
-      :page-sizes="[10, 20, 50, 100, 200]"
-      :size="size"
-      :disabled="disabled"
-      layout="total, sizes, prev, pager, next, jumper"
-      :total="totalCount"
-      style="margin-top: 5px; justify-content: flex-end"
-      @update:current-page="pageChange()"
-      @update:page-size="pageChange()"
-    >
-    </el-pagination>
+            <el-tooltip
+              class="box-item"
+              effect="dark"
+              content="触发同步"
+              placement="top"
+            >
+              <el-button
+                v-permission="`${route.name?.replace('_info', '')}:edit`"
+                link
+                type="primary"
+                :icon="Promotion"
+                @click="syncNodeToZabbix({ id: scope.row.id })"
+              ></el-button>
+            </el-tooltip>
+            <el-tooltip
+              class="box-item"
+              effect="dark"
+              content="管理状态更新"
+              placement="top"
+              v-if="activeName === 'hosts'"
+            >
+              <el-button
+                v-permission="`${route.name?.replace('_info', '')}:edit`"
+                link
+                type="primary"
+                :icon="Compass"
+                @click="assetInfoTask({ id: scope.row.id })"
+              ></el-button>
+            </el-tooltip>
+            <el-tooltip
+              class="box-item"
+              effect="dark"
+              content="触发agent安装"
+              placement="top"
+              v-if="activeName === 'hosts'"
+            >
+              <el-button
+                v-permission="`${route.name?.replace('_info', '')}:edit`"
+                link
+                type="primary"
+                :icon="Refresh"
+                @click="installAgentTask({ id: scope.row.id })"
+              ></el-button>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-sizes="[10, 20, 50, 100, 200]"
+        :size="size"
+        :disabled="disabled"
+        layout="total, sizes, prev, pager, next, jumper"
+        :total="totalCount"
+        style="margin-top: 5px; justify-content: flex-end"
+        @update:current-page="pageChange()"
+        @update:page-size="pageChange()"
+      >
+      </el-pagination>
+    </div>
   </div>
 </template>
 

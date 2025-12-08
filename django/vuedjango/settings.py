@@ -27,11 +27,16 @@ SECRET_KEY = 'wt$!m&wf%5yl#ttz!2xxu9&1nrev9xn7dyr0b5g4lj8qzais86'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-
-DB_HOST = os.environ.get('DB_HOST', 'mysql')
+# 连接参数变量
+DATABASE_HOST = os.environ.get('DATABASE_HOST', 'mysql')
+DATABASE_NAME = os.environ.get('DATABASE_NAME', 'autoOps')
+DATABASE_USER = os.environ.get('DATABASE_USER', 'root')
+DATABASE_PASSWORD = os.environ.get('DATABASE_PASSWORD', 'thinker')
+DATABASE_PORT = os.environ.get('DATABASE_PORT', '3306')
 REDIS_HOST = os.environ.get('REDIS_HOST', 'redis')
+REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
 
-# DB_HOST = '127.0.0.1' if DEBUG else os.environ.get('DB_HOST', 'mysql')
+# DATABASE_HOST = '127.0.0.1' if DEBUG else os.environ.get('DATABASE_HOST', 'mysql')
 # REDIS_HOST = '127.0.0.1' if DEBUG else os.environ.get('REDIS_HOST', 'redis')
 
 ALLOWED_HOSTS = ['*']
@@ -115,11 +120,11 @@ CHANNEL_LAYERS = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'autoOps',
-        'USER': 'root',
-        'PASSWORD': 'thinker',
-        'HOST': DB_HOST,
-        'PORT': '3306',
+        'NAME': DATABASE_NAME,
+        'USER': DATABASE_USER,
+        'PASSWORD': DATABASE_PASSWORD,
+        'HOST': DATABASE_HOST,
+        'PORT': DATABASE_PORT,
         'OPTIONS': {
             'charset': 'utf8mb4',
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
@@ -146,7 +151,7 @@ DATABASES = {
 
 CACHEOPS_REDIS = {
     'host': REDIS_HOST,
-    'port': 6379,
+    'port': REDIS_PORT,
     'db': 1,
     'socket_timeout': 3,
     'retry_on_timeout': True,
@@ -175,7 +180,7 @@ CACHEOPS_DEFAULTS = {
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': f'redis://{REDIS_HOST}:6379/2',
+        'LOCATION': f'redis://{REDIS_HOST}:{REDIS_PORT}/2',
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             'CONNECTION_POOL_CLASS': 'redis.BlockingConnectionPool',
@@ -193,8 +198,8 @@ CACHES = {
 
 # Celery配置共享Redis
 CELERY_CACHE_BACKEND = 'django-cache'
-CELERY_BROKER_URL = f'redis://{REDIS_HOST}:6379/2'
-CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:6379/2'
+CELERY_BROKER_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/2'
+CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:{REDIS_PORT}/2'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'

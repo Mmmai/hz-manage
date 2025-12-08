@@ -591,15 +591,6 @@ const validationRulesTypeOptions = computed(() => {
   return tempArr;
 });
 
-// const ciModelFieldsList = defineModel("ciModelFieldsList")
-// const activeArr = computed(()=>{
-//   let _tempArr = []
-//   ciModelFieldsList.value.forEach((item,index)=>{
-//     console.log(123)
-//     _tempArr.push(item.verbose_name)
-//   })
-//   return _tempArr
-// })
 // 获取模型字段信息
 const getModelField = async (params) => {
   if (params != null) {
@@ -613,20 +604,6 @@ const getModelField = async (params) => {
     activeArr.value = res.data.field_groups?.map((item) => item.name);
   }
 };
-// const getModelField = async () => {
-//   let res = await proxy.$api.getCiModel(route.query, route.query.id);
-//   modelInfo.value = res.data.model;
-//   ciModelFieldsList.value = res.data.field_groups;
-//   activeArr.value = res.data.field_groups?.map((item) => item.name);
-//   // let tempArr = [];
-//   // ciModelFieldsList.value.forEach((item, index) => {
-//   //   activeArr.value.push(item.verbose_name);
-//   //   item.fields?.forEach((item2) => {
-//   //     tempArr.push(item2);
-//   //   });
-//   // });
-//   // emits("getModelField", tempArr);
-// };
 const fieldOptions = ref([]);
 const disableNameList = ref([]);
 const getModelFieldType = async () => {
@@ -644,27 +621,6 @@ const getCiModelList = async () => {
   let res = await proxy.$api.getCiModel();
   modelist.value = res.data.results;
 };
-// onActivated(async () => {
-//   console.log("onActivated", "getModelField")
-//   // await getCiModelInfo(route.query, route.query.id);
-//   // await getCiModelGroupList();
-//   // await getModelField();
-//   await getModelField();
-
-// })
-// onMounted(async () => {
-//   console.log('field mount')
-//   await getModelField();
-//   await getCiModelList();
-//   await getRules();
-//   await getModelFieldType();
-//   // getModelField()
-// })
-
-// const ciModelFieldsListAdd = computed(()=>{
-//   ciModelFieldsList.push()
-// })
-
 // 字段分组
 interface ModelFieldGroupForm {
   name: string;
@@ -860,16 +816,6 @@ const deleteModelFieldGroup = (config) => {
       });
     });
 };
-
-// 添加组
-// const addModelFieldGroup = ()=>{
-
-// }
-// 动态样式绑定
-// const isBuiltClass = (boolean)=>{
-//   if (!boolean) return
-//   // return
-// }
 
 // 模型字段组
 

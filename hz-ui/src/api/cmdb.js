@@ -266,4 +266,7 @@ export default {
   addModelInstanceRelation(params) {
     return axios.request({ url: path.cmdbRelation, method: 'post', data: params })
   },
+  bulkAddModelInstanceRelation(params) {
+    return axios.request({ url: path.cmdbRelation + 'bulk_create/', method: 'post', data: params })
+  },
 }

@@ -1,23 +1,34 @@
 from django.db import models
-from datetime import timezone
+from django.utils import timezone
 import uuid
 
 
 class UserInfo(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    username = models.CharField(max_length=32, null=False, unique=True)
-    password = models.CharField(max_length=32, null=False)
-    real_name = models.CharField(max_length=50, verbose_name="真实姓名", null=True, blank=True, default="")
+    username = models.CharField(max_length=32,null=False,unique=True)
+    password = models.CharField(max_length=256,null=False)
+    password_salt = models.CharField(max_length=32, null=False, default='')    
+    real_name = models.CharField(max_length=50, verbose_name="真实姓名",null=True,blank=True,default="")
     # token = models.CharField(max_length=128,null=True,blank=True)
-    status = models.BooleanField(verbose_name="状态", default=True)
+    status = models.BooleanField(verbose_name="状态",default=True)
+    built_in = models.BooleanField(verbose_name="内置用户",default=False)
+    expire_time = models.DateTimeField(verbose_name="到期时间", null=True, blank=True)
     update_time = models.DateTimeField(auto_now=True)
     create_time = models.DateTimeField(auto_now_add=True)
     roles = models.ManyToManyField(to='Role', verbose_name='角色')
     groups = models.ManyToManyField(to='UserGroup', verbose_name='用户组', related_name="users")
 
     def __str__(self):
-        return self.username
-
+      return self.username
+    def is_expired(self):
+        """
+        检查用户是否已过期
+        如果没有设置过期时间，则返回False
+        否则比较当前时间和过期时间
+        """
+        if not self.expire_time:
+            return False
+        return timezone.now() > self.expire_time
     class Meta:
         db_table = "tb_userinfo"
         verbose_name = "用户表"
@@ -27,7 +38,8 @@ class UserInfo(models.Model):
 
 class UserGroup(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    group_name = models.CharField(max_length=32, null=False, unique=True)
+    group_name = models.CharField(max_length=32,null=False,unique=True)
+    built_in = models.BooleanField(verbose_name="内置用户组",default=False)
     update_time = models.DateTimeField(auto_now=True)
     create_time = models.DateTimeField(auto_now_add=True)
     roles = models.ManyToManyField(to='Role', verbose_name='角色')
@@ -47,8 +59,9 @@ class Role(models.Model):
     角色：绑定权限
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    role = models.CharField(max_length=32, unique=True, verbose_name="角色")
-    role_name = models.CharField(max_length=32, unique=True, verbose_name="角色名称")
+    role = models.CharField(max_length=32, unique=True,verbose_name = "角色")
+    role_name = models.CharField(max_length=32, unique=True,verbose_name = "角色名称")
+    built_in = models.BooleanField(verbose_name="内置角色",default=False)
     update_time = models.DateTimeField(auto_now=True)
     create_time = models.DateTimeField(auto_now_add=True)
 
@@ -140,13 +153,47 @@ class Permission(models.Model):
     权限
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="permission")
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="permission", null=True, blank=True)
+    user = models.ForeignKey(UserInfo, on_delete=models.CASCADE, related_name="permission", null=True, blank=True)
+    user_group = models.ForeignKey(UserGroup, on_delete=models.CASCADE, related_name="permission", null=True, blank=True)
     menu = models.ForeignKey(Menu, on_delete=models.CASCADE, related_name="permission")
     button = models.ForeignKey(Button, on_delete=models.CASCADE, related_name="permission")
 
-    # def __str__(self):
-    #     # 显示带菜单前缀的权限
-    #     return
+    def __str__(self):
+        if self.role:
+            owner = self.role.role
+        elif self.user:
+            owner = self.user.username
+        elif self.user_group:
+            owner = self.user_group.group_name
+        else:
+            owner = "Unknown"
+        return f"{owner} - {self.menu.name} - {self.button.name}"
+
+    @classmethod
+    def get_user_permissions(cls, user):
+        """
+        获取用户的所有权限，包括通过角色、用户组和直接授权的权限
+        """
+        # 通过用户直接角色获取权限
+        role_permissions = cls.objects.filter(role__in=user.roles.all())
+        
+        # 通过用户组获取权限（包括用户组关联的角色权限）
+        user_groups = user.groups.all()
+        user_group_permissions = cls.objects.filter(user_group__in=user_groups)
+        
+        # 通过用户组关联的角色获取权限
+        group_roles = []
+        for group in user_groups:
+            group_roles.extend(group.roles.all())
+        group_role_permissions = cls.objects.filter(role__in=group_roles)
+        
+        # 通过直接用户授权获取权限
+        user_permissions = cls.objects.filter(user=user)
+        
+        # 合并所有权限并去重
+        permissions = (role_permissions | user_group_permissions | group_role_permissions | user_permissions).distinct()
+        return permissions
 
     class Meta:
         db_table = "tb_permission"
@@ -155,23 +202,52 @@ class Permission(models.Model):
 
 
 class Portal(models.Model):
+    """
+    门户
+    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(verbose_name='名称', max_length=32, null=False, unique=True)
+    name = models.CharField(verbose_name='名称', max_length=32, null=False)
     url = models.CharField(max_length=256, verbose_name="链接地址", null=False, default="")
-    # token = models.CharField(max_length=128,null=True,blank=True)
     status = models.BooleanField(verbose_name="状态", default=True)
     username = models.CharField(verbose_name='用户名', max_length=32, null=True, blank=True, default="")
     password = models.CharField(verbose_name='密码', max_length=32, null=True, blank=True, default="")
     target = models.BooleanField(verbose_name="跳转方式", default=True)
-    group = models.ForeignKey('Pgroup', on_delete=models.CASCADE, verbose_name="分组", db_column='group')
-    # owner = models.ForeignKey('Userinfo',on_delete=models.CASCADE,db_column='owner')
-    describe = models.CharField(verbose_name='描述', max_length=256, null=True, blank=True, default="")
-    sort = models.IntegerField(blank=True, null=True, db_index=True)
+    describe = models.CharField(verbose_name='描述', max_length=256, null=True, blank=True, default="")    
+    
+    # 添加排序字段
+    sort_order = models.IntegerField(verbose_name="排序", default=0)
+    
+    # 添加共享类型字段
+    SHARING_CHOICES = [
+        ('private', '私人'),
+        ('public', '公共'),
+    ]
+    sharing_type = models.CharField(verbose_name='共享类型', max_length=10, choices=SHARING_CHOICES, default='public')
+    
+    # 所有门户都有创建者，公共门户对所有用户可见
+    owner = models.ForeignKey('Userinfo', on_delete=models.CASCADE, verbose_name="创建者")
+    
+    # 门户可以属于多个分组（多对多关系）
+    groups = models.ManyToManyField('Pgroup', verbose_name="分组", related_name='portals', blank=True)
+    
     update_time = models.DateTimeField(auto_now=True)
     create_time = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = (('name'),)
+        # 私有门户在用户内唯一，公共门户全局唯一
+        unique_together = (('name', 'sharing_type', 'owner'), ('name', 'sharing_type'))
+        constraints = [
+            models.UniqueConstraint(
+                fields=['name'], 
+                condition=models.Q(sharing_type='public'),
+                name='unique_public_portal_name'
+            ),
+            models.UniqueConstraint(
+                fields=['name', 'owner'], 
+                condition=models.Q(sharing_type='private'),
+                name='unique_private_portal_name_per_user'
+            )
+        ]
         db_table = "tb_portal"
         verbose_name = "门户表"
         verbose_name_plural = verbose_name
@@ -179,22 +255,108 @@ class Portal(models.Model):
 
 
 class Pgroup(models.Model):
-    """
-    门户的用户组
+    """ 
+    门户分组
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    group = models.CharField(max_length=32, unique=True, verbose_name="角色")
-    # owner = models.ForeignKey('Userinfo',on_delete=models.CASCADE)
-    # 定义角色和权限的多对多关系
-
+    group = models.CharField(verbose_name='分组名称', max_length=32, null=False)
+    
+    # 添加共享类型字段
+    SHARING_CHOICES = [
+        ('private', '私人'),
+        ('public', '公共'),
+    ]
+    sharing_type = models.CharField(verbose_name='共享类型', max_length=10, choices=SHARING_CHOICES, default='public')
+    
+    # 所有分组都有创建者，公共分组对所有用户可见
+    owner = models.ForeignKey('Userinfo', on_delete=models.CASCADE, verbose_name="创建者")
+    
+    # 添加排序字段
+    sort_order = models.IntegerField(verbose_name="排序", default=0)
+    update_time = models.DateTimeField(auto_now=True)
+    create_time = models.DateTimeField(auto_now_add=True)
     class Meta:
-        # unique_together = (('group','owner'),)
-        unique_together = (('group',),)
+        # 私有分组在用户内唯一，公共分组全局唯一
+        unique_together = (('group', 'sharing_type', 'owner'), ('group', 'sharing_type'))
+        constraints = [
+            models.UniqueConstraint(
+                fields=['group'], 
+                condition=models.Q(sharing_type='public'),
+                name='unique_public_group_name'
+            ),
+            models.UniqueConstraint(
+                fields=['group', 'owner'], 
+                condition=models.Q(sharing_type='private'),
+                name='unique_private_group_name_per_user'
+            )
+        ]
         db_table = "tb_pgroup"
-        verbose_name = "门户分组"
+        verbose_name = "门户分组表"
         verbose_name_plural = verbose_name
         app_label = 'mapi'
 
+
+class UserPgroupSortOrder(models.Model):
+    """
+    用户分组排序偏好设置
+    每个用户可以独立设置自己看到的分组排序
+    """
+    user = models.ForeignKey('Userinfo', on_delete=models.CASCADE, verbose_name="用户")
+    pgroup = models.ForeignKey('Pgroup', on_delete=models.CASCADE, verbose_name="门户分组")
+    sort_order = models.IntegerField(verbose_name="排序", default=0)
+    
+    # 可以添加创建和更新时间
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ('user', 'pgroup')
+        db_table = "tb_user_pgroup_sort"
+        verbose_name = "用户门户分组排序"
+        verbose_name_plural = verbose_name
+        app_label = 'mapi'
+
+
+class UserPortalSortOrder(models.Model):
+    """
+    用户门户排序偏好设置
+    每个用户可以独立设置自己看到的门户排序
+    """
+    user = models.ForeignKey('Userinfo', on_delete=models.CASCADE, verbose_name="用户")
+    portal = models.ForeignKey('Portal', on_delete=models.CASCADE, verbose_name="门户")
+    sort_order = models.IntegerField(verbose_name="排序", default=0)
+    
+    # 可以按分组保存排序
+    group = models.ForeignKey('Pgroup', on_delete=models.CASCADE, verbose_name="门户分组", null=True, blank=True)
+    
+    # 可以添加创建和更新时间
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ('user', 'portal')
+        db_table = "tb_user_portal_sort"
+        verbose_name = "用户门户排序"
+        verbose_name_plural = verbose_name
+        app_label = 'mapi'
+
+class PortalFavorites(models.Model):
+    """
+    门户收藏夹
+    用户可以收藏自己喜欢的门户
+    """
+    user = models.ForeignKey('Userinfo', on_delete=models.CASCADE, verbose_name="用户")
+    portal = models.ForeignKey('Portal', on_delete=models.CASCADE, verbose_name="门户")
+    
+    # 收藏时间
+    create_time = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ('user', 'portal')  # 确保用户不能重复收藏同一个门户
+        db_table = "tb_portal_favorites"
+        verbose_name = "门户收藏"
+        verbose_name_plural = verbose_name
+        app_label = 'mapi'
 
 class Datasource(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -215,35 +377,6 @@ class Datasource(models.Model):
         db_table = "tb_datasource"
         verbose_name = "数据源"
         app_label = 'mapi'
-
-
-# class LogModule(models.Model):
-#     module_name = models.CharField(max_length=32, unique=True,verbose_name = "模块名称")
-#     label_name = models.CharField(max_length=32,null=False,default="",verbose_name = "标签")
-#     label_value = models.CharField(max_length=256,null=False,default="",verbose_name = "标签值")
-#     label_match = models.CharField(max_length=32,null=False,default="",verbose_name = "匹配方式")
-#     group = models.CharField(max_length=64, verbose_name="分组",null=True,blank=True)
-#     # token = models.CharField(max_length=128,null=True,blank=True)
-#     state = models.BooleanField(verbose_name="接口状态",default=True)
-#     update_time = models.DateTimeField(auto_now=True)
-#     create_time = models.DateTimeField(auto_now_add=True)
-#     class Meta:
-#         db_table = "tb_log_module"
-#         verbose_name = "数据源"
-
-
-# class orderMethod(models.Model):
-#     owner = models.CharField(unique=True,verbose_name = "所属功能")
-#     # group = models.ForeignKey('Pgroup',on_delete=models.CASCADE,verbose_name="分组",db_column='group')
-#     # owner = models.ForeignKey('Userinfo',on_delete=models.CASCADE,db_column='owner')
-#     orderList = models.JSONField()
-
-
-#     class Meta:
-#         # unique_together = (('name'),)
-#         db_table = "tb_order_method"
-#         verbose_name = "排序表"
-#         # verbose_name_plural = verbose_name
 
 
 class sysConfigParams(models.Model):

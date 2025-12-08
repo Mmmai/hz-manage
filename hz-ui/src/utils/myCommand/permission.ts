@@ -2,16 +2,20 @@ import { Directive, DirectiveBinding, inject } from 'vue'
 // import { useRoutesStore } from '@/store/modules/routes'
 // import { BUTTON_PERMISSION_MAP } from '@/constants/button-permission'
 // import { useStore } from "vuex";
-import store from "@/store/index"
+import useConfigStore from "@/store/config";
+
 const permission: Directive = {
+
   mounted(el: HTMLElement, binding: DirectiveBinding): void {
+    const configStore = useConfigStore();
+
     // console.log(el)
     // console.log(binding)
     const { value } = binding
     if (!value)
       return
     if (typeof value === "string") {
-      if (store.state.permission.includes(value)) {
+      if (configStore.permission.includes(value)) {
 
         el.style.display = 'auto'
       }
@@ -27,7 +31,7 @@ const permission: Directive = {
       }
     } else if (typeof value === "object") {
 
-      if (!store.state.permission.includes(value.id)) {
+      if (!configStore.permission.includes(value.id)) {
         el.classList.add("is-disabled")
       }
     }

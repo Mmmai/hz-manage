@@ -19,7 +19,7 @@
       border
       v-loading="loading"
     >
-      <el-table-column prop="source_instance" label="源实例" width="300">
+      <el-table-column prop="source_instance" label="源实例">
         <template #default="scope">
           <el-tag v-if="scope.row.source_instance.id !== instanceId">{{
             scope.row.target_instance.instance_name
@@ -66,7 +66,7 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="source_instance" label="目标实例" width="300">
+      <el-table-column prop="source_instance" label="目标实例">
         <template #default="scope">
           <el-tag v-if="scope.row.source_instance.id !== instanceId">{{
             scope.row.source_instance.instance_name
@@ -112,7 +112,7 @@
           <el-tag>{{ scope.row.target_instance.instance_name }}</el-tag>
         </template>
       </el-table-column> -->
-      <el-table-column prop="relation_attributes" label="关系属性" width="250">
+      <el-table-column prop="relation_attributes" label="关系属性" width="150">
         <template #default="scope">
           <div
             v-for="(value, key) in scope.row.relation_attributes"
@@ -140,11 +140,6 @@
             class="relation-description"
             v-html="generateStyledRelationDescription(scope.row)"
           ></div>
-        </template>
-      </el-table-column>
-      <el-table-column prop="create_time" label="创建时间" width="180">
-        <template #default="scope">
-          {{ formatDate(scope.row.create_time) }}
         </template>
       </el-table-column>
       <el-table-column label="操作" width="120" fixed="right">
@@ -227,7 +222,11 @@
         </el-form-item>
 
         <el-form-item label="目标实例" prop="target_instance">
-          <el-radio-group v-model="selectModel" size="default">
+          <el-radio-group
+            v-model="selectModel"
+            size="default"
+            @change="handleSelectModelChange"
+          >
             <el-radio-button
               :disabled="isEditMode"
               :label="item.label"
@@ -244,6 +243,7 @@
             remote
             :remote-method="searchTargetInstances"
             :loading="searchLoading"
+            :disabled="isEditMode"
           >
             <el-option
               v-for="item in targetInstances"
@@ -253,7 +253,16 @@
             />
           </el-select>
         </el-form-item>
-
+        <el-form-item label="关联动作" v-if="selectModel === modelId">
+          <el-radio-group v-model="is_reverse" :disabled="isEditMode">
+            <el-radio :value="false" size="large">{{
+              relationDefineMap[addRelationForm.relation]?.forward_verb
+            }}</el-radio>
+            <el-radio :value="true" size="large">{{
+              relationDefineMap[addRelationForm.relation]?.reverse_verb
+            }}</el-radio>
+          </el-radio-group>
+        </el-form-item>
         <!-- 动态生成attribute_schema相关表单项 -->
         <template
           v-if="relationDefineMap[addRelationForm.relation]?.attribute_schema"
@@ -477,7 +486,6 @@ watch(
   () => addRelationForm.relation,
   () => {
     if (!addRelationForm.relation) return;
-    console.log("关联关系", relationDefineMap.value[addRelationForm.relation]);
     let _sourceModelArr =
       relationDefineMap.value[addRelationForm.relation].source_model;
     let _targetModelArr =
@@ -486,7 +494,10 @@ watch(
       // 源和目标都存在
       if (_targetModelArr?.indexOf(props.modelId) !== -1) {
         selectModelOptions.value = modelOptions.value.filter((item) => {
-          return _targetModelArr.indexOf(item.value) !== -1;
+          return (
+            _targetModelArr.indexOf(item.value) !== -1 ||
+            _sourceModelArr.indexOf(item.value) !== -1
+          );
         });
       } else {
         selectModelOptions.value = modelOptions.value.filter((item) => {
@@ -505,14 +516,17 @@ watch(
   { deep: true }
 );
 // 切换时，清除已选择的目标实例
-watch(
-  () => selectModel.value,
-  (newValue, oldValue) => {
-    console.log(selectModel.value);
-    console.log("新旧", oldValue, newValue);
-    addRelationForm.target_instance = null;
-  }
-);
+const handleSelectModelChange = () => {
+  if (isEditMode.value) return;
+  addRelationForm.target_instance = null;
+};
+// watch(
+//   () => selectModel.value,
+//   (newValue, oldValue) => {
+//     console.log(selectModel.value);
+//     console.log("新旧", oldValue, newValue);
+//   }
+// );
 // 获取关系定义列表
 const getRelationDefinitions = async () => {
   try {
@@ -584,7 +598,6 @@ const editRelation = async (row) => {
   isEditMode.value = true;
   currentEditId.value = row.id;
   addRelationDialogVisible.value = true;
-  console.log("ffff", row);
   // 获取关系定义数据
   if (relationDefinitions.value.length === 0) {
     await getRelationDefinitions();
@@ -597,44 +610,26 @@ const editRelation = async (row) => {
   addRelationForm.source_attributes = row.source_attributes || {};
   addRelationForm.target_attributes = row.target_attributes || {};
   addRelationForm.relation_attributes = row.relation_attributes || {};
-
-  // 设置模型选项
-  const relationDef = relationDefineMap.value[row.relation.id];
-  if (relationDef) {
-    let _sourceModelArr = relationDef.source_model;
-    let _targetModelArr = relationDef.target_model;
-
-    if (_sourceModelArr?.indexOf(props.modelId) !== -1) {
-      // 源和目标都存在
-      if (_targetModelArr?.indexOf(props.modelId) !== -1) {
-        // 双向关系
-      } else {
-        selectModelOptions.value = modelOptions.value.filter((item) => {
-          return _targetModelArr.indexOf(item.value) !== -1;
-        });
-      }
-    } else {
-      selectModelOptions.value = modelOptions.value.filter((item) => {
-        return _sourceModelArr.indexOf(item.value) !== -1;
-      });
-    }
-    selectModel.value = selectModelOptions.value[0]?.value;
-  }
+  is_reverse.value = row.source_instance.id === props.instanceId ? false : true;
   nextTick(() => {
-    addRelationForm.target_instance = row.target_instance.id;
-
-    // 获取目标实例列表
-    // await searchTargetInstances("");
+    selectModel.value = row.target_instance.model;
     targetInstances.value = [
+      {
+        id: row.source_instance.id,
+        instance_name: row.source_instance.instance_name,
+      },
       {
         id: row.target_instance.id,
         instance_name: row.target_instance.instance_name,
       },
     ];
-  });
+    addRelationForm.target_instance = is_reverse.value
+      ? row.source_instance.id
+      : row.target_instance.id;
 
-  console.log("xxx", addRelationForm);
-  console.log("目标实例", targetInstances.value);
+    // 获取目标实例列表
+    // await searchTargetInstances("");
+  });
 };
 // 重置添加关联表单
 const resetAddRelationForm = () => {
@@ -647,7 +642,10 @@ const resetAddRelationForm = () => {
   addRelationForm.relation_attributes = {};
   targetInstances.value = [];
   isEditMode.value = false;
+  is_reverse.value = false;
   currentEditId.value = null;
+  selectModelOptions.value = [];
+  selectModel.value = null;
 };
 // ... existing code ...
 // 提交添加关联关系
@@ -656,22 +654,21 @@ const submitAddRelation = async () => {
     if (valid) {
       try {
         let res;
+        let _addRelationForm = { ...addRelationForm };
+        // 添加关系时，根据是否需要互换，将source_instance和target_instance的值互换
+        if (is_reverse.value) {
+          _addRelationForm.target_instance = addRelationForm.source_instance;
+          _addRelationForm.source_instance = addRelationForm.target_instance;
+        }
         if (isEditMode.value) {
           // 编辑模式
           res = await proxy.$api.updateModelInstanceRelation({
             id: currentEditId.value,
-            ...addRelationForm,
+            ..._addRelationForm,
           });
         } else {
           // 新增模式
           // 将addRelationForm中的target_instance和source_instance的值互换
-          let _addRelationForm = { ...addRelationForm };
-
-          if (is_reverse.value) {
-            console.log("reverse");
-            _addRelationForm.target_instance = addRelationForm.source_instance;
-            _addRelationForm.source_instance = addRelationForm.target_instance;
-          }
 
           res = await proxy.$api.addModelInstanceRelation({
             source_instance: props.instanceId,
@@ -691,7 +688,9 @@ const submitAddRelation = async () => {
           getRelationsData(); // 刷新数据
         } else {
           ElMessage.error(
-            isEditMode.value ? "编辑关联关系失败" : "添加关联关系失败"
+            isEditMode.value
+              ? `编辑关联关系失败,${JSON.stringify(res.data)}`
+              : `添加关联关系失败,${JSON.stringify(res.data)}}`
           );
         }
       } catch (error) {
@@ -774,9 +773,9 @@ const generateStyledRelationDescription = (row) => {
   const targetName = row.target_instance.instance_name;
   const relationName = getRelationDisplayName(row);
   const sourceModelName =
-    modelObjectById.value[row.source_instance.model].verbose_name;
+    modelObjectById.value[row.source_instance.model]?.verbose_name;
   const targetModelName =
-    modelObjectById.value[row.target_instance.model].verbose_name;
+    modelObjectById.value[row.target_instance.model]?.verbose_name;
   // 根据instanceId所在位置决定使用哪一侧的属性
   let sourceAttributesName, targetAttributesName;
 

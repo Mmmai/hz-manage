@@ -4,7 +4,6 @@
       <div>
         <el-button
           type="primary"
-          size="small"
           @click="handleAdd"
           v-permission="`${route.name?.replace('_info', '')}:add`"
           >新增</el-button
@@ -34,42 +33,25 @@
           :key="item.prop"
           :label="item.label"
           :prop="item.prop"
+          width="150"
         >
+        </el-table-column>
+        <el-table-column label="关联用户组">
+          <template #default="scope">
+            <el-tag v-for="(item, index) in scope.row.associated_user_groups">{{
+              item.group_name
+            }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="关联用户">
+          <template #default="scope">
+            <el-tag v-for="(item, index) in scope.row.associated_users">{{
+              item.username
+            }}</el-tag>
+          </template>
         </el-table-column>
         <el-table-column fixed="right" label="操作" width="150">
           <template #default="scope">
-            <!-- <el-button
-              v-if="scope.row.role == '管理员'"
-              type="primary"
-              size="small"
-              @click="handleEdit(scope.row)"
-              disabled
-              >编辑</el-button
-            >
-            <el-button
-              v-else
-              type="primary"
-              size="small"
-              @click="handleEdit(scope.row)"
-              >编辑</el-button
-            >
-            <el-button
-              v-if="scope.row.role == '管理员'"
-              type="danger"
-              size="small"
-              disabled
-              @click="handleDelete(scope.row)"
-              >删除</el-button
-            >
-            <el-button
-              v-else
-              type="danger"
-              size="small"
-              @click="handleDelete(scope.row)"
-              >删除</el-button
-                            :disabled="scope.row.role == 'sysadmin' ? true : false"
-
-            > -->
             <el-button
               link
               v-permission="`${route.name?.replace('_info', '')}:edit`"
@@ -77,9 +59,19 @@
               :icon="Edit"
               @click="handleEdit(scope.row)"
             ></el-button>
+            <el-tooltip content="权限配置" placement="top">
+              <el-button
+                v-permission="`${route.name?.replace('_info', '')}:edit`"
+                link
+                type="primary"
+                :icon="Key"
+                @click="goToPermission(scope.row)"
+              ></el-button>
+            </el-tooltip>
             <el-button
               v-permission="`${route.name?.replace('_info', '')}:delete`"
-              :disabled="scope.row.role == 'sysadmin' ? true : false"
+              :disabled="scope.row.built_in"
+              icon-position="right"
               link
               type="danger"
               :icon="Delete"
@@ -95,7 +87,7 @@
   <el-dialog
     v-model="dialogVisible"
     :title="action == 'add' ? '新增角色' : '编辑角色'"
-    width="50%"
+    width="30%"
     :before-close="handleClose"
   >
     <el-form
@@ -112,7 +104,7 @@
           placeholder="请输入英文"
           clearable
           style="width: 30%"
-          :disabled="isDisabled"
+          :disabled="nowRow.built_in"
         />
       </el-form-item>
       <el-form-item
@@ -125,10 +117,10 @@
           placeholder="中文名称"
           style="width: 30%"
           clearable
-          :disabled="isDisabled"
+          :disabled="nowRow.built_in"
         />
       </el-form-item>
-      <el-form-item label="菜单授权" prop="rolePermission">
+      <!-- <el-form-item label="菜单授权" prop="rolePermission">
         <div style="border: 1px solid var(--el-border-color); width: 90%">
           <el-tree
             ref="menuTreeRef"
@@ -150,7 +142,7 @@
             </template>
           </el-tree>
         </div>
-      </el-form-item>
+      </el-form-item> -->
       <el-row style="justify-content: space-around">
         <el-form-item>
           <el-button @click="cancelAdd">取消</el-button>
@@ -173,10 +165,11 @@ import {
   toRaw,
   nextTick,
 } from "vue";
-import { useRoute } from "vue-router";
-const route = useRoute();
 const currentSelectRow = ref({});
 const { proxy } = getCurrentInstance();
+import { useRoute, useRouter } from "vue-router";
+const router = useRouter();
+const route = useRoute();
 import { ElMessageBox, ElMessage } from "element-plus";
 const customNodeClass = ({ tree_type }, node) => {
   if (tree_type === "menu") {
@@ -206,14 +199,8 @@ const roleListCol = ref([
     prop: "role_name",
     label: "角色名称",
   },
-  {
-    prop: "user_count",
-    label: "用户数量",
-  },
 ]);
 // 分页变量
-
-const totalCount = ref(0);
 
 // 少于分页需求则不显示分页
 
@@ -225,7 +212,7 @@ onMounted(async () => {
   // api请求获取所有数据
 
   await getRoleData();
-  getMenuListFunc();
+  // getMenuListFunc();
   // selectFirst()
 });
 // 默认选中第1行
@@ -235,12 +222,8 @@ const selectFirst = () => {
 
 // 获取角色数据
 const getRoleData = async () => {
-  let roleinfo = await proxy.$api.getRole();
-  roleList.value = roleinfo.data.results.map((item) => {
-    item.userinfo_set = item.userinfo_set.length;
-    return item;
-  });
-
+  let res = await proxy.$api.getRole();
+  roleList.value = res.data.results;
   //   #roleList.value.length
 
   // 统计用户个数
@@ -261,10 +244,7 @@ const handleClick = (val) => {
   // console.log(val)
   currentSelectRow.value = val;
 };
-const test = () => {
-  console.log(menuTreeRef.value!.getCheckedKeys());
-  console.log(menuTreeRef.value!.getCheckedNodes());
-};
+
 // 弹出框
 
 // 新增按钮
@@ -278,22 +258,23 @@ const formInline = reactive({
 const action = ref("add");
 // 显示新增弹出框
 const handleAdd = () => {
-  action.value = "add";
-  dialogVisible.value = true;
+  // action.value = "add";
+  // dialogVisible.value = true;
+  router.push({ path: route.path + "/new" });
 };
 // 取消新增弹出框
 const cancelAdd = () => {
   dialogVisible.value = false;
   // 重置表单
   proxy.$refs.userFrom.resetFields();
-  setCheckedKeys([]);
+  // setCheckedKeys([]);
 };
 // 关闭弹出框
 const handleClose = (done) => {
   ElMessageBox.confirm("是否确认关闭?")
     .then(() => {
       proxy.$refs.userFrom.resetFields();
-      setCheckedKeys([]);
+      // setCheckedKeys([]);
 
       done();
     })
@@ -335,7 +316,7 @@ const handleCommit = () => {
           });
           // 重置表单
           proxy.$refs.userFrom.resetFields();
-          setCheckedKeys([]);
+          // setCheckedKeys([]);
           getRoleData();
           console.log(menuTreeRef.value!.getCheckedKeys());
         } else {
@@ -357,7 +338,7 @@ const handleCommit = () => {
           dialogVisible.value = false;
           // 重置表单
           proxy.$refs.userFrom.resetFields();
-          setCheckedKeys([]);
+          // setCheckedKeys([]);
           console.log(menuTreeRef.value!.getCheckedKeys());
 
           getRoleData();
@@ -386,7 +367,6 @@ const handleCommit = () => {
 // 编辑
 const nowRow = ref({});
 const handleEdit = (row) => {
-  console.log(row);
   action.value = "edit";
   nowRow.value = row;
   dialogVisible.value = true;
@@ -400,10 +380,13 @@ const handleEdit = (row) => {
     });
   });
   // setCheckedKeys(row.menu)
-  setCheckedKeys(row.rolePermission);
+  // setCheckedKeys(row.rolePermission);
   // console.log(JSON.stringify(formInline));
 
   // formInline.rolePermission = row.menu
+};
+const gotoInfo = (row) => {
+  router.push({ path: route.path + "/" + row.id });
 };
 // 删除
 const handleDelete = (row) => {
@@ -421,7 +404,9 @@ const handleDelete = (row) => {
           type: "success",
           message: "删除成功",
         });
-        await getRoleData(pageConfig);
+        nextTick(() => {
+          getRoleData();
+        });
         // selectFirst()
       } else {
         ElMessage({
@@ -455,7 +440,7 @@ const handleSelectionChange = (val) => {
 import { ElTree } from "element-plus";
 
 import type Node from "element-plus/es/components/tree/src/model/node";
-import { Delete, Edit } from "@element-plus/icons-vue";
+import { Delete, Edit, Key } from "@element-plus/icons-vue";
 
 const menuTreeRef = ref<InstanceType<typeof ElTree>>();
 interface Tree {
@@ -489,6 +474,13 @@ watch(
     }
   }
 );
+
+const goToPermission = (row) => {
+  router.push({
+    name: "permission",
+    query: { role: row.id },
+  });
+};
 </script>
 <style  scoped>
 .el-pagination {

@@ -82,9 +82,67 @@ const pvar = defineProps({
   }
 
 } */
+:root {
+  --menu-text-color: #ffffff;
+}
+
 .el-menu {
   /* border-right: 1px; */
   /* color: var(--el-text-color-regular); */
-  /* background-color: var(--el-color-primary-light-7) !important; */
+  color: var(--menu-text-color) !important;
+  background-color: #001529 !important;
+}
+
+/* 第一层菜单项（直接子菜单） */
+.el-menu > .el-sub-menu > .el-sub-menu__title {
+  background-color: #001529 !important;
+}
+
+/* 第二层及以下菜单项 */
+.el-menu .el-sub-menu .el-sub-menu .el-sub-menu__title {
+  background-color: #0f2438 !important;
+}
+
+/* 第一层普通菜单项 */
+.el-menu > .el-menu-item {
+  background-color: #001529 !important;
+}
+
+/* 第二层及以下普通菜单项 */
+.el-menu .el-sub-menu .el-menu-item {
+  background-color: #0f2438 !important;
+}
+
+/* 菜单项hover效果 */
+.el-menu .el-menu-item:hover {
+  background-color: var(--el-color-primary) !important;
+  color: var(--menu-text-color) !important;
+}
+
+/* 子菜单标题hover效果 */
+.el-menu .el-sub-menu__title:hover {
+  background-color: var(--el-color-primary) !important;
+  color: var(--menu-text-color) !important;
+}
+
+/* 激活的菜单项 */
+.el-menu .el-menu-item.is-active {
+  color: var(--menu-text-color) !important;
+  background-color: var(--el-menu-active-color) !important;
+}
+
+/* 普通菜单项字体颜色 */
+.el-menu .el-menu-item {
+  color: var(--menu-text-color) !important;
+}
+
+/* 子菜单字体颜色 */
+.el-menu .el-sub-menu {
+  color: var(--menu-text-color) !important;
+}
+
+/* 子菜单标题字体颜色 */
+.el-menu .el-sub-menu__title {
+  color: var(--menu-text-color) !important;
 }
 </style>

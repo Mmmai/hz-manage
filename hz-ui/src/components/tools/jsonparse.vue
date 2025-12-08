@@ -32,7 +32,8 @@
     <div class="standard">
       <json-viewer
         :value="jsonData"
-        :expand-depth="5"
+        :expand-depth="10"
+        expanded
         copyable
         boxed
         sort

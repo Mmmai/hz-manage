@@ -5,8 +5,8 @@
         <el-button type="primary" @click="handleAdd">新增关系</el-button>
       </div>
     </div>
-    <div class="card table-container" style="width: 100%">
-      <el-table :data="relationList" stripe style="width: 100%">
+    <div class="card table-main" style="width: 100%">
+      <el-table :data="relationList" stripe style="width: 100%" height="100%">
         <el-table-column
           prop="name"
           label="关系名称"
@@ -121,109 +121,13 @@ import useModelStore from "@/store/cmdb/model";
 const modelConfigStore = useModelStore();
 const modelOptions = computed(() => modelConfigStore.modelOptions);
 const modelObjectById = computed(() => modelConfigStore.modelObjectById);
+
 const { proxy } = getCurrentInstance();
-watch(
-  () => modelObjectById,
-  () => {
-    console.log(modelObjectById.value);
-  },
-  { deep: true, immediate: true }
-);
+
 const router = useRouter();
 const route = useRoute();
 const relationList = ref([]);
 // 模拟数据
-const relationList1 = ref([
-  {
-    id: "e307f2ad-12e6-49ac-8215-e6c29aa5f58e",
-    name: "主机-交换机",
-    topology_type: "directed",
-    forward_verb: "上联",
-    reverse_verb: "下联",
-    attribute_schema: {
-      source: {
-        port: {
-          type: "string",
-          required: false,
-          verbose_name: "端口",
-        },
-      },
-      target: {
-        port: {
-          type: "string",
-          required: false,
-          verbose_name: "端口",
-        },
-      },
-      relation: {
-        speed: {
-          type: "float",
-          unit: "Mbps",
-          default: "20000",
-          required: true,
-          verbose_name: "速率",
-        },
-      },
-    },
-    description: null,
-    create_time: "2025-10-31T17:42:59.661169",
-    update_time: "2025-10-31T17:42:59.661210",
-    create_user: "admin",
-    update_user: "admin",
-    source_model: "8103d7da-ede7-4416-9b77-f19a81a4d671",
-    target_model: "1394f70d-ade6-4548-aa6a-13f9b8296b35",
-  },
-  {
-    id: "a1b2c3d4-e5f6-7890-g1h2-i3j4k5l6m7n8",
-    name: "应用-服务器",
-    topology_type: "undirected",
-    forward_verb: "部署于",
-    reverse_verb: "承载",
-    attribute_schema: {
-      source: {},
-      target: {},
-      relation: {
-        deploy_path: {
-          type: "string",
-          required: false,
-          verbose_name: "部署路径",
-        },
-      },
-    },
-    description: "应用与服务器的关系",
-    create_time: "2025-11-01T09:15:30.123456",
-    update_time: "2025-11-01T09:15:30.123456",
-    create_user: "admin",
-    update_user: "admin",
-    source_model: "abcd1234-ef56-7890-ghij-klmn12345678",
-    target_model: "8103d7da-ede7-4416-9b77-f19a81a4d671",
-  },
-  {
-    id: "b2c3d4e5-f6g7-8901-h2i3-j4k5l6m7n8o9",
-    name: "服务依赖",
-    topology_type: "daggered",
-    forward_verb: "依赖",
-    reverse_verb: "被依赖",
-    attribute_schema: {
-      source: {},
-      target: {},
-      relation: {
-        weight: {
-          type: "integer",
-          required: false,
-          verbose_name: "权重",
-        },
-      },
-    },
-    description: "服务间依赖关系",
-    create_time: "2025-11-02T14:20:45.987654",
-    update_time: "2025-11-02T14:20:45.987654",
-    create_user: "admin",
-    update_user: "admin",
-    source_model: "defg5678-hijk-9012-lmno-345678901234",
-    target_model: "ghij9012-klmn-3456-opqr-789012345678",
-  },
-]);
 
 const pagination = reactive({
   currentPage: 1,
@@ -319,12 +223,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.model-relation-view {
-  padding: 20px;
-  background-color: #f5f5f5;
-  min-height: calc(100vh - 60px);
-}
-
 .card-header {
   display: flex;
   justify-content: space-between;

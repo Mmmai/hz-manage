@@ -74,13 +74,13 @@
         </div>
       </div>
     </div>
-    <div class="card table-container" style="width: 100%">
+    <div class="card table-main" style="width: 100%">
       <!-- 审计日志表格 -->
       <el-table
         :data="auditLogs"
-        style="flex: 1"
         border
         table-layout="fixed"
+        height="100%"
         highlight-current-row
       >
         <el-table-column prop="target_type" label="操作对象" width="120">
@@ -107,19 +107,25 @@
           label="操作描述"
           show-overflow-tooltip
         />
-        <el-table-column label="变更内容">
+        <el-table-column label="变更内容" show-overflow-tooltip>
           <template #default="scope">
             <div class="change-content">
               <div
-                v-if="scope.row.action == 'UPDATE'"
+                v-if="
+                  scope.row.action == 'UPDATE' || scope.row.action == 'CREATE'
+                "
                 v-for="(change, index) in formatChanges(scope.row)"
                 :key="index"
                 class="change-item"
               >
                 <el-text tag="b">{{ change.field }}: </el-text>
-                <span v-if="change.oldValue !== undefined" class="old-value">{{
-                  change.oldValue !== null ? change.oldValue : "null"
-                }}</span>
+                <span
+                  v-if="change.oldValue !== undefined"
+                  class="changeValue"
+                  >{{
+                    change.oldValue !== null ? change.oldValue : "null"
+                  }}</span
+                >
                 <el-text v-else>null</el-text>
                 <el-text
                   v-if="
@@ -131,9 +137,13 @@
                 >
                   →
                 </el-text>
-                <span v-if="change.newValue !== undefined" class="new-value">{{
-                  change.newValue !== null ? change.newValue : "null"
-                }}</span>
+                <span
+                  v-if="change.newValue !== undefined"
+                  class="changeValue"
+                  >{{
+                    change.newValue !== null ? change.newValue : "null"
+                  }}</span
+                >
               </div>
             </div>
           </template>
@@ -164,10 +174,11 @@
       <div class="drawer-content">
         <json-viewer
           :value="currentRowData"
-          :expand-depth="5"
+          :expand-depth="10"
           copyable
           boxed
           sort
+          expanded
         ></json-viewer>
       </div>
     </el-drawer>
@@ -380,6 +391,41 @@ const targetTypeMap = {
   relation: "关系关联",
   // 可以根据实际需求添加更多模型
 };
+const changeMap = {
+  // 实例树
+  groups: "实例组",
+  path: "路径",
+  label: "标签",
+  level: "层级",
+  parent: "父级",
+  built_in: "内置",
+  instance_name: "实例名称",
+  order: "排序",
+  verbose_name: "字段名称",
+  model_field_group: "字段分组",
+  instance_name_template: "实例名称模板",
+  fields: "字段组合",
+
+  using_template: "自动命名",
+  model: "模型",
+  input_mode: "录入方式",
+  // 关联关系
+  relation_attributes: "关系属性",
+  source_attributes: "源属性",
+  target_attributes: "目标属性",
+  relation: "关联关系",
+  attribute_schema: "关系属性",
+  description: "描述",
+  source_instance: "源实例",
+  target_instance: "目标实例",
+  source_model: "源模型",
+  target_model: "目标模型",
+  name: "名称",
+  forward_verb: "正向名称",
+  reverse_verb: "反向名称",
+  topology_type: "拓扑类型",
+  // update_user: "更新用户",
+};
 const formatTargetType = (type) => {
   return targetTypeMap[type] || type;
 };
@@ -406,20 +452,7 @@ const formatActionTag = (action: string) => {
 };
 // 获取变更内容
 // ... existing code ...
-const changeMap = {
-  groups: "实例组",
-  instance_name: "实例名称",
-  order: "排序",
-  verbose_name: "字段名称",
-  model_field_group: "字段分组",
-  instance_name_template: "实例名称模板",
-  fields: "字段组合",
-  relation_attributes: "关系属性",
-  source_attributes: "源属性",
-  target_attributes: "目标属性",
-  relation: "关联关系",
-  // update_user: "更新用户",
-};
+
 const formatChanges = (row) => {
   const changes = [];
 
@@ -432,8 +465,8 @@ const formatChanges = (row) => {
       } else if (field === "groups") {
         changes.push({
           field: changeMap[field],
-          oldValue: values[0].map((item) => item.path).join(","),
-          newValue: values[1].map((item) => item.path).join(","),
+          oldValue: values[0]?.map((item) => item.path).join("\n"),
+          newValue: values[1]?.map((item) => item.path).join("\n"),
         });
       } else if (field === "instance_name_template") {
         // console.log(
@@ -443,12 +476,12 @@ const formatChanges = (row) => {
         changes.push({
           field: changeMap[field],
           oldValue:
-            values[0].length >> 0
-              ? values[0].map((item) => item.verbose_name).join("-")
+            values[0]?.length >> 0
+              ? values[0]?.map((item) => item.verbose_name).join("-")
               : null,
           newValue:
-            values[1].length >> 0
-              ? values[1].map((item) => item.verbose_name).join("-")
+            values[1]?.length >> 0
+              ? values[1]?.map((item) => item.verbose_name).join("-")
               : null,
         });
       } else {
@@ -536,10 +569,10 @@ const fetchAuditLogs = async () => {
       page: currentPage.value,
       page_size: pageSize.value,
       // 添加筛选条件
-      target_type: selectedModels.value.length
+      target_type: selectedModels.value?.length
         ? selectedModels.value.join(",")
         : undefined,
-      action: selectedOperations.value.length
+      action: selectedOperations.value?.length
         ? selectedOperations.value.join(",")
         : undefined,
       time_after:
@@ -693,5 +726,13 @@ onMounted(() => {
     height: auto;
     max-height: 180px;
   }
+}
+.change-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.changeValue {
+  white-space: pre-line;
 }
 </style>

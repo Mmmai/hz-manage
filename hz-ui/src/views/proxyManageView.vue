@@ -298,11 +298,8 @@ const store = useStore();
 const syncHosts = ref([]);
 import { ElMessageBox, ElMessage, ElNotification } from "element-plus";
 
-import { de, pa, tr } from "element-plus/es/locale/index.mjs";
-import { Row } from "element-plus/es/components/table-v2/src/components/index.mjs";
 defineOptions({ name: "ciSyncZabbix" });
 import type { TabsPaneContext } from "element-plus";
-import { add } from "lodash";
 import { useRoute, useRouter } from "vue-router";
 const router = useRouter();
 const route = useRoute();

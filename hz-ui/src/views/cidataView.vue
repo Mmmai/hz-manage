@@ -3,12 +3,9 @@
     <!-- <el-icon style="position: absolute; top: 50%; right: 10px" size="small"
       ><DArrowLeft />
     </el-icon> -->
-    <el-row align="middle" justify="start">
-      <el-col :span="8">
-        <el-text tag="b">实例树</el-text>
-      </el-col>
-      <el-col :span="14">
-        <!-- <el-select
+    <div class="flexJstart gap-5">
+      <el-text tag="b">模型</el-text>
+      <!-- <el-select
           v-model="ciModelId"
           placeholder="Select"
           @change="changeModel()"
@@ -20,15 +17,14 @@
             :value="item.id"
           />
         </el-select> -->
-        <el-tree-select
-          v-model="ciModelId"
-          :data="modelOptions"
-          @change="changeModel()"
-          :render-after-expand="false"
-          style="display: block; width: 100%; height: 100%"
-        />
-      </el-col>
-    </el-row>
+      <el-tree-select
+        v-model="ciModelId"
+        :data="modelOptions"
+        @change="changeModel()"
+        :render-after-expand="false"
+        style="flex: 1"
+      />
+    </div>
 
     <el-divider />
     <el-input
@@ -38,112 +34,114 @@
       size="small"
       placeholder="检索节点"
     />
-    <el-tree
-      style="max-width: 280px; height: auto"
-      :allow-drop="allowDrop"
-      :allow-drag="allowDrag"
-      :data="treeData"
-      :draggable="true"
-      default-expand-all
-      node-key="id"
-      @node-drag-start="handleDragStart"
-      @node-drag-enter="handleDragEnter"
-      @node-drag-leave="handleDragLeave"
-      @node-drag-over="handleDragOver"
-      @node-drag-end="handleDragEnd"
-      @node-drop="handleDrop"
-      :highlight-current="true"
-      :current-node-key="currentNodeId"
-      :expand-on-click-node="false"
-      ref="treeRef"
-      @node-click="nodeClick"
-      :filter-node-method="filterNode"
-      v-loading="loading"
-    >
-      <!-- <template #default="{ node, data }" class="labelClass"> -->
-      <template #default="{ node, data }">
-        <div class="custom-tree-node">
-          <el-input
-            v-if="isEdit === data.id"
-            v-model.trim="groupNameInput"
-            placeholder="请输入"
-            ref="eInputRef"
-            @blur="($event) => editSave($event, data)"
-            @keyup.enter="$event.target.blur()"
-            :autofocus="true"
-            maxlength="6"
-            type="text"
-            size="small"
-          >
-          </el-input>
-          <el-text size="default" v-else
-            >{{ node.label
-            }}<el-text size="small"
-              >({{ data.instance_count }})</el-text
-            ></el-text
-          >
-          <div
-            class="actionClass"
-            :class="{ is_show_action: node.isShowEdit }"
-            v-permission="`${route.name?.replace('_info', '')}:edit`"
-          >
-            <!-- <Edit style="width: 1em; height: 1em; margin-right: 8px" @click.stop="editCateName(data)"
+    <div class="tree-container">
+      <el-tree
+        class="tree-with-scrollbar"
+        :allow-drop="allowDrop"
+        :allow-drag="allowDrag"
+        :data="treeData"
+        :draggable="true"
+        default-expand-all
+        node-key="id"
+        @node-drag-start="handleDragStart"
+        @node-drag-enter="handleDragEnter"
+        @node-drag-leave="handleDragLeave"
+        @node-drag-over="handleDragOver"
+        @node-drag-end="handleDragEnd"
+        @node-drop="handleDrop"
+        :highlight-current="true"
+        :current-node-key="currentNodeId"
+        :expand-on-click-node="false"
+        ref="treeRef"
+        @node-click="nodeClick"
+        :filter-node-method="filterNode"
+        v-loading="loading"
+      >
+        <!-- <template #default="{ node, data }" class="labelClass"> -->
+        <template #default="{ node, data }">
+          <div class="custom-tree-node">
+            <el-input
+              v-if="isEdit === data.id"
+              v-model.trim="groupNameInput"
+              placeholder="请输入"
+              ref="eInputRef"
+              @blur="($event) => editSave($event, data)"
+              @keyup.enter="$event.target.blur()"
+              :autofocus="true"
+              maxlength="10"
+              type="text"
+              size="small"
+            >
+            </el-input>
+            <el-text size="default" v-else
+              >{{ node.label
+              }}<el-text size="small"
+                >({{ data.instance_count }})</el-text
+              ></el-text
+            >
+            <div
+              class="actionClass"
+              :class="{ is_show_action: node.isShowEdit }"
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
+            >
+              <!-- <Edit style="width: 1em; height: 1em; margin-right: 8px" @click.stop="editCateName(data)"
             v-if="!data.built_in" /> -->
-            <el-space>
-              <EditOutlined
-                @click.stop="editCateName(data)"
-                v-if="!data.built_in"
-              />
-              <a-dropdown
-                :trigger="['click']"
-                ref="aDropdownRef"
-                @openChange="handleOpen(node)"
-              >
-                <DownOutlined @click.stop />
-                <template #overlay>
-                  <a-menu>
-                    <div
-                      v-permission="`${route.name?.replace('_info', '')}:add`"
-                    >
-                      <a-menu-item
-                        key="0"
-                        v-if="data.level === 1 ? false : true"
-                        @click="appendBroNode(node, data)"
+              <el-space>
+                <EditOutlined
+                  @click.stop="editCateName(data)"
+                  v-if="!data.built_in"
+                />
+                <a-dropdown
+                  :trigger="['click']"
+                  ref="aDropdownRef"
+                  @openChange="handleOpen(node)"
+                >
+                  <DownOutlined @click.stop />
+                  <template #overlay>
+                    <a-menu>
+                      <div
+                        v-permission="`${route.name?.replace('_info', '')}:add`"
                       >
-                        添加同级节点
-                      </a-menu-item>
+                        <a-menu-item
+                          key="0"
+                          v-if="data.level === 1 ? false : true"
+                          @click="appendBroNode(node, data)"
+                        >
+                          添加同级节点
+                        </a-menu-item>
 
-                      <a-menu-item
-                        key="1"
-                        v-if="canAddChildNone(data)"
-                        @click="appendChildNode(node, data)"
+                        <a-menu-item
+                          key="1"
+                          v-if="canAddChildNone(data)"
+                          @click="appendChildNode(node, data)"
+                        >
+                          添加子节点
+                        </a-menu-item>
+                      </div>
+                      <div
+                        v-permission="
+                          `${route.name?.replace('_info', '')}:delete`
+                        "
                       >
-                        添加子节点
-                      </a-menu-item>
-                    </div>
-                    <div
-                      v-permission="
-                        `${route.name?.replace('_info', '')}:delete`
-                      "
-                    >
-                      <a-menu-item
-                        key="2"
-                        v-if="canDeleteNode(data)"
-                        @click="deleteNode(node)"
-                      >
-                        删除节点
-                      </a-menu-item>
-                    </div>
-                  </a-menu>
-                </template>
-              </a-dropdown>
-            </el-space>
+                        <a-menu-item
+                          key="2"
+                          v-if="canDeleteNode(data)"
+                          @click="deleteNode(node)"
+                        >
+                          删除节点
+                        </a-menu-item>
+                      </div>
+                    </a-menu>
+                  </template>
+                </a-dropdown>
+              </el-space>
+            </div>
           </div>
-        </div>
-      </template>
+        </template>
 
-      <!-- </template> -->
-    </el-tree>
+        <!-- </template> -->
+      </el-tree>
+    </div>
   </div>
   <div class="table-box">
     <ciDataShow
@@ -667,13 +665,16 @@ defineOptions({ name: "cidata" });
 }
 
 .actionClass {
-  display: none;
+  display: flex;
+  visibility: hidden;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 8px;
 }
 
 .el-tree-node__content:hover .actionClass {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  visibility: visible;
 }
 
 .is_show_action {
@@ -681,10 +682,28 @@ defineOptions({ name: "cidata" });
 }
 
 .ci_data_tree {
+  display: flex;
+  flex-direction: column;
   // width: 19%;
   // height: $mainHeight - $headerHeight;
   flex: 0 0 $leftTreeWidth;
   position: relative;
+}
+
+.tree-container {
+  height: 100%;
+  width: 100%;
+  max-width: 280px;
+  overflow-x: hidden;
+  transition: overflow-x 0.3s ease;
+}
+
+.tree-container:hover {
+  overflow-x: auto;
+}
+.tree-with-scrollbar {
+  width: max-content;
+  min-width: 100%;
 }
 
 .el-divider--horizontal {

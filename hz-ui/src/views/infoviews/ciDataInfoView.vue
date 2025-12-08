@@ -75,6 +75,34 @@
                 />
                 <el-text v-else>{{ editForm.instance_name }}</el-text>
               </el-form-item>
+              <el-form-item
+                prop="using_template"
+                required
+                style="margin-left: 30px"
+              >
+                <template #label>
+                  <el-space :size="2">
+                    <el-text tag="b">自动命名</el-text>
+                    <el-tooltip
+                      content="是否根据模型的唯一命名规则，自动生成唯一标识"
+                      placement="right"
+                      effect="dark"
+                    >
+                      <el-icon>
+                        <Warning />
+                      </el-icon>
+                    </el-tooltip>
+                  </el-space>
+                </template>
+                <el-switch
+                  v-model="editForm.using_template"
+                  style="
+                    --el-switch-on-color: #13ce66;
+                    --el-switch-off-color: #ff4949;
+                  "
+                  :disabled="!isEdit"
+                />
+              </el-form-item>
               <div
                 style="
                   width: 200px;
@@ -111,9 +139,7 @@
                   </el-tooltip>
                 </div>
                 <div v-else>
-                  <el-button type="primary" @click="cancelAction"
-                    >取消</el-button
-                  >
+                  <el-button @click="cancelAction">取消</el-button>
                   <el-button type="primary" @click="submitAction"
                     >保存</el-button
                   >
@@ -633,6 +659,7 @@ const editFormRef = ref<FormInstance>();
 const editForm = reactive({
   id: null,
   instance_name: null,
+  using_template: true,
 });
 const ciDataAuditRef = ref(null);
 const activeName = ref("modelField");
@@ -651,6 +678,8 @@ const modelRefOptions = ref({});
 const initEditForm = () => {
   editForm.id = instanceData.value.id;
   editForm.instance_name = instanceData.value.instance_name;
+  editForm.using_template = instanceData.value.using_template;
+
   Object.keys(instanceData.value.fields).forEach((item) => {
     if (modelFieldType.value.enum.includes(item)) {
       if (instanceData.value.fields[item] !== null) {
@@ -734,7 +763,7 @@ const processFieldsForSubmit = computed(() => {
   // 遍历editForm中的所有字段
   for (let [key, value] of Object.entries(editForm)) {
     // 跳过id字段
-    if (["id", "instance_name"].includes(key)) continue;
+    if (["id", "instance_name", "using_template"].includes(key)) continue;
 
     // 比较当前值与原始值是否不同
     let originalValue = instanceData.value.fields[key];
@@ -845,7 +874,8 @@ const submitAction = async () => {
     if (valid) {
       if (
         Object.keys(processFieldsForSubmit.value).length === 0 &&
-        editForm.instance_name === instanceData.value.instance_name
+        editForm.instance_name === instanceData.value.instance_name &&
+        editForm.using_template === instanceData.value.using_template
       ) {
         ElMessage({
           showClose: true,
@@ -860,18 +890,19 @@ const submitAction = async () => {
         text: "保存中...",
         background: "rgba(0, 0, 0, 0.7)",
       });
-
+      let params = {
+        id: instanceData.value.id,
+        model: modelInfo.value.id,
+        fields: processFieldsForSubmit.value,
+      };
+      if (editForm.using_template !== instanceData.value.using_template) {
+        params.using_template = editForm.using_template;
+      }
+      if (editForm.instance_name !== instanceData.value.instance_name) {
+        params.instance_name = editForm.instance_name;
+      }
       try {
-        let res = await proxy.$api.updateCiModelInstance({
-          id: instanceData.value.id,
-          model: modelInfo.value.id,
-          instance_name:
-            editForm.instance_name === instanceData.value.instance_name
-              ? null
-              : editForm.instance_name,
-          update_user: store.state.username,
-          fields: processFieldsForSubmit.value,
-        });
+        let res = await proxy.$api.updateCiModelInstance(params);
 
         if (res.status == "200") {
           ElMessage({ type: "success", message: "保存成功" });

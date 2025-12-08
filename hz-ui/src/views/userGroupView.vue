@@ -34,14 +34,14 @@
       <el-table-column property="roles" label="角色列表">
         <template #default="scope">
           <div class="flexJstart gap-5">
-            <el-tag v-for="item in scope.row.roles" :key="item">
-              {{ item.role }}
+            <el-tag v-for="item in scope.row.roles" :key="item" type="warning">
+              {{ item.role_name }}
             </el-tag>
           </div>
         </template>
       </el-table-column>
 
-      <el-table-column fixed="right" width="100" label="操作">
+      <el-table-column fixed="right" width="120" label="操作">
         <template #default="scope">
           <el-tooltip
             class="box-item"
@@ -51,11 +51,19 @@
           >
             <el-button
               v-permission="`${route.name?.replace('_info', '')}:edit`"
-              :disabled="scope.row.group_name === '系统管理组' ? true : false"
               link
               type="primary"
               :icon="Edit"
               @click="editRow(scope.row)"
+            ></el-button>
+          </el-tooltip>
+          <el-tooltip content="权限配置" placement="top">
+            <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
+              link
+              type="primary"
+              :icon="Key"
+              @click="goToPermission(scope.row)"
             ></el-button>
           </el-tooltip>
           <el-tooltip
@@ -67,7 +75,7 @@
             <el-button
               v-permission="`${route.name?.replace('_info', '')}:delete`"
               link
-              :disabled="scope.row.group_name === '系统管理组' ? true : false"
+              :disabled="scope.row.built_in"
               type="danger"
               :icon="Delete"
               @click="deleteRow(scope.row.id)"
@@ -100,7 +108,7 @@
             v-model="formInline.group_name"
             placeholder=""
             clearable
-            :disabled="isDisabled"
+            :disabled="!isAdd && nowRow.built_in"
             style="width: 220px"
           />
         </el-form-item>
@@ -113,7 +121,6 @@
             collapse-tags
             collapse-tags-tooltip
             :max-collapse-tags="3"
-            :disabled="isDisabled"
             style="width: 220px"
           >
             <el-option
@@ -134,7 +141,7 @@
             collapse-tags
             collapse-tags-tooltip
             :max-collapse-tags="3"
-            :disabled="isDisabled"
+            :disabled="!isAdd && nowRow.built_in"
             style="width: 220px"
           >
             <el-option
@@ -162,7 +169,7 @@
 </template>
 
 <script lang="ts" setup>
-import { Delete, Edit } from "@element-plus/icons-vue";
+import { Delete, Edit, Key } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import {
   ref,
@@ -221,9 +228,11 @@ const getUserGroupData = async () => {
 const multipleTableRef = ref(null);
 const handleClose = () => {
   dialogVisible.value = false;
+  resetForm(userGroupFrom.value);
 };
 const addGroup = () => {
   dialogVisible.value = true;
+  nowRow.value = {};
 };
 const nowRow = ref({});
 const isAdd = ref(true);
@@ -299,8 +308,6 @@ const submitAction = async (formEl) => {
           });
         }
       } else {
-        console.log(formInline);
-
         let res = await proxy.$api.updateUserGroup({
           id: nowRow.value.id,
           ...formInline,
@@ -326,12 +333,18 @@ const submitAction = async (formEl) => {
     }
   });
 };
-
+import { useRouter } from "vue-router";
+const router = useRouter();
+const goToPermission = (row) => {
+  router.push({
+    name: "permission",
+    query: { user_group: row.id },
+  });
+};
 onMounted(async () => {
   await getRoleData();
   await getUserData();
   await getUserGroupData();
 });
 </script>
-<style scoped lang="scss">
-</style>
+<style scoped lang="scss"></style>

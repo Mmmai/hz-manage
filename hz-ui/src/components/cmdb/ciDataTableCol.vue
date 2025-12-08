@@ -158,7 +158,9 @@ const getHasConfigField = async () => {
   // hasConfigField.value = res.data.fields_preferred;
   let tmpArr = [];
   res.data.fields_preferred.forEach((item) => {
-    tmpArr.push(props.allModelFieldInfo[item]);
+    if (Object.keys(props.allModelFieldInfo).includes(item)) {
+      tmpArr.push(props.allModelFieldInfo[item]);
+    }
   });
   hasConfigFieldList.value = tmpArr;
   // console.log(hasConfigFieldList.value);
