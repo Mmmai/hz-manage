@@ -2,12 +2,43 @@ import logging
 from collections import defaultdict
 from django.core.cache import cache
 from django.db.models import Q
+from threading import local
 
 from mapi.models import UserInfo, Permission
 from .models import DataScope
 from .registry import get_handler
 
 logger = logging.getLogger(__name__)
+
+
+def get_data_scope_cache(username: str) -> dict:
+    cache_key = f'user_data_scope_{username}'
+    return cache.get(cache_key)
+
+
+def set_data_scope_cache(username: str, data: dict):
+    cache_key = f'user_data_scope_{username}'
+    cache.set(cache_key, data)
+
+
+def clear_data_scope_cache(username: str):
+    cache_key = f'user_data_scope_{username}'
+    cache.delete(cache_key)
+
+
+def get_password_permission_cache(username: str) -> bool:
+    cache_key = f'password_permission_{username}'
+    return cache.get(cache_key)
+
+
+def set_password_permission_cache(username: str, has_permission: bool):
+    cache_key = f'password_permission_{username}'
+    cache.set(cache_key, has_permission)
+
+
+def clear_password_permission_cache(username: str):
+    cache_key = f'password_permission_{username}'
+    cache.delete(cache_key)
 
 
 def get_user_data_scope(username: str) -> dict:
@@ -18,6 +49,10 @@ def get_user_data_scope(username: str) -> dict:
         logger.warning(f"User '{username}' not found while getting data scope.")
         return {'scope_type': 'none', 'targets': {}}
 
+    cached_scope = get_data_scope_cache(username)
+    if cached_scope:
+        return cached_scope
+
     roles = set()
     for group in user.groups.all():
         roles.update(group.roles.all())
@@ -27,7 +62,9 @@ def get_user_data_scope(username: str) -> dict:
     ).prefetch_related('targets', 'targets__content_type').distinct()
     if not user_scopes.exists():
         logger.info(f"No data scopes found for user '{username}'.")
-        return {'scope_type': 'none', 'targets': {}}
+        result = {'scope_type': 'none', 'targets': {}}
+        set_data_scope_cache(username, result)
+        return result
 
     logger.info(f'Found {user_scopes.count()} data scopes for user \'{username}\'.')
 
@@ -52,6 +89,7 @@ def get_user_data_scope(username: str) -> dict:
         'scope_type': final_scope_type,
         'targets': dict(final_targets)  # 将 defaultdict 转换为普通 dict
     }
+    set_data_scope_cache(username, result)
 
     logger.info(f'Computed data scope for user \'{username}\': {result}')
     return result
@@ -98,6 +136,19 @@ def has_password_permission(user: UserInfo) -> bool:
     """
     检查用户是否有权限查看密码字段
     """
+    if hasattr(user, 'username'):
+        username = user.username
+    elif isinstance(user, str):
+        username = user
+    else:
+        return False
+
+    # 检查缓存
+    request_cache = get_password_permission_cache(username)
+    if request_cache is not None:
+        return request_cache
+
+    # 缓存未命中，查询数据库
     query = Q(role__in=user.roles.all()) | Q(role__in=user.groups.values_list('roles', flat=True))
     user_permissions = Permission.objects.filter(
         query
@@ -105,5 +156,7 @@ def has_password_permission(user: UserInfo) -> bool:
 
     for perm in user_permissions:
         if perm.button and perm.button.action == 'showPassword':
+            set_password_permission_cache(username, True)
             return True
+    set_password_permission_cache(username, False)
     return False

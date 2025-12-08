@@ -8,6 +8,7 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.db.models import F, Q
 from django.core.cache import cache
 from types import SimpleNamespace
 from cacheops import invalidate_model, invalidate_obj
@@ -736,7 +737,7 @@ class ModelFieldMetaNestedSerializer(ModelFieldMetaSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         user = self.context.get('request').user if self.context.get('request') else None
-        _has_password_permission = has_password_permission(user)
+        _has_password_permission = self.context.get('has_password_permission', False)
         enum_dict = {}
         instance_map = self.context.get('ref_instances', {})
         if instance.model_fields.type == FieldType.ENUM and instance.model_fields.validation_rule:
@@ -794,12 +795,42 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
     def get_field_values(self, obj):
         """获取实例的字段值"""
         field_meta_all = self.context.get('field_meta', {})
-        field_meta = field_meta_all.get(str(obj.id), [])
-        return ModelFieldMetaNestedSerializer(
-            field_meta,
-            many=True,
-            context=self.context
-        ).data
+        field_meta_list = field_meta_all.get(str(obj.id), [])
+
+        if not field_meta_list:
+            return []
+
+        # 从 context 获取预加载的数据
+        has_password_permission = self.context.get('has_password_permission', False)
+        ref_instances_map = self.context.get('ref_instances', {})
+        enum_cache = self.context.get('enum_cache', {})
+
+        result = []
+        for meta_info in field_meta_list:
+            field_obj = meta_info['field']
+            raw_data = meta_info['data']
+
+            # 获取枚举字典（使用缓存）
+            enum_dict = enum_cache.get(str(field_obj.id), {})
+
+            # 转换数据
+            converter = ConverterFactory.get_converter(field_obj.type)
+            converted_data = converter.to_representation(
+                raw_data,
+                masked=not has_password_permission,
+                enum_dict=enum_dict,
+                instance_map=ref_instances_map
+            )
+
+            result.append({
+                'id': str(meta_info['id']),
+                'model_fields': str(field_obj.id),
+                'field_name': field_obj.name,
+                'field_verbose_name': field_obj.verbose_name,
+                'data': converted_data
+            })
+
+        return result
 
     def validate_fields(self, fields_data, model=None):
         """验证字段值"""
@@ -882,6 +913,8 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
                 ref_instances = self.context.get('ref_instances', {})
                 extra_vars['instance_map'] = ref_instances
 
+        logger.debug(f'Converting value for field {field_config.name} with value {value} type {type(value)}')
+        logger.debug(f'Extra vars for conversion: {extra_vars}')
         converter = ConverterFactory.get_converter(field_config.type)
         return converter.to_internal(value, field_config, **extra_vars)
 
@@ -918,12 +951,27 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
         return attrs
 
     def to_representation(self, instance):
-        self.fields['field_values'].context.update(self.context)
-        representation = super().to_representation(instance)
-        field_values = representation.pop('field_values')
-        representation.setdefault('fields', {})
+        field_values = self.get_field_values(instance)
+        instance_group = self.get_instance_group(instance)
+
+        representation = {
+            'id': str(instance.id),
+            'model': str(instance.model_id),
+            'instance_name': instance.instance_name,
+            'using_template': instance.using_template,
+            'input_mode': instance.input_mode,
+            'instance_group': instance_group,
+            'create_time': instance.create_time.isoformat() if instance.create_time else None,
+            'update_time': instance.update_time.isoformat() if instance.update_time else None,
+            'create_user': instance.create_user,
+            'update_user': instance.update_user,
+            'fields': {}
+        }
+
+        # 将 field_values 转换为 fields 字典
         for field_info in field_values:
             representation['fields'][field_info['field_name']] = field_info['data']
+
         return representation
 
 

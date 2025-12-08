@@ -44,6 +44,7 @@ ALLOWED_HOSTS = ['*']
 
 # Application definition
 
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 INSTALLED_APPS = [
     # 'django.contrib.admin',
     'django.contrib.auth',
@@ -65,12 +66,13 @@ INSTALLED_APPS = [
     'drf_spectacular_sidecar',
     'channels',
     'django_celery_beat',
-    'jobflow'
-
+    'jobflow',
+    # 'silk'
 ]
 
 
 MIDDLEWARE = [
+    # 'silk.middleware.SilkyMiddleware',  # 必须放在最顶部
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -80,9 +82,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+# SILKY_PYTHON_PROFILER = True
 
-
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 DEBUG = True
 
@@ -124,6 +125,10 @@ DATABASES = {
         'PASSWORD': DATABASE_PASSWORD,
         'HOST': DATABASE_HOST,
         'PORT': DATABASE_PORT,
+        'OPTIONS': {
+            'charset': 'utf8mb4',
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+        },
     },
     # 'cmdb': {
     #     'ENGINE': 'django.db.backends.mysql',
@@ -142,7 +147,7 @@ DATABASES = {
 #     'cmdb': 'default',
 #     'node_mg': 'default'
 # }
-CACHEOPS_SERIALIZER = "dill"
+# CACHEOPS_SERIALIZER = "dill"
 
 CACHEOPS_REDIS = {
     'host': REDIS_HOST,
@@ -156,7 +161,7 @@ CACHEOPS = {
     'cmdb.modelinstance': {'ops': 'all', 'timeout': 60 * 60},
     'cmdb.modelfields': {'ops': 'all', 'timeout': 60 * 60},
     'cmdb.modelfieldmeta': {'ops': 'all', 'timeout': 60 * 60},
-    'cmdb.validationrules': {'ops': 'all', 'timeout': 60 * 60},
+    'cmdb.validationrules': {'ops': 'all', 'timeout': 60 * 60}
 }
 
 CACHEOPS_ENABLED = True

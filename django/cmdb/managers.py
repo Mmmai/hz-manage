@@ -2,6 +2,7 @@ import functools
 import uuid
 import json
 import logging
+import time
 from django.db import models, transaction
 
 from .constants import FieldType
@@ -68,6 +69,13 @@ class ModelFieldsManager(models.Manager):
         ).select_related('validation_rule')
         return {str(field.id): field for field in queryset}
 
+    def get_all_fields_for_model(self, model_id):
+        fields = self.filter(model_id=model_id).select_related('validation_rule')
+        return {f.name: f for f in fields}
+
+    def get_required_field_names(self, model_id):
+        return list(self.filter(model_id=model_id, required=True).values_list('name', flat=True))
+
 
 class ModelFieldMetaManager(models.Manager):
 
@@ -80,6 +88,16 @@ class ModelFieldMetaManager(models.Manager):
             model_fields_id__in=normalized_ids
         ).values('model_fields_id', 'data')
         return {str(item['model_fields_id']): item['data'] for item in values}
+
+    def check_data_exists(self, data):
+        """检查是否存在指定数据的记录"""
+        return self.get_queryset().filter(data=data).exists()
+
+    def get_instance_field_values_by_names(self, instance_id, field_names=None):
+        queryset = self.filter(model_instance_id=instance_id).select_related('model_fields')
+        if field_names:
+            queryset = queryset.filter(model_fields__name__in=field_names)
+        return {meta.model_fields.name: meta.data for meta in queryset}
 
 
 class UniqueConstraintManager(models.Manager):
@@ -102,6 +120,13 @@ class UniqueConstraintManager(models.Manager):
 
 
 class ModelInstanceManager(models.Manager):
+    def check_instance_name_exists(self, model_id, instance_name):
+        """检查指定模型下是否存在同名实例"""
+        return self.filter(
+            model_id=model_id,
+            instance_name=instance_name
+        ).exists()
+
     def get_instance_names_by_models(self, model_ids: list) -> dict:
         if not model_ids:
             return {}
@@ -117,6 +142,14 @@ class ModelInstanceManager(models.Manager):
         instances = self.filter(id__in=instance_ids).values('id', 'instance_name')
 
         return {str(inst['id']): inst['instance_name'] for inst in instances}
+
+    def get_existing_instances_by_names(self, model_id, instance_names: list) -> dict:
+        instances = self.filter(model_id=model_id, instance_name__in=instance_names)
+        return {inst.instance_name: inst for inst in instances}
+
+    def get_ref_instances_by_names(self, instance_names: list) -> dict:
+        instances = self.filter(instance_name__in=instance_names).values('id', 'instance_name')
+        return {item['instance_name']: str(item['id']) for item in instances}
 
     def check_uniqueness(self, model, field_values: dict, instance_to_exclude=None) -> list:
         if not field_values:
@@ -241,51 +274,94 @@ class ModelInstanceGroupManager(models.Manager):
         root_group = self.get_root_group(model_id)
         return self.filter(model_id=model_id, parent=root_group, label='空闲池').first()
 
-    def get_all_children_ids(self, group_ids) -> set:
+    def filter_groups_by_model(self, model_id, group_ids):
+        """筛选给定分组列表中属于指定模型下的可用分组"""
+        return self.filter(model_id=model_id, id__in=group_ids).all()
+
+    def get_all_children_ids(self, group_ids, model_id=None) -> set:
         """
         获取指定ID列表的所有子分组ID（递归，广度优先）
         供权限处理器等批量查询使用
-        """
-        return self._get_all_children_ids(tuple(sorted(str(gid) for gid in group_ids)))
 
-    def clear_children_cache(self):
-        """清理子分组缓存"""
-        self._get_all_children_ids.cache_clear()
-
-    @functools.lru_cache(maxsize=1024)
-    def _get_all_children_ids(self, group_ids) -> set:
-        """
-        获取指定ID列表的所有子分组ID（递归，广度优先）
-        供权限处理器等批量查询使用
+        Args:
+            group_ids: 分组ID列表
+            model_id: 可选，指定模型ID以限定查询范围，提升性能
         """
         if not group_ids:
             return set()
 
         # 统一转为集合处理
         if isinstance(group_ids, (str, uuid.UUID)):
-            current_ids = {str(group_ids)}
+            target_ids = {str(group_ids)}
         else:
-            current_ids = {str(gid) for gid in group_ids}
+            target_ids = {str(gid) for gid in group_ids}
 
+        # 一次性查询所有分组的父子关系
+        queryset = self.all()
+        if model_id:
+            queryset = queryset.filter(model_id=model_id)
+
+        all_groups = queryset.values_list('id', 'parent_id')
+
+        # 构建父子关系映射: parent_id -> [child_ids]
+        parent_to_children = {}
+        for group_id, parent_id in all_groups:
+            group_id_str = str(group_id)
+            parent_id_str = str(parent_id) if parent_id else None
+            if parent_id_str:
+                if parent_id_str not in parent_to_children:
+                    parent_to_children[parent_id_str] = []
+                parent_to_children[parent_id_str].append(group_id_str)
+
+        # 在内存中广度优先遍历获取所有子节点
         all_children_ids = set()
+        current_ids = target_ids.copy()
 
         while current_ids:
-            # 批量查询下一层子节点
-            # 注意：values_list 返回的是 UUID 对象或字符串，取决于数据库后端，这里统一转字符串
-            next_level_ids = set(
-                self.filter(parent_id__in=current_ids)
-                .values_list('id', flat=True)
-            )
-            # 转换为字符串以确保兼容性
-            next_level_ids = {str(nid) for nid in next_level_ids}
+            next_level_ids = set()
+            for parent_id in current_ids:
+                children = parent_to_children.get(parent_id, [])
+                next_level_ids.update(children)
 
-            # 排除已存在的，防止死循环（如果有环状结构）
+            # 排除已处理的节点，防止死循环
             new_ids = next_level_ids - all_children_ids
-
             if not new_ids:
                 break
 
             all_children_ids.update(new_ids)
             current_ids = new_ids
+        logger.debug(f'children ids: {all_children_ids}')
 
         return all_children_ids
+
+    def get_all_children_ids_with_cache(self, group_ids, model_id=None) -> set:
+        """
+        带缓存版本的获取子分组ID方法
+        适用于短时间内多次调用相同参数的场景
+        """
+        # 将参数转换为可哈希的格式用于缓存
+        if isinstance(group_ids, (str, uuid.UUID)):
+            cache_key = (str(group_ids), str(model_id) if model_id else None)
+        else:
+            cache_key = (tuple(sorted(str(gid) for gid in group_ids)), str(model_id) if model_id else None)
+
+        return self._get_all_children_ids_cached(cache_key, model_id)
+
+    @functools.lru_cache(maxsize=256)
+    def _get_all_children_ids_cached(self, cache_key, model_id) -> set:
+        """内部缓存方法"""
+        group_ids = cache_key[0] if isinstance(cache_key[0], tuple) else [cache_key[0]]
+        return self.get_all_children_ids(group_ids, model_id)
+
+    def clear_children_cache(self):
+        """清理子分组缓存"""
+        self._get_all_children_ids_cached.cache_clear()
+
+    # 保留旧方法签名的兼容性，但标记为废弃
+    @functools.lru_cache(maxsize=1024)
+    def _get_all_children_ids(self, group_ids) -> set:
+        """
+        [已废弃] 请使用 get_all_children_ids 方法
+        保留此方法仅为兼容性考虑
+        """
+        return self.get_all_children_ids(group_ids)

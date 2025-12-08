@@ -3,6 +3,9 @@ from abc import ABC, abstractmethod
 from .constants import FieldType
 from .utils import password_handler
 
+# import logging
+# logger = logging.getLogger(__name__)
+
 
 class FieldMetaConverter(ABC):
     """字段转换器基类"""
@@ -27,9 +30,16 @@ class PasswordConverter(FieldMetaConverter):
             return ""
         plain = kwargs.get("plain", False)
         if plain:
+            # logger.debug(f"Encrypting password to internal format (plain): {value}")
             _value = password_handler.encrypt_to_sm4(value)
-            return password_handler.encrypt(_value)
-        return password_handler.encrypt(value)
+            # logger.debug(f"SM4 encrypted password: {_value}")
+            _encrypted_value = password_handler.encrypt(_value)
+            # logger.debug(f"Fernet encrypted password: {_encrypted_value}")
+            return _encrypted_value
+        # logger.debug(f"Encrypting password to internal format (non-plain): {value}")
+        _encrypted_value = password_handler.encrypt(value)
+        # logger.debug(f"Fernet encrypted password: {_encrypted_value}")
+        return _encrypted_value
 
     def to_representation(self, value, **kwargs):
         if value is None or value == "":
@@ -37,8 +47,14 @@ class PasswordConverter(FieldMetaConverter):
         plain = kwargs.get("plain", False)
         masked = kwargs.get("masked", False)
         if plain:
-            return password_handler.decrypt_to_plain(value) if not masked else "******"
-        return password_handler.decrypt(value) if not masked else password_handler.encrypt_to_sm4("******")
+            # logger.debug(f"Decrypting password to representation format (plain): {value}")
+            _decrypted_value = password_handler.decrypt_to_plain(value)
+            # logger.debug(f"Decrypted password (plain): {_decrypted_value}")
+            return _decrypted_value if not masked else "******"
+        # logger.debug(f"Decrypting password to representation format (non-plain): {value}")
+        _decrypted_value = password_handler.decrypt(value)
+        # logger.debug(f"Decrypted password (non-plain): {_decrypted_value}")
+        return _decrypted_value if not masked else password_handler.encrypt_to_sm4("******")
 
 
 class EnumConverter(FieldMetaConverter):
@@ -64,10 +80,10 @@ class EnumConverter(FieldMetaConverter):
 
     def to_representation(self, value, **kwargs):
         enum_dict = kwargs.get("enum_dict", {})
-        return json.dumps({
+        return {
             "value": value,
             "label": enum_dict.get(value, "")
-        }, ensure_ascii=False)
+        }
 
 
 class ModelRefConverter(FieldMetaConverter):
@@ -94,10 +110,10 @@ class ModelRefConverter(FieldMetaConverter):
 
     def to_representation(self, value, **kwargs):
         instance_map = kwargs.get("instance_map", {})
-        return json.dumps({
+        return {
             "id": value,
             "instance_name": instance_map.get(str(value), "")
-        }, ensure_ascii=False)
+        }
 
 
 class BooleanConverter(FieldMetaConverter):
@@ -158,6 +174,31 @@ class FloatConverter(FieldMetaConverter):
         return float(value)
 
 
+class JsonConverter(FieldMetaConverter):
+    """JSON字段转换器"""
+
+    def to_internal(self, value, **kwargs):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            try:
+                json.loads(value)
+                return value
+            except json.JSONDecodeError:
+                raise ValueError(f"Invalid JSON string: {value}")
+        elif isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False)
+        return value
+
+    def to_representation(self, value, **kwargs):
+        if value is None:
+            return None
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            raise ValueError(f"Invalid JSON value: {value}")
+
+
 class StringConverter(FieldMetaConverter):
     """字符串字段转换器"""
 
@@ -171,19 +212,26 @@ class StringConverter(FieldMetaConverter):
 class ConverterFactory:
     """转换器工厂类"""
 
+    _converters_cache = {}
+
+    @classmethod
+    def get_converter(cls, field_type):
+        """获取转换器实例"""
+        if field_type not in cls._converters_cache:
+            converter_class = cls._get_converter_class(field_type)
+            cls._converters_cache[field_type] = converter_class()
+        return cls._converters_cache[field_type]
+
     @staticmethod
-    def get_converter(field_type):
-        if field_type == FieldType.PASSWORD:
-            return PasswordConverter()
-        elif field_type == FieldType.ENUM:
-            return EnumConverter()
-        elif field_type == FieldType.MODEL_REF:
-            return ModelRefConverter()
-        elif field_type == FieldType.BOOLEAN:
-            return BooleanConverter()
-        elif field_type == FieldType.INTEGER:
-            return IntegerConverter()
-        elif field_type == FieldType.FLOAT:
-            return FloatConverter()
-        else:
-            return StringConverter()
+    def _get_converter_class(field_type):
+        converters = {
+            FieldType.PASSWORD: PasswordConverter,
+            FieldType.ENUM: EnumConverter,
+            FieldType.MODEL_REF: ModelRefConverter,
+            FieldType.BOOLEAN: BooleanConverter,
+            FieldType.INTEGER: IntegerConverter,
+            FieldType.FLOAT: FloatConverter,
+            FieldType.JSON: JsonConverter,
+            FieldType.STRING: StringConverter
+        }
+        return converters.get(field_type, StringConverter)

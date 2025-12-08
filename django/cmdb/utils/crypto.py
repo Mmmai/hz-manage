@@ -65,7 +65,9 @@ class PasswordHandler:
         if not password:
             return ""
         try:
-            return self.fernet.encrypt(password.encode()).decode()
+            encrypted = self.fernet.encrypt(password.encode()).decode()
+            # logger.debug(f"Encrypted password to Fernet token: {encrypted}")
+            return encrypted
         except Exception as e:
             raise ValueError(f"Encrypt failed: {str(e)}")
 
@@ -73,7 +75,9 @@ class PasswordHandler:
         if not token:
             return ""
         try:
-            return self.fernet.decrypt(token.encode()).decode()
+            decrypted = self.fernet.decrypt(token.encode()).decode()
+            # logger.debug(f"Decrypted Fernet token {token} to: {decrypted}")
+            return decrypted
         except Exception as e:
             raise ValueError(f"Decrypt failed: {str(e)}")
 
@@ -84,6 +88,7 @@ class PasswordHandler:
             sm4_encrypted = self.sm4_encryptor.crypt_ecb(
                 value.encode('utf-8')
             )
+            # logger.debug(f"Encrypted SM4 value: {sm4_encrypted.hex()}")
             return sm4_encrypted.hex()
         except Exception as e:
             raise ValueError(f"SM4 encryption failed: {str(e)}")
@@ -97,6 +102,7 @@ class PasswordHandler:
             plain_text = self.sm4_decryptor.crypt_ecb(
                 bytes.fromhex(value)
             )
+            # logger.debug(f"Decrypted SM4 {value} to plain text: {plain_text}")
             return plain_text.decode('utf-8')
         except Exception as e:
             raise ValueError(f"SM4 decryption failed: {str(e)}")
@@ -107,15 +113,18 @@ class PasswordHandler:
             if not stored_value:
                 return ""
             # 先解密 Fernet
-            logger.debug(f"Decrypting: {stored_value}")
+            # logger.debug(f"Decrypting: {stored_value}")
             sm4_hex = self.decrypt(stored_value)
-            logger.debug(f"SM4 hex: {sm4_hex}")
+            # logger.debug(f"SM4 hex: {sm4_hex}")
             # 再解密 SM4
             plain_text = self.sm4_decryptor.crypt_ecb(
                 bytes.fromhex(sm4_hex)
             )
-            return plain_text.decode('utf-8')
+            decrypted = plain_text.decode('utf-8')
+            # logger.debug(f"Fully decrypted to plain text: {decrypted}")
+            return decrypted
         except Exception as e:
+            logger.error(f"Full decryption failed: {str(e)}")
             raise ValueError(f"Full decryption failed: {str(e)}")
 
     def re_encrypt(self, pass_dict: dict) -> dict:

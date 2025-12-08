@@ -7,9 +7,11 @@ from django.db import transaction
 from django.db.models.signals import post_save, post_delete, pre_save, pre_delete, post_migrate
 
 from cmdb.signals import model_instance_signal, model_signal
+from cmdb.public_services import PublicModelInstanceService
 from cmdb.models import ModelInstanceGroupRelation
 from audit.context import audit_context
 from mapi.messages import zabbix_config_updated
+
 
 from .models import (
     Nodes,
@@ -18,7 +20,6 @@ from .models import (
     ModelConfig
 )
 from .utils import sys_config
-from .utils.cmdb_tools import get_instance_field_value, get_instance_field_value_info
 from .tasks import (
     ansible_getinfo,
     zabbix_sync,
@@ -153,12 +154,11 @@ def model_config_signal(sender, instance, created, **kwargs):
 def sync_node(sender, instance, action, **kwargs):
     def delayed_process():
         # 确保在事务提交后执行操作
-        logger.info(f"Processing instance {instance} after transaction commit")
-        logger.info("IP=" + get_instance_field_value(instance, 'ip'))
-        ip = get_instance_field_value(instance, 'ip')
+        ip = PublicModelInstanceService.get_instance_field_value(instance, 'ip')
         if not ip:
-            logger.error(f"实例{instance}没有IP地址")
+            logger.warning(f"实例[{instance.instance_name}]没有IP地址，跳过节点同步。")
             return
+
         # 后续预留增加是否默认开启同步的功能
         if instance.model.name == "hosts":
             obj, created = Nodes.objects.update_or_create(
@@ -210,8 +210,7 @@ def sync_node(sender, instance, action, **kwargs):
     # 删除动作
     if action == 'delete':
         try:
-            logger.info("IP=" + get_instance_field_value(instance, 'ip'))
-            ip = get_instance_field_value(instance, 'ip')
+            ip = PublicModelInstanceService.get_instance_field_value(instance, 'ip')
             node_obj = Nodes.objects.get(model_instance=instance)
             if sys_config.is_zabbix_sync_enabled():
                 if node_obj.enable_sync:
