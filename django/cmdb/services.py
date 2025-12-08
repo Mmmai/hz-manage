@@ -1565,6 +1565,22 @@ class ModelFieldMetaSearchService:
     MAX_RESULTS = 5000
     RE_CASE_SENSITIVE = 'c'
     RE_CASE_INSENSITIVE = 'i'
+    COLLATE_CASE_SENSITIVE = 'utf8mb4_bin'
+    COLLATE_CASE_INSENSITIVE = 'utf8mb4_general_ci'
+
+    @classmethod
+    def _get_regexp_flag(cls, case_sensitive: bool) -> str:
+        """
+        获取正则表达式标志
+        """
+        return cls.RE_CASE_SENSITIVE if case_sensitive else cls.RE_CASE_INSENSITIVE
+
+    @classmethod
+    def _get_collation(cls, case_sensitive: bool) -> str:
+        """
+        获取字符集排序规则
+        """
+        return cls.COLLATE_CASE_SENSITIVE if case_sensitive else cls.COLLATE_CASE_INSENSITIVE
 
     @classmethod
     @require_valid_user
@@ -1709,13 +1725,6 @@ class ModelFieldMetaSearchService:
         }
 
     @classmethod
-    def _get_regexp_flag(cls, case_sensitive: bool) -> str:
-        """
-        获取正则表达式标志
-        """
-        return cls.RE_CASE_SENSITIVE if case_sensitive else cls.RE_CASE_INSENSITIVE
-
-    @classmethod
     def _search_instance_names(cls, query: str, search_variants: set, instance_ids: list, models_map: dict, regexp: bool = False, case_sensitive: bool = False) -> dict:
         """
         搜索 ModelInstance.instance_name
@@ -1753,7 +1762,9 @@ class ModelFieldMetaSearchService:
                 query, match_type   # WHERE 条件
             ]
         else:
+            collation = cls._get_collation(case_sensitive)
             # 转义 LIKE 特殊字符
+
             def escape_like(s):
                 return s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
@@ -1764,7 +1775,7 @@ class ModelFieldMetaSearchService:
             like_params = []
             for variant in search_variants:
                 escaped = escape_like(variant)
-                like_conditions.append("instance_name LIKE BINARY %s")
+                like_conditions.append(f"instance_name COLLATE {collation} LIKE %s")
                 like_params.append(f'%{escaped}%')
 
             like_clause = ' OR '.join(like_conditions) if like_conditions else '1=0'
@@ -1776,9 +1787,9 @@ class ModelFieldMetaSearchService:
                     model_id,
                     CASE
                         WHEN instance_name = %s THEN 100.0
-                        WHEN instance_name LIKE BINARY %s THEN 80.0
-                        WHEN instance_name LIKE BINARY %s THEN 80.0
-                        WHEN instance_name LIKE BINARY %s THEN 70.0
+                        WHEN instance_name COLLATE {collation} LIKE %s THEN 80.0
+                        WHEN instance_name COLLATE {collation} LIKE %s THEN 80.0
+                        WHEN instance_name COLLATE {collation} LIKE %s THEN 70.0
                         ELSE 30.0
                     END AS relevance
                 FROM model_instance
@@ -1930,6 +1941,8 @@ class ModelFieldMetaSearchService:
         if not instance_ids or not field_ids:
             return []
 
+        collation = cls._get_collation(case_sensitive=False)
+
         # 构建布尔模式查询字符串
         if search_mode == 'boolean':
             boolean_terms = []
@@ -1978,7 +1991,7 @@ class ModelFieldMetaSearchService:
         like_conditions = []
         like_params = []
         for variant in search_variants:
-            like_conditions.append("`data` LIKE BINARY %s")
+            like_conditions.append(f"`data` COLLATE {collation} LIKE %s")
             like_params.append(f'%{variant}%')
 
         like_clause = ' OR '.join(like_conditions) if like_conditions else '1=0'
@@ -1991,8 +2004,8 @@ class ModelFieldMetaSearchService:
                 `data`,
                 CASE
                     WHEN `data` = %s THEN 100.0
-                    WHEN `data` LIKE BINARY %s THEN 80.0
-                    WHEN `data` LIKE BINARY %s THEN 80.0
+                    WHEN `data` COLLATE {collation} LIKE %s THEN 80.0
+                    WHEN `data` COLLATE {collation} LIKE %s THEN 80.0
                     WHEN ({like_clause}) THEN 70.0
                     ELSE MATCH(`data`) AGAINST(%s {match_mode})
                 END AS relevance,
@@ -2004,8 +2017,8 @@ class ModelFieldMetaSearchService:
                 AND `data` <> ''
                 AND (
                     `data` = %s
-                    OR `data` LIKE BINARY %s
-                    OR `data` LIKE BINARY %s
+                    OR `data` COLLATE {collation} LIKE %s
+                    OR `data` COLLATE {collation} LIKE %s
                     OR ({like_clause})
                     OR MATCH(`data`) AGAINST(%s {match_mode}) > %s
                 )
