@@ -600,7 +600,22 @@ class ZabbixAPI:
         if result.get("result"):
             return result["result"][0]["groupid"]
         return None
-
+    def _get_hostgroup_by_host(self, hostids):
+        """获取主机组"""
+        data = {
+            "jsonrpc": "2.0",
+            "method": "hostgroup.get",
+            "params": {
+                "hostids": hostids,
+                "search": {'name': '@cmdb'}
+            },
+            "id": 1,
+            "auth": self.auth
+        }
+        result = self._call("hostgroup.get", data["params"])
+        if result.get("result"):
+            return result["result"]
+        return None
     def get_hostgroups(self):
         """获取所有主机组"""
         data = {
@@ -685,7 +700,47 @@ class ZabbixAPI:
         else:
             logger.error(f"Failed to replace host group: {result}")
             return None
-
+    def add_host_hostgroup(self, hosts, groups):
+        """替换主机组"""
+        logger.info(f'Replace host group: {groups} -> {hosts}')
+        groupids = [self.get_or_create_hostgroup(g) for g in groups]
+        hostids = [self.host_get(h)[0]["hostid"] for h in hosts]
+        data = {
+            "jsonrpc": "2.0",
+            "method": "host.massadd",
+            "params": {
+                "hosts": [{'hostid': hostid} for hostid in hostids],
+                "groups": [{"groupid": groupid} for groupid in groupids]
+            },
+            "id": 1,
+            "auth": self.auth
+        }
+        result = self._call("host.massadd", data["params"])
+        if result.get("result"):
+            return result["result"]
+        else:
+            logger.error(f"Failed to add host group: {result}")
+            return None
+    def remove_old_cmdb_host_group(self, hosts,groups):
+        hostids = [self.host_get(h)[0]["hostid"] for h in hosts]
+        all_groups = self._get_hostgroup_by_host(hostids=hostids)
+        old_groupids = [g["groupid"] for g in all_groups if g["name"] not in groups]
+        data = {
+            "jsonrpc": "2.0",
+            "method": "host.massremove",
+            "params": {
+                "hostids": hostids,
+                "groupids": old_groupids
+            },
+            "id": 1,
+            "auth": self.auth
+        }
+        result = self._call("host.massremove", data["params"])
+        if result.get("result"):
+            return result["result"]
+        else:
+            logger.error(f"Zabbix API error: {result.get('error')}")
+            return None        
     @property
     def default_group_id(self):
         """获取空闲池组ID"""
@@ -696,7 +751,7 @@ class ZabbixAPI:
                     "method": "hostgroup.get",
                     "params": {
                         "filter": {
-                            "name": "空闲池"
+                            "name": "空闲池@cmdb"
                         }
                     },
                     "id": 1,
@@ -707,7 +762,7 @@ class ZabbixAPI:
                 if result.get("result"):
                     self._default_group_id = result["result"][0]["groupid"]
                 else:
-                    self._default_group_id = self.create_hostgroup("空闲池")
+                    self._default_group_id = self.create_hostgroup("空闲池@cmdb")
 
             except Exception as e:
                 logger.error(f"Failed to get/create idle group: {str(e)}")

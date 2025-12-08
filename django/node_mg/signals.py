@@ -6,7 +6,7 @@ from django.apps import apps
 from django.db import transaction
 from django.db.models.signals import post_save, post_delete, pre_save, pre_delete, post_migrate
 
-from cmdb.signals import model_instance_signal, model_signal
+from cmdb.signals import model_instance_signal, model_signal,model_instance_group_signal,model_instance_group_relation_signal
 from cmdb.public_services import PublicModelInstanceService
 from cmdb.models import ModelInstanceGroupRelation
 from audit.context import audit_context
@@ -23,9 +23,12 @@ from .utils import sys_config
 from .tasks import (
     ansible_getinfo,
     zabbix_sync,
+    zabbix_group_sync,
+    zabbix_group_change_sync,
     ansible_agent_install,
     zabbix_proxy_sync,
     sync_node_mg
+    
 )
 
 
@@ -35,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 @receiver(model_signal)
-def create_model_sync_config(sender, instance, action, **kwargs):
+def cmdb_model_sync_config(sender, instance, action, **kwargs):
     def delayed_process():
         if action == 'create':
             # 定义不同模型类型的配置映射
@@ -86,6 +89,15 @@ def create_model_sync_config(sender, instance, action, **kwargs):
                     logger.info(f"创建模型同步配置:{instance.name}")
             except Exception as e:
                 logger.error(f"创建模型同步配置失败:{instance.name}, 错误信息:{str(e)}")
+                raise
+        elif action == 'delete':
+            try:
+                obj = ModelConfig.objects.get(model=instance)
+                obj.delete()
+            except ModelConfig.DoesNotExist:
+                pass
+            except Exception as e:
+                logger.error(f"删除模型同步配置失败:{instance.name}, 错误信息:{str(e)}")
                 raise
     transaction.on_commit(delayed_process)
 
@@ -148,7 +160,35 @@ def model_config_signal(sender, instance, created, **kwargs):
             # 清理保存的旧实例数据
             model_config_pre_save_state.pop(instance.pk, None)
 
+# 监听模型实例组的信号
+@receiver(model_instance_group_signal)
+def sync_model_instance_group(sender, instance, action, **kwargs):
+    new_group_name = instance.path.replace("所有/", "")+"@cmdb"
+    def delayed_process():
 
+        # 创建
+        if action:
+            zabbix_group_sync.delay({'group_name': new_group_name}, action='create')
+        # 更新
+        else:
+            old_group_name = instance._old_path.replace("所有/", "")+"@cmdb"
+            zabbix_group_sync.delay({'new_group_name': new_group_name,'old_group_name': old_group_name}, action='rename')
+    # 判断模型是否可管理
+    obj = ModelConfig.objects.get(model=instance.model)
+    if not obj.is_manage:
+        return
+    if action == 'delete':
+        zabbix_group_sync.delay({'group_name': new_group_name}, action='delete')
+    else:
+        transaction.on_commit(delayed_process)
+    
+# 监听实例关联分组的信号
+@receiver(model_instance_group_relation_signal)
+def sync_model_instance_group_relation(sender, relations,hosts, groups, **kwargs):
+    obj = ModelConfig.objects.get(model=relations[0].group.model)
+    if not obj.is_manage:
+        return    
+    zabbix_group_change_sync.delay(hosts, groups)
 # 监听实例的创建和删除信号
 @receiver(model_instance_signal)
 def sync_node(sender, instance, action, **kwargs):

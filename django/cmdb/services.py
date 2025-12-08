@@ -1764,7 +1764,7 @@ class ModelFieldMetaSearchService:
             like_params = []
             for variant in search_variants:
                 escaped = escape_like(variant)
-                like_conditions.append("instance_name LIKE %s")
+                like_conditions.append("instance_name LIKE BINARY  %s")
                 like_params.append(f'%{escaped}%')
 
             like_clause = ' OR '.join(like_conditions) if like_conditions else '1=0'
@@ -1776,9 +1776,9 @@ class ModelFieldMetaSearchService:
                     model_id,
                     CASE
                         WHEN instance_name = %s THEN 100.0
-                        WHEN instance_name LIKE %s THEN 80.0
-                        WHEN instance_name LIKE %s THEN 80.0
-                        WHEN instance_name LIKE %s THEN 70.0
+                        WHEN instance_name LIKE BINARY  %s THEN 80.0
+                        WHEN instance_name LIKE BINARY  %s THEN 80.0
+                        WHEN instance_name LIKE BINARY  %s THEN 70.0
                         ELSE 30.0
                     END AS relevance
                 FROM model_instance
@@ -1799,10 +1799,10 @@ class ModelFieldMetaSearchService:
             ] + instance_id_strs + like_params + [
                 query  # ORDER BY
             ]
-
         try:
             with connection.cursor() as cursor:
                 cursor.execute(sql, params)
+                logger.debug(f'Executed instance_name search SQL: {connection.queries[-1]["sql"]}')
                 columns = [col[0] for col in cursor.description]
                 raw_results = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
@@ -2056,7 +2056,7 @@ class ModelFieldMetaSearchService:
         q_filter = Q()
         for variant in search_variants:
             if variant and variant.strip():
-                q_filter |= Q(data__icontains=variant)
+                q_filter |= Q(data__contains=variant)
 
         if not q_filter:
             return []

@@ -589,18 +589,18 @@ def handle_group_deletion(sender, instance, **kwargs):
         logger.error(f"Error handling group deletion: {str(e)}")
 
 
-@receiver(instance_group_relation_updated)
-def sync_zabbix_hostgroup_relation(sender, hosts, groups, **kwargs):
-    """同步实例分组关联到Zabbix"""
-    if not sys_config.is_zabbix_sync_enabled():
-        return
-    try:
-        # 同步主机组关联
-        zapi = ZabbixAPI()
-        result = zapi.replace_host_hostgroup(hosts, [g.replace('所有/', '') for g in groups])
-        logger.info(f'Successfully synced instance group relation to Zabbix: {result}')
-    except Exception as e:
-        logger.error(f"Error syncing instance groups to Zabbix: {str(e)}")
+# @receiver(instance_group_relation_updated)
+# def sync_zabbix_hostgroup_relation(sender, hosts, groups, **kwargs):
+#     """同步实例分组关联到Zabbix"""
+#     if not sys_config.is_zabbix_sync_enabled():
+#         return
+#     try:
+#         # 同步主机组关联
+#         zapi = ZabbixAPI()
+#         result = zapi.replace_host_hostgroup(hosts, [g.replace('所有/', '') for g in groups])
+#         logger.info(f'Successfully synced instance group relation to Zabbix: {result}')
+#     except Exception as e:
+#         logger.error(f"Error syncing instance groups to Zabbix: {str(e)}")
 
 
 @receiver(pre_delete, sender=ModelFields)
@@ -651,11 +651,9 @@ def on_validation_rule_delete(sender, instance, **kwargs):
         ValidationRules.clear_specific_enum_cache(instance.id)
 
 
-# 信跨应用传递信号
+# 信跨应用传递信号给节点管理
 # 模型
 model_signal = Signal(providing_args=["instance", "action"])
-
-
 @receiver(post_save, sender=Models)
 def send_model_created_signal(sender, instance, created, **kwargs):
     """
@@ -663,20 +661,35 @@ def send_model_created_signal(sender, instance, created, **kwargs):
     """
     if created:
         model_signal.send(sender=sender, instance=instance, action='create')
+@receiver(post_delete, sender=Models)
+def send_model_deleted_signal(sender, instance, **kwargs):
+    """
+    模型删除时触发同步
+    """
+    model_signal.send(sender=sender, instance=instance, action='delete')
 # 实例分组
-
+model_instance_group_signal = Signal(providing_args=["instance", "action"])
+# 创建或更新时，信号同步给node_mg
+@receiver(post_save, sender=ModelInstanceGroup)
+def send_model_instance_group_signal(sender, instance, created, **kwargs):
+    model_instance_group_signal.send(sender=sender, instance=instance, action=created)
+# 删除时，信号同步给node_mg
+@receiver(pre_delete, sender=ModelInstanceGroup)
+def send_model_instance_group_delete_signal(sender, instance, **kwargs):
+    model_instance_group_signal.send(sender=sender, instance=instance, action='delete')
+model_instance_group_relation_signal = Signal(providing_args=["relations","hosts", "groups"])
+# 模型实例分组关联
+@receiver(instance_group_relation_updated)
+def send_model_instance_group_relation_signal(sender, relations,hosts, groups, **kwargs):
+    model_instance_group_relation_signal.send(sender=sender,relations=relations, hosts=hosts, groups=groups)
 
 # 模型实例
 model_instance_signal = Signal(providing_args=["instance", "action"])
 # 创建或更新时，信号同步给node
-
-
 @receiver(post_save, sender=ModelInstance, dispatch_uid="sync_to_nodes")
 def send_model_instance_signal(sender, instance, created, **kwargs):
     model_instance_signal.send(sender=sender, instance=instance, action=created)
 # 删除时，信号同步给node
-
-
 @receiver(pre_delete, sender=ModelInstance, dispatch_uid="delete_to_nodes")
 def send_model_instance_delete_signal(sender, instance, **kwargs):
     model_instance_signal.send(sender=sender, instance=instance, action='delete')

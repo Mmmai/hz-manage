@@ -1519,8 +1519,9 @@ class BulkInstanceGroupRelationSerializer(serializers.Serializer):
                 if hostgroups and hosts:
                     instance_group_relation_updated.send(
                         sender=ModelInstanceGroupRelation,
+                        relations=created_relations,
                         hosts=hosts,
-                        groups=set(hostgroups)
+                        groups=hostgroups
                     )
                 return created_relations
         except Exception as e:

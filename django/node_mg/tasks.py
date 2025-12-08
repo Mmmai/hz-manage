@@ -539,7 +539,7 @@ def build_host_info(instance, ip):
     # zabbix_sync_info = ModelConfig.objects.get(model=instance.model).zabbix_sync_info
     zabbix_sync_info = sys_config.get(instance.model.name)
     if instance.model.name == 'hosts':
-        _host_info = PublicModelInstanceService.get_instance_field_value_info(
+        _host_info = PublicModelInstanceService.get_instance_fields(
             instance,
             ['mgmt_user', 'mgmt_password', 'mgmt_ip', 'device_status']
         )
@@ -771,7 +771,7 @@ def zabbix_sync(self, instance_id=None, ip=None, is_delete=False):
         ).select_related('group')
         for relation in instance_group_relations:
             if relation.group.path not in ['所有', '所有/空闲池']:
-                groups.append(relation.group.path.replace('所有/', ''))
+                groups.append(relation.group.path.replace('所有/', '')+'@cmdb')
 
         group_ids = [zabbix_api.get_or_create_hostgroup(g) for g in groups]
 
@@ -952,7 +952,61 @@ def zabbix_sync_batch(self, instance_ids):
     chord_result = job | aggregate_results.s()
     return chord_result.apply_async()
 
+@shared_task(bind=True)
+def zabbix_group_sync(self, group_info, action):
+    """
+    zabbix_group_sync 的 Docstring
+    
+    :param self: 说明
+    :param group_info: 说明
+    :param action: 说明
+    同步zabbix分组
+    """ 
+    zabbix_api = ZabbixAPI()
+    if action == 'create':
+        group_name = group_info.get('group_name', None)
+        result = zabbix_api.create_hostgroup(group_name=group_name)
+        if result:
+            logger.info(f"Zabbix group created: {group_name}")
+            return {'status': 'success', 'detail': f"Zabbix group created: {group_name}"}
+        else:
+            logger.error(f"Failed to create Zabbix group: {group_name},result: {result}")
+            return {'status': 'failed', 'detail': f"Failed to create Zabbix group: {group_name},result: {result}"}
+    elif action == 'rename':
+        new_group_name = group_info.get('new_group_name', None)
+        old_group_name = group_info.get('old_group_name', None)
+        result = zabbix_api.rename_hostgroup(old_name=old_group_name, new_name=new_group_name)
+        if result:
+            logger.info(f"Zabbix group renamed from {old_group_name} to {new_group_name}")
+            return {'status': 'success', 'detail': f"Zabbix group renamed from {old_group_name} to {new_group_name}"}
+        else:
+            logger.error(f"Failed to rename Zabbix group from {old_group_name} to {new_group_name},result: {result}")
+            return {'status': 'failed', 'detail': f"Failed to rename Zabbix group from {old_group_name} to {new_group_name},result: {result}"}
+    elif action == 'delete':
+        group_name = group_info.get('group_name', None)
+        result = zabbix_api.delete_hostgroup(group_name=group_name)
+        if result:
+            logger.info(f"Zabbix group deleted: {group_name}")
+            return {'status': 'success', 'detail': f"Zabbix group deleted: {group_name}"}
+        else:
+            logger.error(f"Failed to delete Zabbix group: {group_name},result: {result}")
+            return {'status': 'failed', 'detail': f"Failed to delete Zabbix group: {group_name},result: {result}"}
 
+@shared_task(bind=True)
+def zabbix_group_change_sync(self, hosts, groups):
+    zabbix_api = ZabbixAPI()
+    group_names = [g.replace('所有/', '')+'@cmdb' for g in set(groups)]
+    # 批量添加新的分组关系
+    result =zabbix_api.add_host_hostgroup(hosts,group_names )
+    # 清除旧的cmdb同步过去的分组,根据hosts，去清除
+    zabbix_api.remove_old_cmdb_host_group(hosts,group_names)
+
+    if result:
+        logger.info(f"Zabbix group changed for {hosts}")
+        return {'status': 'success', 'detail': f"Zabbix group changed for {hosts}"}
+    else:
+        logger.error(f"Failed to change Zabbix group for {hosts},result: {result}")
+        return {'status': 'failed', 'detail': f"Failed to change Zabbix group for {hosts},result: {result}"}
 @shared_task(bind=True)
 def zabbix_proxy_sync(self, proxy_info, action, node_ids=None):
     zabbix_api = ZabbixAPI()

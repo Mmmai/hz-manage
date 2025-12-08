@@ -9,24 +9,24 @@
             clearable
             @keyup.enter="performSearch"
             class="search-input"
+            style="width: 400px"
+            @clear="clearSearch"
           >
             <template #prefix>
               <el-icon><Search /></el-icon>
             </template>
           </el-input>
-          <el-button
-            type="primary"
-            @click="performSearch"
-            :loading="searchLoading"
-            class="search-button"
-          >
-            搜索
-          </el-button>
-          <el-button @click="clearSearch" class="clear-button">
-            清空
-          </el-button>
+          <div class="search-options">
+            <el-checkbox v-model="regexp" @change="onRegexpChange">
+              正则表达式
+            </el-checkbox>
+            <el-checkbox v-model="caseSensitive"> 区分大小写 </el-checkbox>
+          </div>
         </div>
-
+        <div v-if="regexpError" class="regexp-error-message">
+          <el-icon color="#F56C6C"><Warning /></el-icon>
+          <span class="error-text">{{ regexpError }}</span>
+        </div>
         <div class="filter-section" v-if="allModels.length > 0">
           <div class="filter-title">模型筛选:</div>
           <el-checkbox
@@ -292,11 +292,49 @@ const clearModelFilter = () => {
   filteredResults.value = [...searchResults.value];
   sortResults();
 };
+// 正则表达式相关
+const regexp = ref(false);
+const caseSensitive = ref(false);
+const regexpError = ref("");
+
+// 监听正则表达式变化并验证
+const onRegexpChange = (value) => {
+  if (value) {
+    validateRegexp();
+  } else {
+    regexpError.value = "";
+  }
+};
+
+// 验证正则表达式
+const validateRegexp = () => {
+  if (!regexp.value || !searchKeyword.value) {
+    regexpError.value = "";
+    return true;
+  }
+
+  try {
+    new RegExp(searchKeyword.value);
+    regexpError.value = "";
+    return true;
+  } catch (e) {
+    regexpError.value = e.message;
+    return false;
+  }
+};
+
 // 执行搜索
 const performSearch = async () => {
   if (!searchKeyword.value.trim()) {
     ElMessage.warning("请输入搜索关键词");
     return;
+  }
+  // 如果启用了正则表达式，先验证
+  if (regexp.value) {
+    if (!validateRegexp()) {
+      ElMessage.error("正则表达式格式错误：" + regexpError.value);
+      return;
+    }
   }
 
   if (selectedModelIds.value.length === 0) {
@@ -315,6 +353,8 @@ const performSearch = async () => {
       models: selectedModelIds.value,
       limit: 20000,
       search_mode: "boolean",
+      regexp: regexp.value,
+      case_sensitive: caseSensitive.value,
     });
 
     searchResults.value = res.data.results || [];
@@ -369,6 +409,7 @@ const sortResults = () => {
 
 // 清空搜索
 const clearSearch = () => {
+  regexpError.value = "";
   searchKeyword.value = "";
   searchResults.value = [];
   filteredResults.value = [];
@@ -414,21 +455,44 @@ onMounted(async () => {
       border-radius: 8px;
       box-shadow: var(--el-box-shadow-light);
 
+      .regexp-error-message {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin: 0px 0 5px 0;
+        padding: 5px 10px;
+        background-color: #fef0f0;
+        border: 1px solid #fde2e2;
+        border-radius: 4px;
+        color: #f56c6c;
+        font-size: 12px;
+        width: 379px;
+        .error-text {
+          flex: 1;
+        }
+      }
       .search-form {
         display: flex;
         gap: 15px;
-        margin-bottom: 20px;
-        align-items: center;
-
-        .search-input {
-          flex: 1;
-          max-width: 500px;
-        }
+        margin-bottom: 5px;
+        align-items: flex-start;
 
         .search-button,
         .clear-button {
           height: 40px;
+          align-self: flex-start;
+          margin-top: 32px; /* 与输入框对齐 */
         }
+      }
+
+      .search-options {
+        display: flex;
+        align-items: center;
+        // gap: 20px;
+        // margin-bottom: 15px;
+        // padding: 10px 15px;
+        // background-color: var(--el-fill-color-light);
+        border-radius: 4px;
       }
 
       .filter-section {

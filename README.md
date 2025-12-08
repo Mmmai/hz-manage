@@ -3,8 +3,9 @@
 mysql:8
 docker run -p 3306:3306 --name mysql -e MYSQL_ROOT_PASSWORD=(密码与setting.py中的一致) -d mysql:8.0
 
-create database autoOps;
-
+CREATE DATABASE IF NOT EXISTS autoOps
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_bin;
 python-3.7.9
 
 部署redis
