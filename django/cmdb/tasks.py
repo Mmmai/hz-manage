@@ -153,6 +153,7 @@ def process_import_data(self, excel_data: dict, model_id: str, userid: str, _aud
                 results['errors'].append(f"Row {idx + 1} '{instance_name}': {str(e)}")
                 error_data.append({
                     'instance_name': instance_name,
+                    'using_template': using_template,
                     'fields': instance_data.get('fields'),
                     'error': str(e)
                 })
