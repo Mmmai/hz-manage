@@ -1,22 +1,32 @@
-from os import name
-from tabnanny import verbose
-from weakref import proxy
-from django.db import models
-from django.db.models import JSONField
-from django.db import transaction
-from rest_framework.exceptions import PermissionDenied
-from django.core.cache import cache
-from cacheops import cached_as
 import json
 import uuid
 import logging
 import functools
+
+from django.db import models
+from django.db import transaction
+from rest_framework.exceptions import PermissionDenied
+from django.core.cache import cache
+from django.db.models import OuterRef, Exists
+
+from .managers import *
 from .constants import ValidationType
+from .resolver import resolve_model_field_id_list, resolve_dynamic_value, resolve_model
+from audit.decorators import register_audit
+from audit.snapshots import get_dynamic_field_snapshot
 
 logger = logging.getLogger(__name__)
 
 
+@register_audit(
+    snapshot_fields={'id', 'name', 'verbose_name'},
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
+    public_name='model_group'
+)
 class ModelGroups(models.Model):
+
+    objects = ModelGroupsManager()
+
     class Meta:
         db_table = 'model_groups'
         managed = True
@@ -28,38 +38,27 @@ class ModelGroups(models.Model):
     editable = models.BooleanField(default=True, null=False, blank=False)
     verbose_name = models.CharField(max_length=50, null=False, blank=False)
     description = models.TextField(blank=True, null=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
-
-    @classmethod
-    def get_default_model_group(cls):
-        """获取或创建默认模型组"""
-        default_group, created = cls.objects.get_or_create(
-            name='others',
-            defaults={
-                'verbose_name': '其他',
-                'built_in': True,
-                'editable': False,
-                'description': '默认模型组',
-                'create_user': 'system',
-                'update_user': 'system'
-            }
-        )
-        return default_group
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
     def delete(self, *args, **kwargs):
         if self.built_in:
-            raise PermissionDenied('Built-in model group cannot be deleted')
+            raise PermissionDenied('Cannot delete a built-in model group.')
         if not self.editable:
-            raise PermissionDenied('Non-editable model group cannot be deleted')
-        with transaction.atomic():
-            default_group = self.__class__.get_default_group()
-            Models.objects.filter(model_group=self).update(model_group=default_group)
-            super().delete(*args, **kwargs)
+            raise PermissionDenied('Cannot delete a non-editable model group.')
+        super().delete(*args, **kwargs)
 
 
+@register_audit(
+    snapshot_fields={'id', 'name', 'verbose_name'},
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
+    public_name='model',
+    field_resolvers={
+        'instance_name_template': resolve_model_field_id_list
+    }
+)
 class Models(models.Model):
     class Meta:
         db_table = 'models'
@@ -74,43 +73,25 @@ class Models(models.Model):
     description = models.TextField(blank=True, null=True)
     built_in = models.BooleanField(default=False, null=False, blank=False)
     icon = models.CharField(max_length=50, blank=True, null=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
-    def save(self, *args, **kwargs):
-        # 保存模型
-        super().save(*args, **kwargs)
-
-        if self.instance_name_template:
-            self.sync_unique_constraint()
-
-    def sync_unique_constraint(self):
-        constraint = UniqueConstraint.objects.filter(
-            model=self,
-            built_in=True,
-            description='自动生成的实例名称唯一性约束'
-        ).first()
-
-        if constraint:
-            # 更新现有约束
-            constraint.fields = self.instance_name_template
-            constraint.save()
-        else:
-            # 创建新约束
-            UniqueConstraint.objects.create(
-                model=self,
-                fields=self.instance_name_template,
-                built_in=True,
-                validate_null=False,
-                description='自动生成的实例名称唯一性约束',
-                create_user='system',
-                update_user='system'
-            )
+    def delete(self, *args, **kwargs):
+        if self.built_in:
+            raise PermissionDenied('Cannot delete a built-in model.')
+        super().delete(*args, **kwargs)
 
 
+@register_audit(
+    snapshot_fields={'id', 'name', 'verbose_name'},
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
+    public_name='model_field_group'
+)
 class ModelFieldGroups(models.Model):
+    objects = ModelFieldGroupsManager()
+
     class Meta:
         db_table = 'model_field_groups'
         managed = True
@@ -119,35 +100,28 @@ class ModelFieldGroups(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50, db_index=True, null=False, blank=False)
     verbose_name = models.CharField(max_length=50, null=False, blank=False)
-    model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True)
+    model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True, related_name='field_groups')
     built_in = models.BooleanField(default=False, null=False, blank=False)
     editable = models.BooleanField(default=True, null=False, blank=False)
     description = models.TextField(blank=True, null=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
-    @classmethod
-    def get_default_field_group(cls, model):
-        """获取或创建默认模型组"""
-        default_field_group, created = cls.objects.get_or_create(
-            name='basic',
-            model=model,
-            defaults={
-                'name': 'basic',
-                'verbose_name': '基础配置',
-                'model': model,
-                'built_in': True,
-                'editable': False,
-                'description': '默认字段组',
-                'create_user': 'system',
-                'update_user': 'system'
-            }
-        )
-        return default_field_group
+    def delete(self, *args, **kwargs):
+        if self.built_in:
+            raise PermissionDenied('Cannot delete a built-in model field group.')
+        if not self.editable:
+            raise PermissionDenied('Cannot delete a non-editable model field group.')
+        super().delete(*args, **kwargs)
 
 
+@register_audit(
+    snapshot_fields={'id', 'name', 'verbose_name', 'field_type', 'type', 'rule'},
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
+    public_name='validation_rule'
+)
 class ValidationRules(models.Model):
     """验证规则表"""
     class Meta:
@@ -166,31 +140,15 @@ class ValidationRules(models.Model):
     description = models.TextField(blank=True, null=True, help_text='规则描述')
     create_time = models.DateTimeField(auto_now_add=True)
     update_time = models.DateTimeField(auto_now=True)
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
-
-    # @classmethod
-    # def get_enum_dict(cls, rule_id):
-
-    #     @cached_as(ValidationRules, timeout=60 * 60)
-    #     def _get_enum_dict(rule_id):
-    #         """获取枚举规则字典"""
-    #         try:
-    #             rule = cls.objects.get(id=rule_id)
-    #             if rule.type == ValidationType.ENUM:
-    #                 return json.loads(rule.rule)
-    #         except (cls.DoesNotExist, json.JSONDecodeError):
-    #             pass
-    #         return {}
-
-    #     return _get_enum_dict(rule_id)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
     @staticmethod
     @functools.lru_cache(maxsize=128)  # maxsize 可根据枚举规则的数量调整
     def get_enum_dict(rule_id):
-        logger.info(
-            f"LRU Cache MISS for get_enum_dict(rule_id={rule_id})."
-            f"Executing function body. Cache info: {ValidationRules.get_enum_dict.cache_info()}")
+        # logger.debug(
+        #     f"LRU Cache MISS for get_enum_dict(rule_id={rule_id})."
+        #     f"Executing function body. Cache info: {ValidationRules.get_enum_dict.cache_info()}")
         try:
             rule_instance = ValidationRules.objects.get(id=rule_id)
             if rule_instance.type == ValidationType.ENUM and rule_instance.rule:
@@ -212,14 +170,21 @@ class ValidationRules(models.Model):
         ValidationRules.get_enum_dict.cache_clear()
 
 
+@register_audit(
+    snapshot_fields={'id', 'name', 'verbose_name', 'type', 'unit', 'ref_model'},
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
+    public_name='model_field'
+)
 class ModelFields(models.Model):
+    objects = ModelFieldsManager()
+
     class Meta:
         db_table = 'model_fields'
         managed = True
         app_label = 'cmdb'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True)
+    model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True, related_name='fields')
     model_field_group = models.ForeignKey('ModelFieldGroups', on_delete=models.SET_NULL, null=True, blank=True)
     name = models.CharField(max_length=50, db_index=True, null=False, blank=False)
     verbose_name = models.CharField(max_length=50, null=False, blank=False)
@@ -233,25 +198,10 @@ class ModelFields(models.Model):
     validation_rule = models.ForeignKey('ValidationRules', on_delete=models.SET_NULL, null=True, blank=True)
     description = models.TextField(blank=True, null=True)
     order = models.IntegerField(blank=True, null=True, db_index=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
-
-
-class ModelFieldOrder(models.Model):
-    class Meta:
-        db_table = 'model_field_order'
-        managed = True
-        app_label = 'cmdb'
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True)
-    field_order = models.JSONField(default=list, blank=True, null=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
 
 class ModelFieldPreference(models.Model):
@@ -263,13 +213,23 @@ class ModelFieldPreference(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     model = models.ForeignKey('Models', on_delete=models.CASCADE, db_index=True)
     fields_preferred = models.JSONField(default=list, blank=True, null=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
 
+@register_audit(
+    snapshot_fields={'id', 'model', 'fields', 'validate_null'},
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
+    public_name='unique_constraint',
+    field_resolvers={
+        'fields': resolve_model_field_id_list
+    }
+)
 class UniqueConstraint(models.Model):
+    objects = UniqueConstraintManager()
+
     class Meta:
         db_table = 'unique_constraint'
         managed = True
@@ -281,13 +241,32 @@ class UniqueConstraint(models.Model):
     validate_null = models.BooleanField(default=False, null=False, blank=False)
     built_in = models.BooleanField(default=False, null=False, blank=False)
     description = models.TextField(blank=True, null=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
+
+    def delete(self, *args, **kwargs):
+        # 防止越过视图层调用意外删除
+        if self.built_in:
+            raise PermissionDenied('Cannot delete a built-in unique constraint.')
+        super().delete(*args, **kwargs)
 
 
+@register_audit(
+    is_field_aware=True,
+    dynamic_snapshot_func=get_dynamic_field_snapshot,
+    snapshot_fields={'id', 'instance_name', 'input_mode'},
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
+    public_name='model_instance',
+    dynamic_value_resolver=resolve_dynamic_value,
+    restorer='cmdb.restorer.restore_model_instance',
+    locker='cmdb.locker.lock_model_instance_for_update'
+)
 class ModelInstance(models.Model):
+
+    objects = ModelInstanceManager()
+
     class Meta:
         db_table = 'model_instance'
         managed = True
@@ -308,10 +287,10 @@ class ModelInstance(models.Model):
         ('import', '表格导入'),
         ('discover', '自动发现')
     ], default='manual', db_index=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
     def generate_name(self, field_values=None):
         """根据模型模板生成实例名称"""
@@ -333,25 +312,34 @@ class ModelInstance(models.Model):
 
 
 class ModelFieldMeta(models.Model):
+
+    objects = ModelFieldMetaManager()
+
     class Meta:
         db_table = 'model_field_meta'
         managed = True
         app_label = 'cmdb'
 
-    # TODO: 添加实例name字段，用于存储实例名称，作为唯一性校验
-    # TODO: 在模型删除时，如果没有删除子实例，保留字段信息等 待修改
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     model = models.ForeignKey('Models', on_delete=models.CASCADE)
     model_instance = models.ForeignKey('ModelInstance', on_delete=models.CASCADE, related_name='field_values')
     model_fields = models.ForeignKey('ModelFields', on_delete=models.CASCADE)
     data = models.TextField(blank=True, null=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
 
+@register_audit(
+    snapshot_fields={'id', 'label', 'path'},
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
+    public_name='model_instance_group'
+)
 class ModelInstanceGroup(models.Model):
+
+    objects = ModelInstanceGroupManager()
+
     class Meta:
         db_table = 'model_instance_group'
         managed = True
@@ -365,92 +353,62 @@ class ModelInstanceGroup(models.Model):
     path = models.CharField(max_length=200, null=True, blank=True)
     order = models.IntegerField(blank=True, null=True, db_index=True)
     built_in = models.BooleanField(default=False, null=False, blank=False)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        self._skip_signal = kwargs.pop('skip_signal', getattr(self, '_skip_signal', False))
+        skip_signal = kwargs.pop('_skip_signal', False)
+        self.path = self.get_path()
+
+        if skip_signal:
+            self._skip_signal = True
+
         super().save(*args, **kwargs)
+
+        if hasattr(self, '_skip_signal'):
+            delattr(self, '_skip_signal')
 
     def get_path(self):
         if self.parent:
             return f'{self.parent.path}/{self.label}'
         return self.label
 
-    # 弃用该函数，统一由post_save信号触发更新
     def update_child_path(self):
         """更新子分组的path"""
         children = self.__class__.objects.filter(parent=self)
         for child in children:
             child.path = child.get_path()
-            child.save()
+            child.save(update_fields=['path', 'update_time'], _skip_signal=True)
             child.update_child_path()
 
-    @classmethod
-    def get_root_group(cls, model):
-        """获取或创建根分组【所有】"""
-        root_group, created = cls.objects.get_or_create(
-            model=model,
-            parent=None,
-            defaults={
-                'label': '所有',
-                'built_in': True,
-                'level': 1,
-                'path': '所有',
-                'order': 1,
-                'create_user': 'system',
-                'update_user': 'system'
-            }
-        )
-        return root_group
+    # @classmethod
+    # def clear_group_cache(cls, group):
+    #     """清除指定分组和空闲池的缓存"""
+    #     unassigned_group = cls.objects.get_unassigned_group(str(group.model.id))
+    #     logger.info(f'Clearing instance count cache for group: {group.id}, {unassigned_group.id}')
+    #     cache.delete(f'group_count_{group.id}')
+    #     cache.delete(f'group_count_{unassigned_group.id}')
+    #     logger.info(f'Cache cleared successfully')
 
-    @classmethod
-    def get_unassigned_group(cls, model):
-        """获取或创建【空闲池】分组"""
-        root_group = cls.get_root_group(model)
-        unassigned_group, created = cls.objects.get_or_create(
-            model=model,
-            parent=root_group,
-            label='空闲池',
-            defaults={
-                'built_in': True,
-                'level': 2,
-                'path': '所有/空闲池',
-                'order': 1,
-                'create_user': 'system',
-                'update_user': 'system'
-            }
-        )
-        return unassigned_group
+    # @classmethod
+    # def clear_groups_cache(cls, groups):
+    #     """批量清除多个分组的缓存"""
+    #     groups_to_clear = set()
 
-    @classmethod
-    def clear_group_cache(cls, group):
-        """清除指定分组和空闲池的缓存"""
-        unassigned_group = cls.get_unassigned_group(group.model)
-        logger.info(f'Clearing instance count cache for group: {group.id}, {unassigned_group.id}')
-        cache.delete(f'group_count_{group.id}')
-        cache.delete(f'group_count_{unassigned_group.id}')
-        logger.info(f'Cache cleared successfully')
+    #     # 收集所有需要清除的分组ID
+    #     for group in groups:
+    #         groups_to_clear.add(group.id)
+    #         parent = group.parent
+    #         while parent:
+    #             groups_to_clear.add(parent.id)
+    #             parent = parent.parent
+    #     logger.info(f'Clearing instance count cache for groups: {groups_to_clear}')
 
-    @classmethod
-    def clear_groups_cache(cls, groups):
-        """批量清除多个分组的缓存"""
-        groups_to_clear = set()
-
-        # 收集所有需要清除的分组ID
-        for group in groups:
-            groups_to_clear.add(group.id)
-            parent = group.parent
-            while parent:
-                groups_to_clear.add(parent.id)
-                parent = parent.parent
-        logger.info(f'Clearing instance count cache for groups: {groups_to_clear}')
-
-        cache_keys = [f'group_count_{gid}' for gid in groups_to_clear]
-        cache.delete_many(cache_keys)
-        logger.info(f'Cache cleared successfully')
+    #     cache_keys = [f'group_count_{gid}' for gid in groups_to_clear]
+    #     cache.delete_many(cache_keys)
+    #     logger.info(f'Cache cleared successfully')
 
 
 class ModelInstanceGroupRelation(models.Model):
@@ -460,14 +418,24 @@ class ModelInstanceGroupRelation(models.Model):
         managed = True
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    instance = models.ForeignKey('ModelInstance', on_delete=models.CASCADE)
+    instance = models.ForeignKey('ModelInstance', on_delete=models.CASCADE, related_name='group_relations')
     group = models.ForeignKey('ModelInstanceGroup', on_delete=models.CASCADE)
     create_time = models.DateTimeField(auto_now_add=True)
     update_time = models.DateTimeField(auto_now=True)
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
 
+@register_audit(
+    snapshot_fields={'id', 'name', 'source_model', 'target_model', 'topology_type'},
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
+    m2m_fields={'source_model', 'target_model'},
+    public_name='relation_definition',
+    field_resolvers={
+        'source_model': resolve_model,
+        'target_model': resolve_model
+    }
+)
 class RelationDefinition(models.Model):
     class Meta:
         db_table = 'relation_definition'
@@ -475,27 +443,62 @@ class RelationDefinition(models.Model):
         app_label = 'cmdb'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=50, db_index=True, null=False, blank=False)
-    type = models.CharField(max_length=50, null=False, blank=False)
+    name = models.CharField(max_length=50, db_index=True, unique=True, null=False, blank=False)
+    built_in = models.BooleanField(default=False, null=False, blank=False)
+    topology_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('directed', '有向图'),
+            ('undirected', '无向图'),
+            ('daggered', '有向无环图'),
+        ],
+        default='daggered',
+        null=False,
+        blank=False
+    )
+    forward_verb = models.CharField(max_length=50, null=False, blank=False)
+    reverse_verb = models.CharField(max_length=50, null=False, blank=False)
+    source_model = models.ManyToManyField(
+        'Models',
+        blank=True,
+        related_name='relation_allowed_source_models'
+    )
+    target_model = models.ManyToManyField(
+        'Models',
+        blank=True,
+        related_name='relation_allowed_target_models'
+    )
+    attribute_schema = models.JSONField(default=dict, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
 
+@register_audit(
+    snapshot_fields={'id', 'source_instance', 'target_instance', 'relation'},
+    ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
+    public_name='relation'
+)
 class Relations(models.Model):
     class Meta:
         db_table = 'relations'
         managed = True
         app_label = 'cmdb'
+        unique_together = ('source_instance', 'target_instance', 'relation')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    source_instance = models.ForeignKey('ModelInstance', related_name='source_instance', on_delete=models.CASCADE)
-    target_instance = models.ForeignKey('ModelInstance', related_name='target_instance', on_delete=models.CASCADE)
+    source_instance = models.ForeignKey('ModelInstance', related_name='relation_as_source', on_delete=models.CASCADE)
+    target_instance = models.ForeignKey('ModelInstance', related_name='relation_as_target', on_delete=models.CASCADE)
     relation = models.ForeignKey('RelationDefinition', on_delete=models.CASCADE)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-    create_user = models.CharField(max_length=20, null=False, blank=False)
-    update_user = models.CharField(max_length=20, null=False, blank=False)
+    target_attributes = models.JSONField(default=dict, blank=True, null=True)
+    source_attributes = models.JSONField(default=dict, blank=True, null=True)
+    relation_attributes = models.JSONField(default=dict, blank=True, null=True)
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)
+    create_user = models.CharField(max_length=20, null=True, blank=True)
+    update_user = models.CharField(max_length=20, null=True, blank=True)
 
 
 class ZabbixProxy(models.Model):
@@ -511,50 +514,5 @@ class ZabbixProxy(models.Model):
     user = models.CharField(default='root', max_length=50, null=False, blank=False)
     password = models.CharField(max_length=50, null=False, blank=False)
     proxy_id = models.CharField(max_length=50, null=False, blank=False)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-
-
-class ZabbixSyncHost(models.Model):
-    class Meta:
-        db_table = 'zabbix_sync_host'
-        managed = True
-        app_label = 'cmdb'
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    instance = models.OneToOneField('ModelInstance', on_delete=models.CASCADE)
-    host_id = models.IntegerField(null=False, blank=False)
-    ip = models.CharField(max_length=50, null=False, blank=False)
-    name = models.CharField(max_length=100, null=False, blank=False)
-    agent_installed = models.BooleanField(default=False)
-    installation_error = models.TextField(null=True, blank=True)
-    interface_available = models.IntegerField(default=0)
-    proxy = models.ForeignKey('ZabbixProxy', on_delete=models.CASCADE, null=True, blank=True)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
-
-
-class ProxyAssignRule(models.Model):
-    class Meta:
-        db_table = 'proxy_assign_rule'
-        managed = True
-        app_label = 'cmdb'
-
-    RULE_TYPES = (
-        # 使用优先级从高到低
-        ('ip_exclude', 'IP排除式'),
-        ('ip_list', 'IP列表'),
-        ('ip_cidr', 'IP子网划分式'),
-        ('ip_range', 'IP范围'),
-        ('ip_regex', 'IP正则式'),
-    )
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=50, null=False, blank=False)
-    description = models.TextField(blank=True, null=True)
-    proxy = models.ForeignKey('ZabbixProxy', on_delete=models.CASCADE, null=False, blank=False)
-    type = models.CharField(max_length=50, choices=RULE_TYPES, null=False, blank=False)
-    rule = models.TextField()
-    active = models.BooleanField(default=True, null=False, blank=False)
-    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
-    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    create_time = models.DateTimeField(auto_now_add=True)
+    update_time = models.DateTimeField(auto_now=True)

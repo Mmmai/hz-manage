@@ -120,11 +120,19 @@ const cancelAction = () => {
 const updateCiName = async () => {
   let res = await proxy.$api.updateInstanceName(props.modelId);
   console.log(res);
-  ElNotification({
-    title: "Success",
-    message: "更新任务提交成功",
-    type: "success",
-  });
+  if (res.status == "200") {
+    ElNotification({
+      title: "Success",
+      message: "更新任务提交成功",
+      type: "success",
+    });
+  } else {
+    ElNotification({
+      title: "Error",
+      message: `更新任务提交失败${JSON.stringify(res.data)}`,
+      type: "error",
+    });
+  }
 };
 // 更新任务的task
 const taskPercentage = ref(0);

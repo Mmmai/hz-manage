@@ -1,6 +1,6 @@
 <template>
   <el-aside
-    :width="$store.state.isCollapse ? '200px' : '64px'"
+    :width="collapse ? '200px' : '64px'"
     style="border: 1px"
     broder="1px"
     class="el-side-n"
@@ -11,22 +11,24 @@
       <el-menu
         class="el-menu-vertical-demo"
         :default-active="currentMenu"
-        :collapse="!$store.state.isCollapse"
+        :collapse="!collapse"
         :collapse-transition="false"
       >
-        <div v-show="$store.state.isCollapse" class="top-icon">
+        <div v-show="collapse" class="top-icon">
           <!-- <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg> -->
           <!-- <Icon icon="devicon:godot" width="32" height="32" style="margin-right: 5px;" /> -->
           <iconifyOffline icon="devicon:godot" width="32" height="32" />
 
           <!-- <h5>HZ-MANAGE</h5> -->
           <!-- <h4 style="margin-left: 10px">智维</h4> -->
-          <el-text size="large" style="margin-left: 5px" tag="b">智维 </el-text>
+          <el-text size="large" style="margin-left: 5px; color: #ffffff" tag="b"
+            >智维
+          </el-text>
           <el-text size="small" style="margin-left: 5px" tag="sub">{{
             appVersion
           }}</el-text>
         </div>
-        <div v-show="!$store.state.isCollapse" class="top-icon">
+        <div v-show="!collapse" class="top-icon">
           <!-- <iconfont-svg icon="icon-yunweijiankong" size="38"></iconfont-svg> -->
           <!-- <Icon icon="devicon:godot" /> -->
           <iconifyOffline icon="devicon:godot" />
@@ -57,23 +59,15 @@ const APP_VERSION = import.meta.env.APP_VERSION;
 const currentMenu = computed(() => tabsStore.currentMenu);
 import useConfigStore from "@/store/config";
 const configStore = useConfigStore();
+const collapse = computed(() => configStore.collapse);
 const { appVersion } = storeToRefs(configStore);
-watch(
-  () => currentMenu.value,
-  (n) => {
-    // console.log(n)
-  }
-);
 const { proxy } = getCurrentInstance();
-let store = useStore();
-const menuInfo = computed(() => {
-  // 获取当前定义的所有路由信息
-  return store.state.menuInfo;
-});
+const menuInfo = computed(() => configStore.menuInfo);
 
 const dealMenu = (data) => {
   let tmpArr = [];
-
+  // null
+  if (!data) return [];
   for (let item of data) {
     if (!item.status) continue;
     let tmpObj = {
@@ -96,17 +90,7 @@ const dealMenu = (data) => {
 const showMenu = computed(() => {
   return dealMenu(menuInfo.value);
 });
-watch(
-  () => showMenu.value,
-  (n) => {
-    console.log(n);
-  }
-);
-console.log(showMenu.value);
-const test = computed(() => {
-  // console.log(store.state.currentMenu)
-  return store.state.currentMenu;
-});
+
 const currentMenIndex = ref("name");
 // watch(test,(newv,oldv) => {
 //   console.log(newv,oldv)
@@ -117,13 +101,14 @@ const currentMenIndex = ref("name");
 /* .el-sub-menu__title {
   color: #fff !important;
 } */
-.el-menu {
-  /* border-right: 1px; */
-  /* color: var(--el-text-color-regular); */
-  /* background-color: var(--el-color-primary-light-5) !important; */
+.el-menu .el-menu-item:not(.is-active) {
+  /* background-color: #0f2438 !important; */
 }
 .el-aside {
   /* background-color: var(--el-color-primary-light-5) !important; */
+  /* background-color: var(--el-bg-color, #ffffff) !important; */
+  /* border-right: solid 1px var(--el-border-color, #dcdfe6) !important; */
+  background-color: #001529;
 }
 h3 {
   line-height: 40px;
@@ -141,7 +126,7 @@ h3 {
   height: 56px;
 
   > span {
-    color: var(--el-text-color-regular);
+    color: var(--el-color-primary-light-9) !important;
   }
 }
 

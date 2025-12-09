@@ -1,5 +1,5 @@
 <template>
-  <div class="card">
+  <div class="card table-main">
     <div class="table-header">
       <div class="header-button-lf">
         <el-button
@@ -33,6 +33,7 @@
       ref="multipleTableRef"
       :data="validationRules"
       style="width: 100%"
+      height="100%"
       border
       @sort-change="sortMethod"
     >
@@ -93,7 +94,6 @@
       style="margin-top: 5px; justify-content: flex-end"
     >
     </el-pagination>
-
     <!-- 弹出框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -108,121 +108,169 @@
         label-width="auto"
         ref="formRef"
       >
-        <el-form-item
-          :label="item.label"
-          :key="index"
-          v-for="(item, index) in colLists"
-          :required="item.required"
-          :prop="item.value"
-        >
-          <div v-if="item.value === 'rule'">
-            <div v-if="formInline.field_type === 'enum'">
-              <div v-for="(item, index) in tmpFormData" :key="index">
-                <li>
-                  <el-input
-                    v-model="item.name"
-                    style="width: 90px; margin-right: 10px"
-                  />
-                  <el-input
-                    v-model="item.value"
-                    style="width: 160px; margin-right: 10px"
-                  />
-                  <el-button
-                    circle
-                    type="danger"
-                    size="small"
-                    :icon="CircleClose"
-                    @click="rmField(index)"
-                    v-if="tmpFormData.length !== 1"
-                  ></el-button>
-                  <el-button
-                    circle
-                    type="primary"
-                    size="small"
-                    :icon="CirclePlus"
-                    @click="addField(index)"
-                  ></el-button>
-                </li>
-              </div>
-            </div>
-            <el-input
-              v-model="formInline[item.value]"
-              type="textarea"
-              clearable
-              v-else
-              style="width: 300px"
-              :disabled="nowRow.built_in"
-            />
-          </div>
-
+        <el-form-item label="规则名" prop="name">
           <el-input
-            v-model="formInline[item.value]"
-            type="textarea"
+            v-model="formInline.name"
             clearable
-            v-else-if="item.value === 'description'"
             style="width: 300px"
-          />
-
-          <el-input
-            v-model="formInline[item.value]"
-            clearable
-            v-else-if="item.value === 'name'"
             :disabled="nowRow.built_in || !isAdd ? true : false"
           />
+        </el-form-item>
+        <el-form-item label="规则名称" prop="verbose_name">
           <el-input
-            v-model="formInline[item.value]"
+            v-model="formInline.verbose_name"
             clearable
-            v-else-if="item.value === 'verbose_name'"
+            style="width: 300px"
           />
-          <div v-else>
-            <el-select
-              v-model="formInline.field_type"
-              placeholder="Select"
+        </el-form-item>
+        <el-form-item label="字段类型" prop="field_type">
+          <el-select
+            v-model="formInline.field_type"
+            placeholder="选择类型"
+            style="width: 120px"
+            :disabled="nowRow.built_in || !isAdd ? true : false"
+          >
+            <el-option
+              v-for="fItem in fieldOptions"
+              :key="fItem.value"
+              :label="fItem.label"
+              :value="fItem.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="规则类型" prop="type">
+          <el-select
+            v-model="formInline.type"
+            placeholder="选择类型"
+            style="width: 120px"
+            :disabled="nowRow.built_in || !isAdd ? true : false"
+          >
+            <el-option
+              v-for="vItem in validate_type[formInline.field_type]"
+              :key="vItem.type"
+              :label="vItem.description"
+              :value="vItem.type"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item
+          label="数值范围"
+          prop="rule"
+          v-if="formInline.type === 'length' || formInline.type === 'range'"
+        >
+          <div style="display: flex; align-items: center">
+            <el-input-number
+              v-model="rangeMin"
+              placeholder="最小值"
+              controls-position="right"
+              style="width: 120px; margin-right: 10px"
+              :precision="formInline.field_type === 'float' ? 2 : 0"
+              :step="formInline.field_type === 'float' ? 0.1 : 1"
+            />
+            <span style="margin-right: 10px">-</span>
+            <el-input-number
+              v-model="rangeMax"
+              placeholder="最大值"
+              controls-position="right"
               style="width: 120px"
-              v-if="item.value === 'field_type'"
-              :disabled="nowRow.built_in || !isAdd ? true : false"
+              :precision="formInline.field_type === 'float' ? 2 : 0"
+              :step="formInline.field_type === 'float' ? 0.1 : 1"
+            />
+          </div>
+          <div v-if="!isRangeValid" class="el-form-item__error">
+            <span
+              v-if="
+                rangeMin === null ||
+                rangeMin === undefined ||
+                rangeMax === null ||
+                rangeMax === undefined
+              "
             >
-              <el-option
-                v-for="fItem in fieldOptions"
-                :key="fItem.value"
-                :label="fItem.label"
-                :value="fItem.value"
-              />
-            </el-select>
-            <el-select
-              v-model="formInline.type"
-              placeholder="Select"
-              style="width: 120px"
-              v-else
-              :disabled="nowRow.built_in || !isAdd ? true : false"
-            >
-              <el-option
-                v-for="vItem in validate_type[formInline.field_type]"
-                :key="vItem.type"
-                :label="vItem.description"
-                :value="vItem.type"
-              />
-            </el-select>
+              请输入完整的范围值
+            </span>
+            <span v-else-if="rangeMin > rangeMax"> 最小值不能大于最大值 </span>
           </div>
         </el-form-item>
-        <div v-if="formInline.type === 'regex'" class="flexJstart">
-          <el-text>测试正则</el-text>
+        <el-form-item
+          label="校验规则"
+          prop="rule"
+          v-else-if="formInline.type === 'regex'"
+          :required="true"
+        >
           <el-input
-            v-model="testRegex"
+            v-model="formInline.rule"
+            type="textarea"
             clearable
-            style="width: 200px; margin: 0 10px"
+            style="width: 300px"
           />
-          <el-icon
-            style="color: var(--el-color-success)"
-            :size="20"
-            v-if="testRegexRes"
+          <div
+            v-if="formInline.type === 'regex'"
+            class="flexJstart"
+            style="margin-top: 10px"
           >
-            <SuccessFilled />
-          </el-icon>
-          <el-icon style="color: var(--el-color-danger)" :size="20" v-else>
-            <WarningFilled />
-          </el-icon>
-        </div>
+            <el-text>测试正则</el-text>
+            <el-input
+              v-model="testRegex"
+              clearable
+              style="width: 200px; margin: 0 10px"
+            />
+            <el-icon
+              style="color: var(--el-color-success)"
+              :size="20"
+              v-if="testRegexRes"
+            >
+              <SuccessFilled />
+            </el-icon>
+            <el-icon style="color: var(--el-color-danger)" :size="20" v-else>
+              <WarningFilled />
+            </el-icon>
+          </div>
+        </el-form-item>
+        <el-form-item
+          v-else-if="formInline.type === 'enum'"
+          label="枚举值"
+          prop="rule"
+        >
+          <div style="overflow: auto; max-height: 200px">
+            <div
+              v-for="(item, index) in tmpFormData"
+              :key="index"
+              style="margin-right: 10px"
+            >
+              <el-input
+                v-model="item.name"
+                style="width: 90px; margin-right: 10px"
+              />
+              <el-input
+                v-model="item.value"
+                style="width: 160px; margin-right: 10px"
+              />
+              <el-button
+                circle
+                type="danger"
+                size="small"
+                :icon="CircleClose"
+                @click="rmField(index)"
+                v-if="tmpFormData.length !== 1"
+              ></el-button>
+              <el-button
+                circle
+                type="primary"
+                size="small"
+                :icon="CirclePlus"
+                @click="addField(index)"
+              ></el-button>
+            </div>
+          </div>
+        </el-form-item>
+        <el-form-item label="描述" prop="description">
+          <el-input
+            v-model="formInline.description"
+            type="textarea"
+            clearable
+            style="width: 300px"
+          />
+        </el-form-item>
       </el-form>
       <template #footer>
         <div class="dialog-footer">
@@ -254,6 +302,8 @@ const store = useStore();
 const validationRules = ref([]);
 import { useRoute } from "vue-router";
 const route = useRoute();
+import useModelStore from "@/store/cmdb/model";
+const modelConfigStore = useModelStore();
 const colValue = ref("verbose_name");
 const filterValue = ref<string>("");
 const filterParam = computed(() => {
@@ -273,6 +323,44 @@ const testRegexRes = computed(() => {
     return false;
   }
 });
+// 数组范围最小值和最大值
+const rangeMin = ref();
+const rangeMax = ref();
+const isRangeValid = computed(() => {
+  if (formInline.type !== "length" && formInline.type !== "range") {
+    return true;
+  }
+
+  // 检查是否都已填写
+  if (rangeMin.value === null || rangeMin.value === undefined) {
+    return false;
+  }
+  if (rangeMax.value === null || rangeMax.value === undefined) {
+    return false;
+  }
+
+  // 检查最小值是否不大于最大值
+  return rangeMin.value < rangeMax.value;
+});
+// 监听范围值变化，更新规则内容
+watch(
+  [rangeMin, rangeMax],
+  ([min, max]) => {
+    if (formInline.type === "length" || formInline.type === "range") {
+      // 只有当值有效时才更新规则
+      if (
+        min !== null &&
+        min !== undefined &&
+        max !== null &&
+        max !== undefined &&
+        min <= max
+      ) {
+        formInline.rule = `${min},${max}`;
+      }
+    }
+  },
+  { deep: true }
+);
 const tmpFormData = ref([{ name: "", value: "" }]);
 const arrayJson = computed(() => {
   let tempArr = {};
@@ -336,20 +424,20 @@ const colLists = ref([
     filter: true,
     type: "object",
   },
-  {
-    value: "rule",
-    label: "规则内容",
-    sort: false,
-    filter: true,
-    type: "string",
-  },
-  {
-    value: "description",
-    label: "描述",
-    sort: false,
-    filter: false,
-    type: "text",
-  },
+  // {
+  //   value: "rule",
+  //   label: "规则内容",
+  //   sort: false,
+  //   filter: true,
+  //   type: "string",
+  // },
+  // {
+  //   value: "description",
+  //   label: "描述",
+  //   sort: false,
+  //   filter: false,
+  //   type: "text",
+  // },
 ]);
 // 过滤选项
 const filterOptions = computed(() => {
@@ -369,7 +457,7 @@ const filterOptions = computed(() => {
 //     }
 //   })
 // })
-const formRef = ref("");
+const formRef = ref(null);
 // 表单字段
 const formInline = reactive({
   name: null,
@@ -418,12 +506,16 @@ const sortMethod = (data) => {
 const dialogVisible = ref(false);
 const handleClose = () => {
   dialogVisible.value = false;
-  resetForm(formRef.value);
-  nowRow.value = {};
+  nextTick(() => {
+    resetForm(formRef.value);
+    nowRow.value = {};
+  });
 };
 const isAdd = ref(true);
 const addData = () => {
   isAdd.value = true;
+  resetForm(formRef.value);
+
   nextTick(() => {
     dialogVisible.value = true;
   });
@@ -435,37 +527,53 @@ const editRow = (row) => {
   nowRow.value = row;
   dialogVisible.value = true;
   isAdd.value = false;
-  nextTick(() => {
-    Object.keys(row).forEach(
-      (item) => {
-        // if (formInline.hasOwnProperty(item)) formInline[item] = params[item]
-        if (item === "id") return;
-        // if (item === "rule" && row.field_type === "enum") {
-        //   formInline[item] = JSON.parse(row[item]);
-        // } else {
-        //   formInline[item] = row[item];
+  Object.assign(formInline, row);
 
-        // }
-        formInline[item] = row[item];
-      } // isDisabled.value = params.built_in
-    );
+  nextTick(() => {
+    //   Object.keys(row).forEach(
+    //     (item) => {
+    //       // if (formInline.hasOwnProperty(item)) formInline[item] = params[item]
+    //       if (item === "id") return;
+    //       // if (item === "rule" && row.field_type === "enum") {
+    //       //   formInline[item] = JSON.parse(row[item]);
+    //       // } else {
+    //       //   formInline[item] = row[item];
+
+    //       // }
+    //       formInline[item] = row[item];
+    //     } // isDisabled.value = params.built_in
+    //   );
     if (row.field_type === "enum") {
       let tmpArr = [];
       Object.keys(JSON.parse(row.rule)).forEach((item) => {
         tmpArr.push({ name: item, value: JSON.parse(row.rule)[item] });
       });
       tmpFormData.value = tmpArr;
+    } else if ((row.type === "length" || row.type === "range") && row.rule) {
+      try {
+        const rangeObj = row.rule.split(",");
+        // 取rangeObj的第一位，rangeObj的第二位为max,字符串转数值
+
+        rangeMin.value = rangeObj[0] !== undefined ? +rangeObj[0] : null;
+        rangeMax.value = rangeObj[1] !== undefined ? +rangeObj[1] : null;
+      } catch (e) {
+        console.warn("解析范围值失败:", e);
+      }
     }
     // formInline = params
     beforeEditFormData.value = JSON.parse(JSON.stringify(formInline));
-    console.log(beforeEditFormData.value);
+    // console.log(beforeEditFormData.value);
   });
 };
 
 const resetForm = (formEl) => {
   if (!formEl) return;
+  console.log(formEl);
   formEl.resetFields();
+  console.log(JSON.stringify(formInline));
   tmpFormData.value = [{ name: "", value: "" }];
+  rangeMin.value = null;
+  rangeMax.value = null;
 };
 // 获取字段类型字典
 const fieldOptions = ref([]);
@@ -482,19 +590,36 @@ const getRules = async (params = null) => {
   });
   validationRules.value = res.data.results;
   totalCount.value = res.data.count;
+  modelConfigStore.getValidationRules(true);
 };
 const getModelFieldType = async () => {
   let res = await proxy.$api.getCiModelFieldType();
   validate_type.value = res.data.field_validations;
   let fieldTypeObj = res.data.field_types;
-  Object.keys(fieldTypeObj).forEach((item) => {
-    fieldOptions.value.push({ value: item, label: fieldTypeObj[item] });
-  });
+  fieldOptions.value = Object.keys(fieldTypeObj)
+    .filter((item) => item !== "password" && item !== "model_ref")
+    .map((item) => ({ value: item, label: fieldTypeObj[item] }));
 };
 const updateParams = ref({});
 const submitAction = async (formEl) => {
   await formEl.validate(async (valid, fields) => {
     if (valid) {
+      // 添加对rangeMin和rangeMax的验证
+      if (formInline.type === "length" || formInline.type === "range") {
+        if (rangeMin.value === null || rangeMin.value === undefined) {
+          ElMessage({ type: "error", message: "请填写最小值" });
+          return;
+        }
+        if (rangeMax.value === null || rangeMax.value === undefined) {
+          ElMessage({ type: "error", message: "请填写最大值" });
+          return;
+        }
+        if (rangeMin.value > rangeMax.value) {
+          ElMessage({ type: "error", message: "最小值不能大于最大值" });
+          return;
+        }
+      }
+
       console.log(isUniq.value);
       if (isUniq.value) {
         ElMessage({ type: "error", message: "有重复值！" });

@@ -1,34 +1,27 @@
 import time
+import sys
+import traceback
+import logging
+
 from django.dispatch import receiver, Signal
+from django.contrib.auth.models import User
 from django.db.models.signals import post_save, post_delete, pre_save, pre_delete, post_migrate
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.core.cache import cache
 from cacheops import invalidate_model
 from django.db import transaction
 from django.db.utils import OperationalError
-from .config import BUILT_IN_MODELS, BUILT_IN_VALIDATION_RULES
-from .tasks import setup_host_monitoring
-from .utils import password_handler, zabbix_config
+
+
+from node_mg.utils import sys_config
+from audit.context import audit_context
+from mapi.system_user import SYSTEM_USER
+from .config import BUILT_IN_MODELS, BUILT_IN_RELATION_DEFINITION, BUILT_IN_VALIDATION_RULES
 from .utils.zabbix import ZabbixAPI
 from .constants import ValidationType
 from .message import instance_group_relation_updated
-from .models import (
-    ModelGroups,
-    Models,
-    ModelFieldGroups,
-    ValidationRules,
-    ModelFields,
-    UniqueConstraint,
-    ModelInstance,
-    ModelFieldMeta,
-    ModelInstanceGroup,
-    ModelInstanceGroupRelation,
-    RelationDefinition,
-    Relations,
-)
-import sys
-import traceback
-import logging
+from .models import *
+from .services import ModelsService, ModelFieldPreferenceService
 logger = logging.getLogger(__name__)
 
 
@@ -105,9 +98,10 @@ def _create_model_and_fields(model_name, model_config, model_group=None):
             # 检查模型是否存在
             model = Models.objects.filter(name=model_name).first()
             if not model:
+                user = SYSTEM_USER
                 model_serializer = ModelsSerializer(data=model_data)
                 if model_serializer.is_valid():
-                    model = model_serializer.save()
+                    model = ModelsService.create_model(model_serializer.validated_data, user=user)
                     logger.info(f"Created new model: {model_name}")
                 else:
                     logger.error(f"Model validation failed: {model_serializer.errors}")
@@ -164,53 +158,31 @@ def _create_model_and_fields(model_name, model_config, model_group=None):
                         logger.error(f"Field validation failed: {field_serializer.errors}")
                         raise ValueError(f"Invalid field data for {field_name}")
 
-            # 创建字段偏好设置
-            if not ModelFieldPreference.objects.filter(model=model).exists():
-                preferred_fields = list(
-                    ModelFields.objects.filter(
-                        model=model
-                    ).order_by('order').values_list('id', flat=True)[:8]
-                )
-
-                preference_data = {
-                    'model': model.id,
-                    'fields_preferred': [str(f) for f in preferred_fields],
-                    'create_user': 'system',
-                    'update_user': 'system'
-                }
-
-                preference_serializer = ModelFieldPreferenceSerializer(data=preference_data)
-                if preference_serializer.is_valid(raise_exception=True):
-                    preference_serializer.save()
-                    logger.info(f"Created field preference for model {model_name}")
-                else:
-                    logger.error(f"Preference validation failed: {preference_serializer.errors}")
-
             # 为每个内置模型添加一个默认的唯一性校验规则：使用ip字段校验
             # 只给hosts 和 network设备添加
-            if model_name in ['hosts', 'switches', 'firewalls', 'dwdm', 'virtual_machines']:
-                field_ip = ModelFields.objects.filter(
-                    model=model,
-                    name='ip'
-                ).first()
-                if not UniqueConstraint.objects.filter(
-                    model=model,
-                    fields=[str(field_ip.id)]
-                ).exists() and field_ip:
-                    # 创建唯一性约束
-                    unique_constraint_data = {
-                        'model': model.id,
-                        'fields': [str(field_ip.id)],
-                        'built_in': True,
-                        'create_user': 'system',
-                        'update_user': 'system'
-                    }
-                    unique_constraint_serializer = UniqueConstraintSerializer(data=unique_constraint_data)
-                    if unique_constraint_serializer.is_valid(raise_exception=True):
-                        unique_constraint_serializer.save()
-                        logger.info(f"Created unique constraint for model {model_name}")
-                    else:
-                        logger.error(f"Unique constraint validation failed: {unique_constraint_serializer.errors}")
+            # if model_name in ['hosts', 'switches', 'firewalls', 'dwdm', 'virtual_machines']:
+            #     field_ip = ModelFields.objects.filter(
+            #         model=model,
+            #         name='ip'
+            #     ).first()
+            #     if not UniqueConstraint.objects.filter(
+            #         model=model,
+            #         fields=[str(field_ip.id)]
+            #     ).exists() and field_ip:
+            #         # 创建唯一性约束
+            #         unique_constraint_data = {
+            #             'model': model.id,
+            #             'fields': [str(field_ip.id)],
+            #             'built_in': True,
+            #             'create_user': 'system',
+            #             'update_user': 'system'
+            #         }
+            #         unique_constraint_serializer = UniqueConstraintSerializer(data=unique_constraint_data)
+            #         if unique_constraint_serializer.is_valid(raise_exception=True):
+            #             unique_constraint_serializer.save()
+            #             logger.info(f"Created unique constraint for model {model_name}")
+            #         else:
+            #             logger.error(f"Unique constraint validation failed: {unique_constraint_serializer.errors}")
 
     except Exception as e:
         logger.error(f"Error creating model and fields for {model_name}: {str(e)}")
@@ -257,8 +229,10 @@ def _initialize_model_groups():
     """初始化模型分组"""
     from .models import ModelGroups
     from .serializers import ModelGroupsSerializer
-    with transaction.atomic():
 
+    invalidate_model(ModelGroups)
+
+    with transaction.atomic():
         # 创建初始模型组
         group_configs = [
             {'name': 'host', 'verbose_name': '主机'},
@@ -292,32 +266,92 @@ def _initialize_model_groups():
             model_groups[group_config['name']] = group
 
 
+def _initialize_relation_definition():
+    """初始化关系定义"""
+    from .models import RelationDefinition, Models, ValidationRules
+    from .serializers import RelationDefinitionSerializer
+    models_dict = {model.name: str(model.id) for model in Models.objects.all()}
+
+    invalidate_model(RelationDefinition)
+    for relation_config in BUILT_IN_RELATION_DEFINITION:
+        try:
+            with transaction.atomic():
+                s_m = [models_dict.get(name) for name in relation_config['source_model']]
+                t_m = [models_dict.get(name) for name in relation_config['target_model']]
+                a_s = relation_config['attribute_schema']
+                for t, a in a_s.items():
+                    for attr_name, attr_config in a.items():
+                        if attr_config['type'] == 'enum' and 'validation_rule' in attr_config:
+                            vr = ValidationRules.objects.filter(name=attr_config['validation_rule']).first()
+                            if vr:
+                                attr_config['validation_rule'] = str(vr.id)
+                            else:
+                                logger.error(
+                                    f"Validation rule {attr_config['validation_rule']} not found for relation attribute")
+                                raise ValueError(f"Validation rule {attr_config['validation_rule']} not found")
+                relation_data = {
+                    'name': relation_config['name'],
+                    'built_in': True,
+                    'topology_type': relation_config['topology_type'],
+                    'forward_verb': relation_config['forward_verb'],
+                    'reverse_verb': relation_config['reverse_verb'],
+                    'source_model': s_m,
+                    'target_model': t_m,
+                    'description': relation_config['description'],
+                    'attribute_schema': a_s,
+                    'built_in': True,
+                    'create_user': 'system',
+                    'update_user': 'system'
+                }
+                if RelationDefinition.objects.filter(name=relation_config['name']).exists():
+                    # logger.info(f"Relation definition {relation_config['name']} already exists, skipping")
+                    continue
+                relation_serializer = RelationDefinitionSerializer(data=relation_data)
+                if relation_serializer.is_valid(raise_exception=True):
+                    relation_serializer.save()
+                    logger.info(f"Created relation definition: {relation_config['name']}")
+                else:
+                    logger.error(f"Relation definition validation failed: {relation_serializer.errors}")
+        except Exception as e:
+            logger.error(f"Error creating relation definition {relation_config['name']}: {str(e)}")
+            raise
+
+
 @receiver(post_migrate)
 def initialize_cmdb(sender, **kwargs):
     """初始化 CMDB 应用"""
     # 仅允许通过 migrate cmdb 命令触发初始化
-    if not all([kw in sys.argv for kw in ['cmdb', 'migrate']]) or sender.name != 'cmdb':
+    if sender.name != 'cmdb':
         return
     logger.info(f'Initializing CMDB application')
-    try:
-        # 创建模型分组
-        _initialize_model_groups()
+    with audit_context(
+        request_id='migrate_cmdb_init',
+        correlation_id='migrate_cmdb_init',
+        operator='system',
+        operator_ip='127.0.0.1',
+        comment='初始化 CMDB 应用'
+    ):
+        try:
+            # 创建模型分组
+            _initialize_model_groups()
 
-        # 创建验证规则
-        _initialize_validation_rules()
+            # 创建验证规则
+            _initialize_validation_rules()
 
-        # 创建内置模型及其字段配置
-        model_groups = {group.name: group for group in ModelGroups.objects.all()}
-        for model_name, model_config in BUILT_IN_MODELS.items():
-            group_name = model_config.get('model_group')
-            model_group = model_groups.get(group_name, model_groups['others'])
-            _create_model_and_fields(model_name, model_config, model_group)
+            # 创建内置模型及其字段配置
+            model_groups = {group.name: group for group in ModelGroups.objects.all()}
+            for model_name, model_config in BUILT_IN_MODELS.items():
+                group_name = model_config.get('model_group')
+                model_group = model_groups.get(group_name, model_groups['others'])
+                _create_model_and_fields(model_name, model_config, model_group)
 
-        logger.info(f'CMDB application initialized successfully')
-    except OperationalError:
-        logger.warning("Database not ready, skipping initialization")
-    except Exception as e:
-        logger.error(f"Error during CMDB initialization: {traceback.format_exc()}")
+            _initialize_relation_definition()
+
+            logger.info(f'CMDB application initialized successfully')
+        except OperationalError:
+            logger.warning("Database not ready, skipping initialization")
+        except Exception as e:
+            logger.error(f"Error during CMDB initialization: {traceback.format_exc()}")
 
 
 @receiver(post_save, sender=ModelFieldMeta)
@@ -353,71 +387,16 @@ def update_instance_name_on_field_change(sender, instance, created, **kwargs):
 
         # 更新名称
         model_instance.instance_name = new_name
-        model_instance.save(update_fields=['instance_name', 'update_time'])
-        logger.info(f"Updated instance name to {new_name} for instance {model_instance.id}")
+        # model_instance.save(update_fields=['instance_name', 'update_time'])
+        # logger.info(f"Updated instance name to {new_name} for instance {model_instance.id}")
     except Exception as e:
         logger.error(f"Error generating instance name: {str(e)}")
-
-
-@receiver(post_save, sender=ModelInstance)
-def sync_zabbix_host(sender, instance, created, **kwargs):
-    """同步Zabbix主机"""
-    if not zabbix_config.is_zabbix_sync_enabled():
-        return
-
-    def delayed_process():
-        try:
-            model = Models.objects.get(id=instance.model_id)
-            if model.name != 'hosts':
-                return
-
-            # 获取主机信息
-            host_info = {}
-            field_values = ModelFieldMeta.objects.filter(
-                model_instance=instance
-            ).select_related('model_fields')
-
-            for field in field_values:
-                logger.debug(f"Field: {field.model_fields.name}, Value: {field.data}")
-                if field.model_fields.name == 'ip':
-                    host_info[field.model_fields.name] = field.data
-                elif field.model_fields.name == 'system_password':
-                    host_info[field.model_fields.name] = password_handler.decrypt_to_plain(field.data)
-
-            groups = []
-            instance_group_relations = ModelInstanceGroupRelation.objects.filter(
-                instance=instance
-            ).select_related('group')
-            for relation in instance_group_relations:
-                if relation.group.path not in ['所有', '所有/空闲池']:
-                    groups.append(relation.group.path.replace('所有/', ''))
-
-            if not host_info.get('ip'):
-                logger.warning(f"Missing required host information for instance {instance.id}")
-                return
-
-            logger.info(f"Syncing Zabbix host for IP: {host_info.get('ip')} instance: {instance.id}")
-
-            # 异步创建Zabbix主机
-            setup_host_monitoring.delay(
-                instance_id=str(instance.id),
-                instance_name=instance.instance_name,
-                ip=host_info['ip'],
-                password=host_info['system_password'],
-                groups=groups
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to sync Zabbix host: {str(e)}")
-
-    transaction.on_commit(delayed_process)
-    logger.info(f'Syncing Zabbix host for instance {instance.id} completed')
 
 
 @receiver(pre_delete, sender=ModelInstance)
 def prepare_delete_zabbix_host(sender, instance, **kwargs):
     """准备删除Zabbix主机"""
-    if not zabbix_config.is_zabbix_sync_enabled():
+    if not sys_config.is_zabbix_sync_enabled():
         return
     logger.info(f"Preparing to delete Zabbix host for instance {instance.id}")
     try:
@@ -448,53 +427,14 @@ def prepare_delete_zabbix_host(sender, instance, **kwargs):
         logger.error(f"Failed to prepare delete Zabbix host: {str(e)}")
 
 
-@receiver(post_delete, sender=ModelInstance)
-def delete_zabbix_host(sender, instance, **kwargs):
-    """删除Zabbix主机"""
-    if not zabbix_config.is_zabbix_sync_enabled():
-        return
-    a = time.perf_counter()
-
-    def delayed_process():
-        logger.debug(f'Delayed process started for instance {instance.id}')
-        try:
-            model = Models.objects.get(id=instance.model_id)
-            if model.name != 'hosts':
-                return
-
-            # 获取主机信息
-            cache_key = f'delete_zabbix_host_{instance.id}'
-            cache_data = cache.get(cache_key)
-            if not cache_data:
-                logger.warning(f"Missing required host information for instance {instance.id}")
-                return
-
-            logger.info(f"Deleting Zabbix host for IP: {cache_data.get('ip')} instance: {instance.id}")
-            # 异步删除Zabbix主机
-            setup_host_monitoring.delay(
-                instance_id=str(instance.id),
-                instance_name=instance.instance_name,
-                ip=cache_data.get('ip'),
-                password=None,
-                delete=True
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to delete Zabbix host: {str(e)}")
-
-    logger.debug(f'Scheduling delayed process for instance {instance.id}')
-    transaction.on_commit(delayed_process)
-    b = time.perf_counter()
-    logger.info(f'Deleting Zabbix host for instance {instance.id} completed in {b - a}s')
-
-
-@receiver(post_save, sender=ModelInstanceGroup)
+# 此信号弃用，实例自身path由模型方法主动计算，子节点path更新由update_descendant_paths处理
+# @receiver(post_save, sender=ModelInstanceGroup)
 def handle_group_path(sender, instance, created, **kwargs):
     """
     处理实例分组path更新和Zabbix主机组同步
     使用递归方式处理所有子节点
     """
-    if not zabbix_config.is_zabbix_sync_enabled():
+    if not sys_config.is_zabbix_sync_enabled():
         return
     # 检查是否需要跳过信号处理
     if getattr(instance, '_skip_signal', False):
@@ -541,10 +481,47 @@ def handle_group_path(sender, instance, created, **kwargs):
         logger.error(f"Update group path error: {str(e)}")
 
 
+@receiver(pre_save, sender=ModelInstanceGroup)
+def cache_old_path(sender, instance, **kwargs):
+    """在保存前缓存旧的path值"""
+    if not instance.pk or getattr(instance, '_skip_signal', False):
+        return
+    try:
+        old_instance = sender.objects.get(pk=instance.pk)
+        instance._old_path = old_instance.path
+    except sender.DoesNotExist:
+        instance._old_path = None
+
+
+@receiver(post_save, sender=ModelInstanceGroup)
+def update_descendant_paths(sender, instance, created, **kwargs):
+    """
+    当一个 ModelInstanceGroup 的 path 发生变化时，
+    异步或在独立事务中递归更新其所有后代分组的 path。
+    """
+    ModelInstanceGroup.objects.clear_children_cache()
+    if created:
+        return
+    if getattr(instance, '_skip_signal', False) or kwargs.get('_skip_path_update', False):
+        return
+
+    old_path = getattr(instance, '_old_path', None)
+    new_path = instance.path
+
+    # 只有在 path 确实发生变化时才执行更新
+    if old_path != new_path:
+        # logger.debug(f"Path for group '{instance.label}' changed from '{old_path}' to '{new_path}'. Triggering descendant path update.")
+
+        def do_update():
+            instance.update_child_path()
+
+        transaction.on_commit(do_update)
+
+
 @receiver(pre_delete, sender=ModelInstanceGroup)
 def prepare_delete_instance_group(sender, instance, **kwargs):
     """准备删除实例分组"""
-    if not zabbix_config.is_zabbix_sync_enabled():
+    if not sys_config.is_zabbix_sync_enabled():
         return
     try:
         if instance.model.name != 'hosts':
@@ -567,7 +544,7 @@ def prepare_delete_instance_group(sender, instance, **kwargs):
 @receiver(post_delete, sender=ModelInstanceGroup)
 def handle_group_deletion(sender, instance, **kwargs):
     """处理实例分组删除后的操作"""
-    if not zabbix_config.is_zabbix_sync_enabled():
+    if not sys_config.is_zabbix_sync_enabled():
         return
     try:
 
@@ -615,7 +592,7 @@ def handle_group_deletion(sender, instance, **kwargs):
 @receiver(instance_group_relation_updated)
 def sync_zabbix_hostgroup_relation(sender, hosts, groups, **kwargs):
     """同步实例分组关联到Zabbix"""
-    if not zabbix_config.is_zabbix_sync_enabled():
+    if not sys_config.is_zabbix_sync_enabled():
         return
     try:
         # 同步主机组关联
@@ -672,3 +649,34 @@ def on_validation_rule_save(sender, instance, **kwargs):
 def on_validation_rule_delete(sender, instance, **kwargs):
     if instance.type == ValidationType.ENUM:
         ValidationRules.clear_specific_enum_cache(instance.id)
+
+
+# 信跨应用传递信号
+# 模型
+model_signal = Signal(providing_args=["instance", "action"])
+
+
+@receiver(post_save, sender=Models)
+def send_model_created_signal(sender, instance, created, **kwargs):
+    """
+    模型创建或更新时触发同步
+    """
+    if created:
+        model_signal.send(sender=sender, instance=instance, action='create')
+# 实例分组
+
+
+# 模型实例
+model_instance_signal = Signal(providing_args=["instance", "action"])
+# 创建或更新时，信号同步给node
+
+
+@receiver(post_save, sender=ModelInstance, dispatch_uid="sync_to_nodes")
+def send_model_instance_signal(sender, instance, created, **kwargs):
+    model_instance_signal.send(sender=sender, instance=instance, action=created)
+# 删除时，信号同步给node
+
+
+@receiver(pre_delete, sender=ModelInstance, dispatch_uid="delete_to_nodes")
+def send_model_instance_delete_signal(sender, instance, **kwargs):
+    model_instance_signal.send(sender=sender, instance=instance, action='delete')

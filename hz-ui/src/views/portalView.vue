@@ -1,7 +1,7 @@
 <template>
   <div class="card">
-    <div class="user-header">
-      <div>
+    <div class="portal-header">
+      <div class="toolbar">
         <el-button
           type="primary"
           size="small"
@@ -16,19 +16,9 @@
           @click="handleShowPgroup"
           >新增分组</el-button
         >
-        <!-- <el-button  type="primary" size="small" @click="insertDaemonData">插入样例数据</el-button> -->
         <el-button
           v-permission="`${route.name?.replace('_info', '')}:delete`"
-          v-if="multipleSelect.length == 0"
-          disabled
-          type="danger"
-          size="small"
-          @click="handleDeleteMore"
-          >批量删除</el-button
-        >
-        <el-button
-          v-permission="`${route.name?.replace('_info', '')}:delete`"
-          v-else
+          :disabled="multipleSelect.length === 0"
           type="danger"
           size="small"
           @click="handleDeleteMore"
@@ -54,49 +44,93 @@
           </template>
         </el-dropdown>
       </div>
-      <el-form
-        :inline="true"
-        :model="filterObject"
-        size="small"
-        class="demo-form-inline"
-      >
-        <el-form-item label="名称">
-          <el-input
-            v-model="filterObject.search"
-            placeholder="输入名称"
-            clearable
+
+      <div class="search-filters">
+        <el-input
+          v-model="searchText"
+          placeholder="输入名称、链接或描述"
+          clearable
+          @clear="handleSearch"
+          @keyup.enter="handleSearch"
+          style="width: 200px; margin-right: 10px"
+        >
+          <template #append>
+            <el-button :icon="Search" @click="handleSearch" />
+          </template>
+        </el-input>
+
+        <el-select
+          v-model="filterGroupId"
+          placeholder="选择分组"
+          clearable
+          @change="handleFilterChange"
+          style="width: 150px; margin-right: 10px"
+        >
+          <el-option
+            v-for="item in pgroupData"
+            :key="item.id"
+            :label="item.group"
+            :value="item.id"
           />
-        </el-form-item>
+        </el-select>
 
-        <el-form-item>
-          <el-button type="primary" size="small" @click="handleSearch"
-            >查询</el-button
-          >
-        </el-form-item>
-      </el-form>
+        <el-select
+          v-model="filterSharingType"
+          placeholder="共享类型"
+          clearable
+          @change="handleFilterChange"
+          style="width: 120px; margin-right: 10px"
+        >
+          <el-option label="公共" value="public" />
+          <el-option label="私人" value="private" />
+        </el-select>
+
+        <el-button @click="resetFilters">重置</el-button>
+      </div>
     </div>
-    <!-- 表格 -->
 
+    <!-- 表格 -->
     <el-table
       border
       :data="tableData"
       style="width: 100%; flex: 1"
       max-height="100%"
       @selection-change="handleSelectionChange"
+      v-loading="loading"
     >
       <el-table-column type="selection" width="55" />
-      <el-table-column
-        v-for="item in tableDataCol"
-        :key="item.prop"
-        :label="item.label"
-        :prop="item.prop"
-      >
-        <template #default="scope" v-if="item.prop === 'group'">
+
+      <el-table-column prop="name" label="名称" min-width="120" />
+
+      <el-table-column prop="url" label="链接地址" min-width="180" />
+
+      <el-table-column prop="group_name" label="分组" min-width="100">
+        <template #default="scope">
           <el-tag>
-            {{ pgroupObject[scope.row.group] }}
+            {{ scope.row.group_name }}
           </el-tag>
         </template>
-        <template #default="scope" v-if="item.prop === 'status'">
+      </el-table-column>
+
+      <el-table-column prop="sharing_type" label="共享类型" min-width="80">
+        <template #default="scope">
+          <el-tag
+            :type="scope.row.sharing_type === 'public' ? 'success' : 'warning'"
+          >
+            {{ scope.row.sharing_type === "public" ? "公共" : "私人" }}
+          </el-tag>
+        </template>
+      </el-table-column>
+
+      <el-table-column prop="owner_name" label="所有者" min-width="100">
+        <template #default="scope">
+          <span v-if="scope.row.owner_name">{{ scope.row.owner_name }}</span>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
+
+      <el-table-column prop="status" label="状态" width="80">
+        <template #default="scope">
           <el-switch
             v-model="scope.row.status"
             class="ml-2"
@@ -109,6 +143,8 @@
         </template>
       </el-table-column>
 
+      <el-table-column prop="sort" label="排序" width="80" />
+
       <el-table-column fixed="right" label="操作" width="150">
         <template #default="scope">
           <el-button
@@ -120,7 +156,6 @@
             编辑
           </el-button>
 
-          <!-- <el-button v-if="scope.row.username == 'admin'" type="danger" size="small" disabled @click="handleDelete(scope.row)">删除</el-button> -->
           <el-button
             v-permission="`${route.name?.replace('_info', '')}:delete`"
             type="danger"
@@ -132,34 +167,27 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <!-- 分页 -->
     <el-pagination
       v-model:current-page="tablePageConfig.page"
       v-model:page-size="tablePageConfig.page_size"
       :page-sizes="[10, 20, 50, 100]"
       layout="total, sizes, prev, pager, next, jumper"
       :total="tableDataTotal"
-      style="margin-top: 5px; justify-content: flex-end"
+      style="margin-top: 15px; justify-content: flex-end"
+      @size-change="handleSizeChange"
+      @current-change="handleCurrentChange"
     >
     </el-pagination>
-    <!-- <div style="display: flex; justify-content: center; margin-top: 10px">
-        <el-pagination
-          v-model:current-page="tablePageConfig.page"
-          v-model:page-size="tablePageConfig.size"
-          small
-          background
-          layout="prev, pager, next"
-          :total="tableDataTotal"
-          :hide-on-single-page="tableIsPage"
-          @current-change="handleCurrentChangeTable"
-        />
-      </div> -->
   </div>
+
   <!-- 门户组的弹出框 -->
-  <el-dialog v-model="diaglogPgroup" title="编辑分组" width="30%">
+  <el-dialog v-model="diaglogPgroup" title="编辑分组" width="50%">
     <template #footer>
       <el-dialog
         v-model="innerVisible"
-        width="20%"
+        width="30%"
         :title="pgroupAction === 'add' ? '新增分组' : '编辑分组'"
         append-to-body
       >
@@ -175,11 +203,13 @@
           <el-form-item
             label="分组名称"
             prop="group"
-            :rules="[{ required: true }]"
+            :rules="[
+              { required: true, message: '请输入分组名称', trigger: 'blur' },
+            ]"
           >
             <el-input
               v-model="pgroupFormInline.group"
-              placeholder=""
+              placeholder="请输入分组名称"
               clearable
             />
           </el-form-item>
@@ -195,60 +225,52 @@
       </el-dialog>
     </template>
     <template #default>
-      <div class="user-header">
-        <div>
+      <div class="pgroup-container">
+        <div class="toolbar">
           <el-button type="primary" size="small" @click="handleAddPgroup"
             >新增</el-button
           >
           <el-button
-            v-if="multipleSelect.length == 0"
-            disabled
-            type="danger"
-            size="small"
-            @click="handleDeleteMorePgroup"
-            >批量删除</el-button
-          >
-          <el-button
-            v-else
+            :disabled="multipleSelectPgroup.length === 0"
             type="danger"
             size="small"
             @click="handleDeleteMorePgroup"
             >批量删除</el-button
           >
         </div>
-      </div>
-      <el-table
-        :data="pgroupData"
-        :default-sort="{ prop: 'id', order: 'ascending' }"
-        @selection-change="handleSelectionChangePgroup"
-      >
-        <el-table-column type="selection" width="55" />
-        <el-table-column prop="group" label="分组名" sortable />
-        <el-table-column fixed="right" label="操作">
-          <template #default="scope">
-            <el-button
-              type="primary"
-              size="small"
-              v-permission="`${route.name?.replace('_info', '')}:edit`"
-              link
-              :icon="Edit"
-              @click="handleEditPgroup(scope.row)"
-            >
-            </el-button>
+        <el-table
+          :data="pgroupData"
+          :default-sort="{ prop: 'id', order: 'ascending' }"
+          @selection-change="handleSelectionChangePgroup"
+          border
+        >
+          <el-table-column type="selection" width="55" />
+          <el-table-column prop="group" label="分组名" sortable />
+          <el-table-column fixed="right" label="操作" width="120">
+            <template #default="scope">
+              <el-button
+                type="primary"
+                size="small"
+                v-permission="`${route.name?.replace('_info', '')}:edit`"
+                link
+                :icon="Edit"
+                @click="handleEditPgroup(scope.row)"
+              >
+              </el-button>
 
-            <!-- <el-button v-if="scope.row.username == 'admin'" type="danger" size="small" disabled @click="handleDelete(scope.row)">删除</el-button> -->
-            <el-button
-              type="danger"
-              v-permission="`${route.name?.replace('_info', '')}:delete`"
-              link
-              size="small"
-              :icon="Delete"
-              @click="handleDeletePgroup(scope.row)"
-            >
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+              <el-button
+                type="danger"
+                v-permission="`${route.name?.replace('_info', '')}:delete`"
+                link
+                size="small"
+                :icon="Delete"
+                @click="handleDeletePgroup(scope.row)"
+              >
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
     </template>
   </el-dialog>
 
@@ -256,23 +278,28 @@
   <el-dialog
     v-model="diaglogPortal"
     :title="portalAction == 'add' ? '新增链接' : '编辑链接'"
-    width="50%"
+    width="600px"
   >
     <el-form
-      :inline="true"
       :model="portalFormInline"
-      class="demo-form-inline"
+      class="portal-form"
       label-position="right"
       label-width="80px"
       ref="portalForm"
       status-icon
     >
-      <el-row>
+      <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="名称" prop="name" :rules="[{ required: true }]">
+          <el-form-item
+            label="名称"
+            prop="name"
+            :rules="[
+              { required: true, message: '请输入名称', trigger: 'blur' },
+            ]"
+          >
             <el-input
               v-model="portalFormInline.name"
-              placeholder=""
+              placeholder="请输入名称"
               clearable
             />
           </el-form-item>
@@ -281,50 +308,69 @@
           <el-form-item
             label="链接地址"
             prop="url"
-            :rules="[{ required: true }]"
-            style="width: 90%"
+            :rules="[
+              { required: true, message: '请输入链接地址', trigger: 'blur' },
+            ]"
           >
-            <el-input v-model="portalFormInline.url" placeholder="" clearable />
-          </el-form-item>
-        </el-col>
-      </el-row>
-      <el-row>
-        <el-col :span="12">
-          <el-form-item label="描述" prop="describe">
             <el-input
-              v-model="portalFormInline.describe"
-              placeholder=""
+              v-model="portalFormInline.url"
+              placeholder="请输入链接地址"
               clearable
-              style="width: 100%"
-              :autosize="{ minRows: 2, maxRows: 4 }"
-              type="textarea"
             />
           </el-form-item>
         </el-col>
+      </el-row>
+
+      <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="分组" prop="group" :rules="[{ required: true }]">
+          <el-form-item
+            label="分组"
+            prop="group"
+            :rules="[
+              { required: true, message: '请选择分组', trigger: 'change' },
+            ]"
+          >
             <el-select
               v-model="portalFormInline.group"
               filterable
-              placeholder="Select"
-              style="width: 120px"
+              placeholder="请选择分组"
+              style="width: 100%"
             >
               <el-option
                 v-for="item in pgroupData"
-                :key="item.value"
+                :key="item.id"
                 :label="item.group"
                 :value="item.id"
               />
             </el-select>
           </el-form-item>
         </el-col>
+        <el-col :span="12">
+          <el-form-item
+            label="共享类型"
+            prop="sharing_type"
+            :rules="[
+              { required: true, message: '请选择共享类型', trigger: 'change' },
+            ]"
+          >
+            <el-select
+              v-model="portalFormInline.sharing_type"
+              placeholder="请选择共享类型"
+              style="width: 100%"
+            >
+              <el-option label="公共" value="public" />
+              <el-option label="私人" value="private" />
+            </el-select>
+          </el-form-item>
+        </el-col>
       </el-row>
-      <el-row>
+
+      <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item label="用户名" prop="username">
             <el-input
               v-model="portalFormInline.username"
-              placeholder=""
+              placeholder="请输入用户名"
               clearable
             />
           </el-form-item>
@@ -333,29 +379,22 @@
           <el-form-item label="密码" prop="password">
             <el-input
               v-model="portalFormInline.password"
-              placeholder=""
+              placeholder="请输入密码"
               clearable
+              show-password
             />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-row>
+
+      <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item
-            label="状态"
-            prop="status"
-            :rules="[{ required: true }]"
-          >
-            <el-switch
-              v-model="portalFormInline.status"
-              class="ml-2"
-              inline-prompt
-              style="
-                --el-switch-on-color: #13ce66;
-                --el-switch-off-color: #ff4949;
-              "
-              active-text="Y"
-              inactive-text="N"
+          <el-form-item label="排序" prop="sort">
+            <el-input-number
+              v-model="portalFormInline.sort"
+              controls-position="right"
+              :min="0"
+              style="width: 100%"
             />
           </el-form-item>
         </el-col>
@@ -369,23 +408,55 @@
                 --el-switch-on-color: #13ce66;
                 --el-switch-off-color: #ff4949;
               "
-              active-text="Y"
-              inactive-text="N"
+              active-text="新窗口"
+              inactive-text="当前窗口"
             />
           </el-form-item>
         </el-col>
       </el-row>
 
-      <el-row style="justify-content: space-around">
+      <el-row :gutter="20">
+        <el-col :span="24">
+          <el-form-item label="描述" prop="describe">
+            <el-input
+              v-model="portalFormInline.describe"
+              placeholder="请输入描述"
+              clearable
+              type="textarea"
+              :autosize="{ minRows: 2, maxRows: 4 }"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item label="状态" prop="status">
+            <el-switch
+              v-model="portalFormInline.status"
+              class="ml-2"
+              inline-prompt
+              style="
+                --el-switch-on-color: #13ce66;
+                --el-switch-off-color: #ff4949;
+              "
+              active-text="启用"
+              inactive-text="禁用"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-row style="justify-content: flex-end; margin-top: 20px">
         <el-form-item>
           <el-button @click="cancelAdd">取消</el-button>
           <el-button type="primary" @click="handleCommit"> 确定</el-button>
         </el-form-item>
       </el-row>
-      <!-- </div> -->
     </el-form>
   </el-dialog>
-  <el-dialog v-model="importData" title="导入" width="800">
+
+  <el-dialog v-model="importData" title="导入" width="600px">
     <el-upload
       class="upload-demo"
       drag
@@ -401,19 +472,12 @@
       <el-icon class="el-icon--upload"><upload-filled /></el-icon>
       <div class="el-upload__text">拖拽文件到此或者 <em>点击上传文件</em></div>
       <template #tip>
-        <el-row justify="space-between" align="middle">
-          <el-col :span="18">
-            <div>只支持从此系统下载的模板导入，请按右侧按钮下载模板!</div>
-          </el-col>
-          <el-col :span="3">
-            <!-- <el-button link type="primary" @click="rmFileList()"
-              >清除文件列表</el-button
-            > -->
-            <el-button link type="primary" @click="exportTemplate()"
-              >点击下载模板</el-button
-            >
-          </el-col>
-        </el-row>
+        <div class="upload-tip">
+          <div>只支持从此系统下载的模板导入，请按下方按钮下载模板!</div>
+          <el-button link type="primary" @click="exportTemplate()">
+            下载模板
+          </el-button>
+        </div>
       </template>
     </el-upload>
   </el-dialog>
@@ -429,354 +493,202 @@ import {
   computed,
 } from "vue";
 import { ElMessageBox, ElMessage } from "element-plus";
-import { Delete, Edit, CircleClose, CirclePlus } from "@element-plus/icons-vue";
-
+import { Delete, Edit, Search } from "@element-plus/icons-vue";
 import { useStore } from "vuex";
-import upload from "../components/uploadCom.vue";
 import { useRoute } from "vue-router";
+
 const route = useRoute();
 const store = useStore();
 const { proxy } = getCurrentInstance();
+
 defineOptions({ name: "portalView" });
 
-const filterObject = ref({
-  search: null,
+// 搜索和过滤
+const searchText = ref("");
+const filterGroupId = ref("");
+const filterSharingType = ref("");
+
+// 加载状态
+const loading = ref(false);
+
+// 分页配置
+const tablePageConfig = reactive({
+  page: 1,
+  page_size: 10,
 });
+
+const allTableDataConfig = reactive({
+  page: 1,
+  page_size: 10,
+  owner: store.state.userinfo.user_id,
+});
+
+// 表格数据
+const tableData = ref([]);
+const tableDataTotal = ref(0);
+
+// 分组数据
 const pgroupData = ref([]);
-const pgroupDataPage = ref([]);
+
+// 弹窗状态
 const diaglogPgroup = ref(false);
 const innerVisible = ref(false);
-const pgroupAction = ref("add");
-const pgroupIsPage = ref(true);
-const pgroupFormInline = reactive({
-  group: "",
-  owner: store.state.userinfo.user_id,
-});
-
-const pgroupTotal = ref(0);
-const allDataConfig = reactive({
-  owner: store.state.userinfo.user_id,
-});
-
-//
-const handleShowPgroup = () => {
-  diaglogPgroup.value = true;
-};
-// 分页
-
-// pgroup多选
-const multipleSelectPgroup = ref([]);
-const handleSelectionChangePgroup = (val) => {
-  multipleSelectPgroup.value = val;
-};
-// portal多选
-const multipleSelect = ref([]);
-const handleSelectionChange = (val) => {
-  multipleSelect.value = val;
-  console.log(multipleSelect.value);
-};
-const mulSelectArr = computed(() => {
-  let delList = [];
-  for (let row in multipleSelect.value) {
-    delList.push(multipleSelect.value[row].id);
-  }
-  return delList;
-});
-// 批量删除
-const handleDeleteMorePgroup = () => {
-  ElMessageBox.confirm("是否确认删除?", "Warning", {
-    confirmButtonText: "确认删除",
-    cancelButtonText: "取消",
-    type: "warning",
-    draggable: true,
-  })
-    .then(async () => {
-      // 发起删除请求
-      let delList = [];
-      for (let row in multipleSelect.value) {
-        delList.push(multipleSelect.value[row].id);
-      }
-
-      let res = await proxy.$api.portalMuldel({ pks: delList });
-
-      if (res.status == 204) {
-        ElMessage({
-          type: "success",
-          message: "删除成功",
-        });
-      } else {
-        ElMessage({
-          type: "error",
-          message: "删除失败",
-        });
-      }
-      // sleep(20000)
-      getPgroupData();
-    })
-    .catch(() => {
-      ElMessage({
-        type: "info",
-        message: "Delete canceled",
-      });
-    });
-};
-const handleAddPgroup = () => {
-  innerVisible.value = true;
-  pgroupAction.value = "add";
-};
-const handleEditPgroup = (row) => {
-  innerVisible.value = true;
-  pgroupAction.value = "edit";
-  proxy.$nextTick(() => {
-    Object.assign(pgroupFormInline, row);
-  });
-};
-const pgroupObject = computed(() => {
-  let _pgroupObject = {};
-  pgroupData.value.forEach((item) => {
-    _pgroupObject[item.id] = item.group;
-  });
-  return _pgroupObject;
-});
-const getPgroupData = async () => {
-  let res = await proxy.$api.pgroupGet({ page: 1, page_size: 1000 });
-  pgroupData.value = res.data.results;
-};
-const handleDeletePgroup = (row) => {
-  ElMessageBox.confirm("是否确认删除?", "Warning", {
-    confirmButtonText: "确认删除",
-    cancelButtonText: "取消",
-    type: "warning",
-    draggable: true,
-  })
-    .then(async () => {
-      // 发起删除请求
-      let res = await proxy.$api.pgroupDel(row.id);
-      if (res.status == 204) {
-        ElMessage({
-          type: "success",
-          message: "删除成功",
-        });
-        getPgroupData();
-      } else {
-        ElMessage({
-          type: "error",
-          message: "删除失败",
-        });
-      }
-    })
-    .catch(() => {
-      ElMessage({
-        type: "info",
-        message: "Delete canceled",
-      });
-    });
-};
-const handleCommitPgroup = () => {
-  proxy.$refs.pgroupForm.validate(async (valid) => {
-    console.log(pgroupFormInline);
-    if (valid) {
-      // 新增接口
-      if (pgroupAction.value == "add") {
-        let res = await proxy.$api.pgroupAdd(pgroupFormInline);
-        if (res.status == 201) {
-          innerVisible.value = false;
-          ElMessage({
-            type: "success",
-            message: "添加成功",
-          });
-          // 重置表单
-          proxy.$refs.pgroupForm.resetFields();
-          getPgroupData();
-        } else {
-          ElMessage({
-            showClose: true,
-            message: "添加失败:" + JSON.stringify(res.data),
-            type: "error",
-          });
-        }
-      }
-      // 编辑接口
-      else {
-        let res = await proxy.$api.pgroupUpdate({
-          group: pgroupFormInline.group,
-          id: pgroupFormInline.id,
-        });
-        if (res.status == 200) {
-          innerVisible.value = false;
-
-          ElMessage({
-            type: "success",
-            message: "更新成功",
-          });
-          // 重置表单
-          proxy.$refs.pgroupForm.resetFields();
-          getPgroupData();
-        } else {
-          ElMessage({
-            showClose: true,
-            message: "更新失败:" + JSON.stringify(res.data),
-            type: "error",
-          });
-        }
-      }
-    } else {
-      ElMessage({
-        showClose: true,
-        message: "请输入正确内容.",
-        type: "error",
-      });
-    }
-  });
-};
-
-// portal门户
 const diaglogPortal = ref(false);
+const importData = ref(false);
+
+// 表单数据
 const portalFormInline = reactive({
   name: "",
   url: "",
   target: true,
   group: "",
+  sharing_type: "public",
   status: true,
   username: "",
   password: "",
+  sort: 9999,
   describe: "",
-  owner: store.state.userinfo.user_id,
 });
-const tablePageConfig = reactive({
-  page: 1,
-  page_size: 10,
+
+const pgroupFormInline = reactive({
+  group: "",
 });
+
+// 操作类型
+const portalAction = ref("add");
+const pgroupAction = ref("add");
+
+// 多选数据
+const multipleSelect = ref([]);
+const multipleSelectPgroup = ref([]);
+
+// 文件上传相关
+const fileList = ref([]);
+const refUpload = ref(null);
+const maxFiles = ref(10);
+
+const headers = reactive({
+  "Content-Type": "multipart/form-data",
+});
+
+// 计算属性
+const mulSelectArr = computed(() => {
+  return multipleSelect.value.map((item) => item.id);
+});
+
+// 监听分页变化
 watch(
   () => tablePageConfig,
-  (n) => {
-    getTableData(n);
+  (newVal) => {
+    getTableData(newVal);
   },
   { deep: true }
 );
-const tableDataCol = ref([
-  // {
-  //   prop:'id',
-  //   label:'ID'
-  // },
-  {
-    prop: "name",
-    label: "名称",
-  },
-  {
-    prop: "url",
-    label: "链接地址",
-  },
 
-  {
-    prop: "target",
-    label: "跳转方式",
-  },
-  {
-    prop: "status",
-    label: "状态",
-  },
-  {
-    prop: "group",
-    label: "分组",
-  },
-  {
-    prop: "username",
-    label: "登录用户名",
-  },
-  {
-    prop: "password",
-    label: "密码",
-  },
-  {
-    prop: "describe",
-    label: "描述",
-  },
-]);
-const portalAction = ref("add");
-const tableData = ref([]);
-// const tableDataPage = ref([])
-// const tableDataPage = computed(() => {
-//   return proxy.$commonFunc.pageFunc(tableData.value, tablePageConfig);
-// });
-const tableDataTotal = ref(0);
-// const tableIsPage = computed(() => {
-//   return tableData.value.length <= tablePageConfig.size ? true : false;
-// });
-const allTableDataConfig = reactive({
-  page: 1,
-  page_size: 2000,
-  owner: store.state.userinfo.user_id,
+// 监听过滤条件变化
+watch([filterGroupId, filterSharingType], () => {
+  handleFilterChange();
 });
-const sourceTableData = ref([]);
-const getTableData = async (config) => {
-  let res = await proxy.$api.portalGet(config);
-  tableData.value = res.data.results;
-  tableDataTotal.value = res.data.count;
+
+// 方法定义
+const handleSearch = () => {
+  tablePageConfig.page = 1;
+  getTableData(tablePageConfig);
 };
+
+const handleFilterChange = () => {
+  tablePageConfig.page = 1;
+  getTableData(tablePageConfig);
+};
+
+const resetFilters = () => {
+  searchText.value = "";
+  filterGroupId.value = "";
+  filterSharingType.value = "";
+  tablePageConfig.page = 1;
+  getTableData(tablePageConfig);
+};
+
+const handleSizeChange = (val) => {
+  tablePageConfig.page_size = val;
+  tablePageConfig.page = 1;
+};
+
+const handleCurrentChange = (val) => {
+  tablePageConfig.page = val;
+};
+
+const handleSelectionChange = (val) => {
+  multipleSelect.value = val;
+};
+
+const handleSelectionChangePgroup = (val) => {
+  multipleSelectPgroup.value = val;
+};
+
+// 获取门户数据
+const getTableData = async (config) => {
+  loading.value = true;
+  try {
+    const params = {
+      ...config,
+      search: searchText.value,
+      group: filterGroupId.value,
+      sharing_type: filterSharingType.value,
+    };
+
+    // 清理空参数
+    Object.keys(params).forEach((key) => {
+      if (
+        params[key] === "" ||
+        params[key] === null ||
+        params[key] === undefined
+      ) {
+        delete params[key];
+      }
+    });
+
+    const res = await proxy.$api.portalGet(params);
+    tableData.value = res.data.results;
+    tableDataTotal.value = res.data.count;
+  } catch (error) {
+    ElMessage.error("获取门户数据失败");
+    console.error(error);
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 获取分组数据
+const getPgroupData = async () => {
+  try {
+    const res = await proxy.$api.pgroupGet({ page: 1, page_size: 1000 });
+    pgroupData.value = res.data.results;
+  } catch (error) {
+    ElMessage.error("获取分组数据失败");
+    console.error(error);
+  }
+};
+
+// 门户操作
 const handleAddPortal = () => {
   diaglogPortal.value = true;
   portalAction.value = "add";
-};
-const cancelAdd = () => {
-  diaglogPortal.value = false;
-  proxy.$refs.portalForm.resetFields();
-};
-
-// 添加确定
-const handleCommit = () => {
-  proxy.$refs.portalForm.validate(async (valid) => {
-    if (valid) {
-      // 新增接口
-      if (portalAction.value == "add") {
-        let res = await proxy.$api.portalAdd(portalFormInline);
-        if (res.status == 201) {
-          ElMessage({
-            type: "success",
-            message: "添加成功",
-          });
-          // 重置表单
-          proxy.$refs.portalForm.resetFields();
-          getTableData(allTableDataConfig);
-          diaglogPortal.value = false;
-        } else {
-          ElMessage({
-            showClose: true,
-            message: "添加失败:" + JSON.stringify(res.data),
-            type: "error",
-          });
-        }
-      }
-      // 编辑接口
-      else {
-        let res = await proxy.$api.portalUpdate(portalFormInline);
-        if (res.status == 200) {
-          ElMessage({
-            type: "success",
-            message: "更新成功",
-          });
-          // 重置表单
-          proxy.$refs.portalForm.resetFields();
-          getTableData(allTableDataConfig);
-          diaglogPortal.value = false;
-        } else {
-          ElMessage({
-            showClose: true,
-            message: "更新失败:" + JSON.stringify(res.data),
-            type: "error",
-          });
-        }
-      }
-    } else {
-      ElMessage({
-        showClose: true,
-        message: "请输入正确内容.",
-        type: "error",
-      });
-    }
+  // 重置表单
+  Object.assign(portalFormInline, {
+    name: "",
+    url: "",
+    target: true,
+    group: "",
+    sharing_type: "public",
+    status: true,
+    username: "",
+    password: "",
+    sort: 9999,
+    describe: "",
   });
 };
-// 编辑
+
 const handleEdit = (row) => {
   diaglogPortal.value = true;
   portalAction.value = "edit";
@@ -784,219 +696,365 @@ const handleEdit = (row) => {
     Object.assign(portalFormInline, row);
   });
 };
-// 删除
-const handleDelete = (row) => {
-  ElMessageBox.confirm("是否确认删除?", "Warning", {
-    confirmButtonText: "确认删除",
-    cancelButtonText: "取消",
-    type: "warning",
-    draggable: true,
-  })
-    .then(async () => {
-      // 发起删除请求
-      let res = await proxy.$api.portalDel(row.id);
-      if (res.status == 204) {
-        ElMessage({
-          type: "success",
-          message: "删除成功",
-        });
-        getTableData(allTableDataConfig);
-      } else {
-        ElMessage({
-          type: "error",
-          message: "删除失败",
-        });
+
+const cancelAdd = () => {
+  diaglogPortal.value = false;
+  proxy.$refs.portalForm?.resetFields();
+};
+
+const handleCommit = () => {
+  proxy.$refs.portalForm.validate(async (valid) => {
+    if (valid) {
+      try {
+        let res;
+        if (portalAction.value === "add") {
+          res = await proxy.$api.portalAdd(portalFormInline);
+          if (res.status === 201) {
+            ElMessage.success("添加成功");
+            diaglogPortal.value = false;
+            getTableData(tablePageConfig);
+          } else {
+            ElMessage.error("添加失败: " + JSON.stringify(res.data));
+          }
+        } else {
+          res = await proxy.$api.portalUpdate(portalFormInline);
+          if (res.status === 200) {
+            ElMessage.success("更新成功");
+            diaglogPortal.value = false;
+            getTableData(tablePageConfig);
+          } else {
+            ElMessage.error("更新失败: " + JSON.stringify(res.data));
+          }
+        }
+      } catch (error) {
+        ElMessage.error("操作失败: " + error.message);
       }
-    })
-    .catch(() => {
-      ElMessage({
-        type: "info",
-        message: "Delete canceled",
-      });
-    });
-};
-// 批量删除
-const handleDeleteMore = () => {
-  ElMessageBox.confirm("是否确认删除?", "Warning", {
-    confirmButtonText: "确认删除",
-    cancelButtonText: "取消",
-    type: "warning",
-    draggable: true,
-  })
-    .then(async () => {
-      // 发起删除请求
-      let delList = [];
-      for (let row in multipleSelect.value) {
-        delList.push(multipleSelect.value[row].id);
-      }
-
-      let res = await proxy.$api.portalMuldel({ pks: delList });
-
-      if (res.status == 204) {
-        ElMessage({
-          type: "success",
-          message: "删除成功",
-        });
-      } else {
-        ElMessage({
-          type: "error",
-          message: "删除失败",
-        });
-      }
-      getTableData(allTableDataConfig);
-    })
-    .catch(() => {
-      ElMessage({
-        type: "info",
-        message: "Delete canceled",
-      });
-    });
-};
-onMounted(async () => {
-  await getPgroupData();
-  //  await
-  await getTableData(allTableDataConfig);
-});
-
-// 导出功能
-// 默认导出
-const exportData = async () => {
-  let res = await proxy.$api.portalDataExport();
-  console.log(res);
-  // let res = await proxy.$api.exportXls(params);
-
-  // console.log(res);
-  // proxy.$commonFunc.downloadFunc(res);
-};
-// 勾选导出
-const exportDataSelect = () => {
-  // mulSelectArr
-  console.log(mulSelectArr.value);
-  exportData({ rowid: mulSelectArr.value });
-};
-// 导出模板
-const exportTemplate = async () => {
-  // exportData({ template: 111 });
-  let res = await proxy.$api.portalTemplateExport();
-  console.log(res);
-};
-
-// 查询功能
-const handleSearch = () => {
-  if (filterObject.value.search != null) {
-    var reg = new RegExp(filterObject.value.search);
-    let tempTableData = [];
-    sourceTableData.value.forEach((item) => {
-      if (reg.test(item.name)) {
-        tempTableData.push(item);
-      }
-      tableData.value = tempTableData;
-    });
-  }
-};
-
-const updatePartolStatus = async (param) => {
-  console.log(param);
-  let res = await proxy.$api.portalUpdate({
-    status: param.status,
-    id: param.id,
+    } else {
+      ElMessage.error("请填写正确的表单信息");
+    }
   });
-  x;
-  if (res.status == 200) {
-    ElMessage({
-      type: "success",
-      message: "更新成功",
+};
+
+const handleDelete = (row) => {
+  ElMessageBox.confirm(`确定要删除门户 "${row.name}" 吗？`, "确认删除", {
+    confirmButtonText: "确认",
+    cancelButtonText: "取消",
+    type: "warning",
+  })
+    .then(async () => {
+      try {
+        const res = await proxy.$api.portalDel(row.id);
+        if (res.status === 204) {
+          ElMessage.success("删除成功");
+          getTableData(tablePageConfig);
+        } else {
+          ElMessage.error("删除失败");
+        }
+      } catch (error) {
+        ElMessage.error("删除失败: " + error.message);
+      }
+    })
+    .catch(() => {
+      ElMessage.info("已取消删除");
     });
-    // 重置表单
-    // proxy.$refs.pgroupForm.resetFields();
-    getPgroupData();
-  } else {
-    ElMessage({
-      showClose: true,
-      message: "更新失败:" + JSON.stringify(res.data),
-      type: "error",
+};
+
+const handleDeleteMore = () => {
+  if (multipleSelect.value.length === 0) {
+    ElMessage.warning("请至少选择一项");
+    return;
+  }
+
+  ElMessageBox.confirm(
+    `确定要删除选中的 ${multipleSelect.value.length} 项吗？`,
+    "确认删除",
+    {
+      confirmButtonText: "确认",
+      cancelButtonText: "取消",
+      type: "warning",
+    }
+  )
+    .then(async () => {
+      try {
+        const delList = multipleSelect.value.map((item) => item.id);
+        const res = await proxy.$api.portalMuldel({ pks: delList });
+        if (res.status === 204) {
+          ElMessage.success("删除成功");
+          getTableData(tablePageConfig);
+        } else {
+          ElMessage.error("删除失败");
+        }
+      } catch (error) {
+        ElMessage.error("删除失败: " + error.message);
+      }
+    })
+    .catch(() => {
+      ElMessage.info("已取消删除");
     });
+};
+
+// 分组操作
+const handleShowPgroup = () => {
+  diaglogPgroup.value = true;
+};
+
+const handleAddPgroup = () => {
+  innerVisible.value = true;
+  pgroupAction.value = "add";
+  pgroupFormInline.group = "";
+};
+
+const handleEditPgroup = (row) => {
+  innerVisible.value = true;
+  pgroupAction.value = "edit";
+  proxy.$nextTick(() => {
+    Object.assign(pgroupFormInline, row);
+  });
+};
+
+const handleCommitPgroup = () => {
+  proxy.$refs.pgroupForm.validate(async (valid) => {
+    if (valid) {
+      try {
+        let res;
+        if (pgroupAction.value === "add") {
+          res = await proxy.$api.pgroupAdd(pgroupFormInline);
+
+          if (res.status === 201) {
+            ElMessage.success("添加成功");
+            innerVisible.value = false;
+            getPgroupData();
+          } else {
+            ElMessage.error("添加失败: " + JSON.stringify(res.data));
+          }
+        } else {
+          res = await proxy.$api.pgroupUpdate(pgroupFormInline);
+          if (res.status === 200) {
+            ElMessage.success("更新成功");
+            innerVisible.value = false;
+            getPgroupData();
+          } else {
+            ElMessage.error("更新失败: " + JSON.stringify(res.data));
+          }
+        }
+      } catch (error) {
+        ElMessage.error("操作失败: " + error.message);
+      }
+    } else {
+      ElMessage.error("请输入正确的分组名称");
+    }
+  });
+};
+
+const handleDeletePgroup = (row) => {
+  ElMessageBox.confirm(`确定要删除分组 "${row.group}" 吗？`, "确认删除", {
+    confirmButtonText: "确认",
+    cancelButtonText: "取消",
+    type: "warning",
+  })
+    .then(async () => {
+      try {
+        const res = await proxy.$api.pgroupDel(row.id);
+        if (res.status === 204) {
+          ElMessage.success("删除成功");
+          getPgroupData();
+        } else {
+          ElMessage.error("删除失败");
+        }
+      } catch (error) {
+        ElMessage.error("删除失败: " + error.message);
+      }
+    })
+    .catch(() => {
+      ElMessage.info("已取消删除");
+    });
+};
+
+const handleDeleteMorePgroup = () => {
+  if (multipleSelectPgroup.value.length === 0) {
+    ElMessage.warning("请至少选择一项");
+    return;
+  }
+
+  ElMessageBox.confirm(
+    `确定要删除选中的 ${multipleSelectPgroup.value.length} 个分组吗？`,
+    "确认删除",
+    {
+      confirmButtonText: "确认",
+      cancelButtonText: "取消",
+      type: "warning",
+    }
+  )
+    .then(async () => {
+      try {
+        const delList = multipleSelectPgroup.value.map((item) => item.id);
+        const res = await proxy.$api.pgroupMuldel({ pks: delList });
+        if (res.status === 204) {
+          ElMessage.success("删除成功");
+          getPgroupData();
+        } else {
+          ElMessage.error("删除失败");
+        }
+      } catch (error) {
+        ElMessage.error("删除失败: " + error.message);
+      }
+    })
+    .catch(() => {
+      ElMessage.info("已取消删除");
+    });
+};
+
+// 状态更新
+const updatePartolStatus = async (row) => {
+  try {
+    const res = await proxy.$api.portalUpdate({
+      status: row.status,
+      id: row.id,
+    });
+    if (res.status === 200) {
+      ElMessage.success("状态更新成功");
+    } else {
+      ElMessage.error("状态更新失败");
+    }
+  } catch (error) {
+    ElMessage.error("状态更新失败: " + error.message);
   }
 };
 
-// 数据导入
-const importData = ref(false);
-const fileList = ref([]);
-const refUpload = ref(null);
-const fileType = ["xlsx"];
-const maxFiles = ref(10);
+// 导入导出功能
+const exportData = async () => {
+  try {
+    const res = await proxy.$api.portalDataExport();
+    // 处理导出逻辑
+  } catch (error) {
+    ElMessage.error("导出失败: " + error.message);
+  }
+};
+
+const exportTemplate = async () => {
+  try {
+    const res = await proxy.$api.portalTemplateExport();
+    // 处理模板导出逻辑
+  } catch (error) {
+    ElMessage.error("模板导出失败: " + error.message);
+  }
+};
+
 const beforeUpload = (file) => {
-  let fileName = file.name;
-  if (file.type != "" || file.type != null || file.type != undefined) {
-    //截取文件的后缀，判断文件类型
+  const fileType = ["xlsx"];
+  const fileName = file.name;
+
+  if (file.type !== "" || file.type !== null || file.type !== undefined) {
+    // 截取文件的后缀，判断文件类型
     const fileExt = file.name.replace(/.+\./, "").toLowerCase();
-    //计算文件的大小
-    const isLt5M = file.size / 1024 / 1024 < 5; //这里做文件大小限制
-    //如果大于50M
+    // 计算文件的大小
+    const isLt5M = file.size / 1024 / 1024 < 5; // 这里做文件大小限制
+
+    // 如果大于5MB
     if (!isLt5M) {
       ElMessage.error("上传文件大小不能超过 5MB!");
       return false;
     }
-    //如果文件类型不在允许上传的范围内
+
+    // 如果文件类型不在允许上传的范围内
     if (fileType.includes(fileExt)) {
-      let found = fileList.value.find(
+      const found = fileList.value.find(
         (item) =>
-          item.name == fileName && item.lastModified == file.lastModified
+          item.name === fileName && item.lastModified === file.lastModified
       );
       if (found) {
-        ElMessage({
-          type: "error",
-          message: "该文件已上传！",
-          showClose: true,
-        });
+        ElMessage.error("该文件已上传！");
         return false;
       }
-      // console.log(fileList.value.length);
-
       return true;
     } else {
-      ElMessage({
-        message: `不能上传${fileExt}类型的文件`,
-        type: "error",
-        showClose: true,
-      });
+      ElMessage.error(`不能上传${fileExt}类型的文件`);
       return false;
     }
   }
 };
-const headers = reactive({
-  "Content-Type": "multipart/form-data",
-});
+
 const uploadFile = async (item) => {
-  let formDatas = new FormData();
+  const formDatas = new FormData();
   formDatas.append("file", item.file);
-  //上传文件
-  let res = await proxy.$api.importPortalData(
-    formDatas,
-    headers,
-    2 * 60 * 1000
-  );
-  console.log(res);
-  if (res.status == 200) {
-    ElMessage({
-      message: `导入成功: ${JSON.stringify(res.data)}`,
-      type: "success",
-      showClose: true,
-    });
-    getPgroupData();
-  } else {
-    ElMessage({
-      message: `导入异常: ${JSON.stringify(res.data)}`,
-      type: "error",
-      showClose: true,
-    });
+
+  try {
+    const res = await proxy.$api.importPortalData(
+      formDatas,
+      headers,
+      2 * 60 * 1000
+    );
+    if (res.status === 200) {
+      ElMessage.success(`导入成功: ${JSON.stringify(res.data)}`);
+      getTableData(tablePageConfig);
+      getPgroupData();
+    } else {
+      ElMessage.error(`导入异常: ${JSON.stringify(res.data)}`);
+    }
+  } catch (error) {
+    ElMessage.error(`导入失败: ${error.message}`);
   }
 };
+
+// 初始化
+onMounted(async () => {
+  await Promise.all([getPgroupData(), getTableData(tablePageConfig)]);
+});
 </script>
 
-<style>
-.user-header {
+<style scoped>
+.portal-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.search-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.portal-form .el-row {
+  margin-bottom: 15px;
+}
+
+.upload-tip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pgroup-container {
+  padding: 10px 0;
+}
+
+@media (max-width: 768px) {
+  .portal-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-filters {
+    margin-top: 10px;
+  }
+
+  .search-filters .el-input,
+  .search-filters .el-select {
+    width: 100%;
+    margin-right: 0 !important;
+    margin-bottom: 10px;
+  }
 }
 </style>

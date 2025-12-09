@@ -15,6 +15,244 @@ logger = logging.getLogger(__name__)
 
 
 class ExcelHandler:
+
+    HEADER_FONT = Font(bold=True)
+    REQUIRED_FILL = PatternFill(start_color="FFFF0000", end_color="FFFF0000", fill_type="solid")
+    CENTER_ALIGNMENT = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    @classmethod
+    def _setup_instance_name_column(cls, sheet):
+        """设置 instance_name 列（第一列）"""
+        col_letter = 'A'
+
+        # 第一行：字段名称
+        cell = sheet[f'{col_letter}1']
+        cell.value = "instance_name\r\n实例唯一标识"
+        cell.font = cls.HEADER_FONT
+        cell.fill = cls.REQUIRED_FILL
+        cell.alignment = cls.CENTER_ALIGNMENT
+
+        # 第二行：字段类型
+        cell = sheet[f'{col_letter}2']
+        cell.value = "string\r\n字符串"
+        cell.alignment = cls.CENTER_ALIGNMENT
+
+        # 第三行：约束说明
+        cell = sheet[f'{col_letter}3']
+        cell.value = "必填"
+        cell.alignment = cls.CENTER_ALIGNMENT
+
+        # 设置列宽
+        sheet.column_dimensions[col_letter].width = 18
+
+        # 设置数据验证
+        dv = DataValidation(
+            type='custom',
+            formula1='AND(LEN(A4)>0,COUNTIF(A4:A1048576,A4)=1)',
+            showErrorMessage=True,
+            errorTitle='输入错误',
+            error='实例名称不能为空且不能重复'
+        )
+        sheet.add_data_validation(dv)
+        dv.add(f'{col_letter}4:{col_letter}1048576')
+
+    @classmethod
+    def _setup_using_template_column(cls, sheet):
+        """设置 using_template 列（第二列）"""
+        col_letter = 'B'
+
+        # 第一行：字段名称
+        cell = sheet[f'{col_letter}1']
+        cell.value = "using_template\r\n是否使用模板自动重命名唯一标识"
+        cell.font = cls.HEADER_FONT
+        cell.alignment = cls.CENTER_ALIGNMENT
+
+        # 第二行：字段类型
+        cell = sheet[f'{col_letter}2']
+        cell.value = "boolean\r\n布尔值"
+        cell.alignment = cls.CENTER_ALIGNMENT
+
+        # 第三行：约束说明
+        cell = sheet[f'{col_letter}3']
+        cell.value = "可选，TRUE 或 FALSE，不填写默认为TRUE"
+        cell.alignment = cls.CENTER_ALIGNMENT
+
+        # 设置列宽
+        sheet.column_dimensions[col_letter].width = 20
+
+        # 设置数据验证
+        dv = DataValidation(
+            type='list',
+            formula1='"TRUE,FALSE"',
+            allow_blank=True,
+            showErrorMessage=True,
+            errorTitle='输入错误',
+            error='该字段只能输入 TRUE 或 FALSE'
+        )
+        sheet.add_data_validation(dv)
+        dv.add(f'{col_letter}4:{col_letter}1048576')
+
+    @classmethod
+    def _setup_field_column(cls, template_sheet, enum_sheet, field, col_index, current_enum_col, enum_data=None, ref_data=None):
+        """
+        设置单个字段列的表头、类型、约束和数据验证。
+
+        :param template_sheet: 配置数据工作表
+        :param enum_sheet: 枚举类型可选值工作表
+        :param field: 字段配置对象
+        :param col_index: 列索引（从2开始，因为第1列是 instance_name）
+        :param current_enum_col: 当前枚举列位置
+        :param enum_data: 枚举数据 {key: label}，为 None 时从数据库获取
+        :param ref_data: 引用数据 {instance_id: instance_name}，为 None 时从数据库获取
+        :return: 更新后的枚举列位置
+        """
+        col_letter = get_column_letter(col_index)
+
+        # 第一行：字段名称
+        cell = template_sheet[f'{col_letter}1']
+        cell.value = f"{field.name}\r\n{field.verbose_name}"
+        cell.font = cls.HEADER_FONT
+        cell.alignment = cls.CENTER_ALIGNMENT
+
+        # 第二行：字段类型
+        cell = template_sheet[f'{col_letter}2']
+        field_verbose_type = FieldMapping.FIELD_TYPES.get(field.type, field.type)
+        cell.value = f"{field.type}\r\n{field_verbose_type}"
+        cell.alignment = cls.CENTER_ALIGNMENT
+
+        # 第三行：字段约束
+        constraints = []
+        if field.required:
+            constraints.append("必填")
+            template_sheet[f'{col_letter}1'].fill = cls.REQUIRED_FILL
+
+        # 处理不同字段类型的数据验证
+        if field.type == FieldType.BOOLEAN:
+            dv = DataValidation(
+                type='list',
+                formula1='"TRUE,FALSE"',
+                allow_blank=not field.required,
+                showErrorMessage=True,
+                errorTitle='输入错误',
+                error='该字段只能输入 TRUE 或 FALSE'
+            )
+            template_sheet.add_data_validation(dv)
+            dv.add(f'{col_letter}4:{col_letter}1048576')
+
+        elif field.type == FieldType.ENUM:
+            # 获取枚举数据
+            if enum_data is None and field.validation_rule:
+                enum_data = json.loads(field.validation_rule.rule)
+
+            if enum_data:
+                current_enum_col = cls._write_enum_to_sheet(
+                    enum_sheet, field, enum_data, current_enum_col,
+                    template_sheet, col_letter, is_ref=False
+                )
+                constraints.append("枚举值")
+
+        elif field.type == FieldType.MODEL_REF:
+            # 获取引用数据
+            if ref_data is None and field.ref_model:
+                ref_instances = ModelInstance.objects.filter(
+                    model=field.ref_model
+                ).values_list('id', 'instance_name')
+                ref_data = {str(id): instance_name for id, instance_name in ref_instances}
+
+            if ref_data:
+                current_enum_col = cls._write_enum_to_sheet(
+                    enum_sheet, field, ref_data, current_enum_col,
+                    template_sheet, col_letter, is_ref=True
+                )
+                constraints.append("关联模型")
+
+        # 添加验证规则约束说明
+        if field.validation_rule:
+            rule = field.validation_rule
+            if rule.type == ValidationType.RANGE:
+                constraints.append(f"数值范围: {rule.rule.replace(',', ' ~ ')}")
+            elif rule.type == ValidationType.REGEX:
+                constraints.append(f"正则规则: {rule.rule}")
+
+        cell = template_sheet[f'{col_letter}3']
+        cell.value = "\r\n".join(constraints) if constraints else ""
+        cell.alignment = cls.CENTER_ALIGNMENT
+
+        # 设置列宽
+        template_sheet.column_dimensions[col_letter].width = 20
+
+        # 设置数据格式
+        number_format = FieldMapping.TYPE_EXCEL_FORMATS.get(field.type)
+        if number_format:
+            column = template_sheet.column_dimensions[col_letter]
+            column.number_format = number_format
+
+        return current_enum_col
+
+    @classmethod
+    def _write_enum_to_sheet(cls, enum_sheet, field, data_dict, current_enum_col, template_sheet, col_letter, is_ref=False):
+        """
+        将枚举或引用数据写入枚举 sheet，并设置数据验证。
+
+        :param enum_sheet: 枚举工作表
+        :param field: 字段配置
+        :param data_dict: {key: label} 或 {instance_id: instance_name}
+        :param current_enum_col: 当前枚举列位置
+        :param template_sheet: 模板工作表
+        :param col_letter: 数据列字母
+        :param is_ref: 是否为模型引用
+        :return: 更新后的枚举列位置
+        """
+        key_col_letter = get_column_letter(current_enum_col)
+        val_col_letter = get_column_letter(current_enum_col + 1)
+
+        # 设置标题（合并单元格）
+        enum_sheet.merge_cells(f'{key_col_letter}1:{val_col_letter}1')
+        enum_sheet[f'{key_col_letter}1'] = f'{field.name}\r\n{field.verbose_name}'
+        enum_sheet[f'{key_col_letter}1'].font = cls.HEADER_FONT
+        enum_sheet[f'{key_col_letter}1'].alignment = cls.CENTER_ALIGNMENT
+
+        # 设置列标识
+        if is_ref:
+            enum_sheet[f'{key_col_letter}2'] = 'ID(勿填)'
+            enum_sheet[f'{val_col_letter}2'] = '实例名称'
+        else:
+            enum_sheet[f'{key_col_letter}2'] = '填写值'
+            enum_sheet[f'{val_col_letter}2'] = '对应内容'
+
+        # 写入数据
+        for i, (key, value) in enumerate(data_dict.items(), 3):
+            enum_sheet[f'{key_col_letter}{i}'] = key
+            enum_sheet[f'{val_col_letter}{i}'] = value
+
+        # 设置列宽
+        enum_sheet.column_dimensions[key_col_letter].width = 15
+        enum_sheet.column_dimensions[val_col_letter].width = 20
+
+        # 设置数据验证（使用显示值列）
+        if len(data_dict) > 0:
+            dv = DataValidation(
+                type='list',
+                formula1=f'=枚举类型可选值!${val_col_letter}$3:${val_col_letter}${len(data_dict) + 2}',
+                allow_blank=not field.required,
+                showErrorMessage=True,
+                errorTitle='输入错误',
+                error='请从列表中选择一个值'
+            )
+        else:
+            dv = DataValidation(
+                type='custom',
+                formula1='FALSE',
+                allow_blank=not field.required,
+                showErrorMessage=True,
+                errorTitle='输入错误',
+                error='该字段暂无可选值'
+            )
+        template_sheet.add_data_validation(dv)
+        dv.add(f'{col_letter}4:{col_letter}1048576')
+
+        return current_enum_col + 2
+
     @staticmethod
     def _handle_enum_data(enum_sheet, field, current_enum_col, template_sheet, col_letter, header_font):
         """处理枚举数据"""
@@ -78,145 +316,31 @@ class ExcelHandler:
 
         return current_enum_col + 2, "枚举值" if field.type != FieldType.MODEL_REF else "关联模型"
 
-    @staticmethod
-    def generate_template(fields):
-        """生成导入模板"""
-        wb = Workbook()
-        template_sheet = wb.active
-        template_sheet.title = "配置数据"
-
-        # 样式定义
-        header_font = Font(bold=True)
-        required_fill = PatternFill(start_color="FFFF0000", end_color="FFFF0000", fill_type="solid")
-        center_alignment = Alignment(horizontal='center', vertical='center')
-
-        # 添加name列作为第一列
-        name_col_letter = 'A'
-
-        # 设置name列标题
-        cell = template_sheet[f'{name_col_letter}1']
-        cell.value = "instance_name\r\n实例唯一标识"
-        cell.font = header_font
-        cell.fill = required_fill  # 必填标记
-        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-
-        # 设置name列类型说明
-        cell = template_sheet[f'{name_col_letter}2']
-        cell.value = "string\r\n字符串"
-        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-
-        # 设置name列约束说明
-        cell = template_sheet[f'{name_col_letter}3']
-        cell.value = "必填"
-        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-
-        # 设置name列数据验证
-        dv = DataValidation(
-            type='custom',
-            formula1='AND(LEN(A4)>0,COUNTIF(A4:A1048576,A4)=1)',
-            showErrorMessage=True,
-            errorTitle='输入错误',
-            error='实例名称不能为空且不能重复'
-        )
-        template_sheet.add_data_validation(dv)
-        dv.add(f'{name_col_letter}4:{name_col_letter}1048576')
-
-        # 设置列宽
-        template_sheet.column_dimensions[name_col_letter].width = 15
-
-        # 创建枚举值工作表
-        enum_sheet = wb.create_sheet("枚举类型可选值")
-
-        # 记录枚举列的位置
-        current_enum_col = 1
-
-        # 写入表头
-        for col, field in enumerate(fields, 2):
-            logger.info(f'Handling column {col} for field {field.name}')
-            col_letter = get_column_letter(col)
-
-            # 第一行：字段名称
-            cell = template_sheet[f'{col_letter}1']
-            cell.value = f"{field.name}\r\n{field.verbose_name}"
-            cell.font = header_font
-            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-
-            # 第二行：字段类型
-            cell = template_sheet[f'{col_letter}2']
-            field_verbose_type = FieldMapping.FIELD_TYPES.get(field.type)
-            cell.value = f"{field.type}\r\n{field_verbose_type}"
-            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-
-            # 第三行：字段约束
-            constraints = []
-            if field.required:
-                constraints.append("必填")
-
-            logger.info(f'Field name, type and constraints set')
-
-            if field.type == FieldType.BOOLEAN:
-                dv = DataValidation(
-                    type='list',
-                    formula1='"TRUE,FALSE"',
-                    allow_blank=True,
-                    showErrorMessage=True,
-                    errorTitle='输入错误',
-                    error='该字段只能输入 TRUE 或 FALSE'
-                )
-                template_sheet.add_data_validation(dv)
-                dv.add(f'{col_letter}4:{col_letter}1048576')
-            elif field.type == FieldType.MODEL_REF or (field.validation_rule and field.validation_rule.type == FieldType.ENUM):
-                try:
-                    current_enum_col, constraint = ExcelHandler._handle_enum_data(
-                        enum_sheet, field, current_enum_col,
-                        template_sheet, col_letter, header_font
-                    )
-                    constraints.append(constraint)
-                except Exception as e:
-                    logger.error(f"Error handling enum data: {str(e)}")
-            if field.validation_rule:
-                rule = field.validation_rule
-                if rule.type == ValidationType.RANGE:
-                    constraints.append(f"数值范围: {rule.rule.replace(',', ' ~ ')}")
-                elif rule.type == ValidationType.REGEX:
-                    constraints.append(f"正则规则: {rule.rule}")
-
-            cell = template_sheet[f'{col_letter}3']
-            cell.value = "\r\n".join(constraints)
-            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-
-            # 设置列宽
-            template_sheet.column_dimensions[col_letter].width = 20
-
-            # 标记必填字段
-            if field.required:
-                template_sheet[f'{col_letter}1'].fill = required_fill
-
-            # 设置数据格式
-            number_format = FieldMapping.TYPE_EXCEL_FORMATS.get(field.type)
-            if number_format:
-                column = template_sheet.column_dimensions[col_letter]
-                column.number_format = number_format
-
+    @classmethod
+    def _finalize_workbook(cls, template_sheet, enum_sheet):
+        """完成工作簿的最终设置：冻结行、设置行高、锁定枚举表"""
         # 冻结前三行
         template_sheet.freeze_panes = 'A4'
 
         # 设置行高
-        template_sheet.row_dimensions[1].height = 30
+        template_sheet.row_dimensions[1].height = 45
         template_sheet.row_dimensions[2].height = 30
-        template_sheet.row_dimensions[3].height = 30
+        template_sheet.row_dimensions[3].height = 45
         enum_sheet.row_dimensions[1].height = 30
 
-        # 锁定枚举表sheet
+        # 锁定枚举表 sheet
         enum_sheet.protection.enable()
         enum_sheet.protection.set_password('123456')
 
-        return wb
+        # 获取父工作簿并设置计算属性
+        wb = template_sheet.parent
+        wb.calculation.calcMode = 'auto'
 
     @staticmethod
     def generate_data_export(fields, instances):
         """生成实例数据导出"""
         # TODO: 导出时同时添加枚举类索引，方便修改，统一导出数据及模板格式
+        # TODO: 将模板表头应用到数据导出中，抛弃原有的数据导出表头，方便再次导入
         wb = Workbook()
         data_sheet = wb.active
         data_sheet.title = "配置数据"
@@ -314,7 +438,7 @@ class ExcelHandler:
 
             # 获取字段映射
             field_mapping = {}
-            for col in range(2, data_sheet.max_column + 1):
+            for col in range(3, data_sheet.max_column + 1):
                 column_letter = get_column_letter(col)
                 field_cell = data_sheet[f'{column_letter}1']
 
@@ -344,6 +468,7 @@ class ExcelHandler:
                         results['results']['total'] += 1
                         instance_data = {
                             'instance_name': data_sheet[f'A{row}'].value,
+                            'using_template': data_sheet[f'B{row}'].value,
                             'fields': row_data
                         }
                         results['instances'].append(instance_data)
@@ -414,5 +539,89 @@ class ExcelHandler:
 
         # 调整错误列宽
         sheet.column_dimensions[get_column_letter(error_col)].width = 50
+
+        return wb
+
+    @classmethod
+    def generate_template(cls, fields):
+        """
+        生成导入模板（仅表头，无数据）。
+
+        :param fields: 字段配置列表
+        :return: Workbook 对象
+        """
+        wb = Workbook()
+        template_sheet = wb.active
+        template_sheet.title = "配置数据"
+        enum_sheet = wb.create_sheet("枚举类型可选值")
+
+        # 设置 instance_name 列
+        cls._setup_instance_name_column(template_sheet)
+        # 设置 using_template 列
+        cls._setup_using_template_column(template_sheet)
+
+        # 设置各字段列
+        current_enum_col = 1
+        for col, field in enumerate(fields, 3):
+            current_enum_col = cls._setup_field_column(
+                template_sheet, enum_sheet, field, col, current_enum_col
+            )
+
+        # 完成工作簿设置
+        cls._finalize_workbook(template_sheet, enum_sheet)
+
+        return wb
+
+    @classmethod
+    def generate_data_export_with_template(cls, fields, instances_data, enum_data=None, ref_data=None):
+        """
+        生成带数据的导出文件，格式与导入模板完全一致。
+        包含：配置数据 sheet（三行表头 + 数据行）、枚举类型可选值 sheet（带锁定）
+
+        :param fields: 字段配置列表
+        :param instances_data: 实例数据列表 [{'instance_name': ..., 'fields': {...}}]
+        :param enum_data: 枚举数据 {field_name: {key: label}}，为 None 时从数据库获取
+        :param ref_data: 引用数据 {field_name: {instance_id: instance_name}}，为 None 时从数据库获取
+        :return: Workbook 对象
+        """
+        wb = Workbook()
+        template_sheet = wb.active
+        template_sheet.title = "配置数据"
+        enum_sheet = wb.create_sheet("枚举类型可选值")
+
+        # 设置 instance_name 列
+        cls._setup_instance_name_column(template_sheet)
+        # 设置 using_template 列
+        cls._setup_using_template_column(template_sheet)
+
+        # 设置各字段列（传入预加载的枚举/引用数据）
+        current_enum_col = 1
+        field_to_col = {}
+        for col, field in enumerate(fields, 3):
+            field_enum_data = enum_data.get(field.name) if enum_data else None
+            field_ref_data = ref_data.get(field.name) if ref_data else None
+
+            current_enum_col = cls._setup_field_column(
+                template_sheet, enum_sheet, field, col, current_enum_col,
+                enum_data=field_enum_data, ref_data=field_ref_data
+            )
+            field_to_col[field.name] = get_column_letter(col)
+
+        # 写入实例数据（从第4行开始）
+        for row, instance_data in enumerate(instances_data, 4):
+            # 写入 instance_name
+            template_sheet[f'A{row}'] = instance_data.get('instance_name')
+            template_sheet[f'A{row}'].alignment = cls.CENTER_ALIGNMENT
+
+            # 写入字段值
+            fields_values = instance_data.get('fields', {})
+            for field_name, field_value in fields_values.items():
+                if field_name in field_to_col and field_value is not None:
+                    col_letter = field_to_col[field_name]
+                    template_sheet[f'{col_letter}{row}'] = field_value
+                    template_sheet[f'{col_letter}{row}'].alignment = cls.CENTER_ALIGNMENT
+
+        # 完成工作簿设置
+        cls._finalize_workbook(template_sheet, enum_sheet)
 
         return wb

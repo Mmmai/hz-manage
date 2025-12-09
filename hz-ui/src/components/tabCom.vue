@@ -10,6 +10,9 @@
       @click="changeMenu(tag)"
       @close="handleClose(tag, index)"
     >
+      <el-icon v-if="tag.icon" class="icon">
+        <component :is="tag.icon"></component>
+      </el-icon>
       {{ tag.label }}
     </el-tag>
   </div>

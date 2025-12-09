@@ -1,5 +1,7 @@
 import axios from 'axios'
 import querystring from "querystring"
+import { ElMessage } from "element-plus";
+
 const instance = axios.create({
   timeout: 120 * 1000
 })
@@ -43,8 +45,9 @@ instance.interceptors.request.use(
     //   console.log(config.data)
     config.startTime = Date.now();
     // }
-    if (localStorage.getItem('token')) {
-      config.headers.token = localStorage.getItem('token')
+    let token = JSON.parse(localStorage.getItem('configs'))?.token
+    if (token) {
+      config.headers.token = token
       // console.log(localStorage.getItem('token'))
     }
     return config;
@@ -63,13 +66,26 @@ instance.interceptors.response.use(
     return Promise.resolve(response)
   },
   (error) => {
-    if (error.code === 'ECONNABORTED') {
-      // 超时处理，返回一个Promise，可以返回一个自定义的结果对象
-      return Promise.resolve({
-        timeout: true,
-        message: '请求超时',
-      });
+    // 检查响应数据中是否有token过期的相关信息
+    if (error.response && error.response.status === 403) {
+      // token过期，清除本地存储并跳转到登录页
+      ElMessage.error('登录已过期，请重新登录')
+      localStorage.clear()
+
+      // 延迟跳转以确保消息能被看到
+      setTimeout(() => {
+        // 如果使用Vue Router，可以这样跳转
+        if (window.location.hash) {
+          window.location.hash = '#/login'
+        } else {
+          window.location.href = '/#/login'
+        }
+      }, 1500)
+      return Promise.reject(error)
+
     }
+
+    // errorHandle(response.status,response.data)
     const { response } = error;
 
     // errorHandle(response.status,response.data)

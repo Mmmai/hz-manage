@@ -4,7 +4,7 @@ html {
 
 .card {
     box-sizing: border-box;
-    padding: 20px;
+    padding: 10px;
     overflow-x: hidden;
     background-color: var(--el-bg-color);
     border: 1px solid var(--el-border-color-light);
@@ -21,7 +21,7 @@ html {
       float: right;
     }
     .el-button {
-      margin-bottom: 15px;
+      margin-bottom: 10px;
     }
   }
   .main-box {
@@ -93,6 +93,14 @@ html {
   justify-content:space-between;
 
 }
+// div的垂直布局
+.divVertical {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 100%;
+}
+
 // 。。。。做完必填对齐后，发现星号的位置可以调到右边！！！！
 .requiredClass {
   margin-left: 0px;

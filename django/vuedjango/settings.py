@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
 import os
+import warnings
 from pathlib import Path
 from celery.schedules import crontab
 
@@ -26,12 +27,24 @@ SECRET_KEY = 'wt$!m&wf%5yl#ttz!2xxu9&1nrev9xn7dyr0b5g4lj8qzais86'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+# 连接参数变量
+DATABASE_HOST = os.environ.get('DATABASE_HOST', 'mysql')
+DATABASE_NAME = os.environ.get('DATABASE_NAME', 'autoOps')
+DATABASE_USER = os.environ.get('DATABASE_USER', 'root')
+DATABASE_PASSWORD = os.environ.get('DATABASE_PASSWORD', 'thinker')
+DATABASE_PORT = os.environ.get('DATABASE_PORT', '3306')
+REDIS_HOST = os.environ.get('REDIS_HOST', 'redis')
+REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
+
+# DATABASE_HOST = '127.0.0.1' if DEBUG else os.environ.get('DATABASE_HOST', 'mysql')
+# REDIS_HOST = '127.0.0.1' if DEBUG else os.environ.get('REDIS_HOST', 'redis')
 
 ALLOWED_HOSTS = ['*']
 
 
 # Application definition
 
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 INSTALLED_APPS = [
     # 'django.contrib.admin',
     'django.contrib.auth',
@@ -39,9 +52,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'mlog',
     'mapi',
+    'permissions',
+    'audit',
+    'mlog',
     'cacheops',
+    'node_mg',
     'cmdb',
     'rest_framework',
     'django_filters',
@@ -50,21 +66,24 @@ INSTALLED_APPS = [
     'drf_spectacular_sidecar',
     'channels',
     'django_celery_beat',
+    'jobflow',
+    # 'silk'
 ]
 
 
 MIDDLEWARE = [
+    # 'silk.middleware.SilkyMiddleware',  # 必须放在最顶部
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     # 'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'permissions.middleware.CacheopsUserContextMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+# SILKY_PYTHON_PROFILER = True
 
-
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 DEBUG = True
 
@@ -101,32 +120,38 @@ CHANNEL_LAYERS = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'manage',
-        'USER': 'root',
-        'PASSWORD': 'thinker',
-        'HOST': '127.0.0.1',
-        'PORT': '3306',
+        'NAME': DATABASE_NAME,
+        'USER': DATABASE_USER,
+        'PASSWORD': DATABASE_PASSWORD,
+        'HOST': DATABASE_HOST,
+        'PORT': DATABASE_PORT,
+        'OPTIONS': {
+            'charset': 'utf8mb4',
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+        },
     },
-    'cmdb': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'cmdb',
-        'USER': 'root',
-        'PASSWORD': 'thinker',
-        'HOST': '127.0.0.1',
-        'PORT': '3306',
-    },
+    # 'cmdb': {
+    #     'ENGINE': 'django.db.backends.mysql',
+    #     'NAME': 'cmdb',
+    #     'USER': 'root',
+    #     'PASSWORD': 'thinker',
+    #     'HOST': '127.0.0.1',
+    #     'PORT': '3306',
+    # },
 }
 # 多数据库配置
-DATABASE_ROUTERS = ['vuedjango.db_router.database_router']
-DATABASE_APPS_MAPPING = {
-    'mlog': 'default',
-    'mapi': 'default',
-    'cmdb': 'cmdb',
-}
+# DATABASE_ROUTERS = ['vuedjango.db_router.database_router']
+# DATABASE_APPS_MAPPING = {
+#     'mlog': 'default',
+#     'mapi': 'default',
+#     'cmdb': 'default',
+#     'node_mg': 'default'
+# }
+# CACHEOPS_SERIALIZER = "dill"
 
 CACHEOPS_REDIS = {
-    'host': 'localhost',
-    'port': 6379,
+    'host': REDIS_HOST,
+    'port': REDIS_PORT,
     'db': 1,
     'socket_timeout': 3,
     'retry_on_timeout': True,
@@ -136,7 +161,7 @@ CACHEOPS = {
     'cmdb.modelinstance': {'ops': 'all', 'timeout': 60 * 60},
     'cmdb.modelfields': {'ops': 'all', 'timeout': 60 * 60},
     'cmdb.modelfieldmeta': {'ops': 'all', 'timeout': 60 * 60},
-    'cmdb.validationrules': {'ops': 'all', 'timeout': 60 * 60},
+    'cmdb.validationrules': {'ops': 'all', 'timeout': 60 * 60}
 }
 
 CACHEOPS_ENABLED = True
@@ -155,7 +180,7 @@ CACHEOPS_DEFAULTS = {
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/2',
+        'LOCATION': f'redis://{REDIS_HOST}:{REDIS_PORT}/2',
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             'CONNECTION_POOL_CLASS': 'redis.BlockingConnectionPool',
@@ -173,8 +198,8 @@ CACHES = {
 
 # Celery配置共享Redis
 CELERY_CACHE_BACKEND = 'django-cache'
-CELERY_BROKER_URL = 'redis://127.0.0.1:6379/2'
-CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/2'
+CELERY_BROKER_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/2'
+CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:{REDIS_PORT}/2'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -248,7 +273,7 @@ SPECTACULAR_SETTINGS = {
         {'name': '字段校验规则管理', 'description': '字段校验规则相关接口'},
         {'name': '字段管理', 'description': '字段相关接口'},
         {'name': '字段展示管理', 'description': '字段展示设置相关接口'},
-        {'name': '字段元数据管理', 'description': '字段元数据相关接口'},
+        # {'name': '字段元数据管理', 'description': '字段元数据相关接口'},
         {'name': '实例唯一性约束管理', 'description': '实例唯一性约束相关接口'},
         {'name': '实例管理', 'description': '实例相关接口'},
         {'name': '模型引用管理', 'description': '模型引用相关接口'},
@@ -300,9 +325,6 @@ USE_L10N = True
 
 USE_TZ = False
 
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/3.0/howto/static-files/
 IMPORT_EXPORT_USE_TRANSACTIONS = True
 STATIC_URL = '/static/'
 
@@ -322,6 +344,8 @@ REST_FRAMEWORK = {
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
+        # 自定义权限过滤器
+        'permissions.backends.DataScopeFilterBackend',
     ),
     'DEFAULT_PARSER_CLASSES': (
         'rest_framework.parsers.JSONParser',
@@ -340,27 +364,59 @@ LOGGING = {
     'disable_existing_loggers': False,
     'formatters': {
         'standard': {
-            'format': '[{levelname}] {asctime} [{name}] {message}',
+            'format': '[{levelname}] {asctime} [{name} {lineno}] {message}',
             'datefmt': '%Y-%m-%d %H:%M:%S',
             'style': '{',
         },
     },
     'handlers': {
         'console': {
-            'level': 'INFO',
+            'level': 'DEBUG',
             'class': 'logging.StreamHandler',
             'formatter': 'standard',
         },
+        # 通用日志
         'file': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': os.path.join(LOG_DIR, 'cmdb.log'),
+            'filename': os.path.join(LOG_DIR, 'run.log'),
             'formatter': 'standard',
         },
         'celery_file': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOG_DIR, 'celery.log'),
+            'formatter': 'standard',
+        },
+        # 为其他app添加日志文件
+        'mlog_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'mlog.log'),
+            'formatter': 'standard',
+        },
+        'mapi_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'mapi.log'),
+            'formatter': 'standard',
+        },
+        'node_mg_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'node_mg.log'),
+            'formatter': 'standard',
+        },
+        'cmdb_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'cmdb.log'),
+            'formatter': 'standard',
+        },
+        'jobflow_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'jobflow.log'),
             'formatter': 'standard',
         },
     },
@@ -375,11 +431,37 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
-        '': {
-            'handlers': ['console', 'file'],
+        # 为各app配置独立日志记录器
+        'mlog': {
+            'handlers': ['mlog_file', 'console'],
             'level': 'DEBUG',
             'propagate': False,
         },
+        'mapi': {
+            'handlers': ['mapi_file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'node_mg': {
+            'handlers': ['node_mg_file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'cmdb': {
+            'handlers': ['cmdb_file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'jobflow': {
+            'handlers': ['jobflow_file', 'console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        # '': {
+        #     'handlers': ['console', 'file'],
+        #     'level': 'DEBUG',
+        #     'propagate': True,
+        # },
     },
 }
 

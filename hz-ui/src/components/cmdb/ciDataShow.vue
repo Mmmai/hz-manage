@@ -2,18 +2,32 @@
   <div class="card table-main" v-if="reloadTable" style="width: 100%; flex: 1">
     <div class="table-header">
       <div class="header-button-lf">
-        <el-button
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="隐藏实例树"
+          placement="top"
           v-if="showTree"
-          :icon="Fold"
-          @click="showTree = false"
-          size="default"
-        ></el-button>
-        <el-button
+        >
+          <el-button
+            :icon="Fold"
+            @click="showTree = false"
+            size="default"
+          ></el-button>
+        </el-tooltip>
+        <el-tooltip
+          class="box-item"
+          effect="dark"
+          content="显示实例树"
+          placement="top"
           v-else
-          :icon="Expand"
-          @click="showTree = true"
-          size="default"
-        ></el-button>
+        >
+          <el-button
+            :icon="Expand"
+            @click="showTree = true"
+            size="default"
+          ></el-button>
+        </el-tooltip>
         <el-button
           type="primary"
           @click="addCiData"
@@ -256,16 +270,25 @@
         :reserve-selection="true"
       >
       </el-table-column>
+
       <el-table-column
         prop="instance_name"
         label="名称"
         fixed="left"
         width="180"
-      />
+      >
+        <template #default="scope">
+          <el-tooltip content="查看详情" placement="right" effect="dark">
+            <el-link type="primary" @click="goToEdit(scope.row)">
+              {{ scope.row.instance_name }}</el-link
+            >
+          </el-tooltip>
+        </template>
+      </el-table-column>
 
       <!-- <el-table-column label="Date" width="120" @row-click="editCiData">
                   <template #default="scope">{{ scope.row.date }}</template>
-</el-table-column> -->
+      </el-table-column> -->
       <el-table-column
         v-for="(data, index) in hasConfigField"
         :property="data.name"
@@ -277,13 +300,18 @@
       >
         <!-- 新增管理口跳转 -->
         <template #default="scope" v-if="data.name === 'mgmt_ip'">
-          <el-link
-            :href="`https://${scope.row[data.name]}`"
-            type="primary"
-            target="_blank"
-          >
-            {{ scope.row[data.name] }}</el-link
-          >
+          <div v-if="scope.row[data.name] !== null">
+            <el-tooltip content="跳转管理口" placement="right" effect="dark">
+              <el-link
+                :href="`https://${scope.row[data.name]}`"
+                type="primary"
+                target="_blank"
+              >
+                {{ scope.row[data.name] }}<el-icon><TopRight /></el-icon
+              ></el-link>
+            </el-tooltip>
+          </div>
+          <div v-else></div>
         </template>
         <!-- 列表显示布尔值按钮，以及模型关联、枚举类的label值 -->
         <template
@@ -324,10 +352,11 @@
           </div>
           <div v-else>
             <el-text v-if="scope.row[data.name]?.length >> 0">{{
-              "*".repeat(
-                decrypt_sm4(gmConfig.key, gmConfig.mode, scope.row[data.name])
-                  .length
-              )
+              // "*".repeat(
+              //   decrypt_sm4(gmConfig.key, gmConfig.mode, scope.row[data.name])
+              //     .length
+              // )
+              "*".repeat(scope.row[data.name]?.length)
             }}</el-text>
             <el-text v-else></el-text>
           </div>
@@ -361,10 +390,10 @@
               link
               type="primary"
               :icon="View"
-              @click="editCiData(scope.row)"
+              @click="goToEdit(scope.row)"
             ></el-button>
           </el-tooltip>
-          <el-tooltip
+          <!-- <el-tooltip
             class="box-item"
             effect="dark"
             content="编辑"
@@ -375,9 +404,9 @@
               link
               type="primary"
               :icon="Edit"
-              @click="editCiData(scope.row, true)"
+              @click="goToEdit(scope.row)"
             ></el-button>
-          </el-tooltip>
+          </el-tooltip> -->
           <el-tooltip
             class="box-item"
             effect="dark"
@@ -502,37 +531,71 @@
             require-asterisk-position="right"
           >
             <!-- <div v-for="(item, index) in modelInfo.field_groups"> -->
-            <el-form-item
-              prop="instance_name"
-              required
-              style="margin-left: 30px"
-              v-if="isEdit"
-            >
-              <template #label>
-                <el-space :size="2">
-                  <el-text tag="b">唯一标识</el-text>
-                  <el-tooltip
-                    content="唯一命名标识"
-                    placement="right"
-                    effect="dark"
-                  >
-                    <el-icon>
-                      <Warning />
-                    </el-icon>
-                  </el-tooltip>
-                </el-space>
-              </template>
+            <el-row>
+              <el-col :span="12">
+                <el-form-item
+                  prop="instance_name"
+                  required
+                  style="margin-left: 30px"
+                  v-if="isEdit"
+                >
+                  <template #label>
+                    <el-space :size="2">
+                      <el-text tag="b">唯一标识</el-text>
+                      <el-tooltip
+                        content="唯一命名标识"
+                        placement="right"
+                        effect="dark"
+                      >
+                        <el-icon>
+                          <Warning />
+                        </el-icon>
+                      </el-tooltip>
+                    </el-space>
+                  </template>
 
-              <el-input
-                v-model="ciDataForm.instance_name"
-                style="width: 240px"
-                v-if="isEdit"
+                  <el-input
+                    v-model="ciDataForm.instance_name"
+                    style="width: 240px"
+                    v-if="isEdit"
+                  >
+                  </el-input>
+                  <span v-else class="requiredClass">{{
+                    ciDataForm.instance_name
+                  }}</span>
+                </el-form-item></el-col
               >
-              </el-input>
-              <span v-else class="requiredClass">{{
-                ciDataForm.instance_name
-              }}</span>
-            </el-form-item>
+              <el-col :span="12">
+                <el-form-item
+                  prop="using_template"
+                  required
+                  style="margin-left: 30px"
+                >
+                  <template #label>
+                    <el-space :size="2">
+                      <el-text tag="b">自动命名</el-text>
+                      <el-tooltip
+                        content="是否根据模型的唯一命名规则，自动生成唯一标识"
+                        placement="right"
+                        effect="dark"
+                      >
+                        <el-icon>
+                          <Warning />
+                        </el-icon>
+                      </el-tooltip>
+                    </el-space>
+                  </template>
+                  <el-switch
+                    v-model="ciDataForm.using_template"
+                    style="
+                      --el-switch-on-color: #13ce66;
+                      --el-switch-off-color: #ff4949;
+                    "
+                  />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
             <el-collapse v-model="activeArr">
               <el-collapse-item
                 :name="index"
@@ -597,6 +660,7 @@
                       <el-input
                         v-model="ciDataForm[fitem.name]"
                         style="width: 240px"
+                        :disabled="controlEdit(fitem.editable)"
                         v-else
                       ></el-input>
                     </el-form-item>
@@ -801,16 +865,9 @@
                             :class="{ requiredClass: fitem.required }"
                             @mouseenter="showPassButton = true"
                             @mouseleave="showPassButton = false"
+                            class="hide-text"
                           >
-                            {{
-                              "*".repeat(
-                                decrypt_sm4(
-                                  gmConfig.key,
-                                  gmConfig.mode,
-                                  ciDataForm[fitem.name]
-                                ).length
-                              )
-                            }}
+                            {{ "*".repeat(ciDataForm[fitem.name]?.length) }}
                             <el-popover
                               v-permission="
                                 `${route.name?.replace(
@@ -1062,6 +1119,8 @@
                         v-else
                         v-model="ciDataForm[fitem.name]"
                         placeholder="请选择"
+                        filterable
+                        clearable
                         style="width: 240px"
                       >
                         <el-option
@@ -1112,6 +1171,9 @@
                         placeholder="请选择"
                         style="width: 240px"
                         filterable
+                        remote
+                        :remote-method="getRemoteOptions"
+                        :loading="remoteLoading"
                       >
                         <el-option
                           v-for="(citem, cIndex) in modelRefOptions[fitem.name]"
@@ -1141,13 +1203,13 @@
           v-if="!commitActionAdd"
           >222</el-tab-pane
         >
-        <el-tab-pane
-          label="变更记录"
-          name="changelog"
-          disabled
-          v-if="!commitActionAdd"
-          >Role</el-tab-pane
-        >
+        <el-tab-pane label="变更记录" name="changelog" v-if="!commitActionAdd">
+          <ciDataAudit
+            ref="ciDataAuditRef"
+            v-if="currentRow && currentRow.id"
+            :instanceId="currentRow.id"
+          />
+        </el-tab-pane>
       </el-tabs>
     </template>
     <template #footer>
@@ -1252,8 +1314,17 @@
             />
           </el-select>
           <div v-if="item && !item.startsWith('__temp')">
+            <div v-if="item === 'using_template'">
+              <el-switch
+                v-model="multipleForm.updateParams[item]"
+                style="
+                  --el-switch-on-color: #13ce66;
+                  --el-switch-off-color: #ff4949;
+                "
+              />
+            </div>
             <div
-              v-if="
+              v-else-if="
                 ['text', 'json'].indexOf(allModelFieldByNameObj[item].type) >>>
                 -1
                   ? false
@@ -1320,10 +1391,12 @@
                 v-model="multipleForm.updateParams[item]"
                 placeholder="请选择"
                 style="width: 180px"
+                clearable
+                filterable
               >
                 <el-option
                   v-for="ritem in enumOptionObj[
-                    allModelFieldByNameObj[item].validation_rule
+                    allModelFieldByNameObj[item]?.validation_rule
                   ]"
                   :key="ritem.value"
                   :label="ritem.label"
@@ -1343,6 +1416,7 @@
                 placeholder="请选择"
                 style="width: 240px"
                 filterable
+                clearable
               >
                 <!--                 @visible-change="
                   getModelRefCiData($event, {
@@ -1586,6 +1660,8 @@
 import ciDataUpload from "./ciDataUpload.vue";
 import ciDataTableCol from "./ciDataTableCol.vue";
 import ciDataShowPass from "./ciDataShowPass.vue";
+import ciDataAudit from "./ciDataAudit.vue";
+
 import ciDataqCode from "./ciDataqCode.vue";
 import {
   Check,
@@ -1635,10 +1711,14 @@ import ciDataFilter from "./ciDataFilter.vue";
 import { useStore } from "vuex";
 import { useClipboard } from "vue-clipboard3";
 import { debounce } from "lodash";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
+const router = useRouter();
 const route = useRoute();
 const store = useStore();
-const emit = defineEmits(["getTree"]);
+const emit = defineEmits(["getTree", "show-info"]);
+// 审计功能
+const ciDataAuditRef = ref("");
+
 const props = defineProps(["ciModelId", "treeData", "currentNodeId"]);
 const showTree = defineModel("showTree");
 // const treeData = defineModel("treeData");
@@ -1995,7 +2075,11 @@ const selectName = (index, name) => {
   // 保留原值
   // multipleForm.updateParams[name] = multipleForm.updateParams[paramNameLineMap[index]];
   // or 清空值
-  multipleForm.updateParams[name] = undefined;
+  if (name === "using_template") {
+    multipleForm.updateParams[name] = true;
+  } else {
+    multipleForm.updateParams[name] = undefined;
+  }
 
   // 删除原来的key, 并且更新map
   delete multipleForm.updateParams[paramNames.value[index]];
@@ -2035,21 +2119,35 @@ const saveCommit = () => {
       // 批量更新的方法
       // return;
       // let res = undefined;
+      // 针对using_template单独处理
+      let _using_template = null;
+      console.log(
+        "111",
+        JSON.stringify(multipleCommitParam.value.using_template)
+      );
+
+      if ("using_template" in multipleCommitParam.value) {
+        _using_template = multipleCommitParam.value.using_template;
+        delete multipleCommitParam.value.using_template;
+        console.log("111", JSON.stringify(multipleCommitParam.value));
+      }
       let params = new Object();
       if (isSelectAll.value) {
         // 条件下的全量更新
         params = {
-          update_user: store.state.username,
           fields: multipleCommitParam.value,
           model: props.ciModelId,
           ...multipleParams.value,
+          using_template: multipleCommitParam.value,
         };
       } else {
         params = {
-          update_user: store.state.username,
           instances: multipleSelectId.value,
           fields: multipleCommitParam.value,
         };
+      }
+      if (_using_template !== null) {
+        params.using_template = _using_template;
       }
       const loading = ElLoading.service({
         lock: true,
@@ -2091,7 +2189,9 @@ const saveCommit = () => {
   });
 };
 const allModelFieldOptions = computed<any>(() => {
-  let tempList = new Array();
+  let tempList = [
+    { value: "using_template", label: "自动命名", disabled: false },
+  ];
   modelInfo.value?.field_groups?.forEach((item) => {
     item.fields.forEach((field) => {
       let isDisabled = false;
@@ -2105,6 +2205,7 @@ const allModelFieldOptions = computed<any>(() => {
       });
     });
   });
+
   return tempList;
 });
 const handleClose = () => {
@@ -2421,7 +2522,7 @@ const setFormItemRule = (rule) => {
 const initCiDataForm = () => {
   for (const [ckey, cvalue] of Object.entries(ciDataForm)) {
     // console.log(key + ': ' + value);
-    if (ckey !== "instance_name") {
+    if (["instance_name", "using_template"].indexOf(ckey) === -1) {
       delete ciDataForm[ckey];
     }
   } // let initObj = new Object();
@@ -2596,6 +2697,7 @@ onMounted(async () => {
 // 实例编辑弹出框
 const ciDrawer = ref(false);
 const addCiData = () => {
+  console.log("addCiData", JSON.stringify(ciDataForm));
   isEdit.value = true;
   ciDrawer.value = true;
   commitActionAdd.value = true;
@@ -2606,7 +2708,13 @@ const addCiData = () => {
 
 const currentRow = ref({});
 const beforeEditCiDataForm = ref({});
+
+const goToEdit = (params) => {
+  router.push({ path: route.path + "/" + params.id });
+};
+
 const editCiData = (params, edit = false) => {
+  isCopy.value = false;
   ciDrawer.value = true;
   commitActionAdd.value = false;
   isEdit.value = edit;
@@ -2628,10 +2736,14 @@ const editCiData = (params, edit = false) => {
             ciDataForm[item] = params[item];
           }
         } else if (modelFieldType.value.password.indexOf(item) !== -1) {
-          console.log("password");
           if (!showAllPass.value) {
+            console.log(params[item]);
             ciDataForm[item] = params[item];
           } else {
+            console.log(params[item]);
+            console.log(
+              decrypt_sm4(gmConfig.value.key, gmConfig.value.mode, params[item])
+            );
             ciDataForm[item] = decrypt_sm4(
               gmConfig.value.key,
               gmConfig.value.mode,
@@ -2644,12 +2756,15 @@ const editCiData = (params, edit = false) => {
         }
       } // isDisabled.value = params.built_in
     );
+    console.log(ciDataForm);
     // ciDataForm = params
     beforeEditCiDataForm.value = JSON.parse(JSON.stringify(ciDataForm));
   });
 };
+const isCopy = ref(false);
 const cpCiData = (params) => {
   ciDrawer.value = true;
+  isCopy.value = true;
   commitActionAdd.value = true;
   isEdit.value = true;
   currentRow.value = params;
@@ -2669,7 +2784,7 @@ const cpCiData = (params) => {
           ciDataForm[item] = params[item].value;
         } else if (modelFieldType.value.password.indexOf(item) !== -1) {
           if (!showAllPass.value) {
-            ciDataForm[item] = params[item];
+            ciDataForm[item] = null;
           } else {
             ciDataForm[item] = decrypt_sm4(
               gmConfig.value.key,
@@ -2691,16 +2806,27 @@ const cpCiData = (params) => {
     duration: 2000,
   });
 };
-
+const controlEdit = (refVal) => {
+  if (commitActionAdd.value) return false;
+  if (isCopy.value) return false;
+  if (refVal) {
+    return false;
+  } else {
+    return true;
+  }
+};
 const ciDataFormRef = ref<FormInstance>();
 const ciDataForm = reactive({
   instance_name: null,
+  using_template: true,
 });
 const rmNameObj = computed(() => {
   let tmpObj = Object.assign({}, ciDataForm);
   delete tmpObj.instance_name;
+  delete tmpObj.using_template;
+
   for (let [ckey, cvalue] of Object.entries(tmpObj)) {
-    if (cvalue === null) continue;
+    if (cvalue === null || cvalue === "") continue;
     if (modelFieldType.value.password.indexOf(ckey) !== -1) {
       // 加密
       tmpObj[ckey] = encrypt_sm4(
@@ -2715,10 +2841,8 @@ const rmNameObj = computed(() => {
 const rmNameObjUpdate = computed(() => {
   let tmpObj = Object.assign({}, updateParams.value);
   delete tmpObj.instance_name;
-  console.log(modelFieldType.value);
-
   for (let [ckey, cvalue] of Object.entries(updateParams.value)) {
-    if (cvalue === null) continue;
+    if (cvalue === null || cvalue === "") continue;
     if (modelFieldType.value.password.indexOf(ckey) !== -1) {
       // 加密
       tmpObj[ckey] = encrypt_sm4(
@@ -2760,11 +2884,12 @@ const ciDataCommit = async (
           update_user: store.state.username,
           fields: rmNameObj.value,
           instance_name: ciDataForm.instance_name,
+          using_template: ciDataForm.using_template,
           instance_group: [props.currentNodeId],
         });
         setTimeout(() => {
           loading.close();
-        }, 2000);
+        }, 200);
 
         // console.log(res)
         // console.log(123)
@@ -2804,6 +2929,9 @@ const ciDataCommit = async (
             message: "无更新,关闭窗口",
             type: "info",
           });
+          setTimeout(() => {
+            loading.close();
+          }, 200);
           return;
         } else {
           // 判断此次用户操作的字段
@@ -2879,7 +3007,7 @@ const ciDataCommit = async (
         }
         setTimeout(() => {
           loading.close();
-        }, 1000);
+        }, 200);
       }
       // console.log('submit!')
     } else {
@@ -2974,6 +3102,9 @@ const activeName = ref("modelField");
 const handleClick = (tab: TabsPaneContext, event: Event) => {
   // console.log(tab, event);
   console.log(activeName.value);
+  if (tab.props.name == "changelog") {
+    ciDataAuditRef.value!.getData();
+  }
 };
 defineExpose({
   getHasConfigField,
@@ -3094,6 +3225,16 @@ const leftHeaderStyle = ({ row, column, rowIndex, columnIndex }) => {
 //   text-overflow: clip;
 //   overflow-wrap: break-word;
 // }
+
+// 密码过长显示
+
+.hide-text {
+  display: inline-block;
+  max-width: 150px; /* 控制显示宽度 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* 超出部分显示省略号 */
+}
 .demo-tabs > .el-tabs__content {
   padding: 32px;
   color: #6b778c;

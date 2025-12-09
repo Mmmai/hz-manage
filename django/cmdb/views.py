@@ -1,16 +1,14 @@
 import logging
-from pyexpat import model
 import time
 import uuid
 import traceback
 import re
 import io
 import tempfile
-from celery import shared_task
-from functools import reduce
+import networkx as nx
+
 from django.conf import settings
 from rest_framework import viewsets
-from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.metadata import BaseMetadata
@@ -20,90 +18,27 @@ from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 from cacheops import cached_as, invalidate_model
 from django.core.cache import cache
-from django.http import HttpResponse, StreamingHttpResponse
+from django.http import StreamingHttpResponse
+from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
-from django.utils import timezone
 from django.db.models import Q
-from django.db.models import Max, Case, When, Value, IntegerField
-from drf_spectacular.utils import extend_schema, OpenApiParameter
+from django_redis import get_redis_connection
 from celery.result import AsyncResult
-from .utils import password_handler, celery_manager, zabbix_config
+
+
+from .utils import password_handler, celery_manager
 from .excel import ExcelHandler
 from .constants import FieldMapping, FieldType, limit_field_names
-from .tasks import process_import_data, setup_host_monitoring, install_zabbix_agent, sync_zabbix_host_task, update_instance_names_for_model_template_change, update_zabbix_interface_availability
-from .filters import (
-    ModelGroupsFilter,
-    ModelsFilter,
-    ModelFieldGroupsFilter,
-    ValidationRulesFilter,
-    ModelFieldsFilter,
-    ModelFieldPreferenceFilter,
-    UniqueConstraintFilter,
-    ModelInstanceFilter,
-    ModelInstanceBasicFilter,
-    ModelFieldMetaFilter,
-    ModelInstanceGroupFilter,
-    ModelInstanceGroupRelationFilter,
-    RelationDefinitionFilter,
-    RelationsFilter,
-    ZabbixSyncHostFilter,
-    ZabbixProxy,
-    ZabbixProxyFilter,
-    ProxyAssignRuleFilter
-)
-from .models import (
-    ModelGroups,
-    Models,
-    ModelFieldGroups,
-    ValidationRules,
-    ModelFields,
-    ModelFieldPreference,
-    UniqueConstraint,
-    ModelInstance,
-    ModelFieldMeta,
-    ModelInstanceGroup,
-    ModelInstanceGroupRelation,
-    RelationDefinition,
-    Relations,
-    ZabbixSyncHost,
-    ZabbixProxy,
-    ProxyAssignRule
-)
-from .serializers import (
-    ModelGroupsSerializer,
-    ModelsSerializer,
-    ModelFieldGroupsSerializer,
-    ValidationRulesSerializer,
-    ModelFieldsSerializer,
-    ModelFieldPreferenceSerializer,
-    UniqueConstraintSerializer,
-    ModelInstanceSerializer,
-    ModelInstanceBasicViewSerializer,
-    ModelFieldMetaSerializer,
-    ModelInstanceGroupSerializer,
-    ModelInstanceGroupRelationSerializer,
-    BulkInstanceGroupRelationSerializer,
-    RelationDefinitionSerializer,
-    RelationsSerializer,
-    ZabbixSyncHostSerializer,
-    ZabbixProxySerializer,
-    ProxyAssignRuleSerializer
-)
-from .schemas import (
-    model_groups_schema,
-    models_schema,
-    model_field_groups_schema,
-    validation_rules_schema,
-    model_fields_schema,
-    model_field_preference_schema,
-    unique_constraint_schema,
-    model_instance_schema,
-    model_ref_schema,
-    model_field_meta_schema,
-    model_instance_group_schema,
-    model_instance_group_relation_schema,
-    password_manage_schema,
-)
+from .tasks import process_import_data, update_instance_names_for_model_template_change
+from .filters import *
+from .models import *
+from .serializers import *
+from .services import *
+from .message import bulk_creation_audit
+from .schemas import *
+from audit.context import audit_context
+from audit.mixins import AuditContextMixin
+from permissions.manager import PermissionManager
 
 logger = logging.getLogger(__name__)
 
@@ -114,81 +49,225 @@ class StandardResultsSetPagination(PageNumberPagination):
     max_page_size = 1000
 
 
+class CmdbBaseViewSet(AuditContextMixin, viewsets.ModelViewSet):
+    """
+    CMDB 应用专属的 ViewSet 基类。
+    它自动集成了 AuditContextMixin，确保所有继承自它的 ViewSet都会被置于审计上下文中。
+    同时，它还提供了基于当前用户的数据范围过滤功能，确保用户只能访问其有权限查看的数据。
+
+    ** 子类必须通过 self.get_queryset() 方法获取查询集 **
+    ** 子类重写get_queryset()方法时必须在首行调用 super().get_queryset() **
+    ** 子类中禁止通过以下方法获取查询集，功能需要查询非权限内实例的需要转移到模型层设计为特权方法 **
+    1. self.queryset（使用self.get_queryset()代替）
+    2. Model.objects.all()（使用PermissionManager(user).get_queryset(Model)代替）
+    3. Model.objects.filter()（使用PermissionManager(user).get_queryset(Model)代替）
+    4. 定义了类级别的 queryset 后必须重写 get_queryset() 方法以确保权限过滤生效
+    """
+    pagination_class = StandardResultsSetPagination
+    _visible_queryset = None
+
+    def get_base_queryset(self):
+        """
+        特殊情况下提供的获取基础查询集的方法，子类可以重写此方法以动态生成基础查询集。
+        ** 正常情况下只调用 super().get_queryset() 避免权限漏洞。 **
+        """
+        if not hasattr(self, 'queryset') or self.queryset is None:
+            raise ImproperlyConfigured(
+                f"{self.__class__.__name__} must define a 'queryset' attribute or override get_base_queryset()."
+            )
+        # 如果 queryset 是一个 QuerySet 对象，需要先克隆它以避免修改类属性
+        if hasattr(self.queryset, '_clone'):
+            return self.queryset._clone()
+        return self.queryset
+
+    def get_queryset(self):
+        base_queryset = self.get_base_queryset()
+        filtered_queryset = super().filter_queryset(base_queryset)
+        return filtered_queryset
+
+    def filter_queryset(self, queryset):
+        """
+        在被 DRF 意外调用时，防止DRF的默认行为绕过权限过滤。
+        """
+        # 直接返回已经完整过滤的 get_queryset 结果，确保数据源唯一。
+        return self.get_queryset()
+
+    def get_current_user(self):
+        if self.request and hasattr(self.request, 'user'):
+            return self.request.username
+        return 'unknown'
+
+    def perform_create(self, serializer):
+        """在创建对象时，自动设置 create_user 和 update_user。"""
+        username = self.get_current_user()
+        serializer.save(create_user=username, update_user=username)
+        return serializer.instance
+
+    def perform_update(self, serializer):
+        """在更新对象时，自动设置 update_user。"""
+        username = self.get_current_user()
+        serializer.save(update_user=username)
+
+
+class CmdbReadOnlyBaseViewSet(AuditContextMixin, viewsets.ReadOnlyModelViewSet):
+    """
+    为只读视图提供的基类。
+    """
+    pagination_class = StandardResultsSetPagination
+
+    def get_base_queryset(self):
+        if not hasattr(self, 'queryset') or self.queryset is None:
+            raise ImproperlyConfigured(
+                f"{self.__class__.__name__} must define a 'queryset' attribute or override get_base_queryset()."
+            )
+        if hasattr(self.queryset, '_clone'):
+            return self.queryset._clone()
+        return self.queryset
+
+    def get_queryset(self):
+        base_queryset = self.get_base_queryset()
+        filtered_queryset = super().filter_queryset(base_queryset)
+        return filtered_queryset
+
+    def filter_queryset(self, queryset):
+        return self.get_queryset()
+
+    def get_current_user(self):
+        if self.request and hasattr(self.request, 'user'):
+            return self.request.username
+        return 'unknown'
+
+
 @model_groups_schema
-class ModelGroupsViewSet(viewsets.ModelViewSet):
+class ModelGroupsViewSet(CmdbBaseViewSet):
     queryset = ModelGroups.objects.all().order_by('create_time')
     serializer_class = ModelGroupsSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ModelGroupsFilter
     ordering_fields = ['name', 'built_in', 'editable', 'create_time', 'update_time']
     search_fields = ['name', 'description', 'create_user', 'update_user']
 
-
-@models_schema
-class ModelsViewSet(viewsets.ModelViewSet):
-    queryset = Models.objects.all().order_by('create_time')
-    serializer_class = ModelsSerializer
-    pagination_class = StandardResultsSetPagination
-    filterset_class = ModelsFilter
-    # lookup_field = 'id'
-    ordering_fields = ['name', 'type', 'create_time', 'update_time']
-    search_fields = ['name', 'type', 'description', 'create_user', 'update_user']
-
-    def generate_unique_id(self):
-        while True:
-            new_id = str(uuid.uuid4())
-            if Models.objects.filter(id=new_id).count() == 0:
-                return new_id
-
-    def perform_create(self, serializer):
-        unique_id = self.generate_unique_id()
-        instance = serializer.save(id=unique_id)
-        logger.info(f"New model created: {instance.name} (ID: {unique_id})")
-
-        default_group, created = ModelFieldGroups.objects.get_or_create(
-            name='basic',
-            model=instance,
-            defaults={
-                'verbose_name': '基础配置',
-                'built_in': True,
-                'editable': False,
-                'description': '默认字段组',
-                'create_user': 'system',
-                'update_user': 'system'
-            }
-        )
-
-        return instance
+    def get_queryset(self):
+        return super().get_queryset()
 
     def perform_destroy(self, instance):
         if instance.built_in:
-            logger.warning(f"Attempt to delete built-in model denied: {instance.name}")
+            logger.warning(f"Attempt to delete built-in model group denied: {instance.name}")
             raise PermissionDenied({
-                'detail': 'Built-in model cannot be deleted'
+                'detail': 'Built-in model group cannot be deleted'
             })
-        logger.info(f"Model deleted successfully: {instance.name}")
-        instance.delete()
+        if not instance.editable:
+            logger.warning(f"Attempt to delete non-editable model group denied: {instance.name}")
+            raise PermissionDenied({
+                'detail': 'Non-editable model group cannot be deleted'
+            })
+
+        super().perform_destroy(instance)
+
+
+@models_schema
+class ModelsViewSet(CmdbBaseViewSet):
+    queryset = Models.objects.all().order_by('create_time')
+    serializer_class = ModelsSerializer
+    filterset_class = ModelsFilter
+    ordering_fields = ['name', 'type', 'create_time', 'update_time']
+    search_fields = ['name', 'type', 'description', 'create_user', 'update_user']
+
+    def get_queryset(self):
+        return super().get_queryset()
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        instance = ModelsService.create_model(
+            validated_data=serializer.validated_data,
+            user=self.request.user
+        )
+
+        if instance.instance_name_template:
+            UniqueConstraintService.sync_from_instance_name_template(
+                model=instance,
+                instance_name_template=list(instance.instance_name_template),
+                user=self.request.user,
+                audit_ctx=self.get_audit_context()
+            )
+
+        # 重新序列化返回结果
+        return Response(
+            self.get_serializer(instance).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        old_instance_name_template = list(instance.instance_name_template) if instance.instance_name_template else []
+
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        instance = self.get_object()  # 获取更新后的实例
+
+        logger.debug(f'user {self.request.user} type {type(self.request.user)}')
+
+        new_instance_name_template = list(instance.instance_name_template) if instance.instance_name_template else []
+        if old_instance_name_template != new_instance_name_template:
+            UniqueConstraintService.sync_from_instance_name_template(
+                model=instance,
+                instance_name_template=new_instance_name_template,
+                user=self.request.user,
+                audit_ctx=self.get_audit_context()
+            )
+
+        return Response(
+            self.get_serializer(instance).data,
+            status=status.HTTP_200_OK
+        )
+
+    def perform_destroy(self, instance):
+        ModelsService.delete_model(
+            model=instance,
+            user=self.request.user
+        )
 
     def retrieve(self, request, *args, **kwargs):
-        model = self.get_object()
+        instance = self.get_object()
 
-        field_groups = ModelFieldGroups.objects.filter(model=model).order_by('create_time')
-        field_groups_data = ModelFieldGroupsSerializer(field_groups, many=True).data
+        pm = PermissionManager(user=self.request.username)
+        field_groups_qs = pm.get_queryset(ModelFieldGroups).filter(model=instance).order_by('create_time')
+        fields_qs = pm.get_queryset(ModelFields).filter(model=instance).order_by('order')
 
-        fields = ModelFields.objects.filter(model=model).order_by('order')
-        fields_data = ModelFieldsSerializer(fields, many=True).data
+        model_data = self.get_serializer(instance).data
+        field_groups_data = ModelFieldGroupsSerializer(field_groups_qs, many=True).data
+        fields_data = ModelFieldsSerializer(fields_qs, many=True).data
 
-        grouped_fields = {}
-        for field in fields_data:
-            group_id = field.get('model_field_group')
-            grouped_fields.setdefault(str(group_id), []).append(field)
-        for group in field_groups_data:
-            group['fields'] = grouped_fields.get(group['id'], [])
+        data = ModelsService.get_model_details(model_data, field_groups_data, fields_data)
+        return Response(data, status=status.HTTP_200_OK)
 
-        return Response({
-            'model': ModelsSerializer(model).data,
-            'field_groups': field_groups_data
-        })
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+
+        page = self.paginate_queryset(queryset)
+        models_list = page if page is not None else list(queryset)
+
+        if not models_list:
+            return self.get_paginated_response([]) if page is not None else Response([])
+
+        model_ids = [m.id for m in models_list]
+        pm = PermissionManager(user=self.request.username)
+
+        field_groups_qs = pm.get_queryset(ModelFieldGroups).filter(model_id__in=model_ids).order_by('create_time')
+        fields_qs = pm.get_queryset(ModelFields).filter(model_id__in=model_ids).order_by('order')
+        instances_qs = pm.get_queryset(ModelInstance).filter(model_id__in=model_ids)
+
+        models_data = ModelsSerializer(models_list, many=True).data
+        field_groups_data = ModelFieldGroupsSerializer(field_groups_qs, many=True).data
+        fields_data = ModelFieldsSerializer(fields_qs, many=True).data
+
+        enriched_data = ModelsService.enrich_models_list(models_data, field_groups_data, fields_data, instances_qs)
+
+        return self.get_paginated_response(enriched_data) if page is not None else Response(enriched_data)
 
     @action(detail=True, methods=['post'])
     def rename_instances(self, request, pk=None):
@@ -206,11 +285,14 @@ class ModelsViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        audit_context = self.get_audit_context()
+
         # 触发异步任务
         task = update_instance_names_for_model_template_change.delay(
             str(model.id),
             [],
-            list(model.instance_name_template)
+            list(model.instance_name_template),
+            context=audit_context
         )
 
         cache_key = f"rename_task_{task.id}"
@@ -234,53 +316,30 @@ class ModelsViewSet(viewsets.ModelViewSet):
 
 
 @model_field_groups_schema
-class ModelFieldGroupsViewSet(viewsets.ModelViewSet):
+class ModelFieldGroupsViewSet(CmdbBaseViewSet):
     queryset = ModelFieldGroups.objects.all().order_by('-create_time')
     serializer_class = ModelFieldGroupsSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ModelFieldGroupsFilter
     ordering_fields = ['name', 'built_in', 'editable', 'create_time', 'update_time']
     search_fields = ['name', 'description', 'create_user', 'update_user']
 
+    def get_queryset(self):
+        return super().get_queryset()
+
     def perform_destroy(self, instance):
-        if instance.built_in:
-            logger.warning(f"Attempt to delete built-in field group denied: {instance.name}")
-            raise PermissionDenied({
-                'detail': 'Built-in model field group cannot be deleted'
-            })
-        if not instance.editable:
-            logger.warning(f"Attempt to delete non-editable model group denied: {instance.name}")
-            raise PermissionDenied({
-                'detail': 'Non-editable model field group cannot be deleted'
-            })
-
-        default_group, created = ModelFieldGroups.objects.get_or_create(
-            name='basic',
-            model=instance.model,
-            defaults={
-                'verbose_name': '基础配置',
-                'built_in': True,
-                'editable': False,
-                'description': '默认字段组',
-                'create_user': 'system',
-                'update_user': 'system'
-            }
-        )
-
-        ModelFields.objects.filter(model_field_group=instance).update(model_field_group=default_group)
-
-        super().perform_destroy(instance)
-        logger.info(f"Field group deleted successfully: {instance.name}")
+        ModelFieldGroupsService.delete_field_group(instance, user=self.request.user)
 
 
 @validation_rules_schema
-class ValidationRulesViewSet(viewsets.ModelViewSet):
+class ValidationRulesViewSet(CmdbBaseViewSet):
     queryset = ValidationRules.objects.all()
     serializer_class = ValidationRulesSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ValidationRulesFilter
     ordering_fields = ['name', 'field_type', 'type', 'create_time', 'update_time']
     search_fields = ['name', 'type', 'description', 'rule']
+
+    def get_queryset(self):
+        return super().get_queryset()
 
     def perform_destroy(self, instance):
         if instance.built_in:
@@ -320,13 +379,15 @@ class ModelFieldsMetadata(BaseMetadata):
 
 
 @model_fields_schema
-class ModelFieldsViewSet(viewsets.ModelViewSet):
+class ModelFieldsViewSet(CmdbBaseViewSet):
     metadata_class = ModelFieldsMetadata
     queryset = ModelFields.objects.all().order_by('-create_time')
     serializer_class = ModelFieldsSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ModelFieldsFilter
     ordering_fields = ['name', 'type', 'order', 'create_time', 'update_time']
+
+    def get_queryset(self):
+        return super().get_queryset()
 
     def perform_destroy(self, instance):
         if instance.built_in:
@@ -347,6 +408,7 @@ class ModelFieldsViewSet(viewsets.ModelViewSet):
                 raise PermissionDenied({
                     'detail': f'Field {instance.name} is used in unique constraint {constraint.name}'
                 })
+
         # 删除字段时，需要将字段从偏好设置中移除
         preferences = ModelFieldPreference.objects.filter(fields_preferred=[str(instance.id)])
         for preference in preferences:
@@ -363,59 +425,51 @@ class ModelFieldsViewSet(viewsets.ModelViewSet):
 
 
 @model_field_preference_schema
-class ModelFieldPreferenceViewSet(viewsets.ModelViewSet):
+class ModelFieldPreferenceViewSet(CmdbBaseViewSet):
     queryset = ModelFieldPreference.objects.all().order_by('-create_time')
     serializer_class = ModelFieldPreferenceSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ModelFieldPreferenceFilter
     search_fields = ['model', 'create_user', 'update_user']
     ordering_fields = ['model', 'create_time', 'update_time']
 
+    def get_queryset(self):
+        return super().get_queryset()
+
     def list(self, request, *args, **kwargs):
-        user = request.query_params.get('user', 'system')
+        username = self.get_current_user()
         model = request.query_params.get('model')
-        if user and model:
+        if username and model:
             model = Models.objects.get(id=model)
-            preference = ModelFieldPreference.objects.filter(model=model, create_user=user).first()
+            preference = ModelFieldPreference.objects.filter(model=model, create_user=username).first()
             if not preference:
-                fields = list(
-                    ModelFields.objects.filter(
-                        model=model
-                    ).order_by('order').values_list('id', flat=True)
-                )
-                serializer = ModelFieldPreferenceSerializer(
-                    data={
-                        'model': model.id,
-                        'fields_preferred': fields,
-                        'create_user': user,
-                        'update_user': user
-                    }
-                )
-                serializer.is_valid(raise_exception=True)
-                serializer.save()
-                # fields_str_list = [str(field_id) for field_id in system_preference.fields_preferred]
-                # system_preference.fields_preferred = fields_str_list
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            else:
-                # fields_str_list = [str(field_id) for field_id in preference.fields_preferred]
-                # preference.fields_preferred = fields_str_list
-                return Response(ModelFieldPreferenceSerializer(preference).data, status=status.HTTP_200_OK)
+                preference = ModelFieldPreferenceService.create_default_user_preference(model, self.request.user)
+            return Response(ModelFieldPreferenceSerializer(preference).data, status=status.HTTP_200_OK)
         else:
-            return super().list(request, *args, **kwargs)
+            return Response([], status=status.HTTP_200_OK)
 
 
 @unique_constraint_schema
-class UniqueConstraintViewSet(viewsets.ModelViewSet):
+class UniqueConstraintViewSet(CmdbBaseViewSet):
     queryset = UniqueConstraint.objects.all().order_by('-create_time')
     serializer_class = UniqueConstraintSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = UniqueConstraintFilter
     ordering_fields = ['model', 'create_time', 'update_time']
 
-    def perform_create(self, serializer):
-        instance = serializer.save()
-        logger.info(f"New unique constraint created: {instance.fields}")
-        return instance
+    def get_queryset(self):
+        # 根据请求用户的字段权限过滤唯一约束
+        model_id = self.request.query_params.get('model')
+        pm = PermissionManager(self.request.user)
+        query = Q()
+        if model_id:
+            query &= Q(model_id=model_id)
+
+        fields = pm.get_queryset(ModelFields).filter(query).values_list('id', flat=True)
+        field_ids = set(str(fid) for fid in fields)
+        queryset = super().get_base_queryset()
+        for constraint in queryset:
+            if not set(constraint.fields).issubset(field_ids):
+                queryset = queryset.exclude(id=constraint.id)
+        return queryset
 
     def perform_destroy(self, instance):
         if instance.built_in:
@@ -436,69 +490,43 @@ class BinaryFileRenderer(BaseRenderer):
 
 
 @model_instance_schema
-class ModelInstanceViewSet(viewsets.ModelViewSet):
-    queryset = ModelInstance.objects.all().order_by('-create_time').prefetch_related('field_values__model_fields')
+class ModelInstanceViewSet(CmdbBaseViewSet):
+    queryset = ModelInstance.objects.all().order_by('-create_time')
     serializer_class = ModelInstanceSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ModelInstanceFilter
     ordering_fields = ['create_time', 'update_time']
     search_fields = ['model', 'instance_name', 'create_user', 'update_user']
 
+    def _get_serializer_context_for_instances(self, instances):
+        base_context = self.get_serializer_context()
+        read_context = ModelInstanceService.get_read_context(instances, self.request.user)
+        base_context.update(read_context)
+
+        return base_context
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        context = self._get_serializer_context_for_instances([instance])
+        serializer = self.get_serializer(instance, context=context)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
+        queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)
-        ref_model_ids = set()
-        field_meta = {}
-        instance_group = {}
         if page is not None:
-            instance_ids_on_page = [instance.id for instance in page]
-
-            # 获取全部字段元数据
-            meta_qs = ModelFieldMeta.objects.filter(
-                model_instance_id__in=instance_ids_on_page
-            ).select_related('model_fields', 'model_fields__validation_rule')
-            for meta in meta_qs:
-                field_meta.setdefault(str(meta.model_instance_id), []).append(meta)
-            # 获取引用类型的id
-            ref_model_qs = meta_qs.filter(
-                model_fields__type=FieldType.MODEL_REF
-            ).exclude(
-                model_fields__ref_model_id__isnull=True
-            ).values_list('model_fields__ref_model_id', flat=True)
-            for ref_model_id in ref_model_qs:
-                ref_model_ids.add(str(ref_model_id))
-            # 获取分组
-            instance_group_data = ModelInstanceGroupRelation.objects.filter(
-                instance__in=instance_ids_on_page
-            ).select_related('group').values('instance_id', 'group_id', 'group__path')
-            for group in instance_group_data:
-                instance_group.setdefault(str(group['instance_id']), []).append({
-                    'group_id': str(group['group_id']),
-                    'group_path': group['group__path']
-                })
-
-        ref_instances = {}
-        if ref_model_ids:
-            instances = ModelInstance.objects.filter(
-                model_id__in=ref_model_ids
-            ).values('id', 'instance_name')
-            ref_instances = {str(instance['id']): instance['instance_name'] for instance in instances}
-
-        context = self.get_serializer_context()
-        context['field_meta'] = field_meta
-        context['ref_instances'] = ref_instances
-        context['instance_group'] = instance_group
-
-        serializer = self.get_serializer(page, many=True, context=context)
-
-        if page is not None:
+            context = self._get_serializer_context_for_instances(page)
+            serializer = self.get_serializer(page, many=True, context=context)
             return self.get_paginated_response(serializer.data)
+
+        context = self._get_serializer_context_for_instances(queryset)
+        serializer = self.get_serializer(queryset, many=True, context=context)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def _apply_filters(self, queryset, model, filter_params):
         model_id = model
-        matching_ids_list = []
         params = filter_params.copy()
+        query = Q()
 
         if model_id:
             queryset = queryset.filter(model_id=model_id)
@@ -513,78 +541,50 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
                 else:
                     standard_fields[field_name] = field_value
 
+        # 过滤ModelInstance字段
         if standard_fields:
             filterset = ModelInstanceFilter(standard_fields, queryset=queryset)
             queryset = filterset.qs
 
+        # 过滤动态字段
         for field_name, field_value in filter_params.items():
             # 忽略特殊参数
             if field_name in limit_field_names:
                 continue
 
             try:
-                field = ModelFields.objects.get(
-                    model=model_id if model_id else queryset.first().model_id,
-                    name=field_name
-                )
-
-                meta_query = ModelFieldMeta.objects.filter(model_fields=field)
-                all_instance_ids = set(meta_query.values_list('model_instance_id', flat=True))
-                exclude_ids = set()
-
-                # 处理各种过滤条件逻辑（从现有的get_queryset复制过来的代码）
                 if isinstance(field_value, str):
                     if field_value.startswith('like:'):
                         value = field_value[5:]
-                        meta_query = meta_query.filter(data__icontains=value)
-                        all_instance_ids = set(meta_query.values_list('model_instance_id', flat=True))
+                        query &= Q(data__icontains=value)
                     elif field_value.startswith('in:'):
                         values = field_value[3:].split(',')
-                        meta_query = meta_query.filter(data__in=values)
-                        all_instance_ids = set(meta_query.values_list('model_instance_id', flat=True))
+                        query &= Q(data__in=values)
                     elif field_value.startswith('regex:'):
                         pattern = field_value[6:]
-                        meta_query = meta_query.filter(data__regex=pattern)
-                        all_instance_ids = set(meta_query.values_list('model_instance_id', flat=True))
+                        query &= Q(data__regex=pattern)
                     elif field_value.startswith('not:'):
                         # 反选匹配
                         value = field_value[4:]
                         if value.startswith('like:'):
                             v = value[5:]
-                            exclude_ids = set(
-                                meta_query.filter(
-                                    data__icontains=v).values_list(
-                                    'model_instance_id', flat=True))
+                            query &= ~Q(data__icontains=v)
                         elif value.startswith('in:'):
                             v = value[3:].split(',')
-                            exclude_ids = set(meta_query.filter(data__in=v).values_list('model_instance_id', flat=True))
+                            query &= ~Q(data__in=v)
                         elif value.startswith('regex:'):
                             pattern = value[6:]
-                            exclude_ids = set(
-                                meta_query.filter(
-                                    data__regex=pattern).values_list(
-                                    'model_instance_id', flat=True))
+                            query &= ~Q(data__regex=pattern)
                         else:
                             if value == 'null':
-                                exclude_ids = set(
-                                    meta_query.filter(
-                                        data__isnull=True).values_list(
-                                        'model_instance_id', flat=True))
+                                query &= ~Q(data__isnull=True)
                             else:
-                                exclude_ids = set(
-                                    meta_query.filter(
-                                        data=value).values_list(
-                                        'model_instance_id',
-                                        flat=True))
+                                query &= ~Q(data=value)
                     else:
-                        meta_query = meta_query.filter(
-                            data=field_value) if field_value != 'null' else meta_query.filter(
-                            data__isnull=True)
-                        all_instance_ids = set(meta_query.values_list('model_instance_id', flat=True))
-
-                # 获取匹配的实例ID
-                matching_ids = all_instance_ids - exclude_ids
-                matching_ids_list.append(matching_ids)
+                        if value == 'null':
+                            query &= Q(data__isnull=True)
+                        else:
+                            query &= Q(data=field_value)
 
             except ModelFields.DoesNotExist:
                 logger.warning(f"Field not found: {field_name}")
@@ -593,22 +593,12 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
                 logger.error(f"Error processing field {field_name}: {traceback.format_exc()}")
                 continue
 
-        # 取交集并过滤queryset
-        if matching_ids_list:
-            final_ids = reduce(lambda x, y: x & y, matching_ids_list)
-
-            if final_ids:
-                queryset = queryset.filter(id__in=final_ids)
-            else:
-                # 当没有匹配的 ID 时，返回空查询集
-                queryset = queryset.none()
-                logger.debug("No matching results found, returning empty queryset")
-
+        queryset = queryset.filter(query)
         return queryset
 
-    @cached_as(ModelInstance, timeout=600)
+    # @cached_as(ModelInstance, timeout=600)
     def get_queryset(self):
-        queryset = ModelInstance.objects.all().order_by('-create_time').select_related('model')
+        queryset = super().get_queryset().order_by('-create_time').select_related('model')
 
         if self.action == 'retrieve' and self.kwargs.get('pk'):
             return queryset
@@ -625,61 +615,129 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
 
         return self._apply_filters(queryset, model_id, query_params)
 
-    def get_all_child_groups(self, group):
-        """递归获取所有子分组ID"""
-        group_ids = [group.id]
-        children = ModelInstanceGroup.objects.filter(parent=group)
-        for child in children:
-            group_ids.extend(self.get_all_child_groups(child))
-        return group_ids
+    def create(self, request, *args, **kwargs):
+        request.data['input_mode'] = 'manual'
+
+        model_id = request.data.get('model')
+        if not model_id:
+            raise ValidationError({'detail': 'Model ID is required'})
+        pm = PermissionManager(user=self.request.user)
+        model = pm.get_queryset(Models).get(id=model_id)
+        if not model:
+            raise ValidationError({'detail': f'Model {model_id} not found for user {self.request.user.username}'})
+
+        context = self.get_serializer_context()
+        write_context = ModelInstanceService.get_write_context(
+            model,
+            request.data.get('fields', {}),
+            self.request.user
+        )
+        context.update(write_context)
+
+        serializer = self.get_serializer(data=request.data, context=context)
+        serializer.is_valid(raise_exception=True)
+
+        # 获取分组
+        instance_group_ids = request.data.get('instance_group', [])
+        if isinstance(instance_group_ids, str):
+            instance_group_ids = [instance_group_ids]
+
+        # 创建实例
+        instance = ModelInstanceService.create_instance(
+            validated_data=serializer.validated_data,
+            user=self.request.user,
+            instance_group_ids=instance_group_ids
+        )
+
+        # 重新获取完整数据用于返回
+        context = self._get_serializer_context_for_instances([instance])
+        return Response(
+            self.get_serializer(instance, context=context).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+
+        # 调用 Service 更新实例
+        updated_instance = ModelInstanceService.update_instance(
+            instance=instance,
+            validated_data=serializer.validated_data,
+            user=self.request.user
+        )
+
+        if getattr(instance, '_prefetched_objects_cache', None):
+            instance._prefetched_objects_cache = {}
+
+        context = self._get_serializer_context_for_instances([updated_instance])
+        return Response(self.get_serializer(updated_instance, context=context).data)
 
     @action(detail=False, methods=['patch'])
     def bulk_update_fields(self, request):
         instance_ids = request.data.get('instances', [])
         model_id = request.data.get('model')
         fields_data = request.data.get('fields', {})
-        update_user = request.data.get('update_user')
         filter_by_params = request.data.get('all', False)
         params = request.data.get('params', {})
         group_id = request.data.get('group')
+        using_template = request.data.get('using_template')
 
         if group_id:
             params['model_instance_group'] = group_id
 
         if filter_by_params and params:
-            instances = ModelInstance.objects.all()
+            instances = self.get_queryset().all()
             instances = self._apply_filters(instances, model_id, params)
         elif instance_ids:
-            instances = ModelInstance.objects.filter(id__in=instance_ids)
+            instances = self.get_queryset().filter(id__in=instance_ids)
         else:
-            # 给定的查询参数不足
             raise ValidationError("Insufficient query parameters provided.")
 
         if not instances.exists():
             raise ValidationError("No instances found with the provided criteria.")
 
-        serializer = self.get_serializer(
-            instance=instances.first(),
-            data={
-                'fields': fields_data,
-                'update_user': update_user
-            },
-            partial=True,
-            context={
-                'request': request,
-                'bulk_update': True,
-                'instances': instances
-            }
-        )
-        logger.info(f'Updating {len(instances)} instances with fields: {fields_data}')
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        logger.debug(f'Serializer data: {serializer.data}')
-        logger.info(f'Instances updated successfully')
+        # 批量更新必须针对同一模型
+        first_instance = instances.first()
+        target_model_id = first_instance.model_id
+
+        # 如果前端没传 model_id，使用实例的 model_id
+        if not model_id:
+            model_id = str(target_model_id)
+
+        if instances.filter(model_id=target_model_id).count() != instances.count():
+            raise ValidationError("Instances belong to multiple models; bulk update requires a single model.")
+
+        # 调用 Serializer 进行数据校验
+        validation_data = {
+            'model': model_id,
+            'fields': fields_data
+        }
+
+        serializer = self.get_serializer(data=validation_data, partial=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+            validated_fields = serializer.validated_data.get('fields', {})
+        except ValidationError as e:
+            logger.error(f"Bulk update validation failed: {e}")
+            raise e
+
+        # 记录审计信息并执行批量更新
+        correlation_id = str(uuid.uuid4())
+        with audit_context(correlation_id=correlation_id):
+            updated_count = ModelInstanceService.bulk_update_instances(
+                instances_qs=instances,
+                validated_fields=validated_fields,
+                user=self.request.user,
+                using_template=using_template
+            )
 
         return Response({
             'status': 'success',
-            'updated_instances_count': instances.count()
+            'updated_instances_count': updated_count
         }, status=status.HTTP_200_OK)
 
     def get_renderers(self):
@@ -691,21 +749,21 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
     def export_template(self, request):
         """导出实例数据模板"""
         try:
-            # 获取模型ID
             model_id = request.data.get('model')
             if not model_id:
                 raise ValidationError({'detail': 'Model ID is required'})
 
-            # 获取模型及其字段
-            model = Models.objects.get(id=model_id)
-            fields = ModelFields.objects.filter(
+            pm = PermissionManager(user=self.request.user)
+            model = pm.get_queryset(Models).get(id=model_id)
+            fields = pm.get_queryset(ModelFields).filter(
                 model=model
             ).select_related(
                 'validation_rule',
-                'model_field_group'
+                'model_field_group',
+                'ref_model'
             ).order_by('model_field_group__create_time', 'order')
 
-            # 生成Excel模板
+            # 生成 Excel 模板
             excel_handler = ExcelHandler()
             workbook = excel_handler.generate_template(fields)
 
@@ -713,7 +771,6 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             workbook.save(excel_file)
             excel_file.seek(0)
 
-            # 返回文件响应
             headers = {
                 'Content-Disposition': f'attachment; filename="{model.name}_template.xlsx"'
             }
@@ -736,7 +793,10 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def export_data(self, request):
-        """导出实例数据"""
+        """
+        导出实例数据。
+        导出格式与导入模板一致，包含枚举/引用的锁定 sheet。
+        """
         try:
             instance_ids = request.data.get('instances', [])
             model_id = request.data.get('model')
@@ -748,103 +808,58 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             if not model_id:
                 raise ValidationError({'detail': 'Model ID is required'})
 
-            instances = ModelInstance.objects.filter(model_id=model_id)
+            pm = PermissionManager(user=self.request.user)
+            model = pm.get_queryset(Models).get(id=model_id)
+
+            # 构建实例查询集
+            instances = self.get_queryset().filter(model_id=model_id)
 
             if group_id:
                 params['model_instance_group'] = group_id
 
             if filter_by_params and params:
-                instances = ModelInstance.objects.all()
                 instances = self._apply_filters(instances, model_id, params)
             elif instance_ids:
                 instances = instances.filter(id__in=instance_ids)
 
-            # if group_id:
-            #     instance_in_group = ModelInstanceGroupRelation.objects.filter(
-            #         group=group_id
-            #     ).values_list('instance_id', flat=True)
-            #     instances = instances.filter(id__in=instance_in_group)
-
             if not instances.exists():
                 raise ValidationError("No instances found with the provided criteria.")
 
-            if instance_ids:
-                instances = instances.filter(id__in=instance_ids)
-            logger.info(f'Exporting data for {len(instances)} instances')
+            # 获取字段查询集
+            fields_qs = pm.get_queryset(ModelFields).filter(model=model)
 
-            field_meta_map = {}
-            instances_meta_qs = ModelFieldMeta.objects.filter(
-                model_instance__in=instances
-            ).select_related('model_fields', 'model_fields__validation_rule')
-            for meta in instances_meta_qs:
-                field_meta_map.setdefault(str(meta.model_instance_id), []).append(meta)
+            # 调用服务层导出数据
+            export_result = ModelInstanceService.export_instances_data(
+                model=model,
+                instances_qs=instances,
+                fields_qs=fields_qs,
+                user=self.request.user,
+                restricted_field_names=restricted_fields if restricted_fields else None
+            )
 
-            ref_model_ids = set()
-            ref_model_qs = instances_meta_qs.filter(
-                model_fields__type=FieldType.MODEL_REF
-            ).exclude(
-                model_fields__ref_model_id__isnull=True
-            ).values_list('model_fields__ref_model_id', flat=True)
-            for id in ref_model_qs:
-                ref_model_ids.add(str(id))
+            if not export_result['fields']:
+                raise ValidationError({'detail': 'No fields available for export'})
 
-            ref_instances_map = {}
-            if ref_model_ids:
-                ref_instances_list = ModelInstance.objects.filter(
-                    model_id__in=ref_model_ids
-                ).values('id', 'instance_name')
-                ref_instances_map = {
-                    str(instance['id']): instance['instance_name']
-                    for instance in ref_instances_list
-                }
-
-            context = self.get_serializer_context()
-            context['field_meta'] = field_meta_map
-            context['ref_instances'] = ref_instances_map
-
-            serialized_instances_data = self.get_serializer(instances, many=True, context=context).data
-
-            # 获取模型及其字段
-            model = Models.objects.get(id=model_id)
-            fields_query = ModelFields.objects.filter(model=model)
-
-            # 字段过滤
-            if restricted_fields:
-                fields_query = fields_query.filter(name__in=restricted_fields)
-
-            fields = fields_query.select_related(
-                'validation_rule',
-                'model_field_group'
-            ).order_by('model_field_group__create_time', 'order')
-
-            for instance_data in serialized_instances_data:
-                for field in fields:
-                    if field.type == FieldType.ENUM:
-                        data = instance_data['fields'].get(field.name, {})
-                        if data:
-                            instance_data['fields'][field.name] = data.get('label')
-                    elif field.type == FieldType.MODEL_REF:
-                        data = instance_data['fields'].get(field.name, {})
-                        if data:
-                            instance_data['fields'][field.name] = data.get('instance_name')
-                    elif field.type == FieldType.PASSWORD:
-                        data = instance_data['fields'].get(field.name, None)
-                        instance_data['fields'][field.name] = password_handler.decrypt_sm4(data)
-
-            # 生成Excel导出
+            # 生成 Excel 文件（复用模板格式）
             excel_handler = ExcelHandler()
-            workbook = excel_handler.generate_data_export(fields, serialized_instances_data)
+            workbook = excel_handler.generate_data_export_with_template(
+                fields=export_result['fields'],
+                instances_data=export_result['instances_data'],
+                enum_data=export_result['enum_data'],
+                ref_data=export_result['ref_data']
+            )
 
             excel_file = io.BytesIO()
             workbook.save(excel_file)
             excel_file.seek(0)
 
-            # 返回文件响应
             headers = {
                 'Content-Disposition': f'attachment; filename="{model.name}_data.xlsx"'
             }
 
-            logger.info(f"Data exported successfully for model: {model.name}")
+            logger.info(
+                f"Data exported successfully for model: {model.name}, instances: {len(export_result['instances_data'])}")
+
             return Response(
                 {
                     'filename': f"{model.name}_data.xlsx",
@@ -854,12 +869,106 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
                 headers=headers
             )
 
+        except Models.DoesNotExist:
+            raise ValidationError({'detail': f'Model {model_id} not found'})
         except Exception as e:
             logger.error(f"Error exporting data: {traceback.format_exc()}")
             raise ValidationError({'detail': f'Failed to export data: {str(e)}'})
 
     @action(detail=False, methods=['post'])
     def import_data(self, request):
+        file = request.FILES.get('file')
+        model_id = request.data.get('model')
+
+        if not file or not model_id:
+            raise ValidationError({'detail': 'Missing file or model ID'})
+
+        results = {'cache_key': None}
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp:
+            for chunk in file.chunks():
+                temp.write(chunk)
+            temp_path = temp.name
+        logger.info(f"Temp file created: {temp_path}")
+
+        try:
+            excel_handler = ExcelHandler()
+            excel_data = excel_handler.load_data(temp_path)
+            if excel_data['status'] == 'failed':
+                raise ValidationError({'detail': f'Failed to load Excel data: {excel_data["errors"][-1]}'})
+
+            headers = excel_data.get('headers', [])
+            pm = PermissionManager(user=request.user)
+            model = pm.get_queryset(Models).get(id=model_id)
+
+            if not model:
+                raise ValidationError({'detail': f'Model {model_id} not found for current user'})
+
+            warning_msg = ''
+
+            # 检查实例权限
+            disarded_instance_names = []
+            instance_names_query = pm.get_queryset(ModelInstance).filter(
+                model=model).values_list('instance_name', flat=True)
+            for instance_name in excel_data.get('instance_names', []):
+                if ModelInstance.objects.check_instance_name_exists(model_id, instance_name) and instance_name not in instance_names_query:
+                    logger.warning(f'Discarding instance name without permission: {instance_name}...')
+                    disarded_instance_names.append(instance_name)
+            if disarded_instance_names:
+                warning_msg = f'Discarded instance names without permission: {", ".join(disarded_instance_names)}'
+
+            # 检查是否有未知字段
+            fields_query = pm.get_queryset(ModelFields).filter(model=model).values_list('name', flat=True)
+            unknown_fields = set(headers) - set(fields_query)
+            if unknown_fields:
+                logger.warning(f'Discarding unknown fields in import: {unknown_fields}...')
+                if warning_msg:
+                    warning_msg += '; '
+                warning_msg += f'Unknown fields in Excel: {", ".join(unknown_fields)}'
+
+            if not celery_manager.check_heartbeat():
+                raise ValidationError({'detail': 'Celery worker is not available'})
+
+            audit_ctx = self.get_audit_context()
+            logger.debug(f'Audit context for import: {audit_ctx}')
+            task = process_import_data.delay(
+                excel_data,
+                model_id,
+                str(request.user.id),
+                audit_ctx
+            )
+
+            cache_key = f'import_task_{task.id}'
+            cache_results = {
+                'status': 'pending',
+                'total': len(excel_data.get('instances', [])),
+                'progress': 0,
+                'created': 0,
+                'updated': 0,
+                'skipped': 0,
+                'failed': 0,
+                'errors': [],
+                'error_file_key': None
+            }
+            cache.set(cache_key, cache_results, timeout=600)
+
+            results['cache_key'] = cache_key
+            if warning_msg:
+                results['warning'] = warning_msg
+            return Response(results, status=status.HTTP_200_OK)
+
+        except Models.DoesNotExist:
+            raise ValidationError({'detail': f'Model {model_id} not found'})
+        except Exception as e:
+            logger.error(f"Error loading Excel data: {traceback.format_exc()}")
+            raise ValidationError({'detail': f'Failed to load Excel data: {str(e)}'})
+        finally:
+            import os
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    @action(detail=False, methods=['post'])
+    def _import_data(self, request):
         file = request.FILES.get('file')
         model_id = request.data.get('model')
 
@@ -884,8 +993,15 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
                 logger.info(f"Excel data loaded successfully: {excel_data}")
 
             headers = excel_data.get('headers', [])
-            model = Models.objects.get(id=model_id)
-            fields_query = ModelFields.objects.filter(model=model).values_list('name', flat=True)
+
+            pm = PermissionManager(user=self.request.username)
+
+            model = pm.get_queryset(Models).get(id=model_id)
+
+            if not model:
+                raise ValidationError({'detail': f'Model {model_id} not found for current user'})
+
+            fields_query = pm.get_queryset(ModelFields).filter(model=model).values_list('name', flat=True)
             if set(fields_query) != set(headers):
                 raise ValidationError({'detail': 'Excel headers do not match model fields'})
 
@@ -897,10 +1013,12 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             if not celery_manager.check_heartbeat():
                 raise ValidationError({'detail': 'Celery worker is not available'})
 
+            audit_context = self.get_audit_context()
             task = process_import_data.delay(
                 excel_data,
                 model_id,
-                request_context
+                request_context,
+                audit_context
             )
             results['cache_key'] = f'import_task_{task.id}'
             cache_results = {
@@ -984,41 +1102,31 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
         )
 
     def perform_destroy(self, instance):
-        groups = ModelInstanceGroupRelation.objects.filter(instance=instance).values_list('group', flat=True)
-        groups = ModelInstanceGroup.objects.filter(id__in=groups)
+        pm = PermissionManager(user=self.request.username)
+
+        groups = pm.get_queryset(ModelInstanceGroupRelation).filter(instance=instance).values_list('group', flat=True)
+        groups = pm.get_queryset(ModelInstanceGroup).filter(id__in=groups)
         if '空闲池' not in groups.values_list('label', flat=True):
             raise PermissionDenied({'detail': 'Instance is not in unassigned group'})
-        ModelInstanceGroup.clear_groups_cache(groups)
         instance.delete()
 
     @action(detail=False, methods=['post'])
     def bulk_delete(self, request):
-
         instance_ids = request.data.get('instances', [])
         model_id = request.data.get('model')
         filter_by_params = request.data.get('all', False)
         params = request.data.get('params', {})
         group_id = request.data.get('group')
-
-        a = time.perf_counter()
-
-        instances = ModelInstance.objects.all()
-
-        b = time.perf_counter()
-
-        logger.info(f'Fetch all instances takes {b - a}s')
-
+        instances = self.get_queryset().all()
+        pm = PermissionManager(user=self.request.username)
         if group_id:
-            group = ModelInstanceGroup.objects.get(id=group_id)
+            group = pm.get_queryset(ModelInstanceGroup).get(id=group_id)
             if group and group.label != '空闲池' and group.path != '所有/空闲池':
                 raise ValidationError({'detail': 'Instances not in the unassigned group cannot be deleted'})
-            instance_in_group = ModelInstanceGroupRelation.objects.filter(
+            instance_in_group = pm.get_queryset(ModelInstanceGroupRelation).filter(
                 group=group_id
             ).values_list('instance_id', flat=True)
             instances = instances.filter(id__in=instance_in_group)
-
-        c = time.perf_counter()
-        logger.info(f'Filter by group takes {c - b}s')
 
         if filter_by_params and (group_id or params):
             if params:
@@ -1029,9 +1137,6 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             # 给定的查询参数不足
             raise ValidationError("Insufficient query parameters provided.")
 
-        d = time.perf_counter()
-        logger.info(f'Filter by params takes {d - c}s')
-
         if not instances.exists():
             raise ValidationError("No instances found with the provided criteria.")
 
@@ -1040,35 +1145,21 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
             if instances.filter(model_id=model_id).count() != instances.count():
                 raise ValidationError("Instances do not belong to the same model.")
 
-            e = time.perf_counter()
-            logger.info(f'Check model ID takes {e - d}s')
-
             valid_id = instances.values_list('id', flat=True)
             invalid_id = {}
 
-            unassigned_group = ModelInstanceGroup.objects.get(
-                model=model_id,
-                label='空闲池'
-            )
-            relations = ModelInstanceGroupRelation.objects.filter(instance__in=valid_id)
+            unassigned_group = ModelInstanceGroup.objects.get_unassigned_group(model_id)
+            relations = pm.get_queryset(ModelInstanceGroupRelation).filter(instance__in=valid_id)
             group_invalid_ids = relations.exclude(group=unassigned_group).values_list('instance_id', flat=True)
             invalid_id = {instance_id: 'Instance is not in unassigned group' for instance_id in group_invalid_ids}
-            f = time.perf_counter()
-            logger.info(f'Check unassigned group takes {f - e}s')
 
-            if ModelFields.objects.filter(ref_model_id=model_id).exists():
+            if ModelFields.objects.check_ref_fields_exists(model_id):
                 for instance in instances:
-                    if ModelFieldMeta.objects.filter(data=str(instance.id)).exists():
+                    if ModelFieldMeta.objects.check_data_exists(str(instance.id)):
                         invalid_id[instance.id] = 'Referenced by other model field meta'
-            g = time.perf_counter()
-            logger.info(f'Check unassigned group takes {g - f}s')
             valid_id = set(valid_id) - set(invalid_id.keys())
 
-            ModelInstance.objects.filter(id__in=valid_id).delete()
-            h = time.perf_counter()
-            logger.info(f'Bulk delete operation takes {h - g}s')
-            logger.info(f'All operations take {h - a}s')
-
+            self.get_queryset().filter(id__in=valid_id).delete()
             return Response({
                 'success': len(valid_id),
                 'errors': list(invalid_id)
@@ -1076,73 +1167,164 @@ class ModelInstanceViewSet(viewsets.ModelViewSet):
         except Exception as e:
             raise ValidationError(f'Error deleting instances: {str(e)}')
 
+    @action(detail=False, methods=['post'])
+    def search(self, request):
+        """
+        全文检索实例数据
+
+        使用 MySQL FULLTEXT 索引进行高效搜索，支持：
+        - 跨模型搜索
+        - 枚举 key/value 自动转换
+        - 引用字段 instance_name/instance_id 自动转换
+        - 中文分词（ngram）
+
+        请求体:
+        {
+            "query": "搜索关键词",
+            "models": ["model_id1", "model_id2"],  // 可选，限定搜索模型
+            "limit": 100,  // 可选，默认100，最大500
+            "threshold": 0.0,  // 可选，相似度阈值，默认0
+            "search_mode": "boolean"  // 可选：natural/boolean/expansion
+        }
+        """
+        query = request.data.get('query', '')
+        model_ids = request.data.get('models', [])
+        limit = request.data.get('limit', 100)
+        threshold = request.data.get('threshold', 0.0)
+        search_mode = request.data.get('search_mode', 'boolean')
+        regexp = request.data.get('regexp', False)
+        case_sensitive = request.data.get('case_sensitive', False)
+        logger.debug(f'Searching with query: {query}, models: {model_ids}, limit: {limit}, '
+                     f'threshold: {threshold}, search_mode: {search_mode}, regexp: {regexp}, '
+                     f'case_sensitive: {case_sensitive}')
+        if not query:
+            raise ValidationError({'detail': 'Search query is required'})
+
+        # 参数验证
+        try:
+            limit = max(1, min(int(limit), 500))
+            threshold = max(0.0, min(float(threshold), 0.0))
+        except (ValueError, TypeError):
+            raise ValidationError({'detail': 'Invalid limit or threshold value'})
+
+        if search_mode not in ('natural', 'boolean', 'expansion'):
+            search_mode = 'boolean'
+
+        try:
+            result = ModelFieldMetaSearchService.search(
+                query=query,
+                user=self.request.user,
+                model_ids=model_ids if model_ids else None,
+                limit=limit,
+                threshold=threshold,
+                search_mode=search_mode,
+                regexp=regexp,
+                case_sensitive=case_sensitive
+            )
+        except Exception as e:
+            logger.error(f"Error during search: {traceback.format_exc()}")
+            return Response({'detail': f'Search failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response(result, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'])
+    def quick_search(self, request):
+        """
+        快速搜索（GET 方式，适合前端搜索框/自动补全）
+
+        查询参数:
+        - q: 搜索关键词（必填）
+        - model: 模型ID（可选）
+        - limit: 返回数量（可选，默认20，最大100）
+        """
+        query = request.query_params.get('query', '')
+        model_id = request.query_params.get('model')
+        limit = request.query_params.get('limit', 20)
+
+        if not query:
+            return Response({
+                'results': [],
+                'total': 0,
+                'query': ''
+            })
+
+        try:
+            limit = max(1, min(int(limit), 100))
+        except (ValueError, TypeError):
+            limit = 20
+
+        result = ModelFieldMetaSearchService.search(
+            query=query,
+            user=self.request.user,
+            model_ids=[model_id] if model_id else None,
+            limit=limit,
+            threshold=0.0,
+            search_mode='boolean',
+            quick=True
+        )
+
+        # 简化返回结果，适合下拉框展示
+        simplified_results = []
+        for item in result['results']:
+            best_match = item['matches'][0] if item['matches'] else None
+            simplified_results.append({
+                'instance_id': item['instance_id'],
+                'instance_name': item['instance_name'],
+                'model_id': item['model_id'],
+                'model_name': item['model_verbose_name'] or item['model_name'],
+                'matched_field': best_match['field_verbose_name'] if best_match else None,
+                'matched_value': best_match['display_value'] if best_match else None,
+                'score': item['max_score']
+            })
+
+        return Response({
+            'results': simplified_results,
+            'total': result['total'],
+            'query': query
+        })
+
 
 @model_ref_schema
-class ModelInstanceBasicViewSet(viewsets.ReadOnlyModelViewSet):
+class ModelInstanceBasicViewSet(CmdbReadOnlyBaseViewSet):
     serializer_class = ModelInstanceBasicViewSerializer
     queryset = ModelInstance.objects.all().order_by('-create_time')
     filterset_class = ModelInstanceBasicFilter
-    pagination_class = StandardResultsSetPagination
     search_fields = ['model', 'instance_name', 'create_user', 'update_user']
     ordering_fields = ['name', 'create_time', 'update_time']
 
+    def get_queryset(self):
+        return super().get_queryset()
 
-@model_field_meta_schema
-class ModelFieldMetaViewSet(viewsets.ModelViewSet):
-    queryset = ModelFieldMeta.objects.all().order_by('-create_time')
-    serializer_class = ModelFieldMetaSerializer
-    pagination_class = StandardResultsSetPagination
-    filterset_class = ModelFieldMetaFilter
-    ordering_fields = ['create_time', 'update_time']
+
+# 禁止通过API直接操作字段数据
+# @model_field_meta_schema
+# class ModelFieldMetaViewSet(CmdbBaseViewSet):
+#     queryset = ModelFieldMeta.objects.all().order_by('-create_time')
+#     serializer_class = ModelFieldMetaSerializer
+#     filterset_class = ModelFieldMetaFilter
+#     ordering_fields = ['create_time', 'update_time']
 
 
 @model_instance_group_schema
-class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
+class ModelInstanceGroupViewSet(CmdbBaseViewSet):
     queryset = ModelInstanceGroup.objects.all().order_by('create_time')
     serializer_class = ModelInstanceGroupSerializer
-    # pagination_class = StandardResultsSetPagination
     pagination_class = None
     filterset_class = ModelInstanceGroupFilter
     ordering_fields = ['label', 'order', 'path', 'create_time', 'update_time']
 
-    def _build_model_groups_tree(self):
-        """构建所有模型的分组树"""
-        result = {}
-        models = Models.objects.all()
-
-        for model in models:
-            root_groups = ModelInstanceGroup.objects.filter(
-                model=model,
-                parent=None
-            ).order_by('order')
-
-            if root_groups.exists():
-                result[str(model.id)] = {
-                    'model_name': model.name,
-                    'model_verbose_name': model.verbose_name,
-                    'groups': self.get_serializer(root_groups, many=True).data
-                }
-
-        return result
-
     def get_queryset(self):
-        queryset = self.queryset
+        queryset = super().get_queryset()
         model_id = self.request.query_params.get('model')
 
+        if model_id:
+            queryset = queryset.filter(model_id=model_id)
+            logger.debug(f"Filtering groups by model: {model_id}")
         try:
-            if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
-                return queryset.select_related('model')
+            if self.action in ['retrieve', 'update', 'partial_update', 'destroy', 'list']:
+                return queryset.select_related('model', 'parent')
             if self.action in ['add_instances', 'remove_instances', 'search_instances']:
                 return queryset
-            if model_id:
-                queryset = queryset.filter(model_id=model_id)
-                logger.debug(f"Filtering groups by model: {model_id}")
-
-            # 只返回顶层节点，子节点通过序列化器递归获取
-            queryset = queryset.filter(parent=None)
-
-            # 添加排序
-            # queryset = queryset.select_related('model').order_by('label')
 
             return queryset
 
@@ -1154,54 +1336,64 @@ class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
         try:
             model_id = request.query_params.get('model')
 
-            if model_id:
-                # 返回特定模型的分组树
-                queryset = self.get_queryset()
-                serializer = self.get_serializer(queryset, many=True)
-                groups_data = {}
-                for group_data in serializer.data:
-                    groups_data.update(group_data)
+            # 获取所有模型的分组树
+            if not model_id:
+                tree_structure, context = ModelInstanceGroupService.build_model_groups_tree(self.request.user)
+                response_data = []
+                for group_item in tree_structure:
+                    model_group = group_item['model_group']
+                    models_list = []
 
-                return Response(groups_data)
-            else:
-                # 返回所有模型的分组树
-                return Response(self._build_model_groups_tree())
+                    for model_item in group_item['models']:
+                        model = model_item['model']
+                        groups = model_item['groups']
+
+                        # 调用序列化器
+                        groups_data = ModelInstanceGroupSerializer(
+                            groups,
+                            many=True,
+                            context=context
+                        ).data
+
+                        models_list.append({
+                            'model_id': str(model.id),
+                            'model_name': model.name,
+                            'model_verbose_name': model.verbose_name,
+                            'groups': groups_data
+                        })
+
+                    response_data.append({
+                        'model_group_id': str(model_group.id),
+                        'model_group_name': model_group.name,
+                        'model_group_verbose_name': model_group.verbose_name,
+                        'models': models_list
+                    })
+
+                return Response(response_data)
+
+            # 获取特定模型的分组树
+            root_node, context = ModelInstanceGroupService.get_single_model_group_tree(model_id, self.request.user)
+
+            if not root_node:
+                return Response({}, status=status.HTTP_200_OK)
+
+            serializer = self.get_serializer(root_node, context=context)
+            return Response(serializer.data)
 
         except Exception as e:
-            logger.error(f"Error in list view: {str(e)}")
-            return Response({
-                'error': str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-    def _get_all_child_groups(self, group):
-        """递归获取所有子组"""
-        children = list(ModelInstanceGroup.objects.filter(parent=group))
-        logger.debug(f'Found {len(children)} children for group {group}')
-        all_children = children.copy()
-        if len(children) == 0:
-            return list()
-        for child in children:
-            all_children.extend(self._get_all_child_groups(child))
-        logger.debug(f'Groups: {all_children}')
-        return all_children
-
-    def _check_root_group_operation(self, group):
-        """检查是否是对【所有】分组的操作"""
-        if group.label == '所有' and group.built_in:
-            logger.warning(f"Attempt to modify root group {group.label}")
-            raise PermissionDenied({
-                'detail': 'Cannot modify root group "所有"'
-            })
+            logger.error(f"Error in list view: {traceback.format_exc()}")
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     def update(self, request, *args, **kwargs):
-        """禁止更新内置分组"""
         instance = self.get_object()
-        self._check_root_group_operation(instance)
-
         target_id = request.data.get('target_id')
         position = request.data.get('position')
 
         if target_id and position:
+            ModelInstanceGroupService.update_group_position(
+                instance, target_id, position, self.request.user
+            )
+
             serializer = self.get_serializer(
                 instance,
                 data=request.data,
@@ -1212,120 +1404,69 @@ class ModelInstanceGroupViewSet(viewsets.ModelViewSet):
                 })
             serializer.is_valid(raise_exception=True)
             self.perform_update(serializer)
+            return Response(serializer.data)
 
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        """禁止删除内置分组"""
         try:
             instance = self.get_object()
-            if instance.built_in:
-                logger.warning(f"Attempt to delete built-in group {instance.label}")
-                raise PermissionDenied({
-                    'detail': f'Cannot delete built-in group "{instance.label}"'
-                })
-            logger.info(f"Starting deletion process for group: {instance.label}")
+            result = ModelInstanceGroupService.delete_group(instance, self.request.user)
 
-            with transaction.atomic():
-                unassigned_group = ModelInstanceGroup.objects.get(
-                    model=instance.model,
-                    label='空闲池',
-                    built_in=True
-                )
+            return Response({
+                'message': f'Successfully deleted group {instance.label} and its children',
+                **result
+            }, status=status.HTTP_200_OK)
 
-                child_groups = self._get_all_child_groups(instance)
-                all_groups = [instance] + child_groups
-                group_ids = [g.id for g in all_groups]
-
-                logger.info(f"Found {len(child_groups)} child groups")
-
-                instances_to_move = set()
-                for group in all_groups:
-                    group_instances = ModelInstanceGroupRelation.objects.filter(
-                        group=group
-                    ).values_list('instance_id', flat=True)
-
-                    # 对于每个实例，检查是否还有其他非待删除组的关系
-                    for instance_id in group_instances:
-                        other_relations = ModelInstanceGroupRelation.objects.filter(
-                            instance_id=instance_id
-                        ).exclude(
-                            group_id__in=group_ids
-                        ).exclude(
-                            group=unassigned_group
-                        )
-
-                        if not other_relations.exists():
-                            instances_to_move.add(instance_id)
-
-                logger.debug(f"Found {len(instances_to_move)} instances to move to unassigned pool")
-
-                deleted_relations = ModelInstanceGroupRelation.objects.filter(
-                    group_id__in=group_ids
-                ).delete()[0]
-                logger.debug(f"Deleted {deleted_relations} group relations")
-
-                # 将实例移动到空闲池
-                if instances_to_move:
-                    relations_to_create = [
-                        ModelInstanceGroupRelation(
-                            instance_id=instance_id,
-                            group=unassigned_group,
-                            create_user=request.user.username if hasattr(request.user, 'username') else request.user
-                        )
-                        for instance_id in instances_to_move
-                    ]
-                    ModelInstanceGroupRelation.objects.bulk_create(relations_to_create)
-                    logger.debug(f"Created {len(relations_to_create)} relations in unassigned pool")
-
-                for child in child_groups:
-                    child.delete()
-                    logger.debug(f"Deleted child group: {child.label}")
-
-                instance.delete()
-                logger.info(f"Deleted group: {instance.label}")
-
-                ModelInstanceGroup.clear_group_cache(instance)
-
-                return Response({
-                    'message': f'Successfully deleted group {instance.label} and its children',
-                    'deleted_groups_count': len(all_groups),
-                    'moved_instances_count': len(instances_to_move)
-                }, status=status.HTTP_200_OK)
-
-        except ModelInstanceGroup.DoesNotExist as e:
-            logger.error(f"Group not found: {str(e)}")
-            return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
+        except (ModelInstanceGroup.DoesNotExist, PermissionDenied) as e:
+            raise e
         except Exception as e:
             logger.error(f"Error deleting group: {str(e)}")
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def tree(self, request):
+        model_id = request.query_params.get('model')
+        model = Models.objects.filter(id=model_id).first()
+        if not model:
+            return Response({'detail': f'Model {model_id} not found'}, status=status.HTTP_404_NOT_FOUND)
+        root_nodes, context = ModelInstanceGroupService.get_tree(model, request.user)
+        data = ModelInstanceGroupTreeSerializer(root_nodes, many=True, context=context).data
+        return Response(data, status=status.HTTP_200_OK)
 
 
 @model_instance_group_relation_schema
-class ModelInstanceGroupRelationViewSet(viewsets.ModelViewSet):
+class ModelInstanceGroupRelationViewSet(CmdbBaseViewSet):
     queryset = ModelInstanceGroupRelation.objects.all().order_by('-create_time')
     # serializer_class = ModelInstanceGroupRelationSerializer
-    pagination_class = StandardResultsSetPagination
     filterset_class = ModelInstanceGroupRelationFilter
     ordering_fields = ['create_time', 'update_time']
     http_method_names = ['get', 'post']
 
+    def get_queryset(self):
+        return super().get_queryset()
+
     def get_serializer_class(self):
         if self.action == 'create_relations':
             return BulkInstanceGroupRelationSerializer
+        elif self.action == 'tree':
+            return ModelInstanceGroupTreeSerializer
         return ModelInstanceGroupRelationSerializer
 
     @action(detail=False, methods=['post'])
     def create_relations(self, request):
         """批量创建或更新实例分组关联"""
         logger.info(f"Creating or updating instance group relations")
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         logger.debug(f"Data validated. Saving relations...")
 
         try:
-            relations = serializer.save()
-            logger.info(f"Successfully created or updated {len(relations)} instance group relations.")
+            correlation_id = str(uuid.uuid4())
+            with audit_context(correlation_id=correlation_id):
+                relations = serializer.save()
+                logger.info(f"Successfully created or updated {len(relations)} instance group relations.")
             return Response(
                 ModelInstanceGroupRelationSerializer(
                     relations,
@@ -1338,22 +1479,374 @@ class ModelInstanceGroupRelationViewSet(viewsets.ModelViewSet):
             raise ValidationError(str(e))
 
 
-# class RelationDefinitionViewSet(viewsets.ModelViewSet):
-#     queryset = RelationDefinition.objects.all().order_by('-create_time')
-#     serializer_class = RelationDefinitionSerializer
+class RelationDefinitionViewSet(CmdbBaseViewSet):
+    queryset = RelationDefinition.objects.all().order_by('name')
+    serializer_class = RelationDefinitionSerializer
+    filterset_class = RelationDefinitionFilter
+    ordering_fields = ['name', 'create_time', 'update_time']
+
+    def get_queryset(self):
+        return super().get_queryset()
+
+    def perform_destroy(self, instance):
+        # 检查关系定义是否已被使用
+        if Relations.objects.filter(relation=instance).exists():
+            logger.warning(f"Trying to delete a relation definition in use: {instance.name}")
+            raise PermissionDenied(
+                "This relation definition is in use by at least one relation instance and cannot be deleted.")
+        logger.info(f"Relation definition '{instance.name}' has been deleted.")
+        super().perform_destroy(instance)
 
 
-# class RelationsViewSet(viewsets.ModelViewSet):
-#     queryset = Relations.objects.all().order_by('-create_time')
-#     serializer_class = RelationsSerializer
+class RelationsViewSet(CmdbBaseViewSet):
+    queryset = Relations.objects.all().select_related(
+        'source_instance__model', 'target_instance__model', 'relation'
+    ).order_by('-create_time')
+    serializer_class = RelationsSerializer
+    filterset_class = RelationsFilter
+    search_fields = [
+        'source_instance__instance_name',
+        'target_instance__instance_name',
+        'relation__name'
+    ]
+    ordering_fields = ['create_time', 'update_time']
+
+    def get_queryset(self):
+        queryset = super().get_queryset().select_related(
+            'source_instance__model', 'target_instance__model', 'relation'
+        ).order_by('-create_time')
+
+        return queryset
+
+    @action(detail=False, methods=['post'])
+    def bulk_associate(self, request, *args, **kwargs):
+        """
+        批量创建多对一或一对多的关联关系。
+        例如：将多个主机（多）关联到一个交换机（一）。
+        """
+        serializer = BulkAssociateRelationsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        instance_ids = data['instance_ids']
+        target_instance_id = data['target_instance_id']
+        relation_id = data['relation_id']
+        direction = data['direction']
+        attributes = data['relation_attributes']
+        user = self.get_current_user()
+
+        relations_to_create = []
+        for instance_id in instance_ids:
+            if direction == 'target-source':
+                source_id, target_id = instance_id, target_instance_id
+            elif direction == 'source-target':
+                source_id, target_id = target_instance_id, instance_id
+            else:
+                raise ValidationError(f"Invalid direction: {direction}. Must be 'source-target' or 'target-source'.")
+
+            relations_to_create.append(
+                Relations(
+                    source_instance_id=source_id,
+                    target_instance_id=target_id,
+                    relation_id=relation_id,
+                    relation_attributes=attributes,
+                    create_user=user,
+                    update_user=user
+                )
+            )
+
+        try:
+            created_objects = Relations.objects.bulk_create(relations_to_create, ignore_conflicts=True)
+            bulk_creation_audit.send(sender=Relations, instances=created_objects)
+
+            return Response(
+                {
+                    "created_count": len(created_objects)
+                },
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            logger.error(f"Error creating relations: {e}", exc_info=True)
+            raise ValidationError(f"Failed to create relations: {e}")
+
+    @action(detail=False, methods=['post'])
+    def bulk_create(self, request, *args, **kwargs):
+        """
+        批量创建多个关联关系。
+        接收一个包含多个关系定义的列表。
+        数据格式: {"relations": [{"source_instance": "uuid", "target_instance": "uuid", "relation": "uuid", ...}]}
+        """
+        relations_data = request.data.get('relations', [])
+        if not isinstance(relations_data, list) or not relations_data:
+            raise ValidationError("A non-empty list of relations is required.")
+
+        serializer = self.get_serializer(data=relations_data, many=True)
+        serializer.is_valid(raise_exception=True)
+
+        user = self.get_current_user()
+        relations_to_create = []
+
+        for relation_data in serializer.validated_data:
+            relation_data['create_user'] = user
+            relation_data['update_user'] = user
+            relations_to_create.append(Relations(**relation_data))
+
+        try:
+            created_objects = Relations.objects.bulk_create(relations_to_create, ignore_conflicts=True)
+            bulk_creation_audit.send(sender=Relations, instances=created_objects)
+
+            return Response(
+                {
+                    "created_count": len(created_objects)
+                },
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            logger.error(f"Error occurred while bulk creating relations: {e}", exc_info=True)
+            raise ValidationError(f"Failed to create relations: {e}")
+
+    @action(detail=False, methods=['post'])
+    def bulk_delete(self, request, *args, **kwargs):
+        relation_ids = request.data.get('ids', [])
+        if not isinstance(relation_ids, list) or not relation_ids:
+            raise ValidationError("Require a non-empty list of relation IDs to delete.")
+
+        queryset = self.get_queryset().filter(id__in=relation_ids)
+
+        with capture_audit_snapshots(list(queryset)):
+            deleted_count, _ = queryset.delete()
+
+        return Response(
+            {"deleted_count": deleted_count},
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=False, methods=['post'])
+    def get_topology(self, request):
+        try:
+            start_node_ids = request.data.get('start_nodes', [])
+            end_node_ids = request.data.get('end_nodes', [])
+            depth = int(request.data.get('depth', 3))
+            direction = request.data.get('direction', 'both')
+            mode = request.data.get('mode', 'blast')
+
+            if not start_node_ids:
+                return Response({"detail": "Start nodes are required."}, status=status.HTTP_400_BAD_REQUEST)
+            if mode == 'path' and not end_node_ids:
+                return Response({"detail": "End nodes are required when using path mode."}, status=status.HTTP_400_BAD_REQUEST)
+
+            logger.info(f"Processing topology query with mode: {mode}, depth: {depth}, direction: {direction}")
+
+            G = self._build_graph_on_demand(
+                start_node_ids, end_node_ids, depth, direction, mode
+            )
+
+            logger.info(f"Graph constructed with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
+
+            node_objects = [data['instance'] for _, data in G.nodes(data=True)]
+            edge_objects = [data['relation'] for u, v, data in G.edges(data=True)]
+
+            node_serializer = ModelInstanceBasicViewSerializer(node_objects, many=True)
+            edge_serializer = RelationsSerializer(edge_objects, many=True)
+
+            return Response({
+                "nodes": node_serializer.data,
+                "edges": edge_serializer.data
+            })
+
+        except Exception as e:
+            logger.error(f"Error occurred when processing topology query: {e}", exc_info=True)
+            return Response({"detail": "Internal server error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def _filter_path_edges(self, G, start_node, end_node, depth, subgraph):
+        paths = nx.all_simple_paths(G, source=start_node, target=end_node, cutoff=depth)
+        for path in paths:
+            for i in range(len(path) - 1):
+                u, v = path[i], path[i+1]
+                if not subgraph.has_node(u):
+                    subgraph.add_node(u, **G.nodes[u])
+                if not subgraph.has_node(v):
+                    subgraph.add_node(v, **G.nodes[v])
+                if not subgraph.has_edge(u, v):
+                    subgraph.add_edge(u, v, **G.get_edge_data(u, v))
+        return subgraph
+
+    def _find_path_between_nodes(self, G, start_node_ids, end_node_ids, depth):
+        """
+        在给定的图G中查找从start_node_ids到end_node_ids的所有简单路径，路径长度不超过depth。
+        返回包含这些路径的子图。
+        """
+        path_graph = nx.DiGraph()
+
+        for start_node in start_node_ids:
+            for end_node in end_node_ids:
+                if G.has_node(start_node) and G.has_node(end_node):
+                    try:
+                        self._filter_path_edges(G, start_node, end_node, depth, path_graph)
+                    except nx.NetworkXNoPath:
+                        continue
+        return path_graph
+
+    def _find_blast_neighbors(self, start_node_ids, end_node_ids, direction, depth):
+        """
+        在图G中查找从start_node_ids出发，按照direction方向，深度为depth的邻接节点。
+        如果提供了end_node_ids，则只返回包含这些终点的子图。
+        """
+        graph = nx.DiGraph()
+        queue = set(start_node_ids)
+        seen_nodes = set()
+
+        logger.info(
+            f"Finding blast neighbors from nodes: {start_node_ids} with depth: {depth} and direction: {direction}")
+        for _ in range(depth):
+            if not queue:
+                break
+            logger.info(f"Current queue: {queue}")
+            current_level_nodes = list(queue)
+            seen_nodes.update(current_level_nodes)
+            queue.clear()
+
+            q_filter = Q()
+            if direction in ('forward', 'both'):
+                q_filter |= Q(source_instance_id__in=current_level_nodes)
+            if direction in ('reverse', 'both'):
+                q_filter |= Q(target_instance_id__in=current_level_nodes)
+
+            relations_qs = Relations.objects.filter(q_filter).select_related(
+                'source_instance', 'target_instance', 'relation')
+            logger.info(f"Found {relations_qs.count()} relations at current depth")
+            newly_found_nodes = self._add_edges_to_graph(graph, relations_qs)
+            logger.info(f"Newly found nodes: {newly_found_nodes}")
+            queue.update(newly_found_nodes - seen_nodes)
+
+        if not end_node_ids:
+            return graph
+
+        path_subgraph = self._find_path_between_nodes(graph, start_node_ids, end_node_ids, depth)
+        return path_subgraph
+
+    def _build_graph_on_demand(self, start_node_ids, end_node_ids, depth, direction, mode):
+        """
+        按需从数据库查询数据来构建图，避免一次性加载所有数据。
+        """
+        G = nx.DiGraph()
+        logger.info(f"Building graph on demand with mode: {mode}")
+        # 路径查询
+        if mode == 'path':
+            initial_nodes = set(start_node_ids + end_node_ids)
+            temp_G = nx.DiGraph()
+            queue = set(initial_nodes)
+            seen_nodes = set()
+
+            for _ in range(depth + 1):
+                if not queue:
+                    break
+
+                current_level_nodes = list(queue)
+                seen_nodes.update(current_level_nodes)
+                queue.clear()
+
+                relations_qs = Relations.objects.filter(
+                    Q(source_instance_id__in=current_level_nodes) | Q(target_instance_id__in=current_level_nodes)
+                ).select_related('source_instance', 'target_instance', 'relation')
+
+                new_nodes = self._add_edges_to_graph(temp_G, relations_qs)
+                queue.update(new_nodes - seen_nodes)
+
+            G = self._find_path_between_nodes(temp_G, start_node_ids, end_node_ids, depth)
+
+        # 爆炸分析
+        elif mode == 'blast':
+            G = self._find_blast_neighbors(start_node_ids, end_node_ids, direction, depth)
+
+        # 邻接查询
+        elif mode == 'neighbor':
+            for start_node in start_node_ids:
+                q_filter = Q()
+                if direction in ('forward', 'both'):
+                    q_filter |= Q(source_instance_id=start_node)
+                if direction in ('reverse', 'both'):
+                    q_filter |= Q(target_instance_id=start_node)
+
+                relations_qs = Relations.objects.filter(q_filter).select_related(
+                    'source_instance', 'target_instance', 'relation'
+                )
+                self._add_edges_to_graph(G, relations_qs)
+
+        # 模式匹配
+        elif mode == 'pattern':
+            pass
+
+        # 孤立节点
+        elif mode == 'isolate':
+            instances = ModelInstance.objects.filter(id__in=start_node_ids).values_list('id', flat=True)
+            instance_id_map = {instance.id: instance for instance in instances}
+            in_rel_instances = Relations.objects.filter(
+                Q(source_instance_id__in=start_node_ids) | Q(target_instance_id__in=start_node_ids)
+            ).values_list('source_instance_id', 'target_instance_id')
+            in_rel_instance_ids = set(id for pair in in_rel_instances for id in pair)
+            isolated_ids = set(instance_id_map.keys()) - in_rel_instance_ids
+            for instance_id in isolated_ids:
+                instance = instance_id_map.get(instance_id)
+                if instance:
+                    G.add_node(str(instance.id), instance=instance)
+
+        return G
+
+    def _add_edges_to_graph(self, G, relations_qs):
+        """
+        将查询到的关系添加到图中，并根据topology_type处理边的方向。
+        返回本次添加操作中新发现的所有节点的ID集合。
+        """
+        new_nodes = set()
+
+        # 预加载所有涉及的实例对象，减少循环内查询
+        instance_ids = set()
+        for rel in relations_qs:
+            instance_ids.add(rel.source_instance_id)
+            instance_ids.add(rel.target_instance_id)
+
+        instances = ModelInstance.objects.in_bulk([str(uuid) for uuid in instance_ids])
+
+        for rel in relations_qs:
+            source_id = str(rel.source_instance_id)
+            target_id = str(rel.target_instance_id)
+
+            source_inst = instances.get(rel.source_instance_id)
+            target_inst = instances.get(rel.target_instance_id)
+
+            if not source_inst or not target_inst:
+                continue
+
+            # 添加节点（如果不存在）
+            if source_id not in G:
+                G.add_node(source_id, instance=source_inst)
+                new_nodes.add(source_id)
+            if target_id not in G:
+                G.add_node(target_id, instance=target_inst)
+                new_nodes.add(target_id)
+
+            # 根据关系类型添加边
+            topology_type = rel.relation.topology_type
+
+            if topology_type in ('directed', 'daggered'):
+                G.add_edge(source_id, target_id, relation=rel)
+            elif topology_type == 'undirected':
+                G.add_edge(source_id, target_id, relation=rel)
+                G.add_edge(target_id, source_id, relation=rel)  # 添加反向边以模拟无向
+
+        return new_nodes
 
 
 @password_manage_schema
-class PasswordManageViewSet(viewsets.ViewSet):
+class PasswordManageViewSet(CmdbBaseViewSet):
 
     @action(detail=False, methods=['post'])
     def re_encrypt(self, request):
         """重新加密密码"""
+        username = self.get_current_user()
+        if username != 'admin':
+            raise PermissionDenied("Only admin can perform password re-encryption.")
         try:
             password_meta = ModelFieldMeta.objects.filter(model_fields__type='password').values('id', 'data')
             if not password_meta:
@@ -1385,6 +1878,9 @@ class PasswordManageViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'])
     def reset_passwords(self, request):
         """将所有密码置空"""
+        username = self.get_current_user()
+        if username != 'admin':
+            raise PermissionDenied("Only admin can perform password reset.")
         try:
             password_meta = ModelFieldMeta.objects.filter(model_fields__type='password').values('id')
             if not password_meta:
@@ -1399,226 +1895,39 @@ class PasswordManageViewSet(viewsets.ViewSet):
             return Response({'status': 'fail', 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ZabbixSyncHostViewSet(viewsets.ModelViewSet):
-    queryset = ZabbixSyncHost.objects.all().order_by('create_time')
-    serializer_class = ZabbixSyncHostSerializer
-    pagination_class = StandardResultsSetPagination
-    filterset_class = ZabbixSyncHostFilter
-    ordering_fields = ['host_id', 'ip', 'name', 'agent_installed', 'interface_available', 'create_time', 'update_time']
+class SystemCacheViewSet(CmdbBaseViewSet):
 
     @action(detail=False, methods=['post'])
-    def update_zabbix_availability(self, request):
-        """手动触发 Zabbix 接口可用性更新"""
+    def clear_cache(self, request):
+        """清理系统缓存"""
+        username = self.get_current_user()
+        if username != 'admin':
+            raise PermissionDenied("Only admin can perform cache clearing.")
         try:
-            result = update_zabbix_interface_availability.delay()
+            conn = get_redis_connection("default")
+            key_prefix = settings.CACHES['default'].get('KEY_PREFIX', '')
 
+            if not key_prefix:
+                return Response({
+                    'status': 'failed',
+                    'message': 'Cache key prefix is not set in settings.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            pattern = f'{key_prefix}*'
+            keys_to_delete = conn.keys(pattern)
+
+            if keys_to_delete:
+                deleted_count = conn.delete(*keys_to_delete)
+            else:
+                deleted_count = 0
+            logger.warning(f'Manually cleared {deleted_count} cache keys with prefix {key_prefix}')
             return Response({
                 'status': 'success',
-                'task_id': result.id
+                'deleted_keys_count': deleted_count
             }, status=status.HTTP_200_OK)
         except Exception as e:
-            logger.error(f"Error triggering Zabbix interface availability update: {str(e)}")
-            return Response(
-                {'status': 'fail', 'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    @action(detail=False, methods=['post'])
-    def sync_zabbix_host(self, request):
-        try:
-            # 触发异步任务
-            task = sync_zabbix_host_task.delay()
-
+            logger.error(f"Error clearing cache: {str(e)}")
             return Response({
-                'status': 'success',
-                'task_id': task.id
-            }, status=status.HTTP_202_ACCEPTED)
-
-        except Exception as e:
-            logger.error(f"Failed to trigger sync task: {str(e)}")
-            return Response({
-                'status': 'error',
-                'message': f'Failed to trigger sync task: {str(e)}'
+                'status': 'failed',
+                'message': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    @action(detail=False, methods=['post'])
-    def install_agents(self, request):
-        try:
-            ids = request.data.get('ids', [])
-            all_failed = request.data.get('all', False)
-
-            force_flag = False
-
-            if not ids and not all_failed:
-                return Response({
-                    'status': 'failed',
-                    'message': 'No IDs provided and all failed flag is not set.'
-                })
-
-            if all_failed:
-                hosts = ZabbixSyncHost.objects.filter(agent_installed=False)
-            else:
-                force_flag = True
-                hosts = ZabbixSyncHost.objects.filter(id__in=ids)
-
-            if not hosts.exists():
-                return Response({
-                    'status': 'failed',
-                    'message': 'No hosts found matching the criteria.'
-                }, status=status.HTTP_200_OK)
-
-            # hosts.update(agent_installed=False, installation_error=None)
-
-            cache_key = f'install_status_{str(uuid.uuid4())}'
-            task_info = {
-                'host_task_map': {},
-                'total': hosts.count()
-            }
-
-            for host in hosts:
-                # 获取主机的密码
-                try:
-                    # 从实例中获取密码字段
-                    host_instance = host.instance
-                    password_meta = ModelFieldMeta.objects.filter(
-                        model_instance=host_instance,
-                        model_fields__name='system_password'
-                    ).first()
-
-                    if not password_meta or not password_meta.data:
-                        logger.warning(f"No password found for host {host.ip}")
-                        continue
-
-                    # 获取解密后的密码
-                    password = password_handler.decrypt_to_plain(password_meta.data)
-
-                    # 触发安装任务
-                    task = setup_host_monitoring.delay(
-                        str(host.instance.id),
-                        host.name,
-                        host.ip,
-                        password,
-                        force=force_flag)
-                    logger.info(f"Triggered Zabbix agent installation for host {host.ip}")
-
-                    task_info['host_task_map'][str(host.id)] = task.id
-
-                except Exception as e:
-                    logger.error(f"Failed to trigger Zabbix agent installation for host {host.ip}: {str(e)}")
-                    continue
-
-            cache.set(cache_key, task_info, timeout=1200)
-            return Response(
-                {'status': 'success', 'cache_key': cache_key},
-                status=status.HTTP_200_OK
-            )
-
-        except Exception as e:
-            logger.error(f"Error triggering Zabbix agent installation: {str(e)}")
-            return Response(
-                {'status': 'failed', 'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    @action(detail=False, methods=['get'])
-    def installation_status_sse(self, request):
-        """使用 SSE 实时获取 Zabbix 安装状态"""
-        try:
-            cache_key = request.query_params.get('cache_key')
-            if not cache_key:
-                raise ValidationError({'detail': 'Missing cache key'})
-            task_info = cache.get(cache_key)
-            if not task_info:
-                raise ValidationError({'detail': 'Cache key not found'})
-
-            result = {
-                'status': 'pending',
-                'total': task_info['total'],
-                'success': 0,
-                'failed': 0,
-                'progress': 0
-            }
-
-            def event_stream():
-                result['status'] = 'processing'
-                last_progress = 0
-                completed_hosts = set()
-
-                for _ in range(600):
-                    for zsh_id, task_id in task_info['host_task_map'].items():
-                        if zsh_id in completed_hosts:
-                            continue
-
-                        check_result = self.check_chain_task(task_id)
-                        if check_result is None:
-                            continue
-                        elif check_result == 1:
-                            result['success'] += 1
-                            completed_hosts.add(zsh_id)
-                        elif check_result == -1:
-                            result['failed'] += 1
-                            completed_hosts.add(zsh_id)
-
-                    result['progress'] = (result['success'] + result['failed']) * 100 // result['total']
-
-                    if result['progress'] == 100:
-                        result['status'] = 'completed'
-                        yield f"data: {result}\n\n"
-                        break
-
-                    if result['progress'] != last_progress:
-                        last_progress = result['progress']
-                        yield f"data: {result}\n\n"
-
-                    # 暂停 2 秒后继续检查
-                    time.sleep(2)
-
-            # 返回 SSE 响应
-            response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
-            response['Cache-Control'] = 'no-cache'
-            response['X-Accel-Buffering'] = 'no'
-            return response
-
-        except Exception as e:
-            logger.error(f"Error in installation status SSE: {str(e)}")
-            return Response({
-                'error': f'Error in installation status SSE: {str(e)}'
-            }, status=500)
-
-    @staticmethod
-    def check_chain_task(task_id):
-        """检查链式任务的状态"""
-        task = AsyncResult(task_id)
-        if not task.ready():
-            return None
-        if task.successful():
-            if task.result:
-                chain_task_id = task.result.get('chain_task_id')
-                chain_task = AsyncResult(chain_task_id)
-                if not chain_task.ready():
-                    return None
-                if chain_task.successful():
-                    return 1
-                else:
-                    return -1
-            else:
-                logger.info(f"Task {task_id} has no result")
-                return -1
-        else:
-            return -1
-
-
-class ZabbixProxyViewSet(viewsets.ModelViewSet):
-    queryset = ZabbixProxy.objects.all().order_by('create_time')
-    serializer_class = ZabbixProxySerializer
-    pagination_class = StandardResultsSetPagination
-    filterset_class = ZabbixProxyFilter
-    ordering_fields = ['proxy_id', 'name', 'ip', 'create_time', 'update_time']
-
-
-class ProxyAssignRuleViewSet(viewsets.ModelViewSet):
-    queryset = ProxyAssignRule.objects.all().order_by('create_time')
-    serializer_class = ProxyAssignRuleSerializer
-    pagination_class = StandardResultsSetPagination
-    filterset_class = ProxyAssignRuleFilter
-    ordering_fields = ['rule', 'type', 'proxy', 'create_time', 'update_time']

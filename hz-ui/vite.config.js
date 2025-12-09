@@ -35,6 +35,9 @@ export default defineConfig({
       "/ws": {
         target: "ws://127.0.0.1:8000",
       },
+      "/jobflow/ws": {
+        target: "ws://127.0.0.1:8000",
+      },
     },
   },
   css: {

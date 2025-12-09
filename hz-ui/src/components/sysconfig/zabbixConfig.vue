@@ -189,16 +189,18 @@ const zabbixParamsFormItem = [
   "zabbix_username",
   "zabbix_password",
   "zabbix_host_template",
+  "zabbix_ipmi_template",
   "zabbix_network_template",
   "zabbix_interval",
 ];
 const formRef = ref(null);
 const paramForm = reactive({
-  zabbix_is_sync: "1",
+  zabbix_is_sync: "0",
   zabbix_url: null,
   zabbix_server: null,
   zabbix_username: null,
   zabbix_password: null,
+  zabbix_ipmi_template: null,
   zabbix_host_template: null,
   zabbix_network_template: null,
   zabbix_interval: 0,
@@ -215,7 +217,11 @@ const zabbixParamsObjectByName = computed(() => {
 // });
 const getParams = async () => {
   let res = await proxy.$api.getSysConfig({ param_name: "zabbix" });
+  console.log(res.data);
   zabbixParamsArray.value = res.data;
+  res.data.forEach((item) => {
+    paramForm[item.param_name] = item.param_value;
+  });
 };
 
 const editAction = () => {
