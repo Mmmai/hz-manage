@@ -1,48 +1,9 @@
-import { createRouter,createWebHashHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 //createWebHashHistory
-// import {useStore} from 'vuex'
 import dealWithRoute from './dynamicRoute'
-// const store = useStore()
+import { computed, ref } from 'vue'
 import store from '../store/index'
-// console.log(store)
-// const tempval = [
-//   {
-//     path:'home',
-//     name: 'home',
-//     component: () => import('../views/homeView.vue')
-//   },
-//   {
-//     path:'user',
-//     name: 'user',
-//     component: () => import('../views/Userview.vue'),
-//     meta:{role:[1,2]}
-//   },
-//   {
-//     path:'role',
-//     name: 'role',
-//     component: () => import('../views/roleview.vue'),
-//     meta:{role:[1]}
-//   },
-//   {
-//     path:'menu',
-//     name: 'menu',
-//     component: () => import('../views/menuView.vue'),
-//     meta:{role:[1]}
-//   },
-//   // {
-//   //   path:'/loki',
-//   //   name: 'loki',
-//   //   component: () => import('../views/lokiView.vue'),
-//   //   meta:{role:[1]}
-//   // },
-//   {
-//     path:'/other',
-//     name: 'other',
-//     component: () => import('../views/otherView.vue'),
-//     meta:{role:[2]}
-//   }
-// ]
-
+import useConfigStore from "@/store/config";
 
 // 路由和vue视图的对应关系
 const publicRoute = [
@@ -51,35 +12,15 @@ const publicRoute = [
     name: 'login',
     // redirect:'/',
     component: () => import('../views/loginView.vue'),
-    //     children:[
-    //   // {
-    //   //   path: '/log/loki',
-    //   //   name: 'loki',
-    //   //   component: () => import('../views/lokiView.vue')
-    //   //   // meta: item.meta
-    //   // }
-    //   {        path: '/111',
-    //     name: '2222',
-    //     component: () => import('../views/homeView.vue')}
-    // ]
   },
-  // {
-  //   path: '/',
-  //   name: 'main',
-  //   redirect:'/home',
-  //   component: () => import('../views/mainView.vue'),
-  //   // children:[
-  //   //   // {
-  //   //   //   path: '/log/loki',
-  //   //   //   name: 'loki',
-  //   //   //   component: () => import('../views/lokiView.vue')
-  //   //   //   // meta: item.meta
-  //   //   // }
-  //   //   {        path: '/home',
-  //   //     name: 'home',
-  //   //     component: () => import('../views/homeView.vue')}
-  //   // ]
-  // },
+  {
+    path: '/cmdb_only',
+    name: 'cmdb_only',
+    redirect: '/cmdb_only/cmdb/cidata',
+
+    component: () => import('../views/cmdbForUops.vue'),
+    children: []
+  },
   {
     // path: '/:error*', // /:error -> 匹配 /, /one, /one/two, /one/two/three, 等
     path: '/:catchAll(.*)',
@@ -98,81 +39,97 @@ const publicRoute = [
 
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
-  routes:publicRoute
+  routes: publicRoute
 })
 // console.log(router.getRoutes())
 
-// router.addRoute({ name: 'admin', path: '/admin', component: () => import('../views/lokiView.vue') })
-// router.addRoute('admin', { path: 'settings', component: () => import('../views/lokiView.vue') })
-// router.addRoute({
-//   name: 'main',
-//   path: '/',
-//   redirect: '/home',
-//   component: () => import('../views/mainView.vue') ,
-//   children: [{ path: '/log/loki',name:"loki", component: () => import('../views/lokiView.vue')  },
-//     { path: '/home', name:'home',component: () => import('../views/homeView.vue')  }
-//   ],
-// })
-// console.log("xxssdad")
 // console.log(router.getRoutes())
 // 路由守卫
-router.beforeEach(async(to, from, next) => {
+router.beforeEach(async (to, from, next) => {
+
+  // 延迟获取store实例，确保Pinia已正确安装
+  const configStore = useConfigStore();
+
+  let token = JSON.parse(localStorage.getItem('configs'))?.token;
   if (to.path === '/login') {
-    if (localStorage.getItem('token')){
+    if (token) {
       next('/')
-    }else{
+    } else {
       next();
     }
   } else {
-    let token = localStorage.getItem('token');
     if (token === null || token === '') {
       next('/login');
     } else {
-      // console.log('判断是否获取动态路由')
-
       // 获取路由
-      const dynamicCreateRoute = store.state.dynamicCreateRoute
+      // const dynamicCreateRoute = store.state.dynamicCreateRoute
       // 判断是否要获取新的路由
-      if (!dynamicCreateRoute){
-        console.log('获取动态路由')
-        store.commit("updateDynamicCreateRoute",true)
+      if (!configStore.dynamicCreateRoute) {
         // 获取动态路由
         // await store.dispatch('getRouteInfoAction', {role:store.state.role})
-        await store.dispatch('getRoleMenu', {role:store.state.role})
-        // console.log(store.state.menuInfo)
-        // const drouteinfo = store.state.routeInfo
-        console.log(store.state.menuInfo)
-        if (store.state.menuInfo.length === 0){
-          next('/login')
-          return 
-        } 
-
-      dealWithRoute(store.state.menuInfo,publicRoute)
-      
-      // print()
-      next({ ...to, replace: true })    
-      }else{
-        // 判断路由中的权限
-        if(to.meta.role){
-          let currentRoleList = JSON.parse(localStorage.getItem('role'));
-          let allowRoleList = to.meta.role
-          let hasRoleList = allowRoleList.filter(item => currentRoleList.includes(item))
-          // console.log(123)
-          // console.log
-          if(hasRoleList.length == 0){
-            next('/login');
-          }else{
-            next();
+        try {
+          // await store.dispatch('getRoleMenu', { role: store.state.role })
+          await configStore.getMenuInfo()
+          configStore.setDynamicCreateRoute(true)
+          // console.log(store.state.menuInfo)
+          // const drouteinfo = store.state.routeInfo
+          if (configStore.menuInfo.length === 0) {
+            next('/login')
+            return
           }
-        }else{
-          next();
+          dealWithRoute(configStore.menuInfo, publicRoute)
+
+          // print()
+          next({ ...to, replace: true })
+        } catch (error) {
+          // 处理token认证失败的情况
+          console.error('获取菜单信息失败:', error);
+
+          // 添加重试次数限制，避免无限循环
+          const retryCount = sessionStorage.getItem('menuRetryCount') || '0';
+          const newRetryCount = parseInt(retryCount) + 1;
+
+          // 如果重试次数超过3次，则跳转到登录页
+          if (newRetryCount > 3) {
+            sessionStorage.removeItem('menuRetryCount');
+            // 清除本地存储的token等信息
+            localStorage.removeItem('configs');
+            ElMessage.error('获取菜单信息失败，请重新登录');
+            next('/login');
+            return;
+          }
+
+          // 记录重试次数
+          sessionStorage.setItem('menuRetryCount', newRetryCount.toString());
+
+          // 延迟一段时间再重试
+          setTimeout(() => {
+            next('/login');
+          }, 1000);
+          return;
         }
+      }
+      else {
+        // 判断路由中的权限
+        // if (to.meta.role) {
+        //   let allowRoleList = to.meta.role
+        //   let hasRoleList = allowRoleList.filter(item => configStore.role.includes(item))
+        //   // console.log(123)
+        //   // console.log
+        //   if (hasRoleList.length == 0) {
+        //     next('/login');
+        //   } else {
+        //     next();
+        //   }
+        // } else {
+        next();
+        // }
       }
 
       // next()
 
 
-      
+
     }
   }
 });

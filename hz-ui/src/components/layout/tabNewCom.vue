@@ -14,6 +14,21 @@
           :name="item.path"
           :closable="item.name !== 'home'"
         >
+          <template #label>
+            <el-icon v-if="item.name == 'home'">
+              <HomeFilled />
+            </el-icon>
+            <div v-else class="flexJbetween gap-2">
+              <el-icon>
+                <iconifyOffline :icon="item.icon" />
+              </el-icon>
+              <span style="display: flex; align-items: center">
+                {{ item.title }}</span
+              >
+            </div>
+
+            <!-- {{ item.title }} -->
+          </template>
         </el-tab-pane>
       </el-tabs>
       <el-dropdown trigger="click" placement="bottom-start">
@@ -76,12 +91,13 @@ import { useRoute, useRouter } from "vue-router";
 import Sortable from "sortablejs";
 const route = useRoute();
 const router = useRouter();
-const nowTab = ref(route.fullPath);
+const nowTab = ref("");
 
 import useTabsStore from "@/store/tabs";
 import { ArrowDown, Refresh } from "@element-plus/icons-vue";
 import { nextTick } from "vue";
 import { useKeepAliveStore } from "@/store/keepAlive";
+import { now } from "lodash";
 const keepAliveStore = useKeepAliveStore();
 const tabsStore = useTabsStore();
 // console.log(route)
@@ -94,10 +110,7 @@ onMounted(() => {
 watch(
   () => route.fullPath,
   () => {
-    // if (route.meta.isFull) return;
     nowTab.value = route.path;
-    // console.log(nowTab.value)
-
     const tabsParams = {
       icon: route.meta.icon as string,
       title: route.meta.title as string,
@@ -105,16 +118,24 @@ watch(
       name: route.name as string,
       fullPath: route.fullPath,
       isKeepAlive: route.meta.isKeepAlive,
+      menuPath: route.meta.menuPath,
+      isInfo: route.meta.isInfo,
+      hasInfo: route.meta.hasInfo,
       //   close: !route.meta.isAffix,
       //   isKeepAlive: route.meta.isKeepAlive as boolean
     };
     if (route.meta.isInfo) {
       if (route.path.includes("logFlowMission")) {
         tabsParams.title = route.meta.title + "-详情";
+      } else if (!route.query.verbose_name) {
+        tabsParams.title = route.meta.title;
+        // nowTab.value = route.path.replace(/\/[^/]*$/, "");
       } else {
-        tabsParams.title = route.meta.title + "-" + route.query.verbose_name;
+        nowTab.value = route.meta.title;
+        tabsParams.title = route.meta.title;
       }
     }
+    // console.log("tabsParams", tabsParams);
     tabsStore.addTabs(tabsParams);
     // 更新当前面包屑
     tabsStore.updateCurrentTitle(tabsParams);
@@ -155,7 +176,7 @@ const initTabs = () => {
 // Tab Click
 const tabClick = (tabItem: TabsPaneContext) => {
   // const fullPath = tabItem.props.name as string;
-  //   console.log(tabItem)
+  // console.log(tabItem);
   router.push(tabsMenuDict.value[tabItem.props.name].fullPath);
 };
 
@@ -199,18 +220,39 @@ const closeAllTab = () => {
 // 刷新
 // 刷新当前页
 const refreshCurrentPage: Function = inject("refresh") as Function;
+// ... existing code ...
 const refresh = () => {
-  setTimeout(() => {
-    route.meta.isKeepAlive &&
-      keepAliveStore.removeKeepAliveName(route.fullPath as string);
-    refreshCurrentPage(false);
-    nextTick(() => {
-      route.meta.isKeepAlive &&
+  // 触发全局刷新事件，让mainView显示加载效果
+  window.dispatchEvent(new CustomEvent("refresh-page"));
+
+  // 先移除keep-alive缓存
+  if (route.meta.isKeepAlive) {
+    keepAliveStore.removeKeepAliveName(route.fullPath as string);
+  }
+
+  // 隐藏组件
+  refreshCurrentPage(false);
+
+  // 使用nextTick确保DOM更新完成后，再显示组件
+  nextTick(() => {
+    // 稍微延迟一下再恢复组件显示，确保完全重新渲染
+    setTimeout(() => {
+      // 触发强制刷新事件，让mainView更新refreshKey
+      window.dispatchEvent(new CustomEvent("force-refresh"));
+
+      if (route.meta.isKeepAlive) {
         keepAliveStore.addKeepAliveName(route.fullPath as string);
+      }
       refreshCurrentPage(true);
-    });
-  }, 0);
+
+      // 刷新完成后，隐藏加载效果
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("refresh-page-finished"));
+      }, 100);
+    }, 50);
+  });
 };
+// ... existing code ...
 </script>
 
 <style scoped lang="scss">
@@ -221,10 +263,9 @@ const refresh = () => {
   font-weight: 600;
 }
 
-:deep {
-  .el-tabs__header {
-    margin: 0;
-  }
+:deep(.el-tabs__header) {
+  margin: 0;
 }
+
 @import "./tabs.scss";
 </style>

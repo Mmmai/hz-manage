@@ -1,0 +1,24 @@
+/* 暗黑模式全局变量 */
+/* 添加变量  #1d2430  #060c18 #020a3d #070910*/
+
+html.dark {
+  /* 基础背景 */
+  --el-bg-color: #1d2430;             /* 全局背景 */
+  --el-menu-bg-color:  #060c18;        /* 侧边栏背景 */
+
+  --el-pagination-bg: #1a1a1a;        /* 分页背景 */
+  
+  /* 文字颜色 */
+  --el-text-color-primary: #e6e6e6;   /* 主文字色 */
+  --el-menu-text-color: #e6e6e6;      /* 侧边栏文字 */
+  
+  /* 按钮颜色 */
+  /* 主按钮背景 */
+  /* --el-button-primary-bg-color: #409EFF;  */
+  --el-button-primary-text-color: #ffffff; /* 主按钮文字 */
+  
+  /* 表格颜色 */
+  --el-table-header-bg-color: #060c18;  /* 表头背景 */
+  --el-table-row-hover-bg-color: #3a3a3a; /* 悬停行背景 */
+
+}

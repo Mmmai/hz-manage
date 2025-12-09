@@ -1,0 +1,48 @@
+---
+- name: Generate CMDB JSON Report
+  hosts: all
+  gather_facts: yes
+  tasks:
+    - name: Collect system data
+      setup:
+        gather_subset: [hardware, processor]
+
+    - name: Format JSON
+      set_fact:
+        cmdb_data: {
+          "hostname": "{{ ansible_hostname }}",
+          "ip": "{{ ansible_default_ipv4.address }}",
+          "kernel": "{{ ansible_kernel }}",
+          "os_arch": "{{ ansible_architecture }}",
+          "os_type": "{{ ansible_system | lower }}",
+          "os_name": "{{ ansible_distribution }} {{ ansible_distribution_version }}",
+          "os_version": "{{ ansible_distribution_version }}",
+          "os_bit": "{{ ansible_userspace_bits }}",
+          "cpu_info": {
+            "model": "{{ ansible_processor[2] }}",
+            "cores": "{{ ansible_processor_vcpus }}"
+          },
+          "memory_info": {
+            "total_gb": "{{ (ansible_memtotal_mb / 1024) | round(2) }}",
+          },
+          # "disk_info_list": "{{ dict(ansible_devices | dict2items | selectattr('key', 'match', '^sd') | map('combine', {'size': '{{ (item.value.size | regex_replace(\" TB$\", \"*1024\") | regex_replace(\" MB$\", \"/1024\") | regex_replace(\" KB$\", \"/1024/1024\") | regex_replace(\" B$\", \"/1024/1024/1024\") | regex_replace(\" ([A-Z]+)$\", \"\") | float | round(2)) }}GB'})) | items2dict(key_name='key', value_name='size')) }}",
+          "disk_size_list": "{{ ansible_devices | dict2items | selectattr('key', 'match', '^sd') | map(attribute='value')|map(attribute='size') }}",
+          "disk_size": "{{ (ansible_devices | dict2items | selectattr('key', 'match', '^sd') | map(attribute='value') | map(attribute='size') | map('regex_replace', ' TB$', '*1024') | map('regex_replace', ' MB$', '/1024') | map('regex_replace', ' KB$', '/1024/1024') | map('regex_replace', ' B$', '/1024/1024/1024') | map('regex_replace', ' ([A-Z]+)', '') | map('float') | sum | round(2)) }}",
+          "serial_number": "{{ ansible_product_serial }}",
+          "hardware_info": {
+            #型号
+            "name": "{{ ansible_product_name }}",
+            #厂商
+            "vendor": "{{ ansible_system_vendor }}",
+            #序列号
+            "serial_number": "{{ ansible_product_serial }}"
+          }
+        }
+    - name: Copy report
+      copy:
+        content: "{{ cmdb_data | to_nice_json }}"
+        dest: "/tmp/cmdb_report_{{ inventory_hostname }}.json"
+        
+    - name: Save report
+      debug:
+        msg: "{{ cmdb_data | to_json }}"

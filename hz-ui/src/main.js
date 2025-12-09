@@ -12,11 +12,12 @@ import './icons/iconfont.js'
 import iconfontSvg from "./icons/iconFont.vue";
 import commonFunc from './utils/common'
 import 'element-plus/theme-chalk/dark/css-vars.css'
+import './styles/dark.css'
 import { createPinia } from 'pinia';
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate'
-import myCommand from "./utils/myCommand"
 import VueCountdown from '@chenfengyuan/vue-countdown';
 import iconifyOffline from './components/iconifyOffline.vue';
+import myCommand from "./utils/myCommand"
 // 加载图标
 // import epJson from '@iconify/json/json/ep.json'
 // import Iconify from '@iconify/icon'
@@ -51,7 +52,11 @@ app.use(pinia)
 app.use(router)
 app.use(Antd)
 // 自定义指令
+
 myCommand(app)
 app.component(VueCountdown.name, VueCountdown);
 app.use(ElementPlus, { locale })
+
 app.mount('#app')
+// import { useElementPlusTheme } from 'use-element-plus-theme'
+// useElementPlusTheme('#409EFF') // 设置默认主题色
