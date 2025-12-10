@@ -17,7 +17,6 @@ from node_mg.utils import sys_config
 from audit.context import audit_context
 from mapi.system_user import SYSTEM_USER
 from .config import BUILT_IN_MODELS, BUILT_IN_RELATION_DEFINITION, BUILT_IN_VALIDATION_RULES
-from .utils.zabbix import ZabbixAPI
 from .constants import ValidationType
 from .message import instance_group_relation_updated
 from .models import *

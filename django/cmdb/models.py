@@ -69,7 +69,8 @@ class Models(models.Model):
     name = models.CharField(max_length=50, unique=True, db_index=True, null=False, blank=False)
     verbose_name = models.CharField(max_length=50, null=False, blank=False)
     instance_name_template = models.JSONField(default=list, blank=True, null=True)
-    model_group = models.ForeignKey('ModelGroups', on_delete=models.SET_NULL, null=True, blank=True)
+    model_group = models.ForeignKey('ModelGroups', on_delete=models.SET_NULL,
+                                    null=True, blank=True, related_name='models')
     description = models.TextField(blank=True, null=True)
     built_in = models.BooleanField(default=False, null=False, blank=False)
     icon = models.CharField(max_length=50, blank=True, null=True)
