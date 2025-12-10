@@ -1,8 +1,28 @@
 from rest_framework import serializers
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from .models import DataScope, PermissionTarget
-from mapi.models import UserInfo, Role, UserGroup
+from .models import *
+
+
+class MenuModelSerializer(serializers.ModelSerializer):
+    class Meta:
+        # 表名
+        model = Menu
+        fields = "__all__"
+
+
+class ButtonModelSerializer(serializers.ModelSerializer):
+    class Meta:
+        # 表名
+        model = Button
+        fields = "__all__"
+
+
+class PermissionModelSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Permission
+        fields = "__all__"
 
 
 class PermissionTargetInputSerializer(serializers.Serializer):

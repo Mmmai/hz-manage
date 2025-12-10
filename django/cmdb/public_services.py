@@ -4,6 +4,10 @@ from .models import ModelInstance, ModelInstanceGroup, ModelInstanceGroupRelatio
 from .constants import FieldType
 from .utils import password_handler
 from permissions.manager import PermissionManager
+<<<<<<< HEAD
+=======
+
+>>>>>>> hz-manager/cmdb_permission
 
 class PublicModelInstanceService:
     """对外的模型实例服务类"""
@@ -55,8 +59,9 @@ class PublicModelInstanceService:
             else:
                 res[field.model_fields.name] = field.data
         return res
+
     @staticmethod
-    def get_instances_by_group_id(group_id, model_id, user):
+    def get_instances_by_group_id(group_id, model_id, user) -> list:
         """通过分组ID获取模型实例列表"""
         children_ids = ModelInstanceGroup.objects.get_all_children_ids([group_id], model_id=model_id)
         children_ids.add(group_id)

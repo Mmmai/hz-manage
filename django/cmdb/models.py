@@ -499,4 +499,3 @@ class Relations(models.Model):
     update_time = models.DateTimeField(auto_now=True)
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
-

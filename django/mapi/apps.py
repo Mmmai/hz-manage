@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 from django.db.models.signals import post_migrate
-from .init_data import INIT_MENU,INIT_CONFIG
+from .init_data import INIT_CONFIG
 from .utils.comm import get_uuid
 from django.db.utils import OperationalError
 import secrets

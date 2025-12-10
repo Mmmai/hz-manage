@@ -2,57 +2,21 @@ import re
 import logging
 from django.db.models.signals import post_save, post_delete,m2m_changed
 from django.dispatch import receiver
-from .models import UserInfo, UserGroup, Role, Menu, sysConfigParams, Button, Permission
+from permissions.public_services import PublicPermissionService
+from .models import Role, sysConfigParams
 from .messages import zabbix_config_updated
-from node_mg.utils.config_manager import ConfigManager
-from permissions.tools import clear_data_scope_cache,clear_password_permission_cache
 
 logger = logging.getLogger(__name__)
+
+
 @receiver(post_save, sender=Role)
 def auto_add_home_to_role(sender, instance, created, **kwargs):
     if created:
         if instance.role == "sysadmin":
             return
-        # 当 MyModel 的实例被创建时执行此代码
-        # print(f"New instance of MyModel created: {instance}")
-        menu_obj = Menu.objects.get(name="home")
-        buttonObj = Button.objects.get(menu=menu_obj,action="view")
-        Permission.objects.create(menu=menu_obj, role=instance,button=buttonObj)
-        logger.info(f"将<{menu_obj.label}>授予角色<{instance.role}>权限!")
-@receiver(post_save, sender=Menu)
-def atuo_create_default_botton(sender, instance, created, **kwargs):
-    if created:
-        # 当 MyModel 的实例被创建时执行此代码
-        # print(f"New instance of MyModel created: {instance}")
-        if not instance.is_menu:
-            return
-        if instance.is_iframe:
-            # 单独添加菜单权限
-            # return
-            buttons = [Button(name='查看', action='view', menu=instance),]
-        # role_obj = Role.objects.get(role="sysadmin")
-        # 定义需要添加的按钮
-        else:
-            buttons = [
-                Button(name='查看', action='view', menu=instance),
-                Button(name='添加', action='add', menu=instance),
-                Button(name='删除', action='delete', menu=instance),
-                Button(name='修改', action='edit', menu=instance)
-            ]
-        for button in buttons:
-            button.save()
-            # Permission.objects.create(menu=instance, button=button,role=role_obj)
-            logger.info(f"创建按钮<{instance.label}:{button.name}>!")
+        PublicPermissionService.add_home_permission_to_role(instance)
 
 
-@receiver(post_save, sender=Button)
-def atuo_add_to_sysadmin(sender, instance, created, **kwargs):
-    if created:
-        # 当 MyModel 的实例被创建时执行此代码
-        # print(f"New instance of MyModel created: {instance}")
-        role_obj = Role.objects.get(role="sysadmin")
-        Permission.objects.create(menu=instance.menu, button=instance, role=role_obj)
-        logger.info(f"将<{instance.menu.label}:{instance.name}>授予管理员权限!")
 @receiver(post_save, sender=sysConfigParams)
 def monitor_sys_config_change(sender, instance, created, **kwargs):
     # zabbix配置发生变化时通知node_mg立即刷新配置
