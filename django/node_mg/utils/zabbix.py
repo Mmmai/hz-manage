@@ -93,7 +93,7 @@ class ZabbixAPI:
 
     def __init__(self):
         self.url = sys_config.get('zabbix_url')
-        self.template = sys_config.get('zabbix_host_template')
+        # self.template = sys_config.get('zabbix_host_template')
         self.template_host_name = sys_config.config.get('zabbix_host_template','Linux by Zabbix agent')
         self.template_ipmi_name = sys_config.config.get('zabbix_ipmi_template','Chassis by IPMI')
         self.template_network_name = sys_config.config.get('zabbix_network_template','Generic by SNMP')

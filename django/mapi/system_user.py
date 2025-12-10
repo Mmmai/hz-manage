@@ -23,7 +23,10 @@ class SystemUser(UserInfo):
     def delete(self, *args, **kwargs):
         # 系统用户不删除
         pass
-
+    class Meta:
+        app_label = 'mapi'
+        managed = False
+        abstract = False
 
 # 预置的系统用户单例
 SYSTEM_USER = SystemUser('system')

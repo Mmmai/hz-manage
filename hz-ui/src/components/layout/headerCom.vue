@@ -212,6 +212,8 @@ import router from "@/router";
 import { Sunny, Moon } from "@element-plus/icons-vue";
 import useTabsStore from "@/store/tabs";
 import useConfigStore from "@/store/config";
+import useModelConfigStore from "@/store/cmdb/model";
+
 import { debounce, throttle } from "lodash";
 
 import { useElementPlusTheme } from "use-element-plus-theme";
@@ -221,6 +223,7 @@ const layoutThemeColor = useStorage("layout-theme-color", "#409eff"); // 默认�
 const { changeTheme } = useElementPlusTheme(layoutThemeColor.value); // 初始化主题色
 const tabsStore = useTabsStore();
 const configStore = useConfigStore();
+const modelConfigStore = useModelConfigStore();
 const collapse = computed(() => {
   return configStore.collapse;
 });
@@ -295,6 +298,8 @@ const handleLogout = (done) => {
       // tabsStore.setTabs([]);
       tabsStore.setTabs([]);
       configStore.clearConfig();
+      // 清空modelConfig缓存
+      modelConfigStore.clearModelConfig();
       // localStorage.clear();
       // 清楚tab打开的菜单列表
       router.push({ name: "login" });

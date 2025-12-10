@@ -106,9 +106,11 @@
 
       <el-table-column prop="group_name" label="分组" min-width="100">
         <template #default="scope">
-          <el-tag>
-            {{ scope.row.group_name }}
-          </el-tag>
+          <el-space>
+            <el-tag v-for="(group, index) in scope.row.groups" :key="index">
+              {{ group.group }}
+            </el-tag>
+          </el-space>
         </template>
       </el-table-column>
 

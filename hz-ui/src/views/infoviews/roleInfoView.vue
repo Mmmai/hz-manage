@@ -100,6 +100,7 @@ const editMode = ref(false);
 // roleId
 const roleId = ref<any>(null);
 const activeName = ref("menuPermission");
+const roleFormRef = ref();
 const handleClick = () => {};
 const goBack = () => {
   router.push({
@@ -166,41 +167,45 @@ const getPermissionTreeData = async () => {
 
 // 更新方法
 const updateAction = async () => {
-  if (isAdd) {
-    let res = await proxy.$api.roleadd({
-      ...roleForm,
-      rolePermission: selectedKeys.value,
-    });
-    if (res.status == 201) {
-      ElMessage({
-        type: "success",
-        message: "创建成功",
-      });
-      goBack();
-    } else {
-      ElMessage({
-        type: "error",
-        message: `更新失败: ${JSON.stringify(res.data)}`,
-      });
+  roleFormRef.value!.validate(async (valid) => {
+    if (valid) {
+      if (isAdd) {
+        let res = await proxy.$api.roleadd({
+          ...roleForm,
+          rolePermission: selectedKeys.value,
+        });
+        if (res.status == 201) {
+          ElMessage({
+            type: "success",
+            message: "创建成功",
+          });
+          goBack();
+        } else {
+          ElMessage({
+            type: "error",
+            message: `更新失败: ${JSON.stringify(res.data)}`,
+          });
+        }
+      } else {
+        let res = await proxy.$api.roleupdate({
+          id: roleId.value,
+          ...roleForm,
+        });
+        if (res.status == 200) {
+          ElMessage({
+            type: "success",
+            message: "更新成功",
+          });
+          getRoleData();
+        } else {
+          ElMessage({
+            type: "error",
+            message: `更新失败: ${JSON.stringify(res.data)}`,
+          });
+        }
+      }
     }
-  } else {
-    let res = await proxy.$api.roleupdate({
-      id: roleId.value,
-      ...roleForm,
-    });
-    if (res.status == 200) {
-      ElMessage({
-        type: "success",
-        message: "更新成功",
-      });
-      getRoleData();
-    } else {
-      ElMessage({
-        type: "error",
-        message: `更新失败: ${JSON.stringify(res.data)}`,
-      });
-    }
-  }
+  });
 };
 
 // 权限变更处理

@@ -14,47 +14,86 @@
       >
       </el-tab-pane>
     </el-tabs>
-    <div class="table-header">
-      <div class="header-button-lf">
-        <el-tooltip
-          class="box-item"
-          effect="dark"
-          content="触发主机信息同步到zabbix"
-          placement="top"
-        >
-          <el-button
-            v-permission="`${route.name?.replace('_info', '')}:add`"
-            type="primary"
-            @click="syncToZabbix()"
-            >触发同步</el-button
-          >
-        </el-tooltip>
+    <div class="card" style="display: flex">
+      <el-splitter>
+        <el-splitter-panel :size="300" :max="500" :min="200">
+          <div class="ci_data_tree card" style="height: 100%">
+            <el-input
+              v-model="filterText"
+              clearable
+              style="max-width: 280px; margin-bottom: 10px"
+              size="small"
+              placeholder="检索节点"
+            />
+            <el-tree
+              ref="treeRef"
+              :data="treeData"
+              node-key="id"
+              :expand-on-click-node="false"
+              :highlight-current="true"
+              default-expand-all
+              :filter-node-method="filterNode"
+              @node-click="handleNodeClick"
+              :current-node-key="currentNodeId"
+              v-loading="treeLoading"
+            >
+              <template #default="{ node, data }">
+                <div class="flexJbetween">
+                  <el-text size="default">{{ node.label }}</el-text>
+                  <el-tag
+                    size="small"
+                    :type="data.instance_count >> 0 ? 'success' : 'info'"
+                    >{{ data.instance_count }}</el-tag
+                  >
+                </div>
+              </template>
+            </el-tree>
+          </div>
+        </el-splitter-panel>
+        <el-splitter-panel :min="200">
+          <div style="flex: 1; height: 100%">
+            <div class="card table-main" style="width: 100%">
+              <div class="table-header">
+                <div class="header-button-lf">
+                  <el-tooltip
+                    class="box-item"
+                    effect="dark"
+                    content="触发主机信息同步到zabbix"
+                    placement="top"
+                  >
+                    <el-button
+                      v-permission="`${route.name?.replace('_info', '')}:add`"
+                      type="primary"
+                      @click="syncToZabbix()"
+                      >触发同步</el-button
+                    >
+                  </el-tooltip>
 
-        <el-tooltip
-          class="box-item"
-          effect="dark"
-          content="触发重装已勾选的主机"
-          placement="top"
-        >
-          <el-button
-            v-if="activeName === 'hosts'"
-            v-permission="`${route.name?.replace('_info', '')}:add`"
-            type="primary"
-            :disabled="multipleSelection.length >>> 0 ? false : true"
-            @click="installAgentTask({ id: multipleSelection })"
-            >批量安装</el-button
-          >
-        </el-tooltip>
+                  <el-tooltip
+                    class="box-item"
+                    effect="dark"
+                    content="触发重装已勾选的主机"
+                    placement="top"
+                  >
+                    <el-button
+                      v-if="activeName === 'hosts'"
+                      v-permission="`${route.name?.replace('_info', '')}:add`"
+                      type="primary"
+                      :disabled="multipleSelection.length >>> 0 ? false : true"
+                      @click="installAgentTask({ id: multipleSelection })"
+                      >批量安装</el-button
+                    >
+                  </el-tooltip>
 
-        <!-- <el-button
+                  <!-- <el-button
           v-permission="`${route.name?.replace('_info', '')}:add`"
           type="primary"
           @click="installAgentTask({ all: true })"
           >触发失败重装</el-button
         > -->
-      </div>
-      <div class="header-button-ri">
-        <!-- <el-select v-model="colValue" placeholder="Select" style="width: 120px">
+                </div>
+                <div class="header-button-ri">
+                  <!-- <el-select v-model="colValue" placeholder="Select" style="width: 120px">
           <el-option
             v-for="item in filterOptions"
             :key="item.value"
@@ -62,180 +101,204 @@
             :value="item.value"
           />
         </el-select> -->
-        <!-- <el-text>搜索</el-text> -->
-        <el-input
-          v-model="searchText"
-          style="width: 240px"
-          placeholder="回车查询"
-          clearable
-          :prefix-icon="Search"
-          @clear="getNodesData()"
-          @keyup.enter.native="getNodesData()"
-        />
-        <!-- <el-button :icon="Refresh" circle @click="reloadWind" /> -->
-      </div>
-    </div>
-    <div class="card table-main" style="width: 100%">
-      <el-table
-        v-loading="isLoading"
-        ref="multipleTableRef"
-        :data="syncHosts"
-        style="width: 100%"
-        height="100%"
-        border
-        :row-key="(row) => row.id"
-        @sort-change="sortMethod"
-        @selection-change="handleSelectionChange"
-        @filter-change="filterMethod"
-      >
-        <el-table-column
-          type="selection"
-          :reserve-selection="true"
-          width="55"
-        />
+                  <!-- <el-text>搜索</el-text> -->
+                  <el-input
+                    v-model="searchText"
+                    style="width: 240px"
+                    placeholder="回车查询"
+                    clearable
+                    :prefix-icon="Search"
+                    @clear="getNodesData()"
+                    @keyup.enter.native="getNodesData()"
+                  />
+                  <!-- <el-button :icon="Refresh" circle @click="reloadWind" /> -->
+                </div>
+              </div>
+              <el-table
+                v-loading="isLoading"
+                ref="multipleTableRef"
+                :data="syncHosts"
+                style="width: 100%"
+                height="100%"
+                border
+                :row-key="(row) => row.id"
+                @sort-change="sortMethod"
+                @selection-change="handleSelectionChange"
+                @filter-change="filterMethod"
+              >
+                <el-table-column
+                  type="selection"
+                  :reserve-selection="true"
+                  width="55"
+                />
 
-        <el-table-column
-          property="model_instance_name"
-          label="唯一标识"
-          sortable="custom"
-        />
-        <el-table-column
-          property="ip_address"
-          sortable="custom"
-          label="ip地址"
-        />
-        <el-table-column
-          property="proxy_name"
-          label="代理"
-          sortable="custom"
-          width="120"
-        >
-          <template #default="scope">
-            <el-tag v-if="scope.row.proxy_name ? true : false">
-              {{ scope.row.proxy_name }}
-            </el-tag>
-            <!-- <el-tag
+                <el-table-column
+                  property="model_instance_name"
+                  label="唯一标识"
+                  sortable="custom"
+                >
+                  <template #default="scope">
+                    <el-tooltip
+                      content="查看详情"
+                      placement="right"
+                      effect="dark"
+                    >
+                      <el-link type="primary" @click="goToNode(scope.row)">
+                        {{ scope.row.model_instance_name }}</el-link
+                      >
+                    </el-tooltip>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  property="ip_address"
+                  sortable="custom"
+                  label="ip地址"
+                />
+                <el-table-column
+                  property="proxy_name"
+                  label="代理"
+                  sortable="custom"
+                  width="120"
+                >
+                  <template #default="scope">
+                    <el-tag v-if="scope.row.proxy_name ? true : false">
+                      {{ scope.row.proxy_name }}
+                    </el-tag>
+                    <!-- <el-tag
             :type="scope.row.status ? 'success' : 'danger'"
             effect="dark"
             >{{ scope.row.status ? "正常" : "异常" }}</el-tag
           > -->
-          </template>
-        </el-table-column>
+                  </template>
+                </el-table-column>
 
-        <el-table-column
-          column-key="manage_status"
-          property="manage_status"
-          label="管理状态"
-          sortable="custom"
-          width="140"
-          :filters="[
-            { text: '正常', value: 1 },
-            { text: '异常', value: 0 },
-            { text: '未知', value: 2 },
-          ]"
-          v-if="activeName === 'hosts'"
-        >
-          <template #default="scope">
-            <el-tag
-              :type="getStatusType(scope.row.manage_status)"
-              effect="dark"
-            >
-              {{ getStatusText(scope.row.manage_status) }}
-            </el-tag>
-            <!-- <el-tag
+                <el-table-column
+                  column-key="manage_status"
+                  property="manage_status"
+                  label="管理状态"
+                  sortable="custom"
+                  width="140"
+                  :filters="[
+                    { text: '正常', value: 1 },
+                    { text: '异常', value: 0 },
+                    { text: '未知', value: 2 },
+                  ]"
+                  v-if="activeName === 'hosts'"
+                >
+                  <template #default="scope">
+                    <el-tag
+                      :type="getStatusType(scope.row.manage_status)"
+                      effect="dark"
+                    >
+                      {{ getStatusText(scope.row.manage_status) }}
+                    </el-tag>
+                    <!-- <el-tag
             :type="scope.row.status ? 'success' : 'danger'"
             effect="dark"
             >{{ scope.row.status ? "正常" : "异常" }}</el-tag
           > -->
-          </template>
-        </el-table-column>
-        <el-table-column
-          column-key="enable_sync"
-          property="enable_sync"
-          label="是否同步"
-          sortable="custom"
-          width="140"
-          :filters="[
-            { text: '启用', value: true },
-            { text: '禁用', value: false },
-          ]"
-        >
-          <template #default="scope">
-            <el-switch
-              v-model="scope.row.enable_sync"
-              class="ml-2"
-              style="
-                --el-switch-on-color: #13ce66;
-                --el-switch-off-color: #ff4949;
-              "
-              @change="switchUpdate(scope.row, 'enable_sync')"
-            />
-          </template>
-        </el-table-column>
-        <el-table-column
-          column-key="agent_status"
-          property="agent_status"
-          label="agent状态"
-          sortable="custom"
-          width="140"
-          :filters="[
-            { text: '正常', value: 1 },
-            { text: '异常', value: 0 },
-            { text: '未知', value: 2 },
-          ]"
-          v-if="activeName === 'hosts'"
-        >
-          <template #default="scope">
-            <el-tag :type="getStatusType(scope.row.agent_status)" effect="dark">
-              {{ getStatusText(scope.row.agent_status) }}
-            </el-tag>
-            <!-- <el-tag
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="enable_sync"
+                  property="enable_sync"
+                  label="是否同步"
+                  sortable="custom"
+                  width="140"
+                  :filters="[
+                    { text: '启用', value: true },
+                    { text: '禁用', value: false },
+                  ]"
+                >
+                  <template #default="scope">
+                    <el-switch
+                      v-model="scope.row.enable_sync"
+                      class="ml-2"
+                      style="
+                        --el-switch-on-color: #13ce66;
+                        --el-switch-off-color: #ff4949;
+                      "
+                      @change="switchUpdate(scope.row, 'enable_sync')"
+                    />
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="agent_status"
+                  property="agent_status"
+                  label="agent状态"
+                  sortable="custom"
+                  width="140"
+                  :filters="[
+                    { text: '正常', value: 1 },
+                    { text: '异常', value: 0 },
+                    { text: '未知', value: 2 },
+                  ]"
+                  v-if="activeName === 'hosts'"
+                >
+                  <template #default="scope">
+                    <el-tag
+                      :type="getStatusType(scope.row.agent_status)"
+                      effect="dark"
+                    >
+                      {{ getStatusText(scope.row.agent_status) }}
+                    </el-tag>
+                    <!-- <el-tag
             :type="scope.row.status ? 'success' : 'danger'"
             effect="dark"
             >{{ scope.row.status ? "正常" : "异常" }}</el-tag
           > -->
-          </template>
-        </el-table-column>
-        <el-table-column
-          column-key="zbx_status"
-          property="zbx_status"
-          label="ZBX状态"
-          sortable="custom"
-          width="140"
-          :filters="[
-            { text: '正常', value: 1 },
-            { text: '异常', value: 0 },
-            { text: '未知', value: 2 },
-          ]"
-          v-if="activeName === 'hosts'"
-        >
-          <template #default="scope">
-            <el-tag :type="getStatusType(scope.row.zbx_status)" effect="dark">
-              {{ getStatusText(scope.row.zbx_status) }}
-            </el-tag>
-            <!-- <el-tag
-            :type="scope.row.status ? 'success' : 'danger'"
-            effect="dark"
-            >{{ scope.row.status ? "正常" : "异常" }}</el-tag
-          > -->
-          </template>
-        </el-table-column>
-        <el-table-column
-          property="manage_error_message"
-          label="管理错误信息"
-          width="500"
-          v-if="activeName === 'hosts'"
-        />
-        <el-table-column
-          property="agent_error_message"
-          label="agent错误信息"
-          width="500"
-          v-if="activeName === 'hosts'"
-        />
+                  </template>
+                </el-table-column>
+                <!-- <el-table-column
+                  column-key="zbx_status"
+                  property="zbx_status"
+                  label="ZBX状态"
+                  sortable="custom"
+                  width="140"
+                  :filters="[
+                    { text: '正常', value: 1 },
+                    { text: '异常', value: 0 },
+                    { text: '未知', value: 2 },
+                  ]"
+                  v-if="activeName === 'hosts'"
+                >
+                  <template #default="scope">
+                    <el-tag
+                      :type="getStatusType(scope.row.zbx_status)"
+                      effect="dark"
+                    >
+                      {{ getStatusText(scope.row.zbx_status) }}
+                    </el-tag>
+                  </template>
+                </el-table-column> -->
+                <el-table-column
+                  property="manage_error_message"
+                  label="管理错误信息"
+                  width="500"
+                  v-if="activeName === 'hosts'"
+                >
+                  <template #default="scope">
+                    <span v-if="scope.row.manage_error_message">{{
+                      JSON.stringify(scope.row.manage_error_message)
+                    }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  property="agent_error_message"
+                  label="agent错误信息"
+                  width="500"
+                  v-if="activeName === 'hosts'"
+                >
+                  <template #default="scope">
+                    <span v-if="scope.row.agent_error_message">{{
+                      JSON.stringify(scope.row.agent_error_message)
+                    }}</span>
+                  </template>
+                </el-table-column>
 
-        <el-table-column fixed="right" width="120" label="操作">
-          <template #default="scope">
-            <!-- <el-tooltip
+                <el-table-column fixed="right" width="120" label="操作">
+                  <template #default="scope">
+                    <!-- <el-tooltip
             class="box-item"
             effect="dark"
             content="查看详情"
@@ -249,66 +312,76 @@
               @click="showInfo({ id: scope.row.id })"
             ></el-button>
           </el-tooltip> -->
-            <el-tooltip
-              class="box-item"
-              effect="dark"
-              content="触发同步"
-              placement="top"
-            >
-              <el-button
-                v-permission="`${route.name?.replace('_info', '')}:edit`"
-                link
-                type="primary"
-                :icon="Promotion"
-                @click="syncNodeToZabbix({ id: scope.row.id })"
-              ></el-button>
-            </el-tooltip>
-            <el-tooltip
-              class="box-item"
-              effect="dark"
-              content="管理状态更新"
-              placement="top"
-              v-if="activeName === 'hosts'"
-            >
-              <el-button
-                v-permission="`${route.name?.replace('_info', '')}:edit`"
-                link
-                type="primary"
-                :icon="Compass"
-                @click="assetInfoTask({ id: scope.row.id })"
-              ></el-button>
-            </el-tooltip>
-            <el-tooltip
-              class="box-item"
-              effect="dark"
-              content="触发agent安装"
-              placement="top"
-              v-if="activeName === 'hosts'"
-            >
-              <el-button
-                v-permission="`${route.name?.replace('_info', '')}:edit`"
-                link
-                type="primary"
-                :icon="Refresh"
-                @click="installAgentTask({ id: scope.row.id })"
-              ></el-button>
-            </el-tooltip>
-          </template>
-        </el-table-column>
-      </el-table>
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :page-sizes="[10, 20, 50, 100, 200]"
-        :size="size"
-        :disabled="disabled"
-        layout="total, sizes, prev, pager, next, jumper"
-        :total="totalCount"
-        style="margin-top: 5px; justify-content: flex-end"
-        @update:current-page="pageChange()"
-        @update:page-size="pageChange()"
-      >
-      </el-pagination>
+                    <el-tooltip
+                      class="box-item"
+                      effect="dark"
+                      content="触发同步"
+                      placement="top"
+                    >
+                      <el-button
+                        v-permission="
+                          `${route.name?.replace('_info', '')}:edit`
+                        "
+                        link
+                        type="primary"
+                        :icon="Promotion"
+                        @click="syncNodeToZabbix({ id: scope.row.id })"
+                      ></el-button>
+                    </el-tooltip>
+                    <el-tooltip
+                      class="box-item"
+                      effect="dark"
+                      content="管理状态更新"
+                      placement="top"
+                      v-if="activeName === 'hosts'"
+                    >
+                      <el-button
+                        v-permission="
+                          `${route.name?.replace('_info', '')}:edit`
+                        "
+                        link
+                        type="primary"
+                        :icon="Compass"
+                        @click="assetInfoTask({ id: scope.row.id })"
+                      ></el-button>
+                    </el-tooltip>
+                    <el-tooltip
+                      class="box-item"
+                      effect="dark"
+                      content="触发agent安装"
+                      placement="top"
+                      v-if="activeName === 'hosts'"
+                    >
+                      <el-button
+                        v-permission="
+                          `${route.name?.replace('_info', '')}:edit`
+                        "
+                        link
+                        type="primary"
+                        :icon="Refresh"
+                        @click="installAgentTask({ id: scope.row.id })"
+                      ></el-button>
+                    </el-tooltip>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-pagination
+                v-model:current-page="currentPage"
+                v-model:page-size="pageSize"
+                :page-sizes="[10, 20, 50, 100, 200]"
+                :size="size"
+                :disabled="disabled"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="totalCount"
+                style="margin-top: 5px; justify-content: flex-end"
+                @update:current-page="pageChange()"
+                @update:page-size="pageChange()"
+              >
+              </el-pagination>
+            </div>
+          </div>
+        </el-splitter-panel>
+      </el-splitter>
     </div>
   </div>
 </template>
@@ -336,20 +409,25 @@ import {
   onUnmounted,
 } from "vue";
 const { proxy } = getCurrentInstance();
-import { useStore } from "vuex";
-const store = useStore();
-import { useRoute } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import {
   ElMessageBox,
   ElMessage,
   ElNotification,
   rowContextKey,
 } from "element-plus";
-
-import { Row } from "element-plus/es/components/table-v2/src/components/index.mjs";
+const router = useRouter();
 defineOptions({ name: "ciSyncZabbix" });
 import type { TabsPaneContext } from "element-plus";
-
+import useModelStore from "@/store/cmdb/model";
+import { get } from "lodash";
+const modelConfigStore = useModelStore();
+const modelObjectByName = computed(() => {
+  return modelConfigStore.modelObjectByName;
+});
+const goToNode = (params) => {
+  router.push({ path: route.path + "/" + params.id });
+};
 // ========== 响应式数据 ==========
 const activeName = ref("hosts");
 const route = useRoute();
@@ -444,6 +522,7 @@ const getMangeModel = async () => {
 
 const getNodesData = async () => {
   let res = await proxy.$api.getNodes({
+    model_instance_group_id: currentNodeId.value,
     model_name: activeName.value,
     page: currentPage.value,
     page_size: pageSize.value,
@@ -554,8 +633,10 @@ const assetInfoTask = async (params: object) => {
 // ========== 事件处理函数 ==========
 const handleClick = (tab: TabsPaneContext, event: Event) => {
   // console.log(tab, event);
+  currentNodeId.value === null;
   nextTick(() => {
     // console.log(activeName.value);
+    getCiTree();
     getNodesData();
   });
   // 获取数据
@@ -708,10 +789,50 @@ const closeSse = () => {
   eventSource.value?.close();
 };
 
+// 左侧tree
+const treeData = ref([]);
+const treeRef = ref(null);
+const currentNodeId = ref(null);
+const treeLoading = ref(true);
+const filterText = ref("");
+watch(filterText, (val) => {
+  treeRef.value!.filter(val);
+});
+
+const filterNode = (value: string, data: Tree) => {
+  if (!value) return true;
+  return data.label.toLowerCase().includes(value.toLowerCase());
+};
+const getCiTree = async () => {
+  treeLoading.value = true;
+  let res = await proxy.$api.getCiModelTree({
+    model: modelObjectByName.value[activeName.value]?.id,
+  });
+  treeData.value = [res.data];
+  nextTick(() => {
+    if (currentNodeId.value === null) {
+      console.log("treeData.value", res.data.id);
+      treeRef.value!.setCurrentKey(res.data.id);
+      currentNodeId.value = treeRef.value!.getCurrentKey();
+      console.log("currentNodeId.value", currentNodeId.value);
+    } // console.log(treeData.value);
+  });
+  treeLoading.value = false;
+};
+const handleNodeClick = (data: Tree) => {
+  currentNodeId.value = treeRef.value!.getCurrentKey();
+  nextTick(() => {
+    getNodesData();
+  });
+};
 // ========== 生命周期钩子 ==========
-onMounted(() => {
-  getNodesData();
-  getMangeModel();
+onMounted(async () => {
+  await getCiTree();
+  await getMangeModel();
+  nextTick(async () => {
+    // console.log(activeName.value);
+    await getNodesData();
+  });
 });
 
 onUnmounted(() => {

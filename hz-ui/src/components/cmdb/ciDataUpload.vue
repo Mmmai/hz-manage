@@ -123,10 +123,8 @@ const getUploadRes = async () => {
     clearInterval(timer);
     timer = null;
     // 更新表格
-    emit("getCiData", {
-      model: props.ciModelId,
-      model_instance_group: props.currentNodeId,
-    });
+    console.log("导入完成");
+    emit("reloadCiData");
   }
 };
 let timer = null;

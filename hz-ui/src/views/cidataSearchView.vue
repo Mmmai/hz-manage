@@ -140,7 +140,7 @@
               <div class="instance-info">
                 <div class="info-item">
                   <span class="info-label">唯一标识:</span>
-                  <span class="info-value">{{ instance.instance_id }}</span>
+                  <span class="info-value">{{ instance.instance_name }}</span>
                 </div>
                 <div class="info-item">
                   <span class="info-label">所属模型:</span>
@@ -213,6 +213,7 @@ import { Search, CaretTop } from "@element-plus/icons-vue";
 import useModelStore from "@/store/cmdb/model";
 import api from "@/api/index";
 import { ElMessage } from "element-plus";
+defineOptions({ name: "cidataSearch" });
 
 const { proxy } = getCurrentInstance();
 const router = useRouter();
@@ -271,8 +272,8 @@ const getModelVerboseName = (modelId) => {
 // 获取模型标签类型（用于不同模型区分颜色）
 const getModelTagType = (modelId) => {
   const modelIndex = allModels.value.findIndex((m) => m.id === modelId);
-  const types = ["primary", "success", "warning", "danger", "info"];
-  return types[modelIndex % types.length] || "primary";
+  const types = ["success", "warning", "danger", "info"];
+  return types[modelIndex % types.length] || "success";
 };
 // 切换模型过滤器
 const toggleModelFilter = (modelId) => {

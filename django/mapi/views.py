@@ -1329,7 +1329,120 @@ class PortalViewSet(ModelViewSet):
                 {'error': '门户不存在'},
                 status=status.HTTP_404_NOT_FOUND
             )
+    @action(methods=['post'], detail=False)
+    def export_template(self, request, *args, **kwargs):
+        # request.data.body('pks', None)
+        # 获取Pg字段和列表
+        colList = [["名称","链接地址","状态","分组(多个分组用逗号分隔)","用户名","密码","跳转方式","共享类型(private/public)","描述"]]
+        excel_handler = exportHandler()
+        wb = excel_handler.get_template(colList=colList)
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        # 设置文件的名称，让浏览器提示用户保存文件
+        response['Content-Disposition'] = 'attachment; filename="portal_template.xlsx"'
+        wb.save(response)
+        return response
+        # return Response(data='delete success', status=status.HTTP_200_OK)
+    
+    @action(methods=['post'], detail=False)
+    def export_portal(self, request, *args, **kwargs):
+        # request.data.body('pks', None)
+        # 获取Pg字段和列表
+        colList = [["名称","链接地址","状态","分组(多个分组用逗号分隔)","用户名","密码","跳转方式","共享类型","描述"]]
 
+        portalObj = Portal.objects.all().prefetch_related('groups')
+        for i in portalObj:
+            # 获取所有分组名称并用逗号连接
+            group_names = ",".join([group.group for group in i.groups.all()])
+            target_type = "新窗口" if i.target else "当前窗口"
+            sharing_type = "公共" if i.sharing_type == 'public' else "私人"
+            colList.append([i.name, i.url, i.status, group_names, i.username, i.password, target_type, sharing_type, i.describe])
+        
+        excel_handler = exportHandler()
+        wb = excel_handler.get_portal(colList=colList)
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        # 设置文件的名称，让浏览器提示用户保存文件
+        response['Content-Disposition'] = 'attachment; filename="portal_data.xlsx"'
+        wb.save(response)
+        return response
+        # return Response(data='delete success', status=status.HTTP_200_OK)
+    
+    @action(methods=['post'], detail=False)
+    def import_portal(self, request, *args, **kwargs):
+        portal_file = request.FILES.get('file')
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp:
+            for chunk in portal_file.chunks():
+                temp.write(chunk)
+            temp_path = temp.name
+        excel_handler = exportHandler()
+        allRow = excel_handler.load_data(temp_path)
+        # print(allRow)
+        
+        success_count = 0
+        error_messages = []
+        
+        for idx, row in enumerate(allRow, start=2):  # 从第2行开始，因为第1行是标题
+            try:
+                if len(row) < 9:
+                    error_messages.append(f"第{idx}行数据不完整")
+                    continue
+                    
+                name, url, p_status, groups_str, username, password, target_str, sharing_type_str, describe = row
+                
+                # 处理状态字段
+                status = str(p_status).lower() in ['true', '1', '是', 'yes']
+                
+                # 处理跳转方式字段
+                target = str(target_str).lower() not in ['false', '0', '当前窗口', 'no']
+                
+                # 处理共享类型字段
+                sharing_type = 'public' if str(sharing_type_str).lower() in ['公共', 'public'] else 'private'
+                
+                # 处理分组字段
+                group_objects = []
+                if groups_str:
+                    group_names = [name.strip() for name in str(groups_str).split(",")]
+                    for group_name in group_names:
+                        if group_name:  # 确保不是空字符串
+                            # 获取或创建分组，这里假设都是公共分组
+                            pgroup_obj, is_create = Pgroup.objects.get_or_create(
+                                group=group_name,
+                                sharing_type='public',
+                                defaults={'owner': request.user}
+                            )
+                            group_objects.append(pgroup_obj)
+                
+                # 创建或更新门户
+                portal_obj, is_created = Portal.objects.update_or_create(
+                    name=name,
+                    defaults={
+                        "url": url or "",
+                        "status": status,
+                        "username": username or "",
+                        "password": password or "",
+                        "target": target,
+                        "sharing_type": sharing_type,
+                        "owner": request.user,
+                        "describe": describe or ""
+                    }
+                )
+                
+                # 设置门户分组关系
+                if group_objects:
+                    portal_obj.groups.set(group_objects)
+                else:
+                    portal_obj.groups.clear()
+                    
+                success_count += 1
+                
+            except Exception as e:
+                error_messages.append(f"第{idx}行处理失败: {str(e)}")
+                continue
+
+        result_data = {"count": success_count}
+        if error_messages:
+            result_data["errors"] = error_messages
+            
+        return Response(data=result_data, status=status.HTTP_200_OK)
 class PgroupViewSet(ModelViewSet):
     queryset = Pgroup.objects.all()
     serializer_class = PgroupModelSerializer

@@ -5,6 +5,7 @@ import { del } from 'vue-demi'
 import { de } from 'element-plus/es/locale/index.mjs'
 // import path from './path'
 const path = {
+  nodeTask: "/api/v1/node_mg/nodeTask/",
   nodes: "/api/v1/node_mg/nodes/",
   proxy: "/api/v1/node_mg/proxy/",
   modelConfig: "/api/v1/node_mg/modelConfig/",
@@ -16,6 +17,13 @@ export default {
   // nodes
   getNodes(params) {
     return axios.request({ url: path.nodes, method: 'get', params: params })
+  },
+  getNodeDetail(id) {
+    return axios.request({ url: path.nodes + id + '/', method: 'get' })
+
+  },
+  getNodeInfoTasks(params) {
+    return axios.request({ url: path.nodeTask, method: 'get', params: params })
   },
   getNodesArray(params) {
     return axios.request({ url: path.nodes + 'list_all_nodes/', method: 'get', params: params })

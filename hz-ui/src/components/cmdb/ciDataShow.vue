@@ -1647,7 +1647,7 @@
     v-model:isShowUpload="isShowUpload"
     :ciModelId="props.ciModelId"
     :currentNodeId="props.currentNodeId"
-    @getCiData="getCiData"
+    @reloadCiData="reloadCiData"
     v-if="resetCom"
   />
   <!-- 过滤 -->
@@ -2685,9 +2685,6 @@ const tagClose = async (name, index) => {
 };
 
 const getCiData = async (params) => {
-  // console.log("子组件调用的")
-  // return
-  // filterParam.value = tmpObj;
   setLoading(true);
   let tmpList = new Array();
   let res = await proxy.$api.getCiModelInstance({
@@ -2707,17 +2704,6 @@ const getCiData = async (params) => {
     });
   });
   ciDataList.value = tmpList;
-  // nextTick(() => {
-  //   if (isSelectAll.value) {
-  //     console.log(123);
-  //     ciDataList.value.forEach((row) => {
-  //       if (multipleSelectId.value.includes(row.id)) {
-  //         ciDataTableRef.value!.toggleRowSelection(row);
-  //       } else {
-  //       }
-  //     });
-  //   }
-  // });
   nextTick(() => {
     isSelectAll.value = false;
     setLoading(false);
@@ -3141,9 +3127,17 @@ const handleClick = (tab: TabsPaneContext, event: Event) => {
     ciDataAuditRef.value!.getData();
   }
 };
+const reloadCiData = () => {
+  getCiData({
+    model: props.ciModelId,
+    model_instance_group: props.currentNodeId,
+  });
+  emit("getTree");
+};
 defineExpose({
   getHasConfigField,
   getCiData,
+  reloadCiData,
   initCiDataForm,
   getModelField,
   setLoading,

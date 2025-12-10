@@ -8,7 +8,7 @@ from django.db import models, transaction
 from .constants import FieldType
 
 logger = logging.getLogger(__name__)
-
+# 模型models的方法管理器
 
 class ModelGroupsManager(models.Manager):
 

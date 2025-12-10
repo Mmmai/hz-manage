@@ -7,7 +7,6 @@ import logging
 from celery import Celery
 from celery.signals import setup_logging
 from datetime import timedelta
-from cmdb.utils import sys_config
 
 logger = logging.getLogger(__name__)
 
@@ -38,16 +37,16 @@ is_migrating = any(arg in ['migrate', 'makemigrations'] for arg in sys.argv)
 if not is_migrating:
 
     beat_schedule = {}
-    if sys_config.is_zabbix_sync_enabled():
-        # 只在启用同步时添加 Zabbix 相关任务
-        beat_schedule.update({
-            'update-zabbix-interface-every-5-minutes': {
-                'task': 'cmdb.tasks.update_zabbix_interface_availability',
-                'schedule': timedelta(minutes=1),
-            }
-        })
-        logger.info("Zabbix sync is enabled, added Zabbix related tasks to beat schedule")
-    else:
-        logger.warning("Zabbix sync is disabled, skipping Zabbix related tasks in beat schedule")
+    # if sys_config.is_zabbix_sync_enabled():
+    #     # 只在启用同步时添加 Zabbix 相关任务
+    #     beat_schedule.update({
+    #         'update-zabbix-interface-every-5-minutes': {
+    #             'task': 'cmdb.tasks.update_zabbix_interface_availability',
+    #             'schedule': timedelta(minutes=1),
+    #         }
+    #     })
+    #     logger.info("Zabbix sync is enabled, added Zabbix related tasks to beat schedule")
+    # else:
+    #     logger.warning("Zabbix sync is disabled, skipping Zabbix related tasks in beat schedule")
 
     app.conf.beat_schedule = beat_schedule

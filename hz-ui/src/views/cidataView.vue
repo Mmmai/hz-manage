@@ -228,7 +228,6 @@ const canAddChildNone = (data) => {
 const getCiModelTree = async () => {
   loading.value = true;
   let res = await proxy.$api.getCiModelTree({ model: ciModelId.value });
-  console.log(res);
   treeData.value = [res.data];
   nextTick(() => {
     // if ()

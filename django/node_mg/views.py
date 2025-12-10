@@ -4,14 +4,14 @@ from django.http import HttpResponse, JsonResponse
 from rest_framework import filters, status
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.views import APIView
-from .models import Nodes, Proxy, NodeInfoTask, ModelConfig
+from .models import Nodes, Proxy, NodeTasks, ModelConfig
 from rest_framework.decorators import api_view
 from cmdb.models import ModelInstance
 from django.db.models import Q, OuterRef, Subquery
 from django_filters.rest_framework import DjangoFilterBackend
 from audit.context import audit_context
 from audit.mixins import AuditContextMixin
-from .serializers import NodesSerializer, ProxySerializer, ProxyDetailSerializer, ModelConfigSerializer
+from .serializers import NodesSerializer, ProxySerializer, ProxyDetailSerializer, ModelConfigSerializer,NodeTasksDetailSerializer
 from .tasks import (
     ansible_getinfo,
     ansible_getinfo_batch,
@@ -20,24 +20,53 @@ from .tasks import (
     zabbix_sync_batch,
     zabbix_proxy_sync
 )
-from .filters import NodesFilter
+from .filters import NodesFilter,NodeTasksFilter
+from cmdb.public_services import PublicModelInstanceService
+
 # Create your views here.
 
 
-@api_view(['POST'])
-def test(request):
-    if request.method == 'POST':
-        hostIp = request.data.get('ip')
-        print(hostIp)
-        obj = Nodes.objects.filter(ip_address=hostIp).first()
-        print(obj)
-        if not obj:
-            return JsonResponse({"status": "error", "message": "节点不存在"}, status=status.HTTP_400_BAD_REQUEST)
-        test = ansible_getinfo.delay(obj.id)
-        print(test)
-        return JsonResponse({"status": "success", "message": "任务已触发"}, status=status.HTTP_200_OK)
-    return JsonResponse({"status": "error", "message": "只支持POST请求"}, status=status.HTTP_400_BAD_REQUEST)
+# @api_view(['POST'])
+# def test(request):
+#     if request.method == 'POST':
+#         hostIp = request.data.get('ip')
+#         print(hostIp)
+#         obj = Nodes.objects.filter(ip_address=hostIp).first()
+#         print(obj)
+#         if not obj:
+#             return JsonResponse({"status": "error", "message": "节点不存在"}, status=status.HTTP_400_BAD_REQUEST)
+#         test = ansible_getinfo.delay(obj.id)
+#         print(test)
+#         return JsonResponse({"status": "success", "message": "任务已触发"}, status=status.HTTP_200_OK)
+#     return JsonResponse({"status": "error", "message": "只支持POST请求"}, status=status.HTTP_400_BAD_REQUEST)
 
+class NodeTasksViewSet(ModelViewSet):
+    """
+    NodeTasks视图集，用于管理节点任务信息的查询操作
+    """
+    queryset = NodeTasks.objects.select_related('node__model_instance').all()
+    serializer_class = NodeTasksDetailSerializer
+    filter_backends = [filters.OrderingFilter, filters.SearchFilter, DjangoFilterBackend]
+    filterset_class = NodeTasksFilter
+
+    filterset_fields = ['node', 'status','task_name']
+    ordering_fields = ['created_at', 'completed_at', 'cost_time']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        """
+        重写get_queryset方法，支持根据node_id过滤
+        """
+        queryset = super().get_queryset()
+        
+        # 获取node_id参数
+        node_id = self.request.query_params.get('node_id', None)
+        
+        # 如果提供了node_id，则过滤出该节点下的所有任务
+        if node_id:
+            queryset = queryset.filter(node_id=node_id)
+            
+        return queryset
 
 class NodesViewSet(AuditContextMixin, ModelViewSet):
     """
@@ -59,28 +88,44 @@ class NodesViewSet(AuditContextMixin, ModelViewSet):
         order_fields: 排序字段，支持按ID排序
     """
     # 处理外键,1对多,1对1
-    queryset = Nodes.objects.select_related('model', 'model_instance').prefetch_related('node_info_tasks').all()
+    queryset = Nodes.objects.select_related('model', 'model_instance').prefetch_related('node_tasks').all()
     serializer_class = NodesSerializer
     filterset_class = NodesFilter
     filter_backends = [filters.OrderingFilter, filters.SearchFilter, DjangoFilterBackend]
     # search_fields = ['model_instance__instance_name','ip_address','proxy__name']
     filterset_fields = ['model', 'enable_sync', 'proxy', 'model_instance',
-                        'ip_address', 'manage_status', 'agent_status', 'zbx_status']
+                        'ip_address', 'manage_status', 'agent_status']
     # pagination_class = StandardResultsSetPagination
     # order_fields = ["id"]
 
     def get_queryset(self):
         """
         重写get_queryset方法，支持对manage_error_message和agent_error_message的搜索
+        同时支持根据model_instance_group_id进行过滤
         """
         queryset = super().get_queryset()
+        
         # 获取搜索参数
         search_term = self.request.query_params.get('search', None)
-
+        
+        # 获取model_instance_group_id参数
+        model_instance_group_id = self.request.query_params.get('model_instance_group_id', None)
+        model_id = self.request.query_params.get('model_id', None)
+        
+        # 如果提供了model_instance_group_id，则过滤出对应组内的节点
+        if model_instance_group_id:
+            # # 通过ModelInstanceGroupRelation关联获取指定组内的所有实例
+            # queryset = queryset.filter(
+            #     model_instance__group_relations__group_id=model_instance_group_id
+            # ).distinct()
+            instances = PublicModelInstanceService.get_instances_by_group_id(model_instance_group_id, model_id, self.request.user)
+            queryset = queryset.filter(
+                 model_instance__in=instances
+             ).distinct()
         # 如果有搜索参数，且在普通字段中没有匹配结果，则尝试搜索错误消息字段
         if search_term:
-            # 子查询：获取每个节点的最新NodeInfoTask错误消息
-            latest_manage_error_subquery = NodeInfoTask.objects.filter(
+            # 子查询：获取每个节点的最新NodeTasks错误消息
+            latest_manage_error_subquery = NodeTasks.objects.filter(
                 node=OuterRef('pk')
             ).order_by('-created_at').values('error_message')[:1]
             # 注解查询集，添加最新的错误消息字段
@@ -92,8 +137,7 @@ class NodesViewSet(AuditContextMixin, ModelViewSet):
                 Q(model_instance__instance_name__icontains=search_term) |
                 Q(ip_address__icontains=search_term) |
                 Q(proxy__name__icontains=search_term) |
-                Q(node_info_tasks__error_message__icontains=search_term) |
-                Q(node_sync_zabbix__error_message__icontains=search_term)
+                Q(node_tasks__error_message__icontains=search_term,node_tasks__task_name__in=['get_system_info','zabbix_agent_install'])
             ).distinct()
         return queryset
 

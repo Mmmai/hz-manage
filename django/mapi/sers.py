@@ -88,11 +88,11 @@ class UserInfoModelSerializer(serializers.ModelSerializer):
         return newObj      
         
     def update(self, instance, validated_data):
-        role_ids = validated_data.pop('role_ids',[])
-        group_ids = validated_data.pop('group_ids',[])
+        role_ids = validated_data.pop('role_ids',None)
+        print(role_ids)
+        group_ids = validated_data.pop('group_ids',None)
         password = validated_data.get('password',None)
         old_password = validated_data.get('old_password',None)
-        print(validated_data)
         if old_password:
             # 将提供的旧密码与instance密码比较
             pre_password = password_handler.decrypt_sm4(f'{instance.password}')
@@ -107,10 +107,12 @@ class UserInfoModelSerializer(serializers.ModelSerializer):
             # 使用盐值处理原始密码，再用SM4加密密码
             salted_password = f'{salt}:{password}'
             validated_data['password'] = password_handler.encrypt_to_sm4(salted_password) 
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         # 处理多对多关系
-        if len(role_ids) > 0:
+        # 如果role_ids字段存在于请求数据中（即使为空列表），则清除并重新设置角色
+        if role_ids or role_ids == []:
             instance.roles.clear()
             for i in role_ids:
                 try:
@@ -118,7 +120,8 @@ class UserInfoModelSerializer(serializers.ModelSerializer):
                     instance.roles.add(i_obj)
                 except Role.DoesNotExist:
                     pass
-        if len(group_ids) > 0:
+        # 如果group_ids字段存在于请求数据中（即使为空列表），则清除并重新设置用户组
+        if group_ids or group_ids == []:
             instance.groups.clear()
             for i in group_ids:
                 try:

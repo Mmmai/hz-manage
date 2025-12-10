@@ -22,6 +22,7 @@ def set_data_scope_cache(username: str, data: dict):
 
 
 def clear_data_scope_cache(username: str):
+    print(123)
     cache_key = f'user_data_scope_{username}'
     cache.delete(cache_key)
 

@@ -15,7 +15,6 @@ from mapi.messages import zabbix_config_updated
 
 from .models import (
     Nodes,
-    NodeSyncZabbix,
     Proxy,
     ModelConfig
 )
@@ -165,7 +164,10 @@ def model_config_signal(sender, instance, created, **kwargs):
 def sync_model_instance_group(sender, instance, action, **kwargs):
     new_group_name = instance.path.replace("所有/", "")+"@cmdb"
     def delayed_process():
-
+        # 判断模型是否可管理
+        obj = ModelConfig.objects.get(model=instance.model)
+        if not obj.is_manage:
+            return
         # 创建
         if action:
             zabbix_group_sync.delay({'group_name': new_group_name}, action='create')
@@ -173,11 +175,12 @@ def sync_model_instance_group(sender, instance, action, **kwargs):
         else:
             old_group_name = instance._old_path.replace("所有/", "")+"@cmdb"
             zabbix_group_sync.delay({'new_group_name': new_group_name,'old_group_name': old_group_name}, action='rename')
-    # 判断模型是否可管理
-    obj = ModelConfig.objects.get(model=instance.model)
-    if not obj.is_manage:
-        return
+
     if action == 'delete':
+        # 判断模型是否可管理
+        obj = ModelConfig.objects.get(model=instance.model)
+        if not obj.is_manage:
+            return
         zabbix_group_sync.delay({'group_name': new_group_name}, action='delete')
     else:
         transaction.on_commit(delayed_process)
@@ -269,20 +272,20 @@ def sync_node(sender, instance, action, **kwargs):
         transaction.on_commit(delayed_process)
 
 
-@receiver(post_save, sender=Nodes)
-def create_initial_sync_zabbix(sender, instance, created, **kwargs):
-    """
-    节点创建成功后触发zabbix同步创建及更新
-    """
-    def delayed_process():
-        if created:
-            # 创建与节点关联的NodeSyncZabbix实例
-            NodeSyncZabbix.objects.create(node=instance)
-            # 触发zabbix同步
-            # 触发agent安装任务
-            logger.info(f"为节点[{instance.model_instance.instance_name}]创建了初始的NodeSyncZabbix实例")
-    transaction.on_commit(delayed_process)
 # @receiver(post_save, sender=Nodes)
+# def create_initial_sync_zabbix(sender, instance, created, **kwargs):
+#     """
+#     节点创建成功后触发zabbix同步创建及更新
+#     """
+#     def delayed_process():
+#         if created:
+#             # 创建与节点关联的NodeSyncZabbix实例
+#             NodeSyncZabbix.objects.create(node=instance)
+#             # 触发zabbix同步
+#             # 触发agent安装任务
+#             logger.info(f"为节点[{instance.model_instance.instance_name}]创建了初始的NodeSyncZabbix实例")
+#     transaction.on_commit(delayed_process)
+# # @receiver(post_save, sender=Nodes)
 
 
 @receiver(post_save, sender=Proxy)

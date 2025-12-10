@@ -4,7 +4,7 @@
       <el-page-header @back="goBack">
         <template #content>
           <span>{{
-            `${modelInfo.model?.verbose_name}【${instanceData.instance_name}】`
+            `${modelInfo?.verbose_name}【${instanceData.instance_name}】`
           }}</span>
         </template>
       </el-page-header>
@@ -607,7 +607,13 @@
           </el-form>
         </el-tab-pane>
 
-        <el-tab-pane label="监控信息" name="monitor" disabled>111</el-tab-pane>
+        <el-tab-pane
+          label="监控信息"
+          name="monitor"
+          disabled
+          v-if="modelInfo.name === 'hosts'"
+          >111</el-tab-pane
+        >
         <el-tab-pane label="关联关系" name="relations">
           <ciDataRelation
             ref="ciDataRelationRef"
@@ -656,8 +662,11 @@ const instanceId = ref(null);
 const instanceData = ref({});
 
 const modelConfigStore = useModelStore();
-
+const modelObjectById = computed(() => modelConfigStore.modelObjectById);
 const modelInfo = ref({});
+// const modelInfo = computed(
+//   () => modelObjectById.value[instanceData.value?.model]
+// );
 const validationRulesEnumObject = computed(
   () => modelConfigStore.validationRulesEnumOptionsObject
 );
@@ -1010,24 +1019,6 @@ const goBack = () => {
       // 取消
     });
 };
-// 请求
-// 枚举类的字段下拉框
-// 获取所有枚举类的字典
-// const validationRulesObj = ref({});
-// const getRules = async (params = null) => {
-//   let res = await proxy.$api.getValidationRules({
-//     ...params,
-//     page: 1,
-//     page_size: 10000,
-//   });
-//   // validationRules.value = res.data
-//   res.data.results.forEach((item) => {
-//     validationRulesObj.value[item.id] = item;
-//     // validationRulesByNameObj.value[item.name] = item
-//   });
-//   // console.log(1111111);
-//   // console.log(validationRulesObj.value);
-// };
 // 获取model_ref的信息
 const getModelRefCiData = async (params) => {
   let res = await proxy.$api.getModelRefCi({
@@ -1040,55 +1031,17 @@ const getCiDataInfo = async () => {
   const res = await proxy.$api.getCiModelInstanceInfo(instanceId.value);
   if (res.status === 200) {
     instanceData.value = res.data;
+    modelInfo.value = modelObjectById.value[instanceData.value?.model];
   }
 };
-const getCiModelInfo = async () => {
-  // console.log(instanceData.value.model);
-  const res = await proxy.$api.getCiModel({}, instanceData.value.model);
-  if (res.status === 200) {
-    modelInfo.value = res.data;
-  }
-  // console.log(modelInfo.value);
-};
-const ciDataDelete = (params = null) => {
-  ElMessageBox.confirm("是否确认删除?", "实例删除", {
-    confirmButtonText: "确认删除",
-    cancelButtonText: "取消",
-    type: "warning",
-    draggable: true,
-  })
-    .then(async () => {
-      // 发起删除请求
-      let res = await proxy.$api.deleteCiModelInstance(currentRow.value.id);
-      //
-      // let res = {status:204}
-      if (res.status == 204) {
-        ElMessage({
-          type: "success",
-          message: "删除成功",
-        });
-        goBack();
-      } else {
-        ElMessage({
-          type: "error",
-          message: "删除失败",
-        });
-      }
-    })
-    .catch(() => {
-      ElMessage({
-        type: "info",
-        message: "取消删除",
-      });
-    });
-};
+
 // 获取路由参数
 onMounted(async () => {
   try {
     instanceId.value = route.path.split("/").at(-1);
     await getCiDataInfo();
     // 获取模型信息
-    await getCiModelInfo();
+    // await getCiModelInfo();
     modelConfigStore.getModel();
 
     modelConfigStore.getValidationRules();

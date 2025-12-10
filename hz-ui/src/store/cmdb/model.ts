@@ -137,11 +137,18 @@ export const modelConfigStore = defineStore(
         await getModelTreeInstance(item.id);
       });
     }
+    // 清空缓存
+    const clearModelConfig = () => {
+      allModelCiDataObj.value = {};
+      validationRules.value = [];
+      allModels.value = [];
+
+    }
 
     // 提供给外部调用
     return {
       allModels, modelObjectByName, modelObjectById, modelOptions, getModel, updateAllModels, allModelCiDataObj, getModelTreeInstance, getAllModelTreeInstances, allModelCiDataTreeObj,
-      validationRules, validationRulesObjectById, validationRulesEnumOptionsObject, getValidationRules, updateValidationRules, validationRulesOptions
+      validationRules, validationRulesObjectById, validationRulesEnumOptionsObject, getValidationRules, updateValidationRules, validationRulesOptions, clearModelConfig
     }
   },
   // 插件外参

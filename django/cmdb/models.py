@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 )
 class ModelGroups(models.Model):
 
-    objects = ModelGroupsManager()
+    objects: ModelGroupsManager = ModelGroupsManager()
 
     class Meta:
         db_table = 'model_groups'
@@ -176,7 +176,7 @@ class ValidationRules(models.Model):
     public_name='model_field'
 )
 class ModelFields(models.Model):
-    objects = ModelFieldsManager()
+    objects: ModelFieldsManager = ModelFieldsManager()
 
     class Meta:
         db_table = 'model_fields'
@@ -228,7 +228,7 @@ class ModelFieldPreference(models.Model):
     }
 )
 class UniqueConstraint(models.Model):
-    objects = UniqueConstraintManager()
+    objects: UniqueConstraintManager = UniqueConstraintManager()
 
     class Meta:
         db_table = 'unique_constraint'
@@ -265,7 +265,7 @@ class UniqueConstraint(models.Model):
 )
 class ModelInstance(models.Model):
 
-    objects = ModelInstanceManager()
+    objects: ModelInstanceManager = ModelInstanceManager()
 
     class Meta:
         db_table = 'model_instance'
@@ -313,7 +313,7 @@ class ModelInstance(models.Model):
 
 class ModelFieldMeta(models.Model):
 
-    objects = ModelFieldMetaManager()
+    objects: ModelFieldMetaManager = ModelFieldMetaManager()
 
     class Meta:
         db_table = 'model_field_meta'
@@ -338,7 +338,7 @@ class ModelFieldMeta(models.Model):
 )
 class ModelInstanceGroup(models.Model):
 
-    objects = ModelInstanceGroupManager()
+    objects: ModelInstanceGroupManager = ModelInstanceGroupManager()
 
     class Meta:
         db_table = 'model_instance_group'
@@ -500,19 +500,3 @@ class Relations(models.Model):
     create_user = models.CharField(max_length=20, null=True, blank=True)
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
-
-class ZabbixProxy(models.Model):
-    class Meta:
-        db_table = 'zabbix_proxy'
-        managed = True
-        app_label = 'cmdb'
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=50, null=False, blank=False)
-    ip = models.CharField(max_length=50, null=False, blank=False)
-    port = models.IntegerField(default=10051, null=False, blank=False)
-    user = models.CharField(default='root', max_length=50, null=False, blank=False)
-    password = models.CharField(max_length=50, null=False, blank=False)
-    proxy_id = models.CharField(max_length=50, null=False, blank=False)
-    create_time = models.DateTimeField(auto_now_add=True)
-    update_time = models.DateTimeField(auto_now=True)

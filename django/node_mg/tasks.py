@@ -2,7 +2,7 @@ from celery import chain, shared_task, group
 from celery.result import AsyncResult
 
 
-from .models import Nodes, NodeInfoTask, NodeSyncZabbix, Proxy, ModelConfig
+from .models import Nodes, NodeTasks, Proxy, ModelConfig
 from cmdb.public_services import PublicModelInstanceService
 from cmdb.models import (
     Models,
@@ -300,15 +300,16 @@ def ansible_getinfo(self, node_id, context=None):
         # 如果执行失败，记录失败信息并抛出异常
         if result['rc'] != 0:
             try:
-                NodeInfoTask.objects.create(
+                NodeTasks.objects.create(
                     node=node,
-                    status=False,
-                    results=str(result),
+                    status=0,
+                    results=result,
                     error_message=result.get('error', ''),
                     cost_time=cost_time,
+                    task_name='get_system_info',
                 )
             except Exception as e:
-                logger.error(f"Failed to create NodeInfoTask for node {node.ip_address}: {str(e)}")
+                logger.error(f"Failed to create NodeTasks for node {node.ip_address}: {str(e)}")
             logger.error(f"Ansible playbook failed with return code {result['rc']}, took {cost_time} seconds")
             # self.update_state(state="FAILURE", meta={"status": "fail", "code": 400})
             raise Exception(f"Ansible playbook failed with return code {result['rc']}")
@@ -317,13 +318,15 @@ def ansible_getinfo(self, node_id, context=None):
 
         # 记录成功执行的结果
         try:
-            NodeInfoTask.objects.create(
+            NodeTasks.objects.create(
                 node=node,
-                status=True,
-                asset_info=info,
+                status=1,
+                record_info=info,
                 results=result,
                 error_message=result.get('error', ''),
                 cost_time=cost_time,
+                task_name='get_system_info',
+
             )
         except Exception as e:
             logger.error(f"Error creating or updating node {node.ip_address} info task: {str(e)}")
@@ -426,7 +429,7 @@ def ansible_agent_install(self, node_id):
 
     try:
         inventory = node_inventory(node)
-        server_ip = sys_config.get('server')
+        server_ip = sys_config.get('zabbix_server')
         extra_vars = {
             'hostIp': node.ip_address,
             'serverIp': server_ip,
@@ -442,16 +445,16 @@ def ansible_agent_install(self, node_id):
         result = ansible_api.run_playbook(playbook_path, inventory, extra_vars=extra_vars)
         end_time = time.perf_counter()
         cost_time = float(f"{end_time - start:.2f}")
-
-        defaults = {
-            "results": str(result),
-            "error_message": result.get('error', ''),
-            "cost_time": cost_time,
-        }
-
         if result['rc'] != 0:
-            defaults["agent_status"] = 0
-            NodeSyncZabbix.objects.update_or_create(node=node, defaults=defaults)
+            NodeTasks.objects.create(
+                node=node,
+                status=0,
+                results=result,
+                error_message=result.get('error', ''),
+                cost_time=cost_time,
+                task_name='zabbix_agent_install',
+
+            )            
             logger.error(f"Ansible playbook failed with return code {result['rc']}, took {cost_time} seconds")
             return {
                 'status': 'failed',
@@ -460,8 +463,15 @@ def ansible_agent_install(self, node_id):
                 'timestamp': timezone.now().isoformat()
             }
 
-        defaults["agent_status"] = 1
-        NodeSyncZabbix.objects.update_or_create(node=node, defaults=defaults)
+        NodeTasks.objects.create(
+                node=node,
+                status=1,
+                results=result,
+                error_message=result.get('error', ''),
+                cost_time=cost_time,
+                task_name='zabbix_agent_install',
+
+            )
         logger.info(f"Ansible playbook completed in {cost_time} seconds")
 
         return {
