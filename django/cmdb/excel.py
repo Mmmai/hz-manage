@@ -74,7 +74,7 @@ class ExcelHandler:
 
         # 第三行：约束说明
         cell = sheet[f'{col_letter}3']
-        cell.value = "可选，TRUE 或 FALSE，不填写默认为TRUE"
+        cell.value = "不填写默认为TRUE，默认值不会覆盖已经配置的标识"
         cell.alignment = cls.CENTER_ALIGNMENT
 
         # 设置列宽
@@ -526,7 +526,9 @@ class ExcelHandler:
             sheet['A' + str(row)].value = error.get('instance_name')
             sheet['A' + str(row)].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
-            for col_idx, header in enumerate(headers, 2):
+            sheet['B' + str(row)].value = error.get('using_template')
+            sheet['B' + str(row)].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            for col_idx, header in enumerate(headers, 3):
                 value = fields.get(header)
                 if value:
                     cell = sheet.cell(row=row, column=col_idx, value=value)

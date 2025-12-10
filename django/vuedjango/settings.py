@@ -36,9 +36,6 @@ DATABASE_PORT = os.environ.get('DATABASE_PORT', '3306')
 REDIS_HOST = os.environ.get('REDIS_HOST', 'redis')
 REDIS_PORT = os.environ.get('REDIS_PORT', '6379')
 
-# DATABASE_HOST = '127.0.0.1' if DEBUG else os.environ.get('DATABASE_HOST', 'mysql')
-# REDIS_HOST = '127.0.0.1' if DEBUG else os.environ.get('REDIS_HOST', 'redis')
-
 ALLOWED_HOSTS = ['*']
 
 
@@ -52,8 +49,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'mapi',
     'permissions',
+    'mapi',
     'audit',
     'mlog',
     'cacheops',
@@ -129,25 +126,8 @@ DATABASES = {
             'charset': 'utf8mb4',
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
         },
-    },
-    # 'cmdb': {
-    #     'ENGINE': 'django.db.backends.mysql',
-    #     'NAME': 'cmdb',
-    #     'USER': 'root',
-    #     'PASSWORD': 'thinker',
-    #     'HOST': '127.0.0.1',
-    #     'PORT': '3306',
-    # },
+    }
 }
-# 多数据库配置
-# DATABASE_ROUTERS = ['vuedjango.db_router.database_router']
-# DATABASE_APPS_MAPPING = {
-#     'mlog': 'default',
-#     'mapi': 'default',
-#     'cmdb': 'default',
-#     'node_mg': 'default'
-# }
-# CACHEOPS_SERIALIZER = "dill"
 
 CACHEOPS_REDIS = {
     'host': REDIS_HOST,
@@ -204,6 +184,10 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Shanghai'
+
+AUTH_USER_MODEL = 'mapi.UserInfo'
+AUTH_USER_GROUP_MODEL = 'mapi.UserGroup'
+AUTH_ROLE_MODEL = 'mapi.Role'
 
 
 SPECTACULAR_SETTINGS = {

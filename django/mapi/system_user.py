@@ -9,6 +9,11 @@ class SystemUser(UserInfo):
         from mapi.system_user import SYSTEM_USER
     """
 
+    class Meta:
+        managed = False
+        abstract = False
+        app_label = 'mapi'
+
     def __init__(self, username: str = 'system'):
         self.username = username
         self.password = '_'

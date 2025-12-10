@@ -1,8 +1,9 @@
 from .services import ModelInstanceService
 from .serializers import ModelInstanceSerializer
-from .models import ModelInstance, ModelFieldMeta
+from .models import ModelInstance, ModelInstanceGroup, ModelInstanceGroupRelation, ModelFieldMeta
 from .constants import FieldType
 from .utils import password_handler
+from permissions.manager import PermissionManager
 
 
 class PublicModelInstanceService:
@@ -55,3 +56,17 @@ class PublicModelInstanceService:
             else:
                 res[field.model_fields.name] = field.data
         return res
+
+    @staticmethod
+    def get_instances_by_group_id(group_id, model_id, user) -> list:
+        """通过分组ID获取模型实例列表"""
+        children_ids = ModelInstanceGroup.objects.get_all_children_ids([group_id], model_id=model_id)
+        children_ids.add(group_id)
+        pm = PermissionManager(user)
+        instances_qs = (
+            pm.get_queryset(ModelInstanceGroupRelation)
+            .filter(group_id__in=children_ids)
+            .select_related('model_instance')
+        )
+        instances = list(set(rel.model_instance for rel in instances_qs if rel.model_instance))
+        return instances
