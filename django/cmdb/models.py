@@ -52,6 +52,7 @@ class ModelGroups(models.Model):
 
 
 @register_audit(
+    # 外键返回的具体字段
     snapshot_fields={'id', 'name', 'verbose_name'},
     ignore_fields={'update_time', 'create_time', 'create_user', 'update_user'},
     public_name='model',

@@ -4,10 +4,6 @@ from .models import ModelInstance, ModelInstanceGroup, ModelInstanceGroupRelatio
 from .constants import FieldType
 from .utils import password_handler
 from permissions.manager import PermissionManager
-<<<<<<< HEAD
-=======
-
->>>>>>> hz-manager/cmdb_permission
 
 class PublicModelInstanceService:
     """对外的模型实例服务类"""

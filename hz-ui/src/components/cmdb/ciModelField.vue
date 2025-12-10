@@ -428,6 +428,7 @@ import { useStore } from "vuex";
 const store = useStore();
 import useModelStore from "@/store/cmdb/model";
 const modelConfigStore = useModelStore();
+
 const route = useRoute();
 // const emits = defineEmits(["getModelField"]);
 // const router = useRouter();
@@ -478,36 +479,8 @@ const modelOptions = computed(() => {
   return tempList;
 });
 
-// console.log(ciModelFieldsList.value)
-// watch(
-//   () => ciModelFieldsList.value,
-//   (n) => {
-//     console.log(ciModelFieldsList.value);
-//   }
-// );
-// watch(
-//   () => hasBeenSelectModel.value,
-//   (n) => {
-//     console.log(hasBeenSelectModel.value);
-//   }
-// );
-// watch(
-//   () => modelOptions.value,
-//   (n) => {
-//     console.log(modelOptions.value);
-//   }
-// );
 // 确保新增字段时，选择不同的字段类型，校验规则会重置。
 const changeFieldType = () => {
-  // if (modelFieldForm.type == 'string'){
-  //   modelFieldForm.default = ''
-  //   modelFieldForm.validation_rule = ''
-  // }else if (modelFieldForm.type == 'enum')
-  // {
-  //   modelFieldForm.validation_rule = ''
-  //   modelFieldForm.default = ''
-
-  // }
   modelFieldForm.default = "";
   modelFieldForm.validation_rule = "";
   if (modelFieldForm.type == "boolean") {
@@ -584,6 +557,7 @@ const getRules = async (params = null) => {
   res.data.results.forEach((item) => {
     validationRulesObj.value[item.id] = item;
   });
+  modelConfigStore.updateValidationRules(res.data.results);
 };
 const validationRulesObj = ref({});
 const validationRulesTypeOptions = computed(() => {

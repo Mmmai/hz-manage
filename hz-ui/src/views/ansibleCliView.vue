@@ -949,6 +949,7 @@ const convertToTreeFormat = (data) => {
    * @param {Object} node - 原始节点
    * @returns {Object|null} 转换后的节点，如果应该被剔除则返回null
    */
+  console.log(data);
   const convertNode = (node) => {
     const newNode = {
       id: node.id,
@@ -1218,6 +1219,9 @@ const reloadTree = async () => {
   // await modelConfigStore.getModel(true);
   await modelConfigStore.getAllModelTreeInstances(true);
 };
+watch(hostModelCiDataObj.value, (val) => {
+  treeData.value = convertToTreeFormat([hostModelCiDataObj.value]);
+});
 onMounted(async () => {
   await modelConfigStore.getModel();
   await modelConfigStore.getAllModelTreeInstances();

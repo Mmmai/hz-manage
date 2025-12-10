@@ -1,7 +1,7 @@
 from rest_framework.filters import BaseFilterBackend
 from .tools import get_scope_query
 
-
+# 添加新的app过滤
 class DataScopeFilterBackend(BaseFilterBackend):
     TARGET_APP = {'cmdb'}
 
@@ -14,4 +14,4 @@ class DataScopeFilterBackend(BaseFilterBackend):
 
         if scope_query is None:
             return queryset.none()
-        return queryset.filter(scope_query).distinct()
+        return queryset.filter(scope_query)

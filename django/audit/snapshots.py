@@ -47,6 +47,7 @@ def get_static_field_snapshot(instance):
     return snapshot
 
 
+#cmdb专用
 def get_dynamic_field_snapshot(instance):
     if not instance or not registry.is_field_aware(instance.__class__):
         return {}

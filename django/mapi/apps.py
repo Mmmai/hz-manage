@@ -11,9 +11,7 @@ logger = logging.getLogger(__name__)
 
 class MapiConfig(AppConfig):
     default_auto_field = 'django.db.models.AutoField'
-
     name = 'mapi'
-    
     def ready(self):
         import mapi.signals
         try:
@@ -27,8 +25,7 @@ class MapiConfig(AppConfig):
     def init_script(self, sender, **kwargs):
         if sender.name != 'mapi':
             return
-            
-        from mapi.models import UserInfo, UserGroup, Role, Menu, sysConfigParams, Button, Permission
+        from mapi.models import UserInfo, UserGroup, Role, sysConfigParams
         from permissions.models import DataScope
         
         # 检查是否已经初始化过（通过特定标记）
@@ -46,10 +43,10 @@ class MapiConfig(AppConfig):
             # 初始化系统管理员用户、用户组和角色
             self._init_users_and_roles(UserInfo, UserGroup, Role, DataScope)
             
-            # 初始化菜单
-            self._init_menus(Menu, Button)
-            # 初始化普通用户
-            self._init_common_user(UserInfo, UserGroup, Role)
+            # # 初始化菜单
+            # self._init_menus(Menu, Button)
+            # # 初始化普通用户
+            # self._init_common_user(UserInfo, UserGroup, Role)
             # 添加初始化完成标记
             sysConfigParams.objects.get_or_create(
                 param_name=init_marker_param,
@@ -172,97 +169,97 @@ class MapiConfig(AppConfig):
             logger.info("管理员用户已存在")
             
 
-    def _init_common_user(self, UserInfo, UserGroup, Role):
-        """初始化普通用户"""
-        # 创建普通用户角色和组（即使管理员存在也可能不存在普通用户）
-        role_common_obj, role_created = Role.objects.get_or_create(
-            role="viewer",
-            defaults={
-                "role_name": "普通用户",
-                "built_in": True
-            }
-        )
+    # def _init_common_user(self, UserInfo, UserGroup, Role):
+    #     """初始化普通用户"""
+    #     # 创建普通用户角色和组（即使管理员存在也可能不存在普通用户）
+    #     role_common_obj, role_created = Role.objects.get_or_create(
+    #         role="viewer",
+    #         defaults={
+    #             "role_name": "普通用户",
+    #             "built_in": True
+    #         }
+    #     )
         
-        if role_created:
-            logger.info("创建普通用户角色")
+    #     if role_created:
+    #         logger.info("创建普通用户角色")
             
-        group_common_obj, group_created = UserGroup.objects.get_or_create(
-            group_name="普通用户组",
-            defaults={"built_in": True}
-        )
+    #     group_common_obj, group_created = UserGroup.objects.get_or_create(
+    #         group_name="普通用户组",
+    #         defaults={"built_in": True}
+    #     )
         
-        if group_created:
-            group_common_obj.roles.add(role_common_obj.id)
-            group_common_obj.save()
-            logger.info("创建普通用户组")
-        elif role_common_obj not in group_common_obj.roles.all():
-            group_common_obj.roles.add(role_common_obj.id)
-            group_common_obj.save()
-            logger.info("为普通用户组添加普通用户角色")
-        else:
-            logger.info("普通用户组已存在且已关联普通用户角色")
-    def _init_menus(self, Menu, Button):
-        """初始化菜单"""
-        # 检查是否已存在菜单，如果有超过80%的菜单则认为已初始化
-        existing_menus_count = Menu.objects.count()
-        total_menus_count = len(INIT_MENU)
+    #     if group_created:
+    #         group_common_obj.roles.add(role_common_obj.id)
+    #         group_common_obj.save()
+    #         logger.info("创建普通用户组")
+    #     elif role_common_obj not in group_common_obj.roles.all():
+    #         group_common_obj.roles.add(role_common_obj.id)
+    #         group_common_obj.save()
+    #         logger.info("为普通用户组添加普通用户角色")
+    #     else:
+    #         logger.info("普通用户组已存在且已关联普通用户角色")
+    # def _init_menus(self, Menu, Button):
+    #     """初始化菜单"""
+    #     # 检查是否已存在菜单，如果有超过80%的菜单则认为已初始化
+    #     existing_menus_count = Menu.objects.count()
+    #     total_menus_count = len(INIT_MENU)
         
-        if existing_menus_count >= total_menus_count * 0.8 and existing_menus_count > 0:
-            logger.info("菜单数据已存在，跳过菜单初始化")
-            return
+    #     if existing_menus_count >= total_menus_count * 0.8 and existing_menus_count > 0:
+    #         logger.info("菜单数据已存在，跳过菜单初始化")
+    #         return
             
-        menuInitList = INIT_MENU
-        # 创建目录
-        for i in menuInitList:
-            buttons = i.pop("buttons", None)
-            current_menu_data = i.copy()  # 复制一份避免修改原数据
+    #     menuInitList = INIT_MENU
+    #     # 创建目录
+    #     for i in menuInitList:
+    #         buttons = i.pop("buttons", None)
+    #         current_menu_data = i.copy()  # 复制一份避免修改原数据
             
-            if current_menu_data['parentid_id'] == '':
-                current_menu_data['parentid_id'] = None
-                instance, created = Menu.objects.get_or_create(
-                    name=current_menu_data['name'],
-                    defaults=current_menu_data
-                )
-                if created:
-                    logger.info(f"创建新菜单目录: {instance.label}")
-                else:
-                    logger.debug(f"菜单目录已存在: {instance.label}")
-            else:
-                parent_name = current_menu_data['parentid_id']
-                try:
-                    parent_menu = Menu.objects.get(name=parent_name)
-                    current_menu_data['parentid_id'] = parent_menu.id
-                    instance, created = Menu.objects.get_or_create(
-                        name=current_menu_data['name'],
-                        defaults=current_menu_data
-                    )
-                    if created:
-                        logger.info(f"创建新菜单: {instance.label}")
+    #         if current_menu_data['parentid_id'] == '':
+    #             current_menu_data['parentid_id'] = None
+    #             instance, created = Menu.objects.get_or_create(
+    #                 name=current_menu_data['name'],
+    #                 defaults=current_menu_data
+    #             )
+    #             if created:
+    #                 logger.info(f"创建新菜单目录: {instance.label}")
+    #             else:
+    #                 logger.debug(f"菜单目录已存在: {instance.label}")
+    #         else:
+    #             parent_name = current_menu_data['parentid_id']
+    #             try:
+    #                 parent_menu = Menu.objects.get(name=parent_name)
+    #                 current_menu_data['parentid_id'] = parent_menu.id
+    #                 instance, created = Menu.objects.get_or_create(
+    #                     name=current_menu_data['name'],
+    #                     defaults=current_menu_data
+    #                 )
+    #                 if created:
+    #                     logger.info(f"创建新菜单: {instance.label}")
                         
-                        # 添加按钮
-                        if buttons:
-                            for button in buttons:
-                                button_instance, button_created = Button.objects.get_or_create(
-                                    name=button["name"],
-                                    action=button["action"],
-                                    menu=instance
-                                )
-                                if button_created:
-                                    logger.info(f"为菜单<{instance.label}>添加<{button_instance.name}>按钮")
-                    else:
-                        logger.debug(f"菜单已存在: {instance.label}")
+    #                     # 添加按钮
+    #                     if buttons:
+    #                         for button in buttons:
+    #                             button_instance, button_created = Button.objects.get_or_create(
+    #                                 name=button["name"],
+    #                                 action=button["action"],
+    #                                 menu=instance
+    #                             )
+    #                             if button_created:
+    #                                 logger.info(f"为菜单<{instance.label}>添加<{button_instance.name}>按钮")
+    #                 else:
+    #                     logger.debug(f"菜单已存在: {instance.label}")
                         
-                        # 检查并添加缺失的按钮
-                        if buttons:
-                            for button in buttons:
-                                button_instance, button_created = Button.objects.get_or_create(
-                                    name=button["name"],
-                                    action=button["action"],
-                                    menu=instance
-                                )
-                                if button_created:
-                                    logger.info(f"为菜单<{instance.label}>添加缺失的<{button_instance.name}>按钮")
-                except Menu.DoesNotExist:
-                    logger.warning(f"父级菜单 {parent_name} 不存在，无法创建子菜单 {current_menu_data.get('label', '')}")
+    #                     # 检查并添加缺失的按钮
+    #                     if buttons:
+    #                         for button in buttons:
+    #                             button_instance, button_created = Button.objects.get_or_create(
+    #                                 name=button["name"],
+    #                                 action=button["action"],
+    #                                 menu=instance
+    #                             )
+    #                             if button_created:
+    #                                 logger.info(f"为菜单<{instance.label}>添加缺失的<{button_instance.name}>按钮")
+    #             except Menu.DoesNotExist:
+    #                 logger.warning(f"父级菜单 {parent_name} 不存在，无法创建子菜单 {current_menu_data.get('label', '')}")
                     
-        logger.info("菜单初始化完成")
+    #     logger.info("菜单初始化完成")

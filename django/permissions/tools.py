@@ -3,9 +3,8 @@ from collections import defaultdict
 from django.core.cache import cache
 from django.db.models import Q
 from threading import local
-
-from mapi.models import UserInfo, Permission
-from .models import DataScope
+from mapi.public_services import PublicUserService
+from .models import DataScope,Permission
 from .registry import get_handler
 
 logger = logging.getLogger(__name__)
@@ -22,7 +21,6 @@ def set_data_scope_cache(username: str, data: dict):
 
 
 def clear_data_scope_cache(username: str):
-    print(123)
     cache_key = f'user_data_scope_{username}'
     cache.delete(cache_key)
 
@@ -43,10 +41,8 @@ def clear_password_permission_cache(username: str):
 
 
 def get_user_data_scope(username: str) -> dict:
-
-    try:
-        user = UserInfo.objects.get(username=username)
-    except UserInfo.DoesNotExist:
+    user = PublicUserService.get_users(username=username)
+    if not user:
         logger.warning(f"User '{username}' not found while getting data scope.")
         return {'scope_type': 'none', 'targets': {}}
 
@@ -123,7 +119,7 @@ def get_scope_query(username, model):
     if scope_type == 'self' or scope_type == 'filter':
         if hasattr(model, 'create_user'):
             final_query |= Q(create_user=username)
-
+    # 获取对应app 的模型过滤器
     indirect_handler = get_handler(app_label)
     if indirect_handler:
         indirect_query = indirect_handler(scope, model, username)
@@ -133,7 +129,7 @@ def get_scope_query(username, model):
     return final_query
 
 
-def has_password_permission(user: UserInfo) -> bool:
+def has_password_permission(user) -> bool:
     """
     检查用户是否有权限查看密码字段
     """

@@ -25,6 +25,8 @@ from .converters import ConverterFactory
 
 logger = logging.getLogger(__name__)
 
+# 模型通用的处理方法
+
 
 def require_valid_user(func):
     """装饰器：确保传入的 user 参数是有效的 UserInfo 实例。"""

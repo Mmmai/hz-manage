@@ -248,7 +248,7 @@ const handleSelectAllModels = (checked) => {
 
 // 监听模型列表变化，初始化选中状态
 watch(allModels, (newModels) => {
-  if (newModels.length > 0 && selectedModelIds.value.length === 0) {
+  if (newModels?.length > 0 && selectedModelIds.value.length === 0) {
     selectedModelIds.value = newModels.map((model) => model.id);
   }
 });
@@ -435,7 +435,7 @@ onMounted(async () => {
     }
 
     // 初始化选中所有模型
-    selectedModelIds.value = allModels.value.map((model) => model.id);
+    selectedModelIds.value = allModels.value?.map((model) => model.id);
   } catch (error) {
     console.error("初始化数据失败:", error);
     ElMessage.error("初始化数据失败");

@@ -4,7 +4,7 @@ from .tools import get_scope_query
 
 logger = logging.getLogger(__name__)
 
-
+# 在模型中提供其他模型的查询 权限过滤后的数据
 class PermissionManager:
     """
     一个全局权限管理器，用于获取任何模型的、经过权限过滤的安全查询集。
@@ -34,4 +34,4 @@ class PermissionManager:
         if query_obj is None:
             return queryset.none()
 
-        return queryset.filter(query_obj).distinct()
+        return queryset.filter(query_obj)

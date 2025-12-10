@@ -137,7 +137,7 @@ class CmdbReadOnlyBaseViewSet(AuditContextMixin, viewsets.ReadOnlyModelViewSet):
             return self.request.username
         return 'unknown'
 
-
+# swggerui
 @model_groups_schema
 class ModelGroupsViewSet(CmdbBaseViewSet):
     queryset = ModelGroups.objects.all().order_by('create_time')

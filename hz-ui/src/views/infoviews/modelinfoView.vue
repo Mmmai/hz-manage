@@ -224,7 +224,6 @@ const input = ref("");
 const grouplist = ref([]);
 const getCiModelGroupList = async () => {
   let res = await proxy.$api.getCiModelGroup();
-  console.log(res);
   grouplist.value = res.data.results;
   console.log(grouplist.value);
 };
@@ -234,7 +233,6 @@ const getModelInfo = async () => {
   let res = await proxy.$api.getCiModel({}, nowModelId.value);
   ciModelInfo.value = res.data.model;
   ciModel.value = res.data;
-  console.log(ciModelInfo.value);
 };
 // 子组件传递模型字段给父组件
 // const modelFieldLists = ref([]);

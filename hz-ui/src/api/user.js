@@ -96,7 +96,7 @@ export default {
   // 获取角色关联权限的树状
   getPermissionToRole(params) {
     return axios.request({
-      url: '/api/v1/getPermissionToRole/',
+      url: '/api/v1/permissions/getPermissionToRole/',
       method: 'post',
       data: params
     })
@@ -124,7 +124,7 @@ export default {
   getPermissionHas(params) {
     // user_id,user_group_id,role_id
     return axios.request({
-      url: '/api/v1/permission/get_permission/',
+      url: '/api/v1/permissions/get_permission/',
       method: 'get',
       params: params
     })
@@ -134,7 +134,7 @@ export default {
     // user_id,user_group_id,role_id
     // {"role_id":1,"button_ids":[]}
     return axios.request({
-      url: '/api/v1/permission/add_permissions/',
+      url: '/api/v1/permissions/add_permissions/',
       method: 'post',
       data: params
     })

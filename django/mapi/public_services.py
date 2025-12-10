@@ -1,3 +1,4 @@
+from django.db.models import Q
 from .models import (UserInfo, UserGroup, Role)
 
 
@@ -16,7 +17,8 @@ class PublicRbcaService:
             dict: 包含用户信息、关联的用户组列表和角色列表的字典
         """
         try:
-            user = UserInfo.objects.get(id=user_id)
+            # 使用Q查询一次性获取用户及其关联信息
+            user = UserInfo.objects.prefetch_related('groups', 'roles').get(id=user_id)
             # 获取用户直接关联的角色
             direct_roles = user.roles.all()
             # 获取用户关联的用户组
@@ -46,7 +48,8 @@ class PublicRbcaService:
             dict: 包含用户组信息、关联的用户列表和角色列表的字典
         """
         try:
-            group = UserGroup.objects.get(id=group_id)
+            # 使用Q查询一次性获取用户组及其关联信息
+            group = UserGroup.objects.prefetch_related('users', 'roles').get(id=group_id)
             # 获取用户组中的所有用户
             users = group.users.all()
             # 获取用户组关联的角色
@@ -73,19 +76,18 @@ class PublicRbcaService:
         """
         try:
             role = Role.objects.get(id=role_id)
-            # 获取直接关联该角色的用户
-            direct_users = role.userinfo_set.all()
-            # 获取关联该角色的用户组
-            groups = role.usergroup_set.all()
-            # 获取用户组中的所有用户
-            group_users = UserInfo.objects.filter(groups__in=groups).distinct()
-            # 合并直接用户和通过用户组关联的用户
-            all_users = (direct_users | group_users).distinct()
+            # 使用Q查询一次性获取所有关联用户
+            all_users = UserInfo.objects.filter(
+                Q(roles__id=role_id) | Q(groups__roles__id=role_id)
+            ).distinct()
+            
+            # 使用Q查询一次性获取所有关联用户组
+            all_groups = UserGroup.objects.filter(roles__id=role_id).distinct()
             
             return {
                 'role': role,
                 'users': all_users,
-                'groups': groups
+                'groups': all_groups
             }
         except Role.DoesNotExist:
             return None
@@ -102,13 +104,10 @@ class PublicRbcaService:
             QuerySet: 用户的所有角色
         """
         try:
-            user = UserInfo.objects.get(id=user_id)
-            # 获取用户直接关联的角色
-            direct_roles = user.roles.all()
-            # 获取用户所属用户组的角色
-            group_roles = Role.objects.filter(usergroup__users=user).distinct()
-            # 合并所有角色并去重
-            all_roles = (direct_roles | group_roles).distinct()
+            # 使用Q查询一次性获取用户的所有角色（直接和间接）
+            all_roles = Role.objects.filter(
+                Q(userinfo__id=user_id) | Q(usergroup__users__id=user_id)
+            ).distinct()
             return all_roles
         except UserInfo.DoesNotExist:
             return None
@@ -125,8 +124,9 @@ class PublicRbcaService:
             QuerySet: 用户所属的所有用户组
         """
         try:
-            user = UserInfo.objects.get(id=user_id)
-            return user.groups.all()
+            # 直接通过外键关系获取用户组
+            user_groups = UserGroup.objects.filter(users__id=user_id).distinct()
+            return user_groups
         except UserInfo.DoesNotExist:
             return None
 
@@ -142,8 +142,9 @@ class PublicRbcaService:
             QuerySet: 用户组中的所有用户
         """
         try:
-            group = UserGroup.objects.get(id=group_id)
-            return group.users.all()
+            # 直接通过外键关系获取用户
+            users = UserInfo.objects.filter(groups__id=group_id).distinct()
+            return users
         except UserGroup.DoesNotExist:
             return None
 
@@ -159,8 +160,9 @@ class PublicRbcaService:
             QuerySet: 用户组关联的所有角色
         """
         try:
-            group = UserGroup.objects.get(id=group_id)
-            return group.roles.all()
+            # 直接通过外键关系获取角色
+            roles = Role.objects.filter(usergroup__id=group_id).distinct()
+            return roles
         except UserGroup.DoesNotExist:
             return None
 
@@ -176,12 +178,12 @@ class PublicRbcaService:
             QuerySet: 角色关联的所有用户
         """
         try:
-            # 直接关联该角色的用户
-            direct_users = UserInfo.objects.filter(roles__id=role_id)
-            # 通过用户组关联该角色的用户
-            group_users = UserInfo.objects.filter(groups__roles__id=role_id).distinct()
-            # 合并所有用户并去重
-            all_users = (direct_users | group_users).distinct()
+            # 使用Q对象合并查询条件，一次性获取所有关联用户
+            # Q(roles__id=role_id): 直接关联该角色的用户
+            # Q(groups__roles__id=role_id): 通过用户组关联该角色的用户
+            all_users = UserInfo.objects.filter(
+                Q(roles__id=role_id) | Q(groups__roles__id=role_id)
+            ).distinct()
             return all_users
         except Role.DoesNotExist:
             return None
@@ -198,7 +200,22 @@ class PublicRbcaService:
             QuerySet: 角色关联的所有用户组
         """
         try:
-            role = Role.objects.get(id=role_id)
-            return role.usergroup_set.all()
+            # 直接通过外键关系获取用户组
+            groups = UserGroup.objects.filter(roles__id=role_id).distinct()
+            return groups
         except Role.DoesNotExist:
             return None
+
+class PublicRoleService:
+    @staticmethod
+    def get_sysadmin():
+        return Role.objects.get(role='sysadmin')
+
+
+class PublicUserService:
+    @staticmethod
+    def get_users(username=None):
+        if username:
+            return UserInfo.objects.get(username=username)
+        else:
+            return UserInfo.objects.all()

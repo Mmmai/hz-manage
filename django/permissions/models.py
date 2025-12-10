@@ -54,7 +54,7 @@ class Permission(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        settings.AUTH_USER_INFO_MODEL,
         on_delete=models.CASCADE,
         related_name="permission",
         null=True,
@@ -71,8 +71,8 @@ class Permission(models.Model):
         related_name="permission",
         null=True,
         blank=True)
-    menu = models.ForeignKey('mapi.Menu', on_delete=models.CASCADE, related_name="permission")
-    button = models.ForeignKey('mapi.Button', on_delete=models.CASCADE, related_name="permission")
+    menu = models.ForeignKey(Menu, on_delete=models.CASCADE, related_name="permission")
+    button = models.ForeignKey(Button, on_delete=models.CASCADE, related_name="permission")
 
     def __str__(self):
         if self.role:
@@ -99,7 +99,7 @@ class DataScope(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        settings.AUTH_USER_INFO_MODEL,
         null=True,
         blank=True,
         on_delete=models.CASCADE,

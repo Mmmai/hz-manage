@@ -4,7 +4,7 @@ from permissions.registry import register_indirect_permission_handler
 
 from .models import *
 
-
+# 注册过滤处理器
 class BaseQueryHandler(ABC):
 
     @abstractmethod
@@ -325,6 +325,7 @@ class CMDBIndirectQueryHandler:
         return Q()
 
 
+#注册到permissions模块
 def get_cmdb_indirect_query(scope, model, username):
     """
     CMDB 应用的间接权限处理器。
