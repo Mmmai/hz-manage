@@ -266,10 +266,14 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
     def validate_name(self, value):
         if not value:
             raise serializers.ValidationError({'name': 'Model field name cannot be empty'})
-        exists = ModelFields.objects.filter(name__iexact=value, model=self.initial_data.get('model'))
-        if self.instance:
-            exists = exists.exclude(pk=self.instance.pk)
-        if exists.exists():
+        if value in limit_field_names:
+            raise serializers.ValidationError({'name': f"'{value}' is reserved and cannot be used as a field name"})
+        exclude_id = getattr(self.instance, 'id', None)
+        exists = ModelFields.objects.check_name_exists(
+            value,
+            self.initial_data.get('model'),
+            exclude_id=str(exclude_id))
+        if exists:
             raise serializers.ValidationError({'name': f'Model field name {value} already exists'})
         return value
 

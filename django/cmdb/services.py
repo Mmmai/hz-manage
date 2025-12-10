@@ -234,6 +234,48 @@ class ModelFieldsService:
 
     @classmethod
     @require_valid_user
+    @transaction.atomic
+    def create_field(cls, validated_data, user):
+        """
+        创建模型字段
+
+        Args:
+            validated_data: 已验证的数据
+            user: 当前用户
+
+        Returns:
+            ModelFields: 创建的字段实例
+        """
+        model = validated_data.get('model')
+        name = validated_data.get('name')
+        field_type = validated_data.get('type')
+
+        # 设置默认值
+        if 'order' not in validated_data or validated_data['order'] is None:
+            validated_data['order'] = cls._get_next_order(
+                model.id,
+                validated_data.get('model_field_group')
+            )
+
+        # 设置默认分组
+        if not validated_data.get('model_field_group'):
+            default_group = ModelFieldGroups.objects.get_default_field_group(str(model.id))
+            if default_group:
+                validated_data['model_field_group'] = default_group
+
+        # 创建字段
+        username = user.username
+        field = ModelFields.objects.create(
+            **validated_data,
+            create_user=username,
+            update_user=username
+        )
+
+        logger.info(f"Field '{field.name}' created for model '{model.name}' by {username}")
+        return field
+
+    @classmethod
+    @require_valid_user
     def delete_field(cls, instance: ModelFields, user: UserInfo):
         """
         删除字段
@@ -297,6 +339,11 @@ class ModelFieldsService:
                 updated_count += 1
         if updated_count > 0:
             logger.info(f"Updated {updated_count} field preferences by removing field {instance.name} by {username}")
+
+    @classmethod
+    def _get_next_order(cls, model_id, group_id=None):
+        """获取下一个顺序值"""
+        return ModelFields.objects.get_max_order(model_id, group_id) + 1
 
 
 class UniqueConstraintService:

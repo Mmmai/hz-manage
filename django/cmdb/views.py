@@ -387,7 +387,28 @@ class ModelFieldsViewSet(CmdbBaseViewSet):
     ordering_fields = ['name', 'type', 'order', 'create_time', 'update_time']
 
     def get_queryset(self):
-        return super().get_queryset()
+        return super()\
+            .get_queryset()\
+            .select_related(
+                'model',
+                'validation_rule',
+                'model_field_group',
+                'ref_model'
+        )
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        field = ModelFieldsService.create_field(
+            validated_data=serializer.validated_data,
+            user=self.request.user
+        )
+
+        return Response(
+            self.get_serializer(field).data,
+            status=status.HTTP_201_CREATED
+        )
 
     def perform_destroy(self, instance):
         if instance.built_in:
@@ -400,24 +421,8 @@ class ModelFieldsViewSet(CmdbBaseViewSet):
             raise PermissionDenied({
                 'detail': 'Non-editable field cannot be deleted'
             })
-        # 检测字段是否存在于unique constraints配置中，如果存在则不允许删除
-        constraints = UniqueConstraint.objects.filter(model=instance.model)
-        for constraint in constraints:
-            if instance.name in constraint.fields:
-                logger.warning(f"Attempt to delete field {instance.name} in unique constraint {constraint.name}")
-                raise PermissionDenied({
-                    'detail': f'Field {instance.name} is used in unique constraint {constraint.name}'
-                })
 
-        # 删除字段时，需要将字段从偏好设置中移除
-        preferences = ModelFieldPreference.objects.filter(fields_preferred=[str(instance.id)])
-        for preference in preferences:
-            preference.fields_preferred.remove(instance.id)
-            preference.save()
-
-        ModelFieldMeta.objects.filter(model_fields=instance).delete()
-
-        super().perform_destroy(instance)
+        ModelFieldsService.delete_field(field=instance, user=self.request.user)
 
     @action(detail=False, methods=['get'])
     def metadata(self, request):

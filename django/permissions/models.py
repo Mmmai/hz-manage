@@ -54,7 +54,7 @@ class Permission(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        settings.AUTH_USER_INFO_MODEL,
         on_delete=models.CASCADE,
         related_name="permission",
         null=True,
@@ -99,7 +99,7 @@ class DataScope(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        settings.AUTH_USER_INFO_MODEL,
         null=True,
         blank=True,
         on_delete=models.CASCADE,

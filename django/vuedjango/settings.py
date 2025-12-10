@@ -185,7 +185,7 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Shanghai'
 
-AUTH_USER_MODEL = 'mapi.UserInfo'
+AUTH_USER_INFO_MODEL = 'mapi.UserInfo'
 AUTH_USER_GROUP_MODEL = 'mapi.UserGroup'
 AUTH_ROLE_MODEL = 'mapi.Role'
 
