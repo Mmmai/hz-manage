@@ -98,38 +98,16 @@ router.beforeEach(async (to, from, next) => {
             next('/login');
             return;
           }
-
           // 记录重试次数
           sessionStorage.setItem('menuRetryCount', newRetryCount.toString());
-
           // 延迟一段时间再重试
-          setTimeout(() => {
-            next('/login');
-          }, 1000);
+          next('/login');
           return;
         }
       }
       else {
-        // 判断路由中的权限
-        // if (to.meta.role) {
-        //   let allowRoleList = to.meta.role
-        //   let hasRoleList = allowRoleList.filter(item => configStore.role.includes(item))
-        //   // console.log(123)
-        //   // console.log
-        //   if (hasRoleList.length == 0) {
-        //     next('/login');
-        //   } else {
-        //     next();
-        //   }
-        // } else {
         next();
-        // }
       }
-
-      // next()
-
-
-
     }
   }
 });
