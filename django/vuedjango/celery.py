@@ -7,7 +7,7 @@ import logging
 from celery import Celery
 from celery.signals import setup_logging
 from datetime import timedelta
-from cmdb.utils import sys_config
+from node_mg.utils import sys_config
 
 logger = logging.getLogger(__name__)
 
