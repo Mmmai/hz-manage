@@ -6,8 +6,6 @@ import functools
 from django.db import models
 from django.db import transaction
 from rest_framework.exceptions import PermissionDenied
-from django.core.cache import cache
-from django.db.models import OuterRef, Exists
 
 from .managers import *
 from .constants import ValidationType
@@ -91,7 +89,8 @@ class Models(models.Model):
     public_name='model_field_group'
 )
 class ModelFieldGroups(models.Model):
-    objects = ModelFieldGroupsManager()
+
+    objects: ModelFieldGroupsManager = ModelFieldGroupsManager()
 
     class Meta:
         db_table = 'model_field_groups'

@@ -33,13 +33,13 @@ class ModelGroupsManager(models.Manager):
 
 class ModelFieldGroupsManager(models.Manager):
 
-    def get_default_field_group(self, model):
+    def get_default_field_group(self, model_id: str):
         """
         获取或创建默认字段组
         """
         default_group = self.filter(
             name='basic',
-            model=model
+            model_id=model_id
         ).first()
         return default_group
 
@@ -75,6 +75,50 @@ class ModelFieldsManager(models.Manager):
 
     def get_required_field_names(self, model_id):
         return list(self.filter(model_id=model_id, required=True).values_list('name', flat=True))
+
+    def get_by_model(self, model_id):
+        """根据模型ID获取所有字段"""
+        return self.filter(model_id=model_id).order_by('order')
+
+    def get_by_model_ordered(self, model_id):
+        """根据模型ID获取排序后的字段，按分组和顺序"""
+        return self.filter(model_id=model_id).select_related(
+            'model_field_group', 'validation_rule', 'ref_model'
+        ).order_by('model_field_group__create_time', 'order')
+
+    def check_name_exists(self, model_id, name, exclude_id=None):
+        """检查字段名是否已存在（跨权限查询）"""
+        qs = self.filter(model_id=model_id, name=name)
+        if exclude_id:
+            qs = qs.exclude(id=exclude_id)
+        return qs.exists()
+
+    def check_ref_fields_exists(self, model_id):
+        """检查是否存在引用到该模型的字段"""
+        return self.filter(ref_model_id=model_id).exists()
+
+    def get_ref_fields_for_model(self, model_id):
+        """获取引用某模型的所有字段"""
+        return self.filter(ref_model_id=model_id).select_related('model')
+
+    def get_fields_by_type(self, model_id, field_type):
+        """根据类型获取字段"""
+        return self.filter(model_id=model_id, type=field_type)
+
+    def get_password_fields(self, model_id=None):
+        """获取密码类型字段"""
+        qs = self.filter(type='password')
+        if model_id:
+            qs = qs.filter(model_id=model_id)
+        return qs
+
+    def get_max_order(self, model_id, group_id=None):
+        """获取当前最大顺序值"""
+        qs = self.filter(model_id=model_id)
+        if group_id:
+            qs = qs.filter(model_field_group_id=group_id)
+        result = qs.aggregate(max_order=models.Max('order'))
+        return result['max_order'] or 0
 
 
 class ModelFieldMetaManager(models.Manager):
