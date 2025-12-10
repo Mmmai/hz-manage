@@ -1,4 +1,4 @@
-from mapi.models import UserInfo
+from .models import UserInfo
 
 
 class SystemUser(UserInfo):

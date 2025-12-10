@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 from rest_framework.renderers import JSONRenderer
 from django.db.models import Q
 
-from mapi.models import UserInfo, UserGroup, Role, Button
+from mapi.models import UserInfo, UserGroup, Role
 from .tools import clear_data_scope_cache
 from .models import *
 from .serializers import *
