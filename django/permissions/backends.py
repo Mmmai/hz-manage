@@ -14,4 +14,4 @@ class DataScopeFilterBackend(BaseFilterBackend):
 
         if scope_query is None:
             return queryset.none()
-        return queryset.filter(scope_query).distinct()
+        return queryset.filter(scope_query)

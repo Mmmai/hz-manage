@@ -34,4 +34,4 @@ class PermissionManager:
         if query_obj is None:
             return queryset.none()
 
-        return queryset.filter(query_obj).distinct()
+        return queryset.filter(query_obj)
