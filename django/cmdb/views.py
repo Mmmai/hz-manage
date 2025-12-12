@@ -912,15 +912,15 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             warning_msg = ''
 
             # 检查实例权限
-            disarded_instance_names = []
+            discarded_instance_names = []
             instance_names_query = pm.get_queryset(ModelInstance).filter(
                 model=model).values_list('instance_name', flat=True)
             for instance_name in excel_data.get('instance_names', []):
                 if ModelInstance.objects.check_instance_name_exists(model_id, instance_name) and instance_name not in instance_names_query:
                     logger.warning(f'Discarding instance name without permission: {instance_name}...')
-                    disarded_instance_names.append(instance_name)
-            if disarded_instance_names:
-                warning_msg = f'Discarded instance names without permission: {", ".join(disarded_instance_names)}'
+                    discarded_instance_names.append(instance_name)
+            if discarded_instance_names:
+                warning_msg = f'Discarded instance names without permission: {", ".join(discarded_instance_names)}'
 
             # 检查是否有未知字段
             fields_query = pm.get_queryset(ModelFields).filter(model=model).values_list('name', flat=True)
@@ -1493,6 +1493,18 @@ class RelationDefinitionViewSet(CmdbBaseViewSet):
     def get_queryset(self):
         return super().get_queryset()
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        instance = RelationDefinitionService.create_relation_definition(
+            validated_data=serializer.validated_data,
+            user=self.get_current_user()
+        )
+        return Response(
+            self.get_serializer(instance).data,
+            status=status.HTTP_201_CREATED
+        )
+
     def perform_destroy(self, instance):
         # 检查关系定义是否已被使用
         if Relations.objects.filter(relation=instance).exists():
@@ -1550,26 +1562,25 @@ class RelationsViewSet(CmdbBaseViewSet):
                 raise ValidationError(f"Invalid direction: {direction}. Must be 'source-target' or 'target-source'.")
 
             relations_to_create.append(
-                Relations(
-                    source_instance_id=source_id,
-                    target_instance_id=target_id,
-                    relation_id=relation_id,
-                    relation_attributes=attributes,
-                    create_user=user,
-                    update_user=user
-                )
+                {
+                    "source_instance": source_id,
+                    "target_instance": target_id,
+                    "relation": relation_id,
+                    "relation_attributes": attributes,
+                    "create_user": user,
+                    "update_user": user
+                }
             )
 
         try:
-            created_objects = Relations.objects.bulk_create(relations_to_create, ignore_conflicts=True)
-            bulk_creation_audit.send(sender=Relations, instances=created_objects)
-
-            return Response(
-                {
-                    "created_count": len(created_objects)
-                },
-                status=status.HTTP_201_CREATED
+            created_relations = RelationsService.bulk_create_relations(
+                relations_data=relations_to_create,
+                user=user
             )
+            return Response({
+                "created_count": len(created_relations),
+                "relations": self.get_serializer(created_relations, many=True).data
+            }, status=status.HTTP_201_CREATED)
         except Exception as e:
             logger.error(f"Error creating relations: {e}", exc_info=True)
             raise ValidationError(f"Failed to create relations: {e}")
@@ -1582,49 +1593,40 @@ class RelationsViewSet(CmdbBaseViewSet):
         数据格式: {"relations": [{"source_instance": "uuid", "target_instance": "uuid", "relation": "uuid", ...}]}
         """
         relations_data = request.data.get('relations', [])
-        if not isinstance(relations_data, list) or not relations_data:
-            raise ValidationError("A non-empty list of relations is required.")
 
-        serializer = self.get_serializer(data=relations_data, many=True)
-        serializer.is_valid(raise_exception=True)
-
-        user = self.get_current_user()
-        relations_to_create = []
-
-        for relation_data in serializer.validated_data:
-            relation_data['create_user'] = user
-            relation_data['update_user'] = user
-            relations_to_create.append(Relations(**relation_data))
-
-        try:
-            created_objects = Relations.objects.bulk_create(relations_to_create, ignore_conflicts=True)
-            bulk_creation_audit.send(sender=Relations, instances=created_objects)
-
+        if not relations_data:
             return Response(
-                {
-                    "created_count": len(created_objects)
-                },
-                status=status.HTTP_201_CREATED
+                {"detail": "No relations data provided."},
+                status=status.HTTP_400_BAD_REQUEST
             )
-        except Exception as e:
-            logger.error(f"Error occurred while bulk creating relations: {e}", exc_info=True)
-            raise ValidationError(f"Failed to create relations: {e}")
+
+        created_relations = RelationsService.bulk_create_relations(
+            relations_data=relations_data,
+            user=self.request.user
+        )
+
+        return Response({
+            "created_count": len(created_relations),
+            "relations": self.get_serializer(created_relations, many=True).data
+        }, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['post'])
     def bulk_delete(self, request, *args, **kwargs):
-        relation_ids = request.data.get('ids', [])
-        if not isinstance(relation_ids, list) or not relation_ids:
-            raise ValidationError("Require a non-empty list of relation IDs to delete.")
+        relation_ids = request.data.get('relation_ids', [])
 
-        queryset = self.get_queryset().filter(id__in=relation_ids)
-
-        with capture_audit_snapshots(list(queryset)):
-            deleted_count, _ = queryset.delete()
-
-        return Response(
-            {"deleted_count": deleted_count},
-            status=status.HTTP_200_OK
+        if not relation_ids:
+            return Response(
+                {"detail": "No relation IDs provided."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        pm = PermissionManager(user=self.request.user)
+        relations = pm.get_queryset(Relations).filter(id__in=relation_ids)
+        results = RelationsService.bulk_delete_relations(
+            relations=relations,
+            user=self.request.user
         )
+
+        return Response(results)
 
     @action(detail=False, methods=['post'])
     def get_topology(self, request):
@@ -1636,32 +1638,53 @@ class RelationsViewSet(CmdbBaseViewSet):
             mode = request.data.get('mode', 'blast')
 
             if not start_node_ids:
-                return Response({"detail": "Start nodes are required."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"detail": "Start nodes are required."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             if mode == 'path' and not end_node_ids:
-                return Response({"detail": "End nodes are required when using path mode."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"detail": "End nodes are required for path mode."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            logger.info(f"Processing topology query with mode: {mode}, depth: {depth}, direction: {direction}")
+            if depth < 1 or depth > 10:
+                return Response(
+                    {"detail": "Depth must be between 1 and 10."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            G = self._build_graph_on_demand(
-                start_node_ids, end_node_ids, depth, direction, mode
+            logger.info(
+                f"Processing topology query: mode={mode}, depth={depth}, "
+                f"direction={direction}, start_nodes={len(start_node_ids)}"
             )
 
-            logger.info(f"Graph constructed with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
+            result = RelationsService.get_topology(
+                user=self.request.user,
+                start_node_ids=start_node_ids,
+                end_node_ids=end_node_ids,
+                depth=depth,
+                direction=direction,
+                mode=mode
+            )
 
-            node_objects = [data['instance'] for _, data in G.nodes(data=True)]
-            edge_objects = [data['relation'] for u, v, data in G.edges(data=True)]
+            # 序列化结果
+            response_data = RelationsService.serialize_topology_result(result)
 
-            node_serializer = ModelInstanceBasicViewSerializer(node_objects, many=True)
-            edge_serializer = RelationsSerializer(edge_objects, many=True)
+            logger.info(
+                f"Topology query completed: {result.visible_node_count} visible nodes, "
+                f"{result.restricted_node_count} restricted nodes, {len(result.edges)} edges"
+            )
 
-            return Response({
-                "nodes": node_serializer.data,
-                "edges": edge_serializer.data
-            })
+            return Response(response_data)
 
         except Exception as e:
-            logger.error(f"Error occurred when processing topology query: {e}", exc_info=True)
-            return Response({"detail": "Internal server error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Error in topology query: {e}", exc_info=True)
+            return Response(
+                {"detail": "Internal server error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def _filter_path_edges(self, G, start_node, end_node, depth, subgraph):
         paths = nx.all_simple_paths(G, source=start_node, target=end_node, cutoff=depth)

@@ -82,7 +82,7 @@ def resolve_model(value):
     models = value.all()
     if not models:
         return []
-    logger.debug(f'Resolved models: {models}')
+    # logger.debug(f'Resolved models: {models}')
 
     return [
         {

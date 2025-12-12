@@ -15,6 +15,7 @@ from .tools import clear_data_scope_cache
 from .models import *
 from .serializers import *
 from .filters import ButtonFilter
+from .services import *
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class getMenu(APIView):
         user_obj = request.user
 
         # 根据当前用户获取其所有权限
-        user_permissions = PublicPermissionService.get_user_permissions(user_obj)
+        user_permissions = PermissionService.get_user_permissions(user_obj)
 
         # 获取用户有权访问的菜单IDs
         accessible_menu_ids = set(user_permissions.values_list('menu', flat=True).distinct())
@@ -196,7 +197,7 @@ class PermissionViewSet(ModelViewSet):
             # 获取指定用户的所有权限（包括通过角色和用户组继承的权限）
             try:
                 user = UserInfo.objects.get(id=user_id)
-                permissions = PublicPermissionService.get_user_permissions(user)
+                permissions = PermissionService.get_user_permissions(user)
                 # 为每个权限添加来源信息
                 permission_details = []
                 for perm in permissions:

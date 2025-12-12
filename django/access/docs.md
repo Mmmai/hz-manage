@@ -111,7 +111,7 @@ class CmdbConfig(AppConfig):
 
 ## 在过滤器后端添加对应app注册到drf过滤后端
 ```python
-# permissions/backends.py
+# access/backends.py
 
 from rest_framework.filters import BaseFilterBackend
 from .tools import get_scope_query
@@ -188,7 +188,7 @@ class CmdbBaseViewSet(AuditContextMixin, viewsets.ModelViewSet):
 
 ## 在任意地方获取权限过滤后的查询集
 ```python
-from permissions.manager import PermissionManager
+from access.manager import PermissionManager
 
 # user可以填写user对象，也可以填写username
 pm = PermissionManager(user)

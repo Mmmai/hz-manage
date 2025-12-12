@@ -1,5 +1,6 @@
 import logging
 from .models import *
+from .services import *
 
 logger = logging.getLogger(__name__)
 
@@ -11,27 +12,10 @@ class PublicPermissionService:
         """
         获取用户的所有权限，包括通过角色、用户组和直接授权的权限
         """
-        # 通过用户直接角色获取权限
-        role_permissions = Permission.objects.filter(role__in=user.roles.all())
-
-        # 通过用户组获取权限（包括用户组关联的角色权限）
-        user_groups = user.groups.all()
-        user_group_permissions = Permission.objects.filter(user_group__in=user_groups)
-        # 通过用户组关联的角色获取权限
-        group_roles = []
-        for group in user_groups:
-            group_roles.extend(group.roles.all())
-        group_role_permissions = Permission.objects.filter(role__in=group_roles)
-
-        # 通过直接用户授权获取权限
-        user_permissions = Permission.objects.filter(user=user)
-
-        # 合并所有权限并去重
-        permissions = (role_permissions | user_group_permissions | group_role_permissions | user_permissions).distinct()
-        return permissions
+        return PermissionService.get_user_permissions(user)
 
     @staticmethod
-    def add_home_permission_to_role(self, instance):
+    def add_home_permission_to_role(instance):
         menu_obj = Menu.objects.get(name="home")
         buttonObj = Button.objects.get(menu=menu_obj, action="view")
         Permission.objects.create(menu=menu_obj, role=instance, button=buttonObj)
@@ -165,3 +149,10 @@ class PublicPermissionService:
                 logger.error(f"删除角色<{role.role}>权限时出错: {str(e)}")
                 raise e
         return list(set(removed_permissions))
+
+
+class PublicButtonService:
+
+    @staticmethod
+    def get_init_buttons():
+        return Button.objects.all()

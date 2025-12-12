@@ -270,9 +270,9 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'name': f"'{value}' is reserved and cannot be used as a field name"})
         exclude_id = getattr(self.instance, 'id', None)
         exists = ModelFields.objects.check_name_exists(
-            value,
             self.initial_data.get('model'),
-            exclude_id=str(exclude_id))
+            value,
+            exclude_id=exclude_id)
         if exists:
             raise serializers.ValidationError({'name': f'Model field name {value} already exists'})
         return value

@@ -3,7 +3,8 @@ import uuid
 import json
 import logging
 import time
-from django.db import models, transaction
+from django.db.models import Q
+from django.db import models
 
 from .constants import FieldType
 
@@ -169,6 +170,12 @@ class ModelInstanceManager(models.Manager):
         return self.filter(
             model_id=model_id,
             instance_name=instance_name
+        ).exists()
+
+    def check_instance_id_exists(self, instance_id):
+        """检查指定实例ID是否存在"""
+        return self.filter(
+            id=instance_id
         ).exists()
 
     def get_instance_names_by_models(self, model_ids: list) -> dict:
@@ -409,3 +416,93 @@ class ModelInstanceGroupManager(models.Manager):
         保留此方法仅为兼容性考虑
         """
         return self.get_all_children_ids(group_ids)
+
+
+class RelationDefinitionManager(models.Manager):
+    """关系定义管理器"""
+
+    def get_by_name(self, name: str):
+        """根据名称获取关系定义"""
+        return self.get(name=name)
+
+    def get_for_models(self, source_model_id: str = None, target_model_id: str = None):
+        """获取适用于指定模型的关系定义"""
+        qs = self.all()
+        if source_model_id:
+            qs = qs.filter(source_model__id=source_model_id)
+        if target_model_id:
+            qs = qs.filter(target_model__id=target_model_id)
+        return qs
+
+
+class RelationsManager(models.Manager):
+    """
+    关系实例管理器。
+    提供跨越权限边界的特权方法，用于系统内部调用。
+    """
+
+    def get_all_relations_for_instance(self, instance_id: str):
+        return self.filter(
+            Q(source_instance_id=instance_id) | Q(target_instance_id=instance_id)
+        ).select_related('source_instance', 'target_instance', 'relation')
+
+    def get_connected_instances(self, instance_id: str, direction: str = 'both'):
+        connected_ids = set()
+
+        if direction in ('forward', 'both'):
+            forward_ids = self.filter(
+                source_instance_id=instance_id
+            ).values_list('target_instance_id', flat=True)
+            connected_ids.update(str(id) for id in forward_ids)
+
+        if direction in ('reverse', 'both'):
+            reverse_ids = self.filter(
+                target_instance_id=instance_id
+            ).values_list('source_instance_id', flat=True)
+            connected_ids.update(str(id) for id in reverse_ids)
+
+        return connected_ids
+
+    def get_topology_edges(self, start_node_ids: list, depth: int, direction: str = 'both'):
+        """
+        获取拓扑图的边数据（忽略权限）。
+        用于构建完整拓扑后再进行节点级权限过滤。
+
+        :param start_node_ids: 起始节点ID列表
+        :param depth: 遍历深度
+        :param direction: 遍历方向
+        :return: 关系查询集
+        """
+        visited_nodes = set(start_node_ids)
+        all_relations = []
+        current_nodes = set(start_node_ids)
+
+        for _ in range(depth):
+            if not current_nodes:
+                break
+
+            q_filter = Q()
+            if direction in ('forward', 'both'):
+                q_filter |= Q(source_instance_id__in=current_nodes)
+            if direction in ('reverse', 'both'):
+                q_filter |= Q(target_instance_id__in=current_nodes)
+
+            relations = self.filter(q_filter).select_related(
+                'source_instance', 'target_instance', 'relation'
+            )
+
+            new_nodes = set()
+            for rel in relations:
+                all_relations.append(rel)
+                source_id = str(rel.source_instance_id)
+                target_id = str(rel.target_instance_id)
+
+                if source_id not in visited_nodes:
+                    new_nodes.add(source_id)
+                if target_id not in visited_nodes:
+                    new_nodes.add(target_id)
+
+            visited_nodes.update(new_nodes)
+            current_nodes = new_nodes
+
+        return all_relations, visited_nodes

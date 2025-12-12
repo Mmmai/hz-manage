@@ -127,7 +127,7 @@ class DataScope(models.Model):
 
     class Meta:
         db_table = 'tb_data_scope'
-        app_label = 'permissions'
+        app_label = 'access'
         ordering = ['-create_time']
         constraints = [
             CheckConstraint(
@@ -154,5 +154,5 @@ class PermissionTarget(models.Model):
 
     class Meta:
         db_table = 'tb_permission_target'
-        app_label = 'permissions'
+        app_label = 'access'
         unique_together = ('scope', 'content_type', 'object_id')
