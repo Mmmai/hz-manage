@@ -436,6 +436,8 @@ class ModelInstanceGroupRelation(models.Model):
     }
 )
 class RelationDefinition(models.Model):
+    objects: RelationDefinitionManager = RelationDefinitionManager()
+
     class Meta:
         db_table = 'relation_definition'
         managed = True
@@ -481,6 +483,8 @@ class RelationDefinition(models.Model):
     public_name='relation'
 )
 class Relations(models.Model):
+    objects: RelationsManager = RelationsManager()
+
     class Meta:
         db_table = 'relations'
         managed = True

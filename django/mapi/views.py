@@ -16,7 +16,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from node_mg.utils.config_manager import ConfigManager
 from cmdb.utils import password_handler
-from permissions.public_services import PublicPermissionService
+from access.public_services import PublicPermissionService
 
 from .utils.jwt_create_token import create_token
 from .extensions.jwt_authenticate import JWTQueryParamsAuthentication

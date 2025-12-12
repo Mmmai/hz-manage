@@ -2,7 +2,7 @@ import re
 import logging
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from permissions.public_services import PublicPermissionService
+from access.public_services import PublicPermissionService, PublicButtonService
 from .models import Role, sysConfigParams
 from .messages import zabbix_config_updated
 
@@ -15,6 +15,15 @@ def auto_add_home_to_role(sender, instance, created, **kwargs):
         if instance.role == "sysadmin":
             return
         PublicPermissionService.add_home_permission_to_role(instance)
+
+
+@receiver(post_save, sender=Role)
+def init_sysadmin_permissions(sender, instance, created, **kwargs):
+    if created and instance.role == "sysadmin":
+        buttons = PublicButtonService.get_init_buttons()
+        button_ids = [str(button.id) for button in buttons]
+        PublicPermissionService.add_permissions_to_role(None, instance, button_ids)
+        logger.info(f"Initialized all permissions for sysadmin role <{instance.role}>.")
 
 
 @receiver(post_save, sender=sysConfigParams)

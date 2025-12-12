@@ -17,7 +17,6 @@ from node_mg.utils import sys_config
 from audit.context import audit_context
 from mapi.system_user import SYSTEM_USER
 from .config import BUILT_IN_MODELS, BUILT_IN_RELATION_DEFINITION, BUILT_IN_VALIDATION_RULES
-from .utils.zabbix import ZabbixAPI
 from .constants import ValidationType
 from .message import instance_group_relation_updated
 from .models import *
@@ -393,40 +392,6 @@ def update_instance_name_on_field_change(sender, instance, created, **kwargs):
         logger.error(f"Error generating instance name: {str(e)}")
 
 
-@receiver(pre_delete, sender=ModelInstance)
-def prepare_delete_zabbix_host(sender, instance, **kwargs):
-    """准备删除Zabbix主机"""
-    if not sys_config.is_zabbix_sync_enabled():
-        return
-    logger.info(f"Preparing to delete Zabbix host for instance {instance.id}")
-    try:
-        a = time.perf_counter()
-        model = Models.objects.get(id=instance.model_id)
-        if model.name != 'hosts':
-            return
-
-        # 获取主机信息
-        cache_key = f'delete_zabbix_host_{instance.id}'
-        host_info = {}
-        field_values = ModelFieldMeta.objects.filter(
-            model_instance=instance
-        ).select_related('model_fields')
-
-        for field in field_values:
-            logger.debug(f"Field: {field.model_fields.name}, Value: {field.data}")
-            if field.model_fields.name == 'ip':
-                host_info[field.model_fields.name] = field.data
-        host_info.update({
-            'instance_id': instance.id,
-            'instance_name': instance.instance_name,
-        })
-        cache.set(cache_key, host_info, timeout=60)
-        b = time.perf_counter()
-        logger.debug(f'Cached host information for instance {instance.id}: {host_info} in {b - a}s')
-    except Exception as e:
-        logger.error(f"Failed to prepare delete Zabbix host: {str(e)}")
-
-
 # 此信号弃用，实例自身path由模型方法主动计算，子节点path更新由update_descendant_paths处理
 # @receiver(post_save, sender=ModelInstanceGroup)
 def handle_group_path(sender, instance, created, **kwargs):
@@ -516,91 +481,6 @@ def update_descendant_paths(sender, instance, created, **kwargs):
             instance.update_child_path()
 
         transaction.on_commit(do_update)
-
-
-@receiver(pre_delete, sender=ModelInstanceGroup)
-def prepare_delete_instance_group(sender, instance, **kwargs):
-    """准备删除实例分组"""
-    if not sys_config.is_zabbix_sync_enabled():
-        return
-    try:
-        if instance.model.name != 'hosts':
-            return
-
-        # 缓存删除信息，用于post_delete处理
-        cache_key = f'delete_instance_group_{instance.id}'
-        delete_info = {
-            'parent_id': str(instance.parent.id) if instance.parent else None,
-            'path': instance.path,
-            'parent_path': instance.parent.path if instance.parent else None
-        }
-        cache.set(cache_key, delete_info, timeout=60)
-        logger.debug(f'Cached group deletion info: {delete_info}')
-
-    except Exception as e:
-        logger.error(f"Failed to prepare delete instance group: {str(e)}")
-
-
-@receiver(post_delete, sender=ModelInstanceGroup)
-def handle_group_deletion(sender, instance, **kwargs):
-    """处理实例分组删除后的操作"""
-    if not sys_config.is_zabbix_sync_enabled():
-        return
-    try:
-
-        if instance.model.name != 'hosts':
-            return
-
-        cache_key = f'delete_instance_group_{instance.id}'
-        delete_info = cache.get(cache_key)
-        if not delete_info:
-            logger.warning(f"Missing deletion info for group {instance.id}")
-            return
-
-        zapi = ZabbixAPI()
-
-        # 删除Zabbix中对应的主机组
-        if instance.path != '所有':
-            group_name = instance.path.replace('所有/', '')
-            try:
-                zapi.delete_hostgroup(group_name)
-                logger.info(f'Deleted Zabbix hostgroup: {group_name}')
-            except Exception as e:
-                logger.error(f"Failed to delete Zabbix hostgroup: {str(e)}")
-
-        # 如果父节点存在且没有其他子节点，则创建父节点的主机组
-        if delete_info['parent_id']:
-            remaining_children = ModelInstanceGroup.objects.filter(
-                parent_id=delete_info['parent_id']
-            ).count()
-
-            if remaining_children == 0 and delete_info['parent_path'] != '所有':
-                parent_group_name = delete_info['parent_path'].replace('所有/', '')
-                try:
-                    zapi.get_or_create_hostgroup(parent_group_name)
-                    logger.info(f'Recreated parent Zabbix hostgroup: {parent_group_name}')
-                except Exception as e:
-                    logger.error(f"Failed to recreate parent Zabbix hostgroup: {str(e)}")
-
-        # 清理缓存
-        cache.delete(cache_key)
-
-    except Exception as e:
-        logger.error(f"Error handling group deletion: {str(e)}")
-
-
-@receiver(instance_group_relation_updated)
-def sync_zabbix_hostgroup_relation(sender, hosts, groups, **kwargs):
-    """同步实例分组关联到Zabbix"""
-    if not sys_config.is_zabbix_sync_enabled():
-        return
-    try:
-        # 同步主机组关联
-        zapi = ZabbixAPI()
-        result = zapi.replace_host_hostgroup(hosts, [g.replace('所有/', '') for g in groups])
-        logger.info(f'Successfully synced instance group relation to Zabbix: {result}')
-    except Exception as e:
-        logger.error(f"Error syncing instance groups to Zabbix: {str(e)}")
 
 
 @receiver(pre_delete, sender=ModelFields)

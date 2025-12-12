@@ -3,7 +3,7 @@ from .serializers import ModelInstanceSerializer
 from .models import ModelInstance, ModelInstanceGroup, ModelInstanceGroupRelation, ModelFieldMeta
 from .constants import FieldType
 from .utils import password_handler
-from permissions.manager import PermissionManager
+from access.manager import PermissionManager
 
 
 class PublicModelInstanceService:

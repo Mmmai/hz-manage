@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from django.db.models import Q
-from permissions.registry import register_indirect_permission_handler
+from access.registry import register_indirect_permission_handler
 
 from .models import *
 
@@ -301,6 +301,71 @@ class UniqueConstraintQueryHandler(BaseQueryHandler):
         return query
 
 
+class RelationDefinitionQueryHandler(BaseQueryHandler):
+
+    def get_query(self, scope, model, username):
+        query = Q()
+        model_name = model._meta.model_name
+
+        if model_name == 'relationdefinition':
+            # 默认全放开，允许查看所有关系定义
+            # model_ids = scope['targets'].get('cmdb.models')
+            # if model_ids:
+            #     query |= Q(source_model__id__in=model_ids)
+            #     query |= Q(target_model__id__in=model_ids)
+            query = Q(id__isnull=False)
+
+        return query
+
+
+class RelationsQueryHandler(BaseQueryHandler):
+
+    def get_query(self, scope, model, username):
+        query = Q()
+        model_name = model._meta.model_name
+
+        if model_name == 'relations':
+            # 获取用户有权限的实例ID列表
+            instance_ids = scope['targets'].get('cmdb.modelinstance')
+
+            # 获取用户有权限的实例组及其子组中的实例
+            instance_group_ids = scope['targets'].get('cmdb.modelinstancegroup')
+            group_instance_ids = set()
+
+            if instance_group_ids:
+                children_ids = ModelInstanceGroup.objects.get_all_children_ids(instance_group_ids)
+                all_group_ids = set(instance_group_ids) | children_ids
+                group_instance_ids = set(
+                    ModelInstanceGroupRelation.objects.filter(
+                        group_id__in=all_group_ids
+                    ).values_list('instance_id', flat=True)
+                )
+
+            # 合并所有可见实例ID
+            all_visible_instance_ids = set()
+            if instance_ids:
+                all_visible_instance_ids.update(instance_ids)
+            all_visible_instance_ids.update(group_instance_ids)
+
+            if all_visible_instance_ids:
+                # 核心逻辑：源或目标任一可见，则关系可见
+                query = Q(source_instance_id__in=all_visible_instance_ids) | \
+                    Q(target_instance_id__in=all_visible_instance_ids)
+            else:
+                # 无任何实例权限时，检查是否有全局权限
+                scope_type = scope.get('scope_type', 'none')
+                if scope_type == 'all':
+                    query = Q(id__isnull=False)
+                elif scope_type == 'self':
+                    # 自己创建的关系
+                    query = Q(create_user=username)
+                else:
+                    # 无权限
+                    query = Q(pk__in=[])
+
+        return query
+
+
 class CMDBIndirectQueryHandler:
     def __init__(self):
         self.handlers = {
@@ -315,6 +380,8 @@ class CMDBIndirectQueryHandler:
             'validationrules': ValidationRulesQueryHandler(),
             'modelfieldpreference': ModelFieldPreferenceQueryHandler(),
             'uniqueconstraint': UniqueConstraintQueryHandler(),
+            'relationdefinition': RelationDefinitionQueryHandler(),
+            'relations': RelationsQueryHandler(),
         }
 
     def get_query(self, scope, model, username):

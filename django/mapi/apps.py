@@ -34,7 +34,7 @@ class MapiConfig(AppConfig):
         if sender.name != 'mapi':
             return
         from mapi.models import UserInfo, UserGroup, Role, sysConfigParams
-        from permissions.models import DataScope
+        from access.models import DataScope
         from cmdb.utils import password_handler
         # 初始化配置数据
         # 生成密钥

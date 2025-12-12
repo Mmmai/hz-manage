@@ -1,1 +1,0 @@
-import{cG as l,r as v}from"./index-CWdEKdsq.js";const o=l("keepalive",()=>{const e=v([]);return{keepAliveName:e,addKeepAliveName:async a=>{!e.value.includes(a)&&e.value.push(a)},removeKeepAliveName:async a=>{e.value=e.value.filter(s=>s!==a)},setKeepAliveName:async a=>{e.value=a}}},{persist:!0});export{o as u};

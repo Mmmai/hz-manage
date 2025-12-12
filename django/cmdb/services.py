@@ -3,6 +3,9 @@ import logging
 import inspect
 import Levenshtein
 import time
+import networkx as nx
+
+from dataclasses import dataclass
 from functools import wraps
 from typing import List
 from django.db import transaction
@@ -13,9 +16,10 @@ from django.db.models import Value, FloatField
 from django.db.models.functions import Coalesce
 from audit.context import audit_context
 from mapi.models import UserInfo
-from permissions.manager import PermissionManager
-from permissions.tools import has_password_permission
+from access.manager import PermissionManager
+from access.tools import has_password_permission
 from audit.snapshots import capture_audit_snapshots
+
 from .constants import FieldType
 from .utils import password_handler
 from .utils.uuid_tools import UUIDFormatter
@@ -2380,3 +2384,434 @@ class ModelFieldMetaSearchService:
         )[:limit]
 
         return list(results)
+
+
+class RelationDefinitionService:
+
+    @staticmethod
+    @require_valid_user
+    def create_relation_definition(validated_data: dict, user: UserInfo) -> 'RelationDefinition':
+        """创建关系定义"""
+
+        username = user.username
+        source_models = validated_data.pop('source_model', [])
+        target_models = validated_data.pop('target_model', [])
+
+        relation_def = RelationDefinition.objects.create(
+            **validated_data,
+            create_user=username,
+            update_user=username
+        )
+
+        if source_models:
+            relation_def.source_model.set(source_models)
+        if target_models:
+            relation_def.target_model.set(target_models)
+
+        logger.info(f"User {username} created relation definition: {relation_def.name}")
+        return relation_def
+
+    @staticmethod
+    @require_valid_user
+    def update_relation_definition(instance: 'RelationDefinition', validated_data: dict, user: UserInfo) -> 'RelationDefinition':
+        """更新关系定义"""
+        username = user.username
+        source_models = validated_data.pop('source_model', None)
+        target_models = validated_data.pop('target_model', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.update_user = username
+        instance.save()
+
+        if source_models is not None:
+            instance.source_model.set(source_models)
+        if target_models is not None:
+            instance.target_model.set(target_models)
+
+        logger.info(f"User {username} updated relation definition: {instance.name}")
+        return instance
+
+    @staticmethod
+    @require_valid_user
+    def delete_relation_definition(instance: 'RelationDefinition', user: UserInfo):
+        """删除关系定义"""
+        from .models import Relations
+
+        if instance.built_in:
+            raise PermissionDenied("Cannot delete built-in relation definition.")
+
+        # 检查是否有关系实例使用此定义
+        if Relations.objects.filter(relation=instance).exists():
+            raise ValidationError(
+                "This relation definition is in use and cannot be deleted. "
+                "Please remove all relation instances first."
+            )
+
+        name = instance.name
+        instance.delete()
+        logger.info(f"User {user.username} deleted relation definition: {name}")
+
+
+@dataclass
+class TopologyNode:
+    """拓扑节点数据结构"""
+    id: str
+    instance: 'ModelInstance'
+    is_visible: bool
+    model_id: str = None
+    instance_name: str = None
+
+
+@dataclass
+class TopologyEdge:
+    """拓扑边数据结构"""
+    relation: 'Relations'
+    source_visible: bool
+    target_visible: bool
+
+
+@dataclass
+class TopologyResult:
+    """拓扑查询结果"""
+    nodes: List[TopologyNode]
+    edges: List[TopologyEdge]
+    visible_node_count: int
+    restricted_node_count: int
+
+
+class RelationsService:
+    """关系实例服务层"""
+
+    @classmethod
+    @require_valid_user
+    def create_relation(cls, validated_data: dict, user: UserInfo) -> 'Relations':
+        """创建关系"""
+
+        username = user.username
+        pm = PermissionManager(user)
+
+        source_instance_id = validated_data.get('source_instance')
+        target_instance_id = validated_data.get('target_instance')
+        relation_id = validated_data.get('relation')
+
+        # 验证用户对源和目标实例的权限
+        source_instance = pm.get_queryset(ModelInstance).filter(id=source_instance_id)
+        target_instance = pm.get_queryset(ModelInstance).filter(id=target_instance_id)
+        if not (source_instance.exists() or target_instance.exists()):
+            source_exists = ModelInstance.objects.check_instance_id_exists(source_instance_id)
+            target_exists = ModelInstance.objects.check_instance_id_exists(target_instance_id)
+            if not source_exists:
+                raise ValidationError(f"Source instance {source_instance_id} does not exist.")
+            if not target_exists:
+                raise ValidationError(f"Target instance {target_instance_id} does not exist.")
+            raise PermissionDenied("No permission to create this relation.")
+
+        # 验证关系定义约束
+        relation_def = RelationDefinition.objects.get(id=relation_id)
+
+        # 检查模型约束
+        if relation_def.source_model.exists():
+            if not relation_def.source_model.filter(id=source_instance.model_id).exists():
+                raise ValidationError(f"Source instance model is not allowed for this relation type.")
+
+        if relation_def.target_model.exists():
+            if not relation_def.target_model.filter(id=target_instance.model_id).exists():
+                raise ValidationError(f"Target instance model is not allowed for this relation type.")
+
+        # 检查DAG约束（有向无环图）
+        if relation_def.topology_type == 'daggered':
+            if cls._would_create_cycle(source_instance_id, target_instance_id, relation_id):
+                raise ValidationError("This relation would create a cycle, which is not allowed for DAG topology.")
+
+        relation = Relations.objects.create(
+            source_instance=source_instance,
+            target_instance=target_instance,
+            relation=relation_def,
+            source_attributes=validated_data.get('source_attributes', {}),
+            target_attributes=validated_data.get('target_attributes', {}),
+            relation_attributes=validated_data.get('relation_attributes', {}),
+            create_user=username,
+            update_user=username
+        )
+
+        logger.info(f"User {username} created relation: {source_instance} -> {target_instance}")
+        return relation
+
+    @staticmethod
+    def _would_create_cycle(source_id: str, target_id: str, relation_id: str) -> bool:
+        """检查添加关系是否会创建环"""
+        from .models import Relations
+
+        # 使用BFS检查从target到source是否存在路径
+        visited = set()
+        queue = [str(target_id)]
+
+        while queue:
+            current = queue.pop(0)
+            if current == str(source_id):
+                return True
+
+            if current in visited:
+                continue
+            visited.add(current)
+
+            # 获取当前节点的所有出边目标
+            next_nodes = Relations.objects.get_connected_instances(
+                current,
+                direction='forward'
+            )
+
+            queue.extend(str(n) for n in next_nodes if str(n) not in visited)
+
+        return False
+
+    @classmethod
+    @require_valid_user
+    def bulk_create_relations(cls, relations_data: list, user: UserInfo) -> list:
+        """批量创建关系"""
+
+        username = user.username
+        created_relations = []
+
+        for data in relations_data:
+            try:
+                relation = cls.create_relation(data, user)
+                created_relations.append(relation)
+            except (ValidationError, PermissionDenied) as e:
+                logger.warning(f"Failed to create relation: {e}")
+                continue
+
+        logger.info(f"User {username} bulk created {len(created_relations)} relations")
+        return created_relations
+
+    @staticmethod
+    @require_valid_user
+    def delete_relation(instance: 'Relations', user: UserInfo):
+        """删除关系"""
+        pm = PermissionManager(user)
+
+        # 检查用户是否有权限删除（对源或目标有权限）
+        source_visible = pm.get_queryset(ModelInstance).filter(id=instance.source_instance_id).exists()
+        target_visible = pm.get_queryset(ModelInstance).filter(id=instance.target_instance_id).exists()
+
+        if not (source_visible or target_visible):
+            raise PermissionDenied("You don't have permission to delete this relation.")
+
+        instance.delete()
+        logger.info(f"User {user.username} deleted relation: {instance}")
+
+    @classmethod
+    @require_valid_user
+    def bulk_delete_relations(cls, relations: List['Relations'], user: UserInfo) -> dict:
+        """批量删除关系"""
+        from .models import Relations
+
+        pm = PermissionManager(user)
+        results = {'deleted': 0, 'failed': 0, 'errors': []}
+
+        for relation in relations:
+            try:
+                cls.delete_relation(relation, user)
+                results['deleted'] += 1
+            except Relations.DoesNotExist:
+                results['failed'] += 1
+                results['errors'].append(f"Relation {relation.id} not found")
+            except PermissionDenied as e:
+                results['failed'] += 1
+                results['errors'].append(f"Relation {relation.id}: {str(e)}")
+
+        return results
+
+    @classmethod
+    @require_valid_user
+    def get_topology(
+        cls,
+        user: UserInfo,
+        start_node_ids: List[str],
+        end_node_ids: List[str] = None,
+        depth: int = 3,
+        direction: str = 'both',
+        mode: str = 'blast'
+    ) -> TopologyResult:
+        """
+        权限处理策略：
+        1. 使用特权方法获取完整拓扑结构（边）
+        2. 使用权限管理器过滤可见节点
+        3. 不可见节点标记为"受限"，保留连通性
+        """
+        from .models import Relations, ModelInstance
+
+        pm = PermissionManager(user)
+
+        G = nx.DiGraph()
+
+        if mode == 'path':
+            all_relations, all_node_ids = cls._build_path_graph(
+                start_node_ids, end_node_ids, depth
+            )
+        elif mode == 'blast':
+            all_relations, all_node_ids = Relations.objects.get_topology_edges(
+                start_node_ids, depth, direction
+            )
+        elif mode == 'neighbor':
+            all_relations, all_node_ids = cls._build_neighbor_graph(
+                start_node_ids, direction
+            )
+        else:
+            all_relations, all_node_ids = [], set()
+
+        visible_instances = pm.get_queryset(ModelInstance).filter(
+            id__in=all_node_ids
+        ).in_bulk()
+        visible_instance_ids = set(str(id) for id in visible_instances.keys())
+
+        nodes = []
+        node_map = {}
+
+        for node_id in all_node_ids:
+            node_id_str = str(node_id)
+            instance = visible_instances.get(node_id) if node_id in visible_instances else None
+
+            if instance:
+                node = TopologyNode(
+                    id=node_id_str,
+                    instance=instance,
+                    is_visible=True,
+                    model_id=str(instance.model_id),
+                    instance_name=instance.instance_name
+                )
+            else:
+                # 受限节点：保留ID但不暴露详情
+                node = TopologyNode(
+                    id=node_id_str,
+                    instance=None,
+                    is_visible=False,
+                    model_id=None,
+                    instance_name="[无权限]"
+                )
+
+            nodes.append(node)
+            node_map[node_id_str] = node
+
+        # 构建边信息
+        edges = []
+        for rel in all_relations:
+            source_id = str(rel.source_instance_id)
+            target_id = str(rel.target_instance_id)
+
+            edge = TopologyEdge(
+                relation=rel,
+                source_visible=source_id in visible_instance_ids,
+                target_visible=target_id in visible_instance_ids
+            )
+            edges.append(edge)
+
+            # 添加到图中用于路径分析
+            G.add_edge(source_id, target_id, relation=rel)
+
+        visible_count = sum(1 for n in nodes if n.is_visible)
+        restricted_count = len(nodes) - visible_count
+
+        return TopologyResult(
+            nodes=nodes,
+            edges=edges,
+            visible_node_count=visible_count,
+            restricted_node_count=restricted_count
+        )
+
+    @staticmethod
+    def _build_path_graph(start_node_ids: List[str], end_node_ids: List[str], depth: int):
+        """构建路径查询图"""
+        from .models import Relations
+
+        all_relations = []
+        all_node_ids = set(start_node_ids + end_node_ids)
+        visited = set()
+        queue = set(start_node_ids + end_node_ids)
+
+        for _ in range(depth + 1):
+            if not queue:
+                break
+
+            current_nodes = list(queue)
+            visited.update(current_nodes)
+            queue.clear()
+
+            relations = Relations.objects.filter(
+                Q(source_instance_id__in=current_nodes) |
+                Q(target_instance_id__in=current_nodes)
+            ).select_related('source_instance', 'target_instance', 'relation')
+
+            for rel in relations:
+                all_relations.append(rel)
+                source_id = str(rel.source_instance_id)
+                target_id = str(rel.target_instance_id)
+
+                all_node_ids.add(source_id)
+                all_node_ids.add(target_id)
+
+                if source_id not in visited:
+                    queue.add(source_id)
+                if target_id not in visited:
+                    queue.add(target_id)
+
+        return all_relations, all_node_ids
+
+    @staticmethod
+    def _build_neighbor_graph(start_node_ids: List[str], direction: str):
+        """构建邻居查询图"""
+        from .models import Relations
+
+        all_relations = []
+        all_node_ids = set(start_node_ids)
+
+        for start_node in start_node_ids:
+            q_filter = Q()
+            if direction in ('forward', 'both'):
+                q_filter |= Q(source_instance_id=start_node)
+            if direction in ('reverse', 'both'):
+                q_filter |= Q(target_instance_id=start_node)
+
+            relations = Relations.objects.filter(q_filter).select_related(
+                'source_instance', 'target_instance', 'relation'
+            )
+
+            for rel in relations:
+                all_relations.append(rel)
+                all_node_ids.add(str(rel.source_instance_id))
+                all_node_ids.add(str(rel.target_instance_id))
+
+        return all_relations, all_node_ids
+
+    @staticmethod
+    def serialize_topology_result(result: TopologyResult) -> dict:
+        """序列化拓扑结果"""
+        from .serializers import ModelInstanceBasicViewSerializer, RelationsSerializer
+
+        # 序列化可见节点
+        visible_instances = [n.instance for n in result.nodes if n.is_visible and n.instance]
+        node_data = ModelInstanceBasicViewSerializer(visible_instances, many=True).data
+
+        # 添加受限节点信息
+        for node in result.nodes:
+            if not node.is_visible:
+                node_data.append({
+                    'id': node.id,
+                    'instance_name': node.instance_name,
+                    'is_restricted': True
+                })
+
+        # 序列化边
+        edge_data = RelationsSerializer([e.relation for e in result.edges], many=True).data
+
+        return {
+            'nodes': node_data,
+            'edges': edge_data,
+            'statistics': {
+                'total_nodes': len(result.nodes),
+                'visible_nodes': result.visible_node_count,
+                'restricted_nodes': result.restricted_node_count,
+                'total_edges': len(result.edges)
+            }
+        }
