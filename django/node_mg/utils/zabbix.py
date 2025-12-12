@@ -118,7 +118,7 @@ class ZabbixAPI:
         response = self.session.post(self.url, json=payload,timeout=10)
         result = response.json()
         if result.get('result'):
-            logger.info(f"status: success action: {method} params: {payload} result: {result}")
+            logger.debug(f"status: success action: {method} params: {payload} result: {result}")
             return result
         else:
             logger.error(f"status: failed  action: {method} params: {payload} result: {result}")
@@ -943,3 +943,44 @@ class ZabbixAPI:
         if 3 in types:
             template_id =  self.get_default_template(self.template_ipmi_name) 
         return template_id
+    # 历史数据相关函数
+    def get_history(self,itemid,history,start_time,end_time):
+        params = {
+            "itemids": itemid,
+            "output": "extend",
+            "history": history,
+            "sortfield": "clock",
+            "sortorder": "DESC",
+            "time_from": start_time,
+            "time_till": end_time,
+            "limit": 1000
+        }
+        result = self._call("history.get", params)
+        if result.get("result"):
+            return  result["result"] 
+        return None    
+    def get_history_by_items(self,itemids,history,start_time,end_time):
+
+        params = {
+            "itemids": itemids,
+            "output": "extend",
+            "history": history,
+            "sortfield": "clock",
+            "sortorder": "DESC",
+            "time_from": start_time,
+            "time_till": end_time,
+            "limit": 1000
+        }
+
+    def get_item_by_host(self,host,item_keys=None):
+        params = {
+            "output": ["itemid", "name", "key_", "hostid","value_type"],
+            "host": host,
+            "sortfield": "name"
+        }
+        if isinstance(item_keys, str):
+            params["search"]= {"key_":item_keys}
+        result = self._call("item.get", params)
+        if result.get("result"):
+            return  result["result"] 
+        return None

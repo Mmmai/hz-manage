@@ -16,8 +16,8 @@ from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.types import OpenApiTypes
 
 from audit.snapshots import capture_audit_snapshots
-from permissions.manager import PermissionManager
-from permissions.tools import has_password_permission
+from access.manager import PermissionManager
+from access.tools import has_password_permission
 from .models import *
 from .services import *
 from .converters import ConverterFactory

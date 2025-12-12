@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'channels',
     'django_celery_beat',
     'jobflow',
+    'monitor'
     # 'silk'
 ]
 

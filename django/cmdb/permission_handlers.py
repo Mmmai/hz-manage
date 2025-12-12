@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from django.db.models import Q
-from permissions.registry import register_indirect_permission_handler
+from access.registry import register_indirect_permission_handler
 
 from .models import *
 

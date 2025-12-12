@@ -24,10 +24,6 @@
         <el-descriptions-item label="实例名称">{{
           nodeInfo.model_instance_name
         }}</el-descriptions-item>
-        <el-descriptions-item label="节点ID">{{
-          nodeInfo.id
-        }}</el-descriptions-item>
-
         <el-descriptions-item label="IP地址">{{
           nodeInfo.ip_address
         }}</el-descriptions-item>
@@ -53,55 +49,52 @@
             {{ getStatusText(nodeInfo.agent_status) }}
           </el-tag>
         </el-descriptions-item>
+        <el-descriptions-item label="操作">
+          <el-tooltip
+            class="box-item"
+            effect="dark"
+            content="触发同步"
+            placement="top"
+          >
+            <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
+              link
+              type="primary"
+              :icon="Promotion"
+              @click="syncNodeToZabbix({ id: nodeInfo.id })"
+            ></el-button>
+          </el-tooltip>
+          <el-tooltip
+            class="box-item"
+            effect="dark"
+            content="管理状态更新"
+            placement="top"
+          >
+            <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
+              link
+              type="primary"
+              :icon="Compass"
+              @click="assetInfoTask({ id: nodeInfo.id })"
+            ></el-button>
+          </el-tooltip>
+          <el-tooltip
+            class="box-item"
+            effect="dark"
+            content="触发agent安装"
+            placement="top"
+          >
+            <el-button
+              v-permission="`${route.name?.replace('_info', '')}:edit`"
+              link
+              type="primary"
+              :icon="Refresh"
+              @click="installAgentTask({ id: nodeInfo.id })"
+            ></el-button>
+          </el-tooltip>
+        </el-descriptions-item>
       </el-descriptions>
     </el-card>
-
-    <!-- <el-card class="task-history-card">
-      <template #header>
-        <div class="card-header">
-          <span>任务执行历史</span>
-          <el-button type="primary" @click="refreshTasks">刷新</el-button>
-        </div>
-      </template>
-
-      <el-table
-        :data="taskHistory"
-        style="width: 100%"
-        v-loading="tasksLoading"
-      >
-        <el-table-column prop="created_at" label="执行时间" width="180">
-          <template #default="scope">
-            {{ formatDate(scope.row.created_at) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
-          <template #default="scope">
-            <el-tag :type="getTaskStatusType(scope.row.status)">
-              {{ getTaskStatusText(scope.row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="cost_time" label="耗时(秒)" width="100" />
-        <el-table-column label="操作" width="150">
-          <template #default="scope">
-            <el-button size="small" @click="viewTaskDetail(scope.row)"
-              >查看详情</el-button
-            >
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :page-sizes="[10, 20, 50]"
-        layout="total, sizes, prev, pager, next, jumper"
-        :total="totalTasks"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-        style="margin-top: 20px; justify-content: flex-end; display: flex"
-      />
-    </el-card> -->
     <el-card class="task-history-card">
       <template #header>
         <div class="card-header">
@@ -209,14 +202,12 @@
           </el-tab-pane>
 
           <el-tab-pane label="详细输出" name="output">
-            <div class="output-container">
-              <pre
-                v-if="currentTask.results"
-                class="output-pre"
-                v-html="formatAnsibleOutput(currentTask.results)"
-              ></pre>
-              <div v-else class="no-output">暂无详细输出</div>
-            </div>
+            <pre
+              v-if="currentTask.results"
+              class="output-pre"
+              v-html="formatAnsibleOutput(currentTask.results)"
+            ></pre>
+            <div v-else class="no-output">暂无详细输出</div>
           </el-tab-pane>
 
           <!-- <el-tab-pane label="资产信息" name="asset">
@@ -242,7 +233,7 @@
 import { ref, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
-import { Search, Refresh } from "@element-plus/icons-vue";
+import { Search, Refresh, Promotion, Compass } from "@element-plus/icons-vue";
 // 为了确保API调用能够正常工作，我们需要获取全局代理
 import { getCurrentInstance } from "vue";
 import { AnsiUp } from "ansi_up";
@@ -333,16 +324,6 @@ onMounted(() => {
 const goBack = () => {
   router.push({ path: "/node_control/nodeManage" });
 };
-// // 监听路由变化
-// watch(
-//   () => nodeId.value,
-//   (newVal) => {
-//     if (newVal) {
-//       getNodeInfo();
-//       getTaskHistory();
-//     }
-//   }
-// );
 
 // 获取节点基本信息
 const getNodeInfo = async () => {
@@ -350,18 +331,6 @@ const getNodeInfo = async () => {
     const res = await proxy.$api.getNodeDetail(nodeId.value);
     if (res.status === 200) {
       nodeInfo.value = res.data;
-      // nodeInfo.value = {
-      //   id: res.data.id,
-      //   model_instance_name: res.data.model_instance_name?.model_instance_name || "",
-      //   ip_address: res.data.ip_address,
-      //   model_name: res.data.model?.verbose_name || res.data.model?.name || "",
-      //   proxy_name: res.data.proxy?.name || "",
-      //   enable_sync: res.data.enable_sync,
-      //   manage_status:
-      //     res.data.manage_status !== undefined ? res.data.manage_status : 2,
-      //   agent_status:
-      //     res.data.agent_status !== undefined ? res.data.agent_status : 2,
-      // };
     }
   } catch (error) {
     ElMessage.error("获取节点信息失败");
@@ -393,7 +362,52 @@ const getTaskHistory = async () => {
     tasksLoading.value = false;
   }
 };
+const syncNodeToZabbix = async (params: { id: string }) => {
+  let res = await proxy.$api.syncZabbixHost({ node_id: params.id });
+  if (res.status == 200) {
+    ElMessage({
+      type: "success",
+      message: "触发成功",
+    });
+  } else {
+    ElMessage({
+      type: "error",
+      message: `触发失败:${res.data.message}`,
+    });
+  }
+};
+// 安装agent
+const installAgentTask = async (params: object) => {
+  let res = await proxy.$api.installAgent(params);
+  if (res.status == 200) {
+    ElMessage({
+      type: "success",
+      message: "触发成功",
+    });
+    // openSse(`/api/v1/agent_status_sse/?cache_key=${res.data.cache_key}`);
+  } else {
+    ElMessage({
+      type: "error",
+      message: `触发失败:${res.data.message}`,
+    });
+  }
+};
 
+const assetInfoTask = async (params: object) => {
+  let res = await proxy.$api.get_inventory(params);
+  if (res.status == 200) {
+    ElMessage({
+      type: "success",
+      message: "触发成功",
+    });
+    // openSse(`/api/v1/agent_status_sse/?cache_key=${res.data.cache_key}`);
+  } else {
+    ElMessage({
+      type: "error",
+      message: `触发失败:${res.data.message}`,
+    });
+  }
+};
 // 刷新任务历史
 const refreshTasks = () => {
   currentPage.value = 1;

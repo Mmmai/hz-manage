@@ -26,6 +26,7 @@ urlpatterns = [
     # path('admin/', admin.site.urls),
     # path('api/v1/',include('mapi.urls')),
     path('api/v1/', include('mapi.urls')),
+    path('api/v1/monitor/', include('monitor.urls')),
     path('api/v1/log/', include('mlog.urls')),
     path('api/v1/cmdb/', include('cmdb.urls')),
     path('api/v1/node_mg/', include('node_mg.urls')),

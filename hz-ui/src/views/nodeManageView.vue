@@ -137,7 +137,7 @@
                   label="唯一标识"
                   sortable="custom"
                 >
-                  <template #default="scope">
+                  <template #default="scope" v-if="activeName === 'hosts'">
                     <el-tooltip
                       content="查看详情"
                       placement="right"
@@ -147,6 +147,9 @@
                         {{ scope.row.model_instance_name }}</el-link
                       >
                     </el-tooltip>
+                  </template>
+                  <template #default="scope" v-else>
+                    <span> {{ scope.row.model_instance_name }}</span>
                   </template>
                 </el-table-column>
                 <el-table-column

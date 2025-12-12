@@ -1,8 +1,4 @@
 import axios from '../utils/request'
-import commonFunc from '../utils/common'
-import { add, get, method } from 'lodash'
-import { del } from 'vue-demi'
-import { de } from 'element-plus/es/locale/index.mjs'
 // import path from './path'
 const path = {
   nodeTask: "/api/v1/node_mg/nodeTask/",
@@ -92,8 +88,5 @@ export default {
   deleteModelConfig(params) {
     return axios.request({ url: path.modelConfig + params.id + '/', method: 'delete' })
   },
-  // zabbix模板接口
-  getZabbixTemplate(params) {
-    return axios.request({ url: path.zabbixApi, method: 'get', params: params })
-  },
+
 }

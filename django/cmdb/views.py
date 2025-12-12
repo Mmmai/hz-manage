@@ -38,7 +38,7 @@ from .message import bulk_creation_audit
 from .schemas import *
 from audit.context import audit_context
 from audit.mixins import AuditContextMixin
-from permissions.manager import PermissionManager
+from access.manager import PermissionManager
 
 logger = logging.getLogger(__name__)
 

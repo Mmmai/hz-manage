@@ -13,8 +13,8 @@ from django.db.models import Value, FloatField
 from django.db.models.functions import Coalesce
 from audit.context import audit_context
 from mapi.models import UserInfo
-from permissions.manager import PermissionManager
-from permissions.tools import has_password_permission
+from access.manager import PermissionManager
+from access.tools import has_password_permission
 from audit.snapshots import capture_audit_snapshots
 from .constants import FieldType
 from .utils import password_handler

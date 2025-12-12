@@ -27,6 +27,7 @@
     "ant-design-vue": "^4.2.6",
     "axios": "^1.5.1",
     "crypto-js": "^4.2.0",
+    "echarts": "^6.0.0",
     "el-tree-transfer": "^2.4.7",
     "element-plus": "^2.11.8",
     "exceljs": "^4.4.0",

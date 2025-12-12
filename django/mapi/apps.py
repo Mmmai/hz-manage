@@ -26,7 +26,7 @@ class MapiConfig(AppConfig):
         if sender.name != 'mapi':
             return
         from mapi.models import UserInfo, UserGroup, Role, sysConfigParams
-        from permissions.models import DataScope
+        from access.models import DataScope
         
         # 检查是否已经初始化过（通过特定标记）
         init_marker_param = "initialization_completed"

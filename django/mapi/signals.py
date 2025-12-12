@@ -2,10 +2,10 @@ import re
 import logging
 from django.db.models.signals import post_save, post_delete,m2m_changed
 from django.dispatch import receiver
-from permissions.public_services import PublicPermissionService
+from access.public_services import PublicPermissionService
 from .models import Role, sysConfigParams,UserInfo,UserGroup,Role
 from .messages import zabbix_config_updated
-from permissions.tools import clear_data_scope_cache, clear_password_permission_cache
+from access.tools import clear_data_scope_cache, clear_password_permission_cache
 logger = logging.getLogger(__name__)
 
 

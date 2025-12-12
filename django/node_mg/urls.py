@@ -4,7 +4,7 @@ from . import views
 from rest_framework.routers import DefaultRouter
 
 urlpatterns = [
-  re_path("zabbixApi/",views.zabbixApi.as_view())
+  # re_path("zabbixApi/",views.zabbixApi.as_view())
 
   ]
 router = DefaultRouter()

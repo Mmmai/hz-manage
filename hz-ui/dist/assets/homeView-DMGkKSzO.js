@@ -1,0 +1,1 @@
+import{_ as e,c,o}from"./index-Ch0lsCs7.js";const a={},s={class:"card backgroupImage"};function t(r,_){return o(),c("div",s)}const d=e(a,[["render",t],["__scopeId","data-v-e883a6f8"]]);export{d as default};

@@ -610,10 +610,10 @@
         <el-tab-pane
           label="监控信息"
           name="monitor"
-          disabled
           v-if="modelInfo.name === 'hosts'"
-          >111</el-tab-pane
         >
+          <MonitorChart :ip="instanceIp" />
+        </el-tab-pane>
         <el-tab-pane label="关联关系" name="relations">
           <ciDataRelation
             ref="ciDataRelationRef"
@@ -655,6 +655,7 @@ import type { FormInstance } from "element-plus";
 import { encrypt_sm4, decrypt_sm4 } from "@/utils/gmCrypto.ts";
 import useConfigStore from "@/store/config";
 import useModelStore from "@/store/cmdb/model";
+import MonitorChart from "@/components/cmdb/ciDataMonitor.vue";
 
 import ciDataAudit from "@/components/cmdb/ciDataAudit.vue";
 import ciDataRelation from "@/components/cmdb/ciDataRelation.vue";
@@ -679,7 +680,7 @@ const router = useRouter();
 const configStore = useConfigStore();
 const isEdit = ref(false);
 const gmConfig = computed(() => configStore.gmCry);
-
+const instanceIp = ref(null);
 // 表单相关
 const editFormRef = ref<FormInstance>();
 const editForm = reactive({
@@ -1031,6 +1032,8 @@ const getCiDataInfo = async () => {
   const res = await proxy.$api.getCiModelInstanceInfo(instanceId.value);
   if (res.status === 200) {
     instanceData.value = res.data;
+    instanceIp.value = instanceData.value?.fields?.ip;
+    console.log(instanceIp.value);
     modelInfo.value = modelObjectById.value[instanceData.value?.model];
   }
 };

@@ -7,6 +7,7 @@ import nodeApis from './node_mg'
 import auditApis from './audit';
 import commonFunc from '../utils/common'
 import permissionApis from './permission'
+import monitorApis from './monitor'
 const api = {
   ...userApis,
   ...cmdbApis,
@@ -14,6 +15,7 @@ const api = {
   ...nodeApis,
   ...auditApis,
   ...permissionApis,
+  ...monitorApis,
   getRouteInfo(params) {
     return axios.request({
       url: path.routeInfo,
@@ -45,58 +47,6 @@ const api = {
       // params: params
 
     })
-  },
-  // 查看单个menu信息
-  getMenuTree(params) {
-    return axios.request({
-      url: path.menu + 'get_menu_tree/',
-      method: 'get',
-    })
-  },
-  menuUpdate(params) {
-    return axios.request({
-      url: path.menu + params.id + '/',
-      method: 'patch',
-      data: params
-    })
-  },
-  menuAdd(params) {
-    // return axios.put(path.role+params.id+'/',params)
-    return axios.request({
-      url: path.menu,
-      method: 'post',
-      data: params
-    })
-  },
-  menuDel(params) {
-    return axios.delete(path.menu + params + '/')
-  },
-  // 按钮
-  getButton(params) {
-    return axios.request({
-      url: path.button,
-      method: 'get',
-      params: params
-
-    })
-  },
-  updateButton(params) {
-    return axios.request({
-      url: path.button + params.id + '/',
-      method: 'patch',
-      data: params
-    })
-  },
-  addButton(params) {
-    // return axios.put(path.role+params.id+'/',params)
-    return axios.request({
-      url: path.button,
-      method: 'post',
-      data: params
-    })
-  },
-  deleteButton(params) {
-    return axios.delete(path.button + params + '/')
   },
   // 门户组
   pgroupGet(params) {

@@ -4,11 +4,7 @@ const path = {
   test: "/api/v1/test",
   user: "/api/v1/userinfo/",
   userGroup: "/api/v1/userGroup/",
-
   role: "/api/v1/role/",
-  menuInfo: "/api/v1/menuinfo/",
-  menuList: "/api/v1/getMenu/",
-  menu: "/api/v1/menu/",
   button: "/api/v1/button/",
   routeInfo: "/api/v1/testroute/",
   portal: "/api/v1/portal/",
@@ -30,10 +26,6 @@ export default {
     })
   },
 
-
-  test() {
-    return axios.get(path.test)
-  },
   user(config) {
     return axios.request({
       url: path.user,
@@ -93,15 +85,15 @@ export default {
       data: params
     })
   },
-  // 获取角色关联权限的树状
-  getPermissionToRole(params) {
-    return axios.request({
-      url: '/api/v1/permissions/getPermissionToRole/',
-      method: 'post',
-      data: params
-    })
-    // return axios.post(path.role)}
-  },
+  // // 获取角色关联权限的树状
+  // getPermissionToRole(params) {
+  //   return axios.request({
+  //     url: '/api/v1/permissions/getPermissionToRole/',
+  //     method: 'post',
+  //     data: params
+  //   })
+  //   // return axios.post(path.role)}
+  // },
 
   getUserGroup(config) {
     return axios.request({
@@ -120,35 +112,7 @@ export default {
   deleteUserGroup(params) {
     return axios.delete(path.userGroup + params + '/')
   },
-  // 获取用户、用户组、角色权限列表
-  getPermissionHas(params) {
-    // user_id,user_group_id,role_id
-    return axios.request({
-      url: '/api/v1/permissions/get_permission/',
-      method: 'get',
-      params: params
-    })
-  },
-  // 添加按钮菜单权限
-  addObjectPermissions(params) {
-    // user_id,user_group_id,role_id
-    // {"role_id":1,"button_ids":[]}
-    return axios.request({
-      url: '/api/v1/permissions/add_permissions/',
-      method: 'post',
-      data: params
-    })
-  },
-  // 删除按钮菜单权限
-  removeObjectPermissions(params) {
-    // user_id,user_group_id,role_id
-    // {"role_id":1,"button_ids":[]}
-    return axios.request({
-      url: '/api/v1/permission/remove_permissions/',
-      method: 'post',
-      data: params
-    })
-  },
+
   updatePortalOrder(params) {
     return axios.request({
       url: path.portal + 'update_user_sort_order/',
