@@ -12,10 +12,11 @@ from django.db import transaction
 from django.db.models import QuerySet
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.db import connection
-from django.db.models import Value, FloatField
-from django.db.models.functions import Coalesce
+from django.db.models import Exists, OuterRef
+
 from audit.context import audit_context
 from mapi.models import UserInfo
+from mapi.system_user import SYSTEM_USER
 from access.manager import PermissionManager
 from access.tools import has_password_permission
 from audit.snapshots import capture_audit_snapshots
@@ -668,22 +669,120 @@ class ModelInstanceService:
         return context
 
     @staticmethod
+    @require_valid_user
+    def validate_import_fields(model: Models, fields_data: dict, user: UserInfo):
+        _missed_value = object()
+        pm = PermissionManager(user)
+        all_fields = ModelFields.objects.get_all_fields_for_model(str(model.id))
+        allowed_fields = set(
+            pm.get_queryset(ModelFields)
+            .filter(model=model)
+            .values_list('name', flat=True)
+        )
+
+        for field in all_fields:
+            data = fields_data.get(field.name, _missed_value)
+
+            # 提供了未授权的字段
+            if data is not _missed_value and field.name not in allowed_fields:
+                logger.warning(f"User {user.username} attempted to import unauthorized field: {field.name}")
+                # 设置为空，后续使用默认逻辑
+                data = _missed_value
+
+            # 字段取值，传入值 > default > None
+            if data is _missed_value:
+                value = field.default if field.default else None
+            else:
+                value = data
+
+            if field.required and (value is None or value == ""):
+                raise ValidationError(f'Received empty value for required field: {field.name}')
+
+    @staticmethod
+    def validate_fields_for_import_update(model: Models, input_fields: dict, user: UserInfo, import_context: dict):
+        input_fields = input_fields or {}
+        field_configs = import_context.get('field_configs', {}) or {}
+
+        allowed = ModelInstanceService._get_allowed_field_names_for_user(model, user)
+
+        # 校验用户是否试图导入无权限字段
+        perm_errors = {}
+        for name in input_fields.keys():
+            if name not in field_configs:
+                perm_errors[name] = 'Unknown field'
+            elif name not in allowed:
+                perm_errors[name] = 'No permission to set this field'
+        if perm_errors:
+            raise ValidationError({'fields': perm_errors})
+
+    @staticmethod
+    def prepare_fields_for_import_creation(model: Models, input_fields: dict, user: UserInfo, import_context: dict) -> dict:
+        input_fields = input_fields or {}
+        field_configs = import_context.get('field_configs', {}) or {}
+        required_fields = import_context.get('required_fields', []) or []
+
+        pm = PermissionManager(user)
+        allowed = pm.get_queryset(ModelFields).filter(model=model).values_list('name', flat=True)
+
+        # 校验用户是否试图导入无权限字段
+        perm_errors = {}
+        for name in input_fields.keys():
+            if name not in field_configs:
+                perm_errors[name] = 'Unknown field'
+            elif name not in allowed:
+                perm_errors[name] = 'No permission to set this field'
+        if perm_errors:
+            raise ValidationError({'fields': perm_errors})
+
+        # 补全未给出字段的最终写入值（default/None）
+        filled = {}
+        for name, cfg in field_configs.items():
+            if name in input_fields:
+                filled[name] = input_fields.get(name)
+                continue
+
+            dv = getattr(cfg, 'default_value', None)
+            if dv in (None, ''):
+                filled[name] = None
+            else:
+                filled[name] = dv
+
+        # 校验必填
+        req_errors = {}
+        for name in required_fields:
+            val = filled.get(name, None)
+            # 0 / False 视为有效；None/'' 视为缺失
+            if val is None or val == '':
+                if name not in allowed:
+                    req_errors[name] = 'Required field missing and the current user has no permission and no default value'
+                else:
+                    req_errors[name] = 'Required field missing'
+        if req_errors:
+            raise ValidationError({'fields': req_errors})
+
+        return filled
+
+    @staticmethod
     def preprocess_import_fields(fields_data: dict, import_context: dict) -> dict:
         """
         预处理导入的字段数据：将 Excel 中的显示值转换为存储值。
         枚举的 label -> key，引用的 instance_name -> id
         """
         processed = {}
+        fields_not_provided = []
+        required_fields = import_context.get('required_fields', [])
         field_configs = import_context.get('field_configs', {})
         enum_maps = import_context.get('enum_maps', {})
         ref_by_name = import_context.get('ref_instances_by_name', {})
 
         for field_name, raw_value in fields_data.items():
             if raw_value in (None, ''):
+                fields_not_provided.append(field_name)
                 continue
 
             field_config = field_configs.get(field_name)
             if not field_config:
+                fields_not_provided.append(field_name)
                 continue
 
             processed_value = raw_value
@@ -838,6 +937,52 @@ class ModelInstanceService:
                     'data': storage_value,
                     'update_user': username,
                     'create_user': username  # 默认更新时重置创建用户，meta的用户信息不重要
+                }
+            )
+
+    @staticmethod
+    def backfill_field_values(instance: ModelInstance, fields_data: dict, from_excel: bool = False):
+        """
+        导入并【创建】实例时以系统用户补全未提供字段，调用前必须完成校验
+        """
+        if not fields_data:
+            return
+
+        model = instance.model
+        # 不经权限过滤，直接取字段定义
+        model_fields_map = {
+            f.name: f for f in ModelFields.objects.filter(model=model, name__in=list(fields_data.keys()))
+        }
+
+        extra_vars = {'plain': from_excel}
+
+        for field_name, value in fields_data.items():
+            field_def = model_fields_map.get(field_name)
+            if not field_def:
+                continue
+
+            if from_excel:
+                extra_vars['from_excel'] = True
+                extra_vars['plain'] = True
+
+            if field_def.type == FieldType.ENUM and field_def.validation_rule:
+                extra_vars['enum_dict'] = ValidationRules.get_enum_dict(field_def.validation_rule.id)
+            elif field_def.type == FieldType.MODEL_REF and field_def.ref_model_id:
+                extra_vars['instance_map'] = ModelInstance.objects.get_instance_names_by_models(
+                    [str(field_def.ref_model.id)]
+                )
+
+            converter = ConverterFactory.get_converter(field_def.type)
+            storage_value = converter.to_internal(value, **extra_vars)
+
+            ModelFieldMeta.objects.update_or_create(
+                model_instance=instance,
+                model_fields=field_def,
+                defaults={
+                    'model': model,
+                    'data': storage_value,
+                    'update_user': SYSTEM_USER.username,
+                    'create_user': SYSTEM_USER.username
                 }
             )
 

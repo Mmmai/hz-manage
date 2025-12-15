@@ -118,6 +118,12 @@ def process_import_data(self, excel_data: dict, model_id: str, userid: str, _aud
 
                 with audit_context(**_audit_context):
                     if is_update:
+                        ModelInstanceService.validate_fields_for_import_update(
+                            model=model,
+                            input_fields=raw_fields,
+                            user=user,
+                            import_context=import_context
+                        )
                         ModelInstanceService.update_instance(
                             instance=existing_instance,
                             validated_data=validated_data,
@@ -129,13 +135,25 @@ def process_import_data(self, excel_data: dict, model_id: str, userid: str, _aud
                         # 获取空闲池
                         unassigned_group = import_context.get('unassigned_group')
                         group_ids = [unassigned_group.id] if unassigned_group else None
-
-                        ModelInstanceService.create_instance(
-                            validated_data=validated_data,
+                        filled_fields = ModelInstanceService.prepare_fields_for_import_creation(
+                            model=model,
+                            input_fields=raw_fields,
                             user=user,
-                            instance_group_ids=group_ids,
-                            from_excel=True
+                            import_context=import_context
                         )
+                        validated_data['fields'] = filled_fields
+                        with transaction.atomic():
+                            instance = ModelInstanceService.create_instance(
+                                validated_data=validated_data,
+                                user=user,
+                                instance_group_ids=group_ids,
+                                from_excel=True
+                            )
+                            ModelInstanceService.backfill_field_values(
+                                instance=instance,
+                                fields_data=filled_fields,
+                                from_excel=True
+                            )
                         results['created'] += 1
 
             except ValidationError as e:

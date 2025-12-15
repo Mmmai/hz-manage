@@ -392,60 +392,6 @@ def update_instance_name_on_field_change(sender, instance, created, **kwargs):
         logger.error(f"Error generating instance name: {str(e)}")
 
 
-# 此信号弃用，实例自身path由模型方法主动计算，子节点path更新由update_descendant_paths处理
-# @receiver(post_save, sender=ModelInstanceGroup)
-def handle_group_path(sender, instance, created, **kwargs):
-    """
-    处理实例分组path更新和Zabbix主机组同步
-    使用递归方式处理所有子节点
-    """
-    if not sys_config.is_zabbix_sync_enabled():
-        return
-    # 检查是否需要跳过信号处理
-    if getattr(instance, '_skip_signal', False):
-        return
-
-    try:
-        zapi = ZabbixAPI()
-        new_path = instance.get_path()
-
-        # 如果路径发生变化，更新当前节点
-        if instance.path != new_path:
-            old_path = instance.path
-            instance.path = new_path
-            # 使用skip_signal避免无限递归
-            instance._skip_signal = True
-            instance.save()
-            # 同步Zabbix主机组
-            if new_path != '所有' and instance.model.name == 'hosts':
-                if not old_path:
-                    # 新建主机组
-                    children_count = ModelInstanceGroup.objects.filter(parent=instance.parent).count()
-                    logger.info(f'Creating hostgroup: {new_path.replace("所有/", "")}')
-                    if instance.parent and children_count == 1:
-                        logger.info(f'Delete parent hostgroup '
-                                    f'{instance.parent.path.replace("所有/", "")} since it has got children')
-                        zapi.delete_hostgroup(instance.parent.path.replace('所有/', ''))
-                    zapi.get_or_create_hostgroup(new_path.replace('所有/', ''))
-                else:
-                    # 重命名主机组
-                    logger.info(f'Renaming hostgroup: {old_path.replace("所有/", "")} -> {new_path.replace("所有/", "")}')
-                    zapi.rename_hostgroup(
-                        old_path.replace('所有/', ''),
-                        new_path.replace('所有/', '')
-                    )
-
-            # 在路径变化时递归处理所有子节点
-            children = ModelInstanceGroup.objects.filter(parent=instance)
-            for child in children:
-                # 子节点的更新会触发各自的post_save信号
-                child._skip_signal = False
-                child.save()
-
-    except Exception as e:
-        logger.error(f"Update group path error: {str(e)}")
-
-
 @receiver(pre_save, sender=ModelInstanceGroup)
 def cache_old_path(sender, instance, **kwargs):
     """在保存前缓存旧的path值"""
