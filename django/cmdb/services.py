@@ -21,6 +21,7 @@ from access.manager import PermissionManager
 from access.tools import has_password_permission
 from audit.snapshots import capture_audit_snapshots
 
+from .validators import FieldValidator
 from .constants import FieldType
 from .utils import password_handler
 from .utils.uuid_tools import UUIDFormatter
@@ -483,6 +484,7 @@ class ModelInstanceService:
             ref_instances_map = ModelInstance.objects.get_instance_names_by_instance_ids(
                 [str(rid) for rid in ref_instance_ids])
         context['ref_instances'] = ref_instances_map
+        context['field_configs'] = ModelFields.objects.get_all_fields_for_model(str(model.id))
 
         logger.debug(f"Prepared write context for ModelInstance: {context}")
         return context
@@ -493,7 +495,6 @@ class ModelInstanceService:
         """
         准备序列化上下文
         """
-        a = time.perf_counter()
         pm = PermissionManager(user)
         if not instances:
             return {}
@@ -517,9 +518,6 @@ class ModelInstanceService:
         fields_qs = pm.get_queryset(ModelFields).filter(model_id=model_id).select_related('validation_rule')
         fields_by_id = {str(f.id): f for f in fields_qs}
 
-        b = time.perf_counter()
-        logger.debug(f"Time taken to fetch fields config: {b - a} seconds")
-
         # 获取字段元数据
         meta_raw = list(pm.get_queryset(ModelFieldMeta).filter(
             model_instance_id__in=instance_ids
@@ -530,10 +528,6 @@ class ModelInstanceService:
             'data'
         ))
 
-        b1 = time.perf_counter()
-        logger.debug(f"Time taken to fetch ModelFieldMeta raw: {b1 - b} seconds")
-
-        # ========== 在内存中组装 field_meta_map ==========
         # 结构: {instance_id: [{'id': ..., 'field': ModelFields, 'data': ...}, ...]}
         field_meta_map = {}
         ref_model_ids = set()
@@ -562,16 +556,11 @@ class ModelInstanceService:
         context['field_meta'] = field_meta_map
         context['fields_by_id'] = fields_by_id
 
-        b2 = time.perf_counter()
-        logger.debug(f"Time taken to process ModelFieldMeta: {b2 - b1} seconds")
-
         # 获取实例分组
         instance_group_map = {}
         group_relations = pm.get_queryset(ModelInstanceGroupRelation).filter(
             instance_id__in=instance_ids
         ).select_related('group').distinct().values('instance_id', 'group_id', 'group__path')
-        c = time.perf_counter()
-        logger.debug(f'Time taken to fetch ModelInstanceGroupRelation: {c - b1} seconds')
 
         for rel in group_relations:
             instance_group_map.setdefault(str(rel['instance_id']), []).append({
@@ -580,17 +569,12 @@ class ModelInstanceService:
             })
         context['instance_group'] = instance_group_map
 
-        d = time.perf_counter()
-        logger.debug(f'Time taken to process instance groups: {d - c} seconds')
-
         # 获取引用实例名称
         ref_instances_map = {}
         if ref_model_ids:
             ref_model_str_ids = [str(mid) for mid in ref_model_ids]
             ref_instances_map = ModelInstance.objects.get_instance_names_by_instance_ids(ref_model_str_ids)
         context['ref_instances'] = ref_instances_map
-        e = time.perf_counter()
-        logger.debug(f'Time taken to fetch reference instances: {e - d} seconds')
 
         # 构建枚举缓存
         enum_cache = {}
@@ -652,10 +636,12 @@ class ModelInstanceService:
             context['ref_instances_by_name'] = ModelInstance.objects.get_ref_instances_by_names(list(all_ref_values))
 
         existing_names = [d.get('instance_name') for d in all_instances_data if d.get('instance_name')]
+        logger.debug(f'Existing names to check for import: {existing_names}')
         if existing_names:
             context['existing_instances'] = ModelInstance.objects.get_existing_instances_by_names(
                 str(model.id), existing_names
             )
+            logger.debug(f'Existing instances found for import: {list(context["existing_instances"].keys())}')
 
         context['unassigned_group'] = ModelInstanceGroup.objects.get_unassigned_group(str(model.id))
 
@@ -667,6 +653,14 @@ class ModelInstanceService:
         )
 
         return context
+
+    @staticmethod
+    def validate_fields(model: Models, fields_data: dict, field_configs: dict):
+        for field, value in fields_data.items():
+            field_config = field_configs.get(field)
+            logger.debug(f'Validating {field} {value} with {field_config}')
+            if field_config:
+                FieldValidator.validate(value, field_config)
 
     @staticmethod
     @require_valid_user
@@ -703,7 +697,12 @@ class ModelInstanceService:
         input_fields = input_fields or {}
         field_configs = import_context.get('field_configs', {}) or {}
 
-        allowed = ModelInstanceService._get_allowed_field_names_for_user(model, user)
+        pm = PermissionManager(user)
+        allowed = set(
+            pm.get_queryset(ModelFields)
+            .filter(model=model)
+            .values_list('name', flat=True)
+        )
 
         # 校验用户是否试图导入无权限字段
         perm_errors = {}
@@ -876,6 +875,7 @@ class ModelInstanceService:
         instance_name = cls.prepare_instance_name(
             instance.model,
             prepare_data,
+            instance=instance,
             is_create=False
         )
         if instance_name:
@@ -1162,9 +1162,10 @@ class ModelInstanceService:
 
         # 如果最终有实例名称，则校验唯一性
         if instance_name:
+            logger.debug(f"Validating instance name uniqueness: {instance_name} for model {model.name}")
             name_exists_query = ModelInstance.objects.filter(model=model, instance_name=instance_name)
             if instance and not is_create:
-                name_exists_query = name_exists_query.exclude(id=instance.id)
+                name_exists_query = name_exists_query.exclude(id=str(instance.id))
 
             if name_exists_query.exists():
                 raise ValidationError({

@@ -641,15 +641,17 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
 
         serializer = self.get_serializer(data=request.data, context=context)
         serializer.is_valid(raise_exception=True)
-
+        validated_data = serializer.validated_data
         # 获取分组
         instance_group_ids = request.data.get('instance_group', [])
         if isinstance(instance_group_ids, str):
             instance_group_ids = [instance_group_ids]
 
         # 创建实例
+        field_configs = self.context.get('field_configs')
+        ModelFieldGroupsService.validate_fields(None, validated_data, field_configs)
         instance = ModelInstanceService.create_instance(
-            validated_data=serializer.validated_data,
+            validated_data=validated_data,
             user=self.request.user,
             instance_group_ids=instance_group_ids
         )
@@ -664,14 +666,19 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
-
+        context = self.get_serializer_context()
+        write_context = ModelInstanceService.get_write_context(
+            instance.model,
+            request.data.get('fields', {}),
+            self.request.user
+        )
+        context.update(**write_context)
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
-
-        # 调用 Service 更新实例
+        validated_data = serializer.validated_data
         updated_instance = ModelInstanceService.update_instance(
             instance=instance,
-            validated_data=serializer.validated_data,
+            validated_data=validated_data,
             user=self.request.user
         )
 
@@ -770,7 +777,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
 
             # 生成 Excel 模板
             excel_handler = ExcelHandler()
-            workbook = excel_handler.generate_template(fields)
+            workbook = excel_handler.generate_template(model_id, fields)
 
             excel_file = io.BytesIO()
             workbook.save(excel_file)
@@ -848,6 +855,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             # 生成 Excel 文件（复用模板格式）
             excel_handler = ExcelHandler()
             workbook = excel_handler.generate_data_export_with_template(
+                model_id=model_id,
                 fields=export_result['fields'],
                 instances_data=export_result['instances_data'],
                 enum_data=export_result['enum_data'],
@@ -898,7 +906,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
 
         try:
             excel_handler = ExcelHandler()
-            excel_data = excel_handler.load_data(temp_path)
+            excel_data = excel_handler.load_data(temp_path, model_id)
             if excel_data['status'] == 'failed':
                 raise ValidationError({'detail': f'Failed to load Excel data: {excel_data["errors"][-1]}'})
 
@@ -991,7 +999,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
 
         try:
             excel_handler = ExcelHandler()
-            excel_data = excel_handler.load_data(temp_path)
+            excel_data = excel_handler.load_data(temp_path, model_id)
             if excel_data['status'] == 'failed':
                 raise ValidationError({'detail': f'Failed to load Excel data: {excel_data["errors"][-1]}'})
             else:

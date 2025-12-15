@@ -47,6 +47,7 @@
 - [ ] 用户被删除时同步清理对应的ModelFieldPreference
 - [x] 导出数据时同步使用模板表头方便再次导入
 - [x] 实例加载优化，预加载字段配置和值，序列化器通过上下文直接读取解析后的结果
+- [x] 实例导入时校验模板所属模型
 
 # 问题修复
 - [x] instance_name_template同步unique_constraint逻辑转移到服务层

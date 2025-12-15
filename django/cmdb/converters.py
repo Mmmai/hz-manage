@@ -71,6 +71,8 @@ class EnumConverter(FieldMetaConverter):
             reversed_enum_dict = {v: k for k, v in enum_dict.items()}
             if str(value) in reversed_enum_dict.keys():
                 return reversed_enum_dict[str(value)]
+            elif str(value) in enum_dict.keys():
+                return enum_dict[str(value)]
             raise ValueError(f"Invalid enum label: {value}")
 
         # 非Excel导入时，直接验证value

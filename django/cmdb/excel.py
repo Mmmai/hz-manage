@@ -254,6 +254,10 @@ class ExcelHandler:
         return current_enum_col + 2
 
     @staticmethod
+    def _write_model_id_to_sheet(validate_sheet, model_id):
+        validate_sheet['A1'] = model_id
+
+    @staticmethod
     def _handle_enum_data(enum_sheet, field, current_enum_col, template_sheet, col_letter, header_font):
         """处理枚举数据"""
         key_col_letter = get_column_letter(current_enum_col)
@@ -317,7 +321,7 @@ class ExcelHandler:
         return current_enum_col + 2, "枚举值" if field.type != FieldType.MODEL_REF else "关联模型"
 
     @classmethod
-    def _finalize_workbook(cls, template_sheet, enum_sheet):
+    def _finalize_workbook(cls, template_sheet, enum_sheet, validate_sheet):
         """完成工作簿的最终设置：冻结行、设置行高、锁定枚举表"""
         # 冻结前三行
         template_sheet.freeze_panes = 'A4'
@@ -328,9 +332,11 @@ class ExcelHandler:
         template_sheet.row_dimensions[3].height = 45
         enum_sheet.row_dimensions[1].height = 30
 
-        # 锁定枚举表 sheet
+        # 锁定枚举表和校验表
         enum_sheet.protection.enable()
         enum_sheet.protection.set_password('123456')
+        validate_sheet.protection.enable()
+        validate_sheet.protection.set_password('123456')
 
         # 获取父工作簿并设置计算属性
         wb = template_sheet.parent
@@ -406,7 +412,7 @@ class ExcelHandler:
             return None
         return cell.value
 
-    def load_data(self, file_path):
+    def load_data(self, file_path, model_id):
         """从Excel导入实例数据"""
         results = {
             'status': 'pending',
@@ -427,6 +433,12 @@ class ExcelHandler:
 
             data_sheet = wb['配置数据']
             # enum_sheet = wb['枚举类型可选值']
+            validate_sheet = wb['校验表']
+            accepted_model_id = validate_sheet['A1'].value
+            if model_id != accepted_model_id:
+                logger.warning(
+                    f'Accepted model id: {accepted_model_id} is not the same as current model id: {model_id}')
+                raise ValueError(f'Attempting to import incompatible model data.')
 
             # 保存前三行表头
             for row in range(1, 4):
@@ -486,8 +498,8 @@ class ExcelHandler:
             results['status'] = 'failed'
             return results
 
-    @staticmethod
-    def generate_error_export(headers, header_rows, error_data):
+    @classmethod
+    def generate_error_export(cls, model_id, headers, header_rows, error_data):
         """生成错误数据导出
         Args:
             model: 模型实例
@@ -502,6 +514,10 @@ class ExcelHandler:
         wb = Workbook()
         sheet = wb.active
         sheet.title = "配置数据"
+        validate_sheet = wb.create_sheet('校验表')
+        cls._write_model_id_to_sheet(validate_sheet, model_id)
+        validate_sheet.protection.enable()
+        validate_sheet.protection.set_password('123456')
 
         # 复制前三行表头
         for row_idx, row_data in enumerate(header_rows, 1):
@@ -514,9 +530,11 @@ class ExcelHandler:
 
         # 添加错误信息列
         error_col = sheet.max_column + 1
-        error_cell = sheet.cell(row=1, column=error_col, value='错误信息')
+        error_cell = sheet.cell(row=1, column=error_col, value='error\r\n错误信息')
         error_cell.font = Font(bold=True)
-        error_cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        error_cell.alignment = cls.CENTER_ALIGNMENT
+        error_info_cell = sheet.cell(row=3, column=error_col, value='处理后请删除本列重新导入')
+        error_info_cell.alignment = cls.CENTER_ALIGNMENT
 
         # 填充错误数据和错误信息
         for row, error in enumerate(error_data, 4):
@@ -545,7 +563,7 @@ class ExcelHandler:
         return wb
 
     @classmethod
-    def generate_template(cls, fields):
+    def generate_template(cls, model_id, fields):
         """
         生成导入模板（仅表头，无数据）。
 
@@ -556,6 +574,7 @@ class ExcelHandler:
         template_sheet = wb.active
         template_sheet.title = "配置数据"
         enum_sheet = wb.create_sheet("枚举类型可选值")
+        validate_sheet = wb.create_sheet("校验表")
 
         # 设置 instance_name 列
         cls._setup_instance_name_column(template_sheet)
@@ -569,13 +588,16 @@ class ExcelHandler:
                 template_sheet, enum_sheet, field, col, current_enum_col
             )
 
+        # 设置校验表
+        cls._write_model_id_to_sheet(validate_sheet, model_id)
+
         # 完成工作簿设置
-        cls._finalize_workbook(template_sheet, enum_sheet)
+        cls._finalize_workbook(template_sheet, enum_sheet, validate_sheet)
 
         return wb
 
     @classmethod
-    def generate_data_export_with_template(cls, fields, instances_data, enum_data=None, ref_data=None):
+    def generate_data_export_with_template(cls, model_id, fields, instances_data, enum_data=None, ref_data=None):
         """
         生成带数据的导出文件，格式与导入模板完全一致。
         包含：配置数据 sheet（三行表头 + 数据行）、枚举类型可选值 sheet（带锁定）
@@ -590,6 +612,7 @@ class ExcelHandler:
         template_sheet = wb.active
         template_sheet.title = "配置数据"
         enum_sheet = wb.create_sheet("枚举类型可选值")
+        validate_sheet = wb.create_sheet("校验表")
 
         # 设置 instance_name 列
         cls._setup_instance_name_column(template_sheet)
@@ -623,7 +646,10 @@ class ExcelHandler:
                     template_sheet[f'{col_letter}{row}'] = field_value
                     template_sheet[f'{col_letter}{row}'].alignment = cls.CENTER_ALIGNMENT
 
+        # 设置校验表
+        cls._write_model_id_to_sheet(validate_sheet, model_id)
+
         # 完成工作簿设置
-        cls._finalize_workbook(template_sheet, enum_sheet)
+        cls._finalize_workbook(template_sheet, enum_sheet, validate_sheet)
 
         return wb
