@@ -1,11 +1,14 @@
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Union
 import statistics
-
+import pandas as pd
+import logging
+logger = logging.getLogger(__name__)
 def process_zabbix_history_data(
     history_data: List[Dict[str, str]], 
     value_type: str = 'float',
-    time_format: str = 'unix_timestamp'
+    time_format: str = 'unix_timestamp',
+    decimal_places: int = 6
 ) -> Dict[str, Union[float, int, None]]:
     """
     处理 Zabbix API 历史数据并提取统计信息
@@ -15,6 +18,7 @@ def process_zabbix_history_data(
                     格式: [{'clock': '1717020000', 'value': '23.5'}, ...]
         value_type: 数值类型 ('float', 'int', 'str')
         time_format: 时间格式 ('unix_timestamp', 'iso_string')
+        decimal_places: 数值类返回值的小数位数，默认为6位
     
     Returns:
         包含统计数据的字典
@@ -87,27 +91,27 @@ def process_zabbix_history_data(
     
     # 计算统计信息
     stats = {
-        'max_value': max(numeric_values) if numeric_values else None,
-        'min_value': min(numeric_values) if numeric_values else None,
-        'avg_value': sum(numeric_values) / len(numeric_values) if numeric_values else None,
-        'latest_value': processed_data[-1]['value'],
-        'earliest_value': processed_data[0]['value'],
+        'max_value': round(max(numeric_values), decimal_places) if numeric_values else None,
+        'min_value': round(min(numeric_values), decimal_places) if numeric_values else None,
+        'avg_value': round(sum(numeric_values) / len(numeric_values), decimal_places) if numeric_values else None,
+        'latest_value': round(processed_data[-1]['value'],decimal_places),
+        'earliest_value': round(processed_data[0]['value'],decimal_places),
         'latest_time': processed_data[-1]['datetime'].isoformat(),
         'earliest_time': processed_data[0]['datetime'].isoformat(),
         'count': len(processed_data),
-        'std_dev': statistics.stdev(numeric_values) if len(numeric_values) > 1 else None,
-        'median': statistics.median(numeric_values) if numeric_values else None
+        'std_dev': round(statistics.stdev(numeric_values), decimal_places) if len(numeric_values) > 1 else None,
+        'median': round(statistics.median(numeric_values), decimal_places) if numeric_values else None
     }
     
     # 添加更多统计信息
     if numeric_values:
         stats.update({
-            'sum_value': sum(numeric_values),
-            'range': (stats['max_value'] - stats['min_value']) if stats['max_value'] is not None and stats['min_value'] is not None else None,
-            'first_quartile': calculate_percentile(numeric_values, 25) if len(numeric_values) >= 4 else None,
-            'third_quartile': calculate_percentile(numeric_values, 75) if len(numeric_values) >= 4 else None,
-            'percentile_95': calculate_percentile(numeric_values, 95) if len(numeric_values) >= 20 else None,
-            'percentile_99': calculate_percentile(numeric_values, 99) if len(numeric_values) >= 100 else None
+            'sum_value': round(sum(numeric_values), decimal_places),
+            'range': round(stats['max_value'] - stats['min_value'], decimal_places) if stats['max_value'] is not None and stats['min_value'] is not None else None,
+            'first_quartile': round(calculate_percentile(numeric_values, 25), decimal_places) if len(numeric_values) >= 4 else None,
+            'third_quartile': round(calculate_percentile(numeric_values, 75), decimal_places) if len(numeric_values) >= 4 else None,
+            'percentile_95': round(calculate_percentile(numeric_values, 95), decimal_places) if len(numeric_values) >= 20 else None,
+            'percentile_99': round(calculate_percentile(numeric_values, 99), decimal_places) if len(numeric_values) >= 100 else None
         })
     
     return stats
@@ -184,6 +188,70 @@ def get_time_based_stats(
     ]
     
     return process_zabbix_history_data(filtered_data)
+# ... existing code ...
+def align_series_in_backend(data_map, start_ts, end_ts, interval):
+    """
+    后端对齐算法 - 修正版本
+    """
+    # ✅ 正确使用 datetime.datetime.fromtimestamp()
+    start_dt = datetime.fromtimestamp(start_ts)
+    end_dt = datetime.fromtimestamp(end_ts)
+    
+    # 创建统一时间轴
+    time_index = pd.date_range(
+        start=start_dt,
+        end=end_dt,
+        freq=f'{interval}S'
+    )
+    
+    # 转换为 DataFrame 并对齐
+    aligned_df = pd.DataFrame(index=time_index)
+    
+    # 处理数据为空的情况
+    if not data_map:
+        # 如果data_map为空，则返回空的结果结构
+        result = {
+            'time_labels': [ts.strftime('%H:%M') for ts in time_index],
+            'series': []
+        }
+        return result
+    
+    for item_id, raw_values in data_map.items():
+        # 处理某个系列数据为空的情况
+        if not raw_values:
+            # 如果当前系列的数据为空，填充NaN值
+            aligned_df[item_id] = pd.Series([None] * len(time_index), index=time_index)
+            continue
+            
+        try:
+            # ✅ 正确转换时间戳
+            timestamps = [datetime.fromtimestamp(int(x['clock'])) for x in raw_values]
+            values = [float(x['value']) for x in raw_values]
+            
+            series = pd.Series(values, index=timestamps)
+            # 重采样对齐
+            aligned_series = series.reindex(time_index, method='nearest', tolerance=pd.Timedelta(seconds=interval))
+            
+            aligned_df[item_id] = aligned_series
+        except (ValueError, KeyError, TypeError) as e:
+            # 如果在处理数据时出现异常，用NaN填充该系列
+            logger.error(f"Warning: Error processing series {item_id}: {e}")
+            aligned_df[item_id] = pd.Series([None] * len(time_index), index=time_index)
+    
+    # 转换为前端所需格式
+    result = {
+        'time_labels': [ts.strftime('%H:%M') for ts in time_index],
+        'series': []
+    }
+    for col in aligned_df.columns:
+        result['series'].append({
+            'name': col,
+            'data': aligned_df[col].tolist()
+        })
+    
+    return result
+# ... existing code ...
+
 
 # 使用示例
 if __name__ == "__main__":

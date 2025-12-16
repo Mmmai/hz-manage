@@ -607,13 +607,13 @@
           </el-form>
         </el-tab-pane>
 
-        <el-tab-pane
+        <!-- <el-tab-pane
           label="监控信息"
           name="monitor"
           v-if="modelInfo.name === 'hosts'"
         >
           <MonitorChart :ip="instanceIp" />
-        </el-tab-pane>
+        </el-tab-pane> -->
         <el-tab-pane label="关联关系" name="relations">
           <ciDataRelation
             ref="ciDataRelationRef"

@@ -76,7 +76,7 @@ logger = logging.getLogger(__name__)
 
 @receiver(post_migrate)
 def init_menu(sender, **kwargs):
-    if sender.name != 'permissions':
+    if sender.name != 'access':
         return
 
     """初始化菜单"""
@@ -169,7 +169,6 @@ def auto_create_default_button(sender, instance, created, **kwargs):
 @receiver(post_save, sender=Button)
 def auto_add_to_sysadmin(sender, instance, created, **kwargs):
     if created:
-<<<<<<< HEAD
         role_obj = PublicRoleService.get_sysadmin()
         Permission.objects.create(menu=instance.menu, button=instance, role=role_obj)
         logger.info(f"Automatically granted <{instance.menu.label}:{instance.name}> permission to sysadmin role.")
@@ -239,11 +238,3 @@ def clear_cache_on_permission_change(sender, instance, created=None, **kwargs):
             logger.info(f"Cleared password permission cache for user: {username} due to permission change")
         except Exception as e:
             logger.error(f"Failed to clear password permission cache for user {username}: {e}")
-=======
-        try:
-            role_obj = PublicRoleService.get_sysadmin()
-            Permission.objects.create(menu=instance.menu, button=instance, role=role_obj)
-            logger.info(f"Automatically granted <{instance.menu.label}:{instance.name}> permission to sysadmin role.")
-        except Exception as e:
-            pass
->>>>>>> hz-manager/cmdb_permission

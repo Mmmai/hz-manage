@@ -31,14 +31,7 @@ const api = {
 
     })
   },
-  getMenuList(params) {
-    return axios.request({
-      url: path.menuList,
-      method: 'post',
-      data: params
 
-    })
-  },
   // 查看单个menu信息
   getMenuInfo(params) {
     return axios.request({

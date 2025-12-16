@@ -14,6 +14,14 @@ export default {
       method: 'get',
     })
   },
+  getMenuList(params) {
+    return axios.request({
+      url: path.access + 'getMenu/',
+      method: 'post',
+      data: params
+
+    })
+  },
   menuUpdate(params) {
     return axios.request({
       url: path.menu + params.id + '/',

@@ -49,8 +49,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'access',
     'mapi',
+    'access',
     'audit',
     'mlog',
     'cacheops',
@@ -412,6 +412,18 @@ LOGGING = {
             'filename': os.path.join(LOG_DIR, 'jobflow.log'),
             'formatter': 'standard',
         },
+        'access_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'access.log'),
+            'formatter': 'standard',
+        },
+        'monitor_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'monitor.log'),
+            'formatter': 'standard',
+        },
     },
     'loggers': {
         'django': {
@@ -447,6 +459,16 @@ LOGGING = {
         },
         'jobflow': {
             'handlers': ['jobflow_file', 'console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'access': {
+            'handlers': ['access_file', 'console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'monitor': {
+            'handlers': ['monitor_file', 'console'],
             'level': 'DEBUG',
             'propagate': True,
         },

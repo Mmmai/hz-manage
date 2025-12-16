@@ -332,6 +332,7 @@ onMounted(async () => {
   await getCiModelGroupList();
   await getCiModelList();
   await getCiModelTree();
+  await modelStore.getAllModelTreeInstances();
   ciDataShowRef.value!.setLoading(true);
   await ciDataShowRef.value!.getModelField();
   await ciDataShowRef.value!.getHasConfigField();
