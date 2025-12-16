@@ -648,8 +648,6 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
             instance_group_ids = [instance_group_ids]
 
         # 创建实例
-        field_configs = self.context.get('field_configs')
-        ModelFieldGroupsService.validate_fields(None, validated_data, field_configs)
         instance = ModelInstanceService.create_instance(
             validated_data=validated_data,
             user=self.request.user,

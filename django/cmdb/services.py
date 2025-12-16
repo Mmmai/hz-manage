@@ -2144,8 +2144,6 @@ class ModelFieldMetaSearchService:
         if search_mode == 'boolean':
             boolean_terms = []
             for variant in search_variants:
-                # 对于 FULLTEXT 搜索，不转义点号等，让 ngram 正常分词
-                # 但需要转义布尔操作符
                 safe_variant = (
                     variant
                     .replace('\\', '')  # 移除已有的转义
@@ -2217,7 +2215,7 @@ class ModelFieldMetaSearchService:
                     OR `data` COLLATE {collation} LIKE %s
                     OR `data` COLLATE {collation} LIKE %s
                     OR ({like_clause})
-                    OR MATCH(`data`) AGAINST(%s {match_mode}) > %s
+                    OR MATCH(`data`) AGAINST(%s {match_mode}) > 0.7
                 )
             ORDER BY is_exact_match DESC, relevance DESC
             LIMIT {cls.MAX_RESULTS}
@@ -2256,7 +2254,7 @@ class ModelFieldMetaSearchService:
             return results
         except Exception as e:
             logger.warning(f'Hybrid search failed: {e}, falling back to LIKE search')
-            return ModelFieldMetaSearchService._fallback_like_search(
+            return cls._fallback_like_search(
                 search_variants, instance_id_strs, field_id_strs
             )
 
@@ -2415,10 +2413,11 @@ class ModelFieldMetaSearchService:
                 if search_key == (label if case_sensitive else label.lower()):
                     variants.add(key)
 
-        # 只搜索实例名
+        # 搜索实例
         for key, value in ref_instance_cache.items():
             if search_key in (value if case_sensitive else value.lower()):
                 variants.add(value)
+                variants.add(key)
 
         return variants
 
@@ -2506,7 +2505,7 @@ class ModelFieldMetaSearchService:
     @require_valid_user
     def search_instances_by_name(query: str, user: UserInfo, model_ids: list = None, limit: int = 50) -> list:
         """
-        按实例名称搜索（使用 FULLTEXT）
+        按实例名称搜索
         """
         from django_mysql.models.functions import Match
 
@@ -2658,11 +2657,11 @@ class RelationsService:
 
         # 检查模型约束
         if relation_def.source_model.exists():
-            if not relation_def.source_model.filter(id=source_instance.model_id).exists():
+            if not relation_def.source_model.filter(id=source_instance.first().model_id).exists():
                 raise ValidationError(f"Source instance model is not allowed for this relation type.")
 
         if relation_def.target_model.exists():
-            if not relation_def.target_model.filter(id=target_instance.model_id).exists():
+            if not relation_def.target_model.filter(id=target_instance.first().model_id).exists():
                 raise ValidationError(f"Target instance model is not allowed for this relation type.")
 
         # 检查DAG约束（有向无环图）
@@ -2671,8 +2670,8 @@ class RelationsService:
                 raise ValidationError("This relation would create a cycle, which is not allowed for DAG topology.")
 
         relation = Relations.objects.create(
-            source_instance=source_instance,
-            target_instance=target_instance,
+            source_instance=source_instance.first(),
+            target_instance=target_instance.first(),
             relation=relation_def,
             source_attributes=validated_data.get('source_attributes', {}),
             target_attributes=validated_data.get('target_attributes', {}),
