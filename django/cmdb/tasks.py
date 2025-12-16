@@ -82,7 +82,7 @@ def process_import_data(self, excel_data: dict, model_id: str, userid: str, _aud
                     k: v for k, v in instance_data.get('fields', {}).items()
                     if v not in (None, '')
                 }
-                # processed_fields = ModelInstanceService.preprocess_import_fields(raw_fields, import_context)
+                processed_fields = ModelInstanceService.preprocess_import_fields(raw_fields, import_context)
 
                 existing_instance = import_context['existing_instances'].get(instance_name)
                 is_update = existing_instance is not None
@@ -90,7 +90,7 @@ def process_import_data(self, excel_data: dict, model_id: str, userid: str, _aud
                 serializer_data = {
                     'model': model_id,
                     'instance_name': instance_name,
-                    'fields': raw_fields,
+                    'fields': processed_fields,
                     'input_mode': 'import',
                     'using_template': using_template
                 }
@@ -118,6 +118,14 @@ def process_import_data(self, excel_data: dict, model_id: str, userid: str, _aud
 
                 with audit_context(**_audit_context):
                     if is_update:
+                        logger.debug(f"Updating existing instance '{instance_name}'")
+                        ModelInstanceService.validate_fields_for_import_update(
+                            model=model,
+                            input_fields=raw_fields,
+                            user=user,
+                            import_context=import_context
+                        )
+                        logger.debug(f"Validated fields for update of instance '{instance_name}'")
                         ModelInstanceService.update_instance(
                             instance=existing_instance,
                             validated_data=validated_data,
@@ -129,13 +137,25 @@ def process_import_data(self, excel_data: dict, model_id: str, userid: str, _aud
                         # 获取空闲池
                         unassigned_group = import_context.get('unassigned_group')
                         group_ids = [unassigned_group.id] if unassigned_group else None
-
-                        ModelInstanceService.create_instance(
-                            validated_data=validated_data,
+                        filled_fields = ModelInstanceService.prepare_fields_for_import_creation(
+                            model=model,
+                            input_fields=processed_fields,
                             user=user,
-                            instance_group_ids=group_ids,
-                            from_excel=True
+                            import_context=import_context
                         )
+                        validated_data['fields'] = filled_fields
+                        with transaction.atomic():
+                            instance = ModelInstanceService.create_instance(
+                                validated_data=validated_data,
+                                user=user,
+                                instance_group_ids=group_ids,
+                                from_excel=True
+                            )
+                            ModelInstanceService.backfill_field_values(
+                                instance=instance,
+                                fields_data=filled_fields,
+                                from_excel=True
+                            )
                         results['created'] += 1
 
             except ValidationError as e:
@@ -161,7 +181,7 @@ def process_import_data(self, excel_data: dict, model_id: str, userid: str, _aud
             _update_progress(results, cache_key)
 
         if error_data:
-            _generate_error_report(excel_data, error_data, results)
+            _generate_error_report(model_id, excel_data, error_data, results)
 
         results['status'] = 'completed'
         results['progress'] = 100
@@ -193,11 +213,12 @@ def _update_progress(results: dict, cache_key: str):
     cache.set(cache_key, results, timeout=600)
 
 
-def _generate_error_report(excel_data: dict, error_data: list, results: dict):
+def _generate_error_report(model_id: str, excel_data: dict, error_data: list, results: dict):
     """生成错误报告文件"""
     try:
         excel_handler = ExcelHandler()
         error_wb = excel_handler.generate_error_export(
+            model_id,
             excel_data.get('headers', []),
             excel_data.get('header_rows', []),
             error_data

@@ -381,7 +381,12 @@ LOGGING = {
             'filename': os.path.join(LOG_DIR, 'celery.log'),
             'formatter': 'standard',
         },
-        # 为其他app添加日志文件
+        'audit_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'audit.log'),
+            'formatter': 'standard',
+        },
         'mlog_file': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
@@ -436,7 +441,11 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
-        # 为各app配置独立日志记录器
+        'audit': {
+            'handlers': ['audit_file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
         'mlog': {
             'handlers': ['mlog_file', 'console'],
             'level': 'DEBUG',

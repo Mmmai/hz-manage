@@ -162,11 +162,16 @@ def log_changes(sender, instance, created, **kwargs):
             new_val = new_field_data.get('value')
 
             if old_val != new_val:
+                logger.debug(f'{old_val} {new_val}')
                 if resolver:
                     model_field = new_field_data.get('model_field') or old_field_data.get('model_field')
                     if model_field:
                         old_val = resolver(model_field, old_val)
                         new_val = resolver(model_field, new_val)
+                        logger.debug(f'{old_val} {new_val}')
+                        if old_val == new_val:
+                            logger.debug(f'No changes found for {model_field.name}. Skipped.')
+                            continue
                 dynamic_changes.append({
                     'name': key,
                     'verbose_name': new_field_data.get('verbose_name') or old_field_data.get('verbose_name', ''),

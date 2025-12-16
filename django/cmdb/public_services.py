@@ -11,6 +11,9 @@ class PublicModelInstanceService:
     @staticmethod
     def update_instance(instance, fields, user, **kwargs):
         """更新模型实例"""
+        context = ModelInstanceService.get_read_context([instance], user)
+        write_context = ModelInstanceService.get_write_context(instance.model, fields, user)
+        context.update(**write_context)
         serializer = ModelInstanceSerializer(
             instance,
             data=fields,
@@ -18,9 +21,10 @@ class PublicModelInstanceService:
             context={'request_user': user}
         )
         serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
         return ModelInstanceService.update_instance(
             instance,
-            serializer.validated_data,
+            validated_data,
             user.username,
             **kwargs
         )

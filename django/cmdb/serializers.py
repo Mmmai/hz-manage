@@ -840,8 +840,8 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
         """验证字段值"""
         request = self.context.get('request', None)
         from_excel = self.context.get('from_excel', False)
-        if from_excel:
-            return fields_data
+        field_configs = self.context.get('field_configs', {})
+        logger.debug(f'Validating fields: {fields_data}')
 
         if not model and self.instance:
             model = self.instance.model
@@ -849,39 +849,14 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
         if not model:
             model = self.initial_data.get('model')
 
-        if request and request.method in ['PUT', 'POST']:
+        if request and request.method in ['PUT', 'POST', 'PATCH'] or request is None:
             if not model:
                 raise serializers.ValidationError("Model is required")
-            if not self.instance:
-                # 获取模型的所有必填字段
-                required_fields = ModelFields.objects.filter(
-                    model=model,
-                    required=True
-                ).values_list('name', flat=True)
-
-                # 检查必填字段是否都提供了
-                missing_fields = [
-                    field for field in required_fields
-                    if field not in fields_data or fields_data[field] is None
-                ]
-
-                if missing_fields:
-                    raise serializers.ValidationError({
-                        'fields': f'Required fields are missing: {", ".join(missing_fields)}'
-                    })
-        elif request and request.method == 'PATCH':
-            # 检查是否有提供字段
-            if not fields_data:
-                logger.info(f'Fields data not provided: {fields_data}')
-                return fields_data
-
-            # 检查是否有未知字段
-            valid_fields = ModelFields.objects.filter(model=model).values_list('name', flat=True)
-            unknown_fields = [field for field in fields_data if field not in valid_fields]
-            if unknown_fields:
-                raise serializers.ValidationError({
-                    'fields': f'Unknown fields: {", ".join(unknown_fields)}'
-                })
+            logger.debug(f'Begin to validate fields through serializer')
+            for field, value in fields_data.items():
+                field_config = field_configs.get(field)
+                if field_config:
+                    FieldValidator.validate(value, field_config)
         return fields_data
 
     def _validate_field_value(self, field, value):

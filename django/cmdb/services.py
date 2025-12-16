@@ -12,14 +12,16 @@ from django.db import transaction
 from django.db.models import QuerySet
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.db import connection
-from django.db.models import Value, FloatField
-from django.db.models.functions import Coalesce
+from django.db.models import Exists, OuterRef
+
 from audit.context import audit_context
 from mapi.models import UserInfo
+from mapi.system_user import SYSTEM_USER
 from access.manager import PermissionManager
 from access.tools import has_password_permission
 from audit.snapshots import capture_audit_snapshots
 
+from .validators import FieldValidator
 from .constants import FieldType
 from .utils import password_handler
 from .utils.uuid_tools import UUIDFormatter
@@ -484,6 +486,7 @@ class ModelInstanceService:
             ref_instances_map = ModelInstance.objects.get_instance_names_by_instance_ids(
                 [str(rid) for rid in ref_instance_ids])
         context['ref_instances'] = ref_instances_map
+        context['field_configs'] = ModelFields.objects.get_all_fields_for_model(str(model.id))
 
         logger.debug(f"Prepared write context for ModelInstance: {context}")
         return context
@@ -494,7 +497,6 @@ class ModelInstanceService:
         """
         准备序列化上下文
         """
-        a = time.perf_counter()
         pm = PermissionManager(user)
         if not instances:
             return {}
@@ -518,9 +520,6 @@ class ModelInstanceService:
         fields_qs = pm.get_queryset(ModelFields).filter(model_id=model_id).select_related('validation_rule')
         fields_by_id = {str(f.id): f for f in fields_qs}
 
-        b = time.perf_counter()
-        logger.debug(f"Time taken to fetch fields config: {b - a} seconds")
-
         # 获取字段元数据
         meta_raw = list(pm.get_queryset(ModelFieldMeta).filter(
             model_instance_id__in=instance_ids
@@ -531,10 +530,6 @@ class ModelInstanceService:
             'data'
         ))
 
-        b1 = time.perf_counter()
-        logger.debug(f"Time taken to fetch ModelFieldMeta raw: {b1 - b} seconds")
-
-        # ========== 在内存中组装 field_meta_map ==========
         # 结构: {instance_id: [{'id': ..., 'field': ModelFields, 'data': ...}, ...]}
         field_meta_map = {}
         ref_model_ids = set()
@@ -563,16 +558,11 @@ class ModelInstanceService:
         context['field_meta'] = field_meta_map
         context['fields_by_id'] = fields_by_id
 
-        b2 = time.perf_counter()
-        logger.debug(f"Time taken to process ModelFieldMeta: {b2 - b1} seconds")
-
         # 获取实例分组
         instance_group_map = {}
         group_relations = pm.get_queryset(ModelInstanceGroupRelation).filter(
             instance_id__in=instance_ids
         ).select_related('group').distinct().values('instance_id', 'group_id', 'group__path')
-        c = time.perf_counter()
-        logger.debug(f'Time taken to fetch ModelInstanceGroupRelation: {c - b1} seconds')
 
         for rel in group_relations:
             instance_group_map.setdefault(str(rel['instance_id']), []).append({
@@ -581,17 +571,12 @@ class ModelInstanceService:
             })
         context['instance_group'] = instance_group_map
 
-        d = time.perf_counter()
-        logger.debug(f'Time taken to process instance groups: {d - c} seconds')
-
         # 获取引用实例名称
         ref_instances_map = {}
         if ref_model_ids:
             ref_model_str_ids = [str(mid) for mid in ref_model_ids]
             ref_instances_map = ModelInstance.objects.get_instance_names_by_instance_ids(ref_model_str_ids)
         context['ref_instances'] = ref_instances_map
-        e = time.perf_counter()
-        logger.debug(f'Time taken to fetch reference instances: {e - d} seconds')
 
         # 构建枚举缓存
         enum_cache = {}
@@ -653,10 +638,12 @@ class ModelInstanceService:
             context['ref_instances_by_name'] = ModelInstance.objects.get_ref_instances_by_names(list(all_ref_values))
 
         existing_names = [d.get('instance_name') for d in all_instances_data if d.get('instance_name')]
+        logger.debug(f'Existing names to check for import: {existing_names}')
         if existing_names:
             context['existing_instances'] = ModelInstance.objects.get_existing_instances_by_names(
                 str(model.id), existing_names
             )
+            logger.debug(f'Existing instances found for import: {list(context["existing_instances"].keys())}')
 
         context['unassigned_group'] = ModelInstanceGroup.objects.get_unassigned_group(str(model.id))
 
@@ -670,22 +657,133 @@ class ModelInstanceService:
         return context
 
     @staticmethod
+    def validate_fields(model: Models, fields_data: dict, field_configs: dict):
+        for field, value in fields_data.items():
+            field_config = field_configs.get(field)
+            logger.debug(f'Validating {field} {value} with {field_config}')
+            if field_config:
+                FieldValidator.validate(value, field_config)
+
+    @staticmethod
+    @require_valid_user
+    def validate_import_fields(model: Models, fields_data: dict, user: UserInfo):
+        _missed_value = object()
+        pm = PermissionManager(user)
+        all_fields = ModelFields.objects.get_all_fields_for_model(str(model.id))
+        allowed_fields = set(
+            pm.get_queryset(ModelFields)
+            .filter(model=model)
+            .values_list('name', flat=True)
+        )
+
+        for field in all_fields:
+            data = fields_data.get(field.name, _missed_value)
+
+            # 提供了未授权的字段
+            if data is not _missed_value and field.name not in allowed_fields:
+                logger.warning(f"User {user.username} attempted to import unauthorized field: {field.name}")
+                # 设置为空，后续使用默认逻辑
+                data = _missed_value
+
+            # 字段取值，传入值 > default > None
+            if data is _missed_value:
+                value = field.default if field.default else None
+            else:
+                value = data
+
+            if field.required and (value is None or value == ""):
+                raise ValidationError(f'Received empty value for required field: {field.name}')
+
+    @staticmethod
+    def validate_fields_for_import_update(model: Models, input_fields: dict, user: UserInfo, import_context: dict):
+        input_fields = input_fields or {}
+        field_configs = import_context.get('field_configs', {}) or {}
+
+        pm = PermissionManager(user)
+        allowed = set(
+            pm.get_queryset(ModelFields)
+            .filter(model=model)
+            .values_list('name', flat=True)
+        )
+
+        # 校验用户是否试图导入无权限字段
+        perm_errors = {}
+        for name in input_fields.keys():
+            if name not in field_configs:
+                perm_errors[name] = 'Unknown field'
+            elif name not in allowed:
+                perm_errors[name] = 'No permission to set this field'
+        if perm_errors:
+            raise ValidationError({'fields': perm_errors})
+
+    @staticmethod
+    def prepare_fields_for_import_creation(model: Models, input_fields: dict, user: UserInfo, import_context: dict) -> dict:
+        input_fields = input_fields or {}
+        field_configs = import_context.get('field_configs', {}) or {}
+        required_fields = import_context.get('required_fields', []) or []
+
+        pm = PermissionManager(user)
+        allowed = pm.get_queryset(ModelFields).filter(model=model).values_list('name', flat=True)
+
+        # 校验用户是否试图导入无权限字段
+        perm_errors = {}
+        for name in input_fields.keys():
+            if name not in field_configs:
+                perm_errors[name] = 'Unknown field'
+            elif name not in allowed:
+                perm_errors[name] = 'No permission to set this field'
+        if perm_errors:
+            raise ValidationError({'fields': perm_errors})
+
+        # 补全未给出字段的最终写入值（default/None）
+        filled = {}
+        for name, cfg in field_configs.items():
+            if name in input_fields:
+                filled[name] = input_fields.get(name)
+                continue
+
+            dv = getattr(cfg, 'default_value', None)
+            if dv in (None, ''):
+                filled[name] = None
+            else:
+                filled[name] = dv
+
+        # 校验必填
+        req_errors = {}
+        for name in required_fields:
+            val = filled.get(name, None)
+            # 0 / False 视为有效；None/'' 视为缺失
+            if val is None or val == '':
+                if name not in allowed:
+                    req_errors[name] = 'Required field missing and the current user has no permission and no default value'
+                else:
+                    req_errors[name] = 'Required field missing'
+        if req_errors:
+            raise ValidationError({'fields': req_errors})
+
+        return filled
+
+    @staticmethod
     def preprocess_import_fields(fields_data: dict, import_context: dict) -> dict:
         """
         预处理导入的字段数据：将 Excel 中的显示值转换为存储值。
         枚举的 label -> key，引用的 instance_name -> id
         """
         processed = {}
+        fields_not_provided = []
+        required_fields = import_context.get('required_fields', [])
         field_configs = import_context.get('field_configs', {})
         enum_maps = import_context.get('enum_maps', {})
         ref_by_name = import_context.get('ref_instances_by_name', {})
 
         for field_name, raw_value in fields_data.items():
             if raw_value in (None, ''):
+                fields_not_provided.append(field_name)
                 continue
 
             field_config = field_configs.get(field_name)
             if not field_config:
+                fields_not_provided.append(field_name)
                 continue
 
             processed_value = raw_value
@@ -779,6 +877,7 @@ class ModelInstanceService:
         instance_name = cls.prepare_instance_name(
             instance.model,
             prepare_data,
+            instance=instance,
             is_create=False
         )
         if instance_name:
@@ -840,6 +939,52 @@ class ModelInstanceService:
                     'data': storage_value,
                     'update_user': username,
                     'create_user': username  # 默认更新时重置创建用户，meta的用户信息不重要
+                }
+            )
+
+    @staticmethod
+    def backfill_field_values(instance: ModelInstance, fields_data: dict, from_excel: bool = False):
+        """
+        导入并【创建】实例时以系统用户补全未提供字段，调用前必须完成校验
+        """
+        if not fields_data:
+            return
+
+        model = instance.model
+        # 不经权限过滤，直接取字段定义
+        model_fields_map = {
+            f.name: f for f in ModelFields.objects.filter(model=model, name__in=list(fields_data.keys()))
+        }
+
+        extra_vars = {'plain': from_excel}
+
+        for field_name, value in fields_data.items():
+            field_def = model_fields_map.get(field_name)
+            if not field_def:
+                continue
+
+            if from_excel:
+                extra_vars['from_excel'] = True
+                extra_vars['plain'] = True
+
+            if field_def.type == FieldType.ENUM and field_def.validation_rule:
+                extra_vars['enum_dict'] = ValidationRules.get_enum_dict(field_def.validation_rule.id)
+            elif field_def.type == FieldType.MODEL_REF and field_def.ref_model_id:
+                extra_vars['instance_map'] = ModelInstance.objects.get_instance_names_by_models(
+                    [str(field_def.ref_model.id)]
+                )
+
+            converter = ConverterFactory.get_converter(field_def.type)
+            storage_value = converter.to_internal(value, **extra_vars)
+
+            ModelFieldMeta.objects.update_or_create(
+                model_instance=instance,
+                model_fields=field_def,
+                defaults={
+                    'model': model,
+                    'data': storage_value,
+                    'update_user': SYSTEM_USER.username,
+                    'create_user': SYSTEM_USER.username
                 }
             )
 
@@ -1019,9 +1164,10 @@ class ModelInstanceService:
 
         # 如果最终有实例名称，则校验唯一性
         if instance_name:
+            logger.debug(f"Validating instance name uniqueness: {instance_name} for model {model.name}")
             name_exists_query = ModelInstance.objects.filter(model=model, instance_name=instance_name)
             if instance and not is_create:
-                name_exists_query = name_exists_query.exclude(id=instance.id)
+                name_exists_query = name_exists_query.exclude(id=str(instance.id))
 
             if name_exists_query.exists():
                 raise ValidationError({
@@ -2001,8 +2147,6 @@ class ModelFieldMetaSearchService:
         if search_mode == 'boolean':
             boolean_terms = []
             for variant in search_variants:
-                # 对于 FULLTEXT 搜索，不转义点号等，让 ngram 正常分词
-                # 但需要转义布尔操作符
                 safe_variant = (
                     variant
                     .replace('\\', '')  # 移除已有的转义
@@ -2074,7 +2218,7 @@ class ModelFieldMetaSearchService:
                     OR `data` COLLATE {collation} LIKE %s
                     OR `data` COLLATE {collation} LIKE %s
                     OR ({like_clause})
-                    OR MATCH(`data`) AGAINST(%s {match_mode}) > %s
+                    OR MATCH(`data`) AGAINST(%s {match_mode}) > 0.7
                 )
             ORDER BY is_exact_match DESC, relevance DESC
             LIMIT {cls.MAX_RESULTS}
@@ -2113,7 +2257,7 @@ class ModelFieldMetaSearchService:
             return results
         except Exception as e:
             logger.warning(f'Hybrid search failed: {e}, falling back to LIKE search')
-            return ModelFieldMetaSearchService._fallback_like_search(
+            return cls._fallback_like_search(
                 search_variants, instance_id_strs, field_id_strs
             )
 
@@ -2272,10 +2416,11 @@ class ModelFieldMetaSearchService:
                 if search_key == (label if case_sensitive else label.lower()):
                     variants.add(key)
 
-        # 只搜索实例名
+        # 搜索实例
         for key, value in ref_instance_cache.items():
             if search_key in (value if case_sensitive else value.lower()):
                 variants.add(value)
+                variants.add(key)
 
         return variants
 
@@ -2363,7 +2508,7 @@ class ModelFieldMetaSearchService:
     @require_valid_user
     def search_instances_by_name(query: str, user: UserInfo, model_ids: list = None, limit: int = 50) -> list:
         """
-        按实例名称搜索（使用 FULLTEXT）
+        按实例名称搜索
         """
         from django_mysql.models.functions import Match
 
@@ -2515,11 +2660,11 @@ class RelationsService:
 
         # 检查模型约束
         if relation_def.source_model.exists():
-            if not relation_def.source_model.filter(id=source_instance.model_id).exists():
+            if not relation_def.source_model.filter(id=source_instance.first().model_id).exists():
                 raise ValidationError(f"Source instance model is not allowed for this relation type.")
 
         if relation_def.target_model.exists():
-            if not relation_def.target_model.filter(id=target_instance.model_id).exists():
+            if not relation_def.target_model.filter(id=target_instance.first().model_id).exists():
                 raise ValidationError(f"Target instance model is not allowed for this relation type.")
 
         # 检查DAG约束（有向无环图）
@@ -2528,8 +2673,8 @@ class RelationsService:
                 raise ValidationError("This relation would create a cycle, which is not allowed for DAG topology.")
 
         relation = Relations.objects.create(
-            source_instance=source_instance,
-            target_instance=target_instance,
+            source_instance=source_instance.first(),
+            target_instance=target_instance.first(),
             relation=relation_def,
             source_attributes=validated_data.get('source_attributes', {}),
             target_attributes=validated_data.get('target_attributes', {}),
