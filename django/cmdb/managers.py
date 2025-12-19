@@ -441,6 +441,14 @@ class RelationsManager(models.Manager):
     提供跨越权限边界的特权方法，用于系统内部调用。
     """
 
+    def check_relation_exists(self, source_instance_id: str, target_instance_id: str, relation_id: str):
+        """检查指定关系实例是否存在"""
+        return self.filter(
+            source_instance_id=source_instance_id,
+            target_instance_id=target_instance_id,
+            relation_id=relation_id
+        ).exists()
+
     def get_all_relations_for_instance(self, instance_id: str):
         return self.filter(
             Q(source_instance_id=instance_id) | Q(target_instance_id=instance_id)

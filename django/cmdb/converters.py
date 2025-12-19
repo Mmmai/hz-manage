@@ -67,12 +67,14 @@ class EnumConverter(FieldMetaConverter):
 
         from_excel = kwargs.get("from_excel", False)
         if from_excel:
-            # Excel 导入时，将label映射为value
-            reversed_enum_dict = {v: k for k, v in enum_dict.items()}
-            if str(value) in reversed_enum_dict.keys():
-                return reversed_enum_dict[str(value)]
-            elif str(value) in enum_dict.keys():
-                return enum_dict[str(value)]
+            if str(value) in enum_dict.keys():
+                return str(value)
+            else:
+                # Excel 导入时，将label映射为value
+                reversed_enum_dict = {v: k for k, v in enum_dict.items()}
+                if str(value) in reversed_enum_dict.keys():
+                    return reversed_enum_dict[str(value)]
+
             raise ValueError(f"Invalid enum label: {value}")
 
         # 非Excel导入时，直接验证value
@@ -101,6 +103,8 @@ class ModelRefConverter(FieldMetaConverter):
         from_excel = kwargs.get("from_excel", False)
         if from_excel:
             reversed_instance_map = {v: k for k, v in instance_map.items()}
+            if str(value) in instance_map.keys():
+                return str(value)
             if str(value) in reversed_instance_map.keys():
                 return reversed_instance_map[str(value)]
             raise ValueError(f"Invalid reference instance name: {value}")

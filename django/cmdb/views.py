@@ -535,6 +535,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
 
         if model_id:
             queryset = queryset.filter(model_id=model_id)
+            query &= Q(model_id=model_id)
             logger.debug(f"Filtered by model ID: {model_id}")
 
         standard_fields = {}
@@ -586,7 +587,7 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
                             else:
                                 query &= ~Q(data=value)
                     else:
-                        if value == 'null':
+                        if field_value == 'null':
                             query &= Q(data__isnull=True)
                         else:
                             query &= Q(data=field_value)
@@ -598,7 +599,10 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
                 logger.error(f"Error processing field {field_name}: {traceback.format_exc()}")
                 continue
 
-        queryset = queryset.filter(query)
+        pm = PermissionManager(user=self.request.user)
+        field_values_qs = pm.get_queryset(ModelFieldMeta).filter(query)
+        instance_ids = field_values_qs.values_list('model_instance_id', flat=True)
+        queryset = queryset.filter(id__in=instance_ids)
         return queryset
 
     # @cached_as(ModelInstance, timeout=600)
