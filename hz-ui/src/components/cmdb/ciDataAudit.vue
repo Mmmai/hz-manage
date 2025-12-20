@@ -341,23 +341,35 @@ const formatChanges = (row) => {
   if (row.changed_fields) {
     Object.keys(row.changed_fields).forEach((field) => {
       const values = row.changed_fields[field];
-      if (field === "groups") {
+      if (field === "update_user") {
+        return;
+      } else if (field === "groups") {
         changes.push({
           field: changeMap[field],
-          oldValue: values[0].map((item) => item.path).join(","),
-          newValue: values[1].map((item) => item.path).join(","),
+          oldValue: values[0]?.map((item) => item.path).join("\n"),
+          newValue: values[1]?.map((item) => item.path).join("\n"),
         });
-      } else if (field === "model_field_group") {
+      } else if (field === "instance_name_template") {
+        // console.log(
+        //   "instance_name_template:",
+        //   values[0].map((item) => item.verbose_name).join("-") ? 111 : 222
+        // );
         changes.push({
           field: changeMap[field],
-          oldValue: values[0].verbose_name,
-          newValue: values[1].verbose_name,
+          oldValue:
+            values[0]?.length >> 0
+              ? values[0]?.map((item) => item.verbose_name).join("-")
+              : null,
+          newValue:
+            values[1]?.length >> 0
+              ? values[1]?.map((item) => item.verbose_name).join("-")
+              : null,
         });
       } else {
         changes.push({
-          field: changeMap[field],
-          oldValue: values[0],
-          newValue: values[1],
+          field: changeMap.hasOwnProperty(field) ? changeMap[field] : field,
+          oldValue: formatDetails(values[0]),
+          newValue: formatDetails(values[1]),
         });
       }
     });

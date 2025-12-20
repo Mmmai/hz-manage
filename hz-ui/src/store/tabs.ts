@@ -29,7 +29,9 @@ export const useTabsStore = defineStore(
       })
       return _temp
     })
-
+    const updateCurrentBreadcrumb = (params) => {
+      currentBreadcrumb.value = params
+    }
     const updateCurrentTitle = async (params) => {
       currentTitle.value = params.title
       currentMenu.value = params.name.split('_')[0]
@@ -44,6 +46,7 @@ export const useTabsStore = defineStore(
 
     // 添加标签
     const addTabs = (tabItem) => {
+
       // 实现看单个详情,每次都覆盖之前的详单tabs
       if (tabItem.name === 'logFlowMission_info') {
         // if (tabsMenuList.value.every(item => item.name !== tabItem.name)) {
@@ -59,13 +62,22 @@ export const useTabsStore = defineStore(
         }
         return
       }
+
       // 详情页在本tab内
       if (tabItem.hasInfo) {
-        // 找到tabsMenuList里对应的tabItem
-        let index = tabsMenuList.value.findIndex(item => item.title === tabItem.title)
-        // 找到tabsMenuList里对应的tabItem,更新元素
-        index !== -1 && tabsMenuList.value.splice(index, 1, tabItem)
+        if (tabItem.name === 'cidata_info') {
+          tabItem.title = tabItem.title
+
+        }
+        else {
+
+          // 找到tabsMenuList里对应的tabItem
+          let index = tabsMenuList.value.findIndex(item => item.title === tabItem.title)
+          // 找到tabsMenuList里对应的tabItem,更新元素
+          index !== -1 && tabsMenuList.value.splice(index, 1, tabItem)
+        }
       }
+
 
       if (tabsMenuList.value.every(item => item.path !== tabItem.path)) {
         tabsMenuList.value.push(tabItem);
@@ -77,9 +89,7 @@ export const useTabsStore = defineStore(
     }
     const removeTabs = (tabPath: string, isCurrent: boolean = true) => {
       const tabItem = tabsMenuList.value.find(item => item.path === tabPath);
-      // console.log(tabItem)
       tabItem?.isKeepAlive && keepAliveStore.removeKeepAliveName(tabItem.name);
-      // console.log(tabPath.path)
       if (isCurrent) {
         tabsMenuList.value.forEach((item, index) => {
 
@@ -113,11 +123,20 @@ export const useTabsStore = defineStore(
 
       // let _tempList = tabsMenuList.value.filter(item => item.path !== tabPath || item.fullPath !== tabPath)
       tabsMenuList.value = _tempList
-      console.log(tabsMenuList.value)
 
     }
     const setTabs = (params: TabsMenuProps[]) => {
       tabsMenuList.value = params;
+    }
+    // 根据fullpath，找到tabsMenuList对应的元素，更新title,及menuPath,要触发响应式
+    const updateTabs = (params: TabsMenuProps) => {
+      tabsMenuList.value.forEach(item => {
+        if (item.fullPath === params.fullPath) {
+          item.title = params.title
+          item.menuPath = params.menuPath
+        }
+      })
+      updateCurrentBreadcrumb(params.menuPath)
     }
     const closeTabsOnSide = (path: string, type: "left" | "right") => {
       const currentIndex = tabsMenuList.value.findIndex(item => item.fullPath === path);
@@ -144,7 +163,7 @@ export const useTabsStore = defineStore(
 
 
     return {
-      tabsMenuList, closeTabsOnSide, closeMultipleTab,
+      tabsMenuList, closeTabsOnSide, closeMultipleTab, updateTabs,
       addTabs, removeTabs, tabsMenuDict, currentTitle, updateCurrentTitle, currentMenu, setTabs, currentBreadcrumb
     }
   },

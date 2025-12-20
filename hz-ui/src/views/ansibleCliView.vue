@@ -32,6 +32,7 @@
         :props="defaultProps"
         :filter-method="filterNode"
         @check-change="handleCheckChange"
+        :default-expanded-keys="branchNodeIds"
         :height="900"
       >
         <template #default="{ node, data }">
@@ -255,11 +256,16 @@
 
         <!-- 命令参数输入 -->
         <div class="command-input" v-if="selectedModule">
-          <el-input
+          <el-autocomplete
             v-model="commandInput"
+            :fetch-suggestions="queryHistory"
             :placeholder="getCommandPlaceholder()"
             :disabled="executing || selectedModule === 'ping'"
             @keyup.enter="executeCommand"
+            @keyup.up="navigateHistoryUp"
+            @keyup.down="navigateHistoryDown"
+            @select="handleSelectHistory"
+            clearable
           />
         </div>
       </div>
@@ -279,7 +285,10 @@ import {
   nextTick,
 } from "vue";
 import { ElMessage } from "element-plus";
-import { AnsiUp } from "ansi_up";
+import AnsiToHtml from "ansi-to-html";
+// import "@/assets/ansi-colors.css"; // 引入 ANSI CSS 类
+const ansiConverter = new AnsiToHtml({ escapeXML: false });
+
 import type {
   FilterNodeMethodFunction,
   TreeV2Instance,
@@ -293,7 +302,7 @@ import useModelStore from "@/store/cmdb/model";
 import { Refresh, Search } from "@element-plus/icons-vue";
 const modelConfigStore = useModelStore();
 const hostsModelId = computed(
-  () => modelConfigStore.modelObjectByName?.hosts.id
+  () => modelConfigStore.modelObjectByName?.["hosts"]?.id
 );
 const hostModelCiDataObj = computed(
   () => modelConfigStore.allModelCiDataObj[hostsModelId.value]
@@ -308,7 +317,80 @@ const filterNode = (query: string, node: TreeNodeData) =>
   node.label!.includes(query);
 
 const currentChange = (data, obj) => {
-  console.log(data, obj);
+  // console.log(data, obj);
+};
+
+// 添加历史记录相关数据
+const commandHistory = ref([]);
+const historyIndex = ref(-1);
+const maxHistoryItems = ref(50); // 最大历史记录数
+const saveHistory = () => {
+  localStorage.setItem(
+    "ansibleCommandHistory",
+    JSON.stringify(commandHistory.value)
+  );
+};
+
+// 添加命令到历史记录
+const addToHistory = (command) => {
+  if (!command) return;
+
+  // 移除重复的命令
+  const index = commandHistory.value.indexOf(command);
+  if (index !== -1) {
+    commandHistory.value.splice(index, 1);
+  }
+
+  // 添加到开头
+  commandHistory.value.unshift(command);
+
+  // 限制历史记录数量
+  if (commandHistory.value.length > maxHistoryItems.value) {
+    commandHistory.value = commandHistory.value.slice(0, maxHistoryItems.value);
+  }
+
+  // 保存到localStorage
+  saveHistory();
+};
+
+// 查询历史记录（用于autocomplete）
+const queryHistory = (queryString, callback) => {
+  // 当输入为空时，不显示任何建议
+  if (!queryString) {
+    callback([]);
+    return;
+  }
+  const results = queryString
+    ? commandHistory.value.filter((item) => item.includes(queryString))
+    : commandHistory.value.map((item) => ({ value: item }));
+
+  callback(
+    results.map((item) => (typeof item === "string" ? { value: item } : item))
+  );
+};
+
+// 向上导航历史记录
+const navigateHistoryUp = () => {
+  if (commandHistory.value.length === 0) return;
+
+  if (historyIndex.value < commandHistory.value.length - 1) {
+    historyIndex.value++;
+    commandInput.value = commandHistory.value[historyIndex.value];
+  }
+};
+
+// 向下导航历史记录
+const navigateHistoryDown = () => {
+  if (historyIndex.value >= 0) {
+    historyIndex.value--;
+    commandInput.value =
+      historyIndex.value >= 0 ? commandHistory.value[historyIndex.value] : "";
+  }
+};
+
+// 处理从历史记录中选择
+const handleSelectHistory = (item) => {
+  commandInput.value = item.value;
 };
 
 // 选中的主机
@@ -336,8 +418,8 @@ const moduleDocsVisible = ref(false);
 const docsModule = ref("");
 
 // AnsiUp 实例用于处理 ANSI 颜色代码
-const ansiUp = new AnsiUp();
-
+// const ansiUp = new AnsiUp();
+// ansiUp.use_classes = true;
 // 树属性配置
 const defaultProps = {
   children: "children",
@@ -943,7 +1025,15 @@ const convertToTreeFormat1 = (treeData) => {
   // 处理根节点数组
   return treeData.map(convertNode);
 };
+// 在树数据声明附近添加分支节点ID的响应式变量
+const treeData = ref([]);
+const branchNodeIds = ref([]); // 存储所有分支节点的ID
+
+// 修改convertToTreeFormat函数以使用响应式变量
 const convertToTreeFormat = (data) => {
+  // 重置分支节点ID数组
+  branchNodeIds.value = [];
+
   /**
    * 递归转换节点
    * @param {Object} node - 原始节点
@@ -951,7 +1041,7 @@ const convertToTreeFormat = (data) => {
    */
   const convertNode = (node) => {
     const newNode = {
-      id: node.id,
+      id: node?.id,
       label: node.label,
     };
 
@@ -978,6 +1068,12 @@ const convertToTreeFormat = (data) => {
 
     if (allChildren.length > 0) {
       newNode.children = allChildren;
+
+      // 只有当节点有真正的子节点（而不是只有实例）时，才将其标记为分支节点
+      // 这样可以确保只有包含子树的节点才会被记录为需要展开的节点
+      if (validChildren.length > 0) {
+        branchNodeIds.value.push(newNode.id);
+      }
     } else if (
       (!node.instances || node.instances.length === 0) &&
       (!node.children || node.children.length === 0)
@@ -991,11 +1087,17 @@ const convertToTreeFormat = (data) => {
 
   // 处理根节点数组并过滤掉null节点
   const result = data.map(convertNode).filter((node) => node !== null);
+
   return result;
 };
 
-// 树数据
-const treeData = ref([]);
+// 添加一个函数来展开所有分支节点
+const expandAllBranchNodes = () => {
+  // 这个函数可以在树组件中使用，用来展开所有分支节点
+  // 具体实现取决于您使用的树组件
+  console.log("Branch node IDs to expand:", branchNodeIds.value);
+  return branchNodeIds.value;
+};
 
 // 处理选中变化
 const handleCheckChange = (data, checked, indeterminate) => {
@@ -1081,7 +1183,22 @@ const executeCommand = async () => {
     ElMessage.warning("请选择要执行的 Ansible 模块");
     return;
   }
+  // 判断选择的节点数，如果超过200，则拒绝执行，提示
+  if (selectedHosts.value.length > 200) {
+    ElMessage.warning("选择的节点数超过200，请选择少一点");
+    return;
+  }
+  const commandToExecute = commandInput.value;
 
+  // 添加到历史记录（除非是ping模块，因为它不需要参数）
+  if (selectedModule.value !== "ping") {
+    addToHistory(commandToExecute);
+  }
+
+  // 重置历史索引
+  historyIndex.value = -1;
+
+  // 设置执行状态
   executing.value = true;
   resultOutput.value = [];
 
@@ -1133,6 +1250,8 @@ const executeCommand = async () => {
     console.error("执行命令时出错:", error);
     executing.value = false;
     addResultLine(`错误: ${error.message}`, "error");
+  } finally {
+    executing.value = false;
   }
 };
 
@@ -1171,13 +1290,15 @@ const findNodeById = (nodes, id) => {
 const addResultLine = (text, type = "") => {
   // 使用 ansiUp 处理 ANSI 颜色代码
   if (text === "" || text === null || text === undefined) return;
-  const htmlText = ansiUp.ansi_to_html(text);
+  // 忽略WARNING
+  if (text.includes("[WARNING]: Platform")) return;
+  const htmlText = ansiConverter.toHtml(text);
   resultOutput.value.push(htmlText);
 
   // 限制显示行数，避免内存占用过大
-  if (resultOutput.value.length > 1000) {
-    resultOutput.value.shift();
-  }
+  // if (resultOutput.value.length > 1000) {
+  //   resultOutput.value.shift();
+  // }
 
   // 实时滚动到底部
   scrollToBottom();
@@ -1221,11 +1342,17 @@ const reloadTree = async () => {
 watch(hostModelCiDataObj, (val) => {
   treeData.value = convertToTreeFormat([hostModelCiDataObj.value]);
 });
+
 onMounted(async () => {
+  const savedHistory = localStorage.getItem("ansibleCommandHistory");
+  if (savedHistory) {
+    commandHistory.value = JSON.parse(savedHistory);
+  }
   await modelConfigStore.getModel();
   await modelConfigStore.getAllModelTreeInstances();
   nextTick(() => {
     treeData.value = convertToTreeFormat([hostModelCiDataObj.value]);
+    // treeRef.value!.setExpandedKeys(branchNodeIds.value);
   });
 });
 
@@ -1260,8 +1387,14 @@ onUnmounted(() => {
   overflow-x: auto; /* 启用水平滚动 */
   overflow-y: auto; /* 启用垂直滚动 */
   margin-right: 10px;
+  :deep(.el-vl__window) {
+    overflow: inherit !important;
+  }
 }
 
+// .el-tree-v2 {
+//   display: inline-block;
+// }
 /* 确保树节点内容可以超出容器宽度 */
 .host-tree-panel :deep(.el-tree) {
   min-width: fit-content; /* 确保树的最小宽度适应内容 */

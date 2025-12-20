@@ -15,6 +15,7 @@ export const modelConfigStore = defineStore(
         return acc;
       }, {});
     });
+    const hostsModelId = computed(() => { modelObjectByName.value?.hosts.id })
     const modelObjectById = computed(() => {
       return allModels.value.reduce((acc, cur) => {
         acc[cur.id] = cur;
@@ -122,7 +123,6 @@ export const modelConfigStore = defineStore(
         model: model,
       });
       allModelCiDataObj.value[model] = res.data[0];
-      console.log(allModelCiDataObj.value[model]);
     }
 
 
@@ -145,11 +145,25 @@ export const modelConfigStore = defineStore(
       allModels.value = [];
 
     }
-
+    const modelSyncConfigs = ref([])
+    const modelSyncList = computed(() => {
+      return modelSyncConfigs.value.filter(item => item.is_manage)
+    })
+    const updateModelSyncConfigs = (data) => {
+      modelSyncConfigs.value = data
+    }
+    const getMangeModel = async (force = false) => {
+      if (modelSyncConfigs.value.length > 0 && !force) return;
+      let res = await proxy.$api.getModelConfig({ ordering: "create_time" });
+      if (res.status == 200) {
+        modelSyncConfigs.value = res.data.results
+      }
+    };
     // 提供给外部调用
     return {
-      allModels, modelObjectByName, modelObjectById, modelOptions, getModel, updateAllModels, allModelCiDataObj, getModelTreeInstance, getAllModelTreeInstances, allModelCiDataTreeObj,
-      validationRules, validationRulesObjectById, validationRulesEnumOptionsObject, getValidationRules, updateValidationRules, validationRulesOptions, clearModelConfig
+      allModels, modelObjectByName, hostsModelId, modelObjectById, modelOptions, getModel, updateAllModels, allModelCiDataObj, getModelTreeInstance, getAllModelTreeInstances, allModelCiDataTreeObj,
+      validationRules, validationRulesObjectById, validationRulesEnumOptionsObject, getValidationRules, updateValidationRules, validationRulesOptions, clearModelConfig,
+      updateModelSyncConfigs, getMangeModel, modelSyncList, modelSyncConfigs
     }
   },
   // 插件外参

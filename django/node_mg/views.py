@@ -1,6 +1,7 @@
 from rest_framework.decorators import action
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
+from rest_framework.response import Response
 from rest_framework import filters, status
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.views import APIView
@@ -140,6 +141,124 @@ class NodesViewSet(AuditContextMixin, ModelViewSet):
                 Q(node_tasks__error_message__icontains=search_term,node_tasks__task_name__in=['get_system_info','zabbix_agent_install'])
             ).distinct()
         return queryset
+    def retrieve(self, request, *args, **kwargs):
+        """
+        重写单个节点查询方法，支持通过节点ID或实例ID获取节点信息
+        
+        支持两种查询方式：
+        1. 通过节点ID查询: GET /nodes/{node_id}/
+        2. 通过实例ID查询: GET /nodes/{any_value}/?instance_id={instance_id}
+        
+        Args:
+            request: HTTP请求对象
+            *args: 位置参数
+            **kwargs: 关键字参数，包含pk(节点ID)
+            
+        Returns:
+            Response: DRF响应对象
+        """
+        instance_id = request.query_params.get('instance_id', None)
+        
+        # 如果提供了instance_id参数，则通过实例ID查询节点
+        if instance_id:
+            try:
+                # 使用实例ID查找节点
+                node = self.get_queryset().get(model_instance_id=instance_id)
+                
+                # 使用节点序列化器序列化数据
+                serializer = self.get_serializer(node)
+                
+                # 可以添加额外的数据处理
+                data = serializer.data
+                
+                # 获取最新的任务错误信息（如果需要）
+                latest_task = node.node_tasks.order_by('-created_at').first()
+                if latest_task:
+                    data['latest_error_message'] = latest_task.error_message
+                    data['latest_task_status'] = latest_task.status
+                    data['latest_task_time'] = latest_task.created_at
+                
+                return JsonResponse({
+                    'status': 'success',
+                    'data': data
+                })
+                
+            except Nodes.DoesNotExist:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f'未找到实例ID为 {instance_id} 的节点'
+                }, status=status.HTTP_404_NOT_FOUND)
+                
+            except Exception as e:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f'查询节点时发生错误: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # 如果没有提供instance_id参数，则使用默认的行为（通过节点ID查询）
+        else:
+            try:
+                response = super().retrieve(request, *args, **kwargs)
+                
+                # 可以在这里添加额外的数据处理
+                if response.status_code == status.HTTP_200_OK:
+                    node_id = kwargs.get('pk')
+                    try:
+                        node = self.get_queryset().get(pk=node_id)
+                        
+                        # 获取最新的任务错误信息
+                        latest_task = node.node_tasks.order_by('-created_at').first()
+                        if latest_task:
+                            response.data['latest_error_message'] = latest_task.error_message
+                            response.data['latest_task_status'] = latest_task.status
+                            response.data['latest_task_time'] = latest_task.created_at
+                            
+                    except Nodes.DoesNotExist:
+                        pass
+                        
+                return response
+                
+            except Exception as e:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f'查询节点时发生错误: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    @action(detail=False, methods=['get'])
+    def get_info_by_instance(self, request):
+        instance_id = request.query_params.get('instance_id', None)
+        
+        # 如果提供了instance_id参数，则通过实例ID查询节点
+        if instance_id:
+            try:
+                # 使用实例ID查找节点
+                node = self.get_queryset().get(model_instance_id=instance_id)
+                
+                # 使用节点序列化器序列化数据
+                serializer = self.get_serializer(node)
+                
+                # 可以添加额外的数据处理
+                data = serializer.data
+                
+                # 获取最新的任务错误信息（如果需要）
+                latest_task = node.node_tasks.order_by('-created_at').first()
+                if latest_task:
+                    data['latest_error_message'] = latest_task.error_message
+                    data['latest_task_status'] = latest_task.status
+                    data['latest_task_time'] = latest_task.created_at
+                
+                return Response(data)
+                
+            except Nodes.DoesNotExist:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f'未找到实例ID为 {instance_id} 的节点'
+                }, status=status.HTTP_404_NOT_FOUND)
+                
+            except Exception as e:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f'查询节点时发生错误: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)        
 
     @action(detail=False, methods=['get'], pagination_class=None)
     def list_all_nodes(self, request):

@@ -1,6 +1,6 @@
 <template>
   <div class="divVertical gap-5">
-    <div class="header card">
+    <!-- <div class="header card">
       <el-page-header @back="goBack">
         <template #content>
           <span>{{
@@ -8,13 +8,13 @@
           }}</span>
         </template>
       </el-page-header>
-    </div>
+    </div> -->
 
     <div class="content card">
       <el-descriptions
         border
         :column="2"
-        style="width: 40%; margin-bottom: 10px"
+        style="width: 100%; margin-bottom: 10px"
         label-width="100px"
       >
         <el-descriptions-item label="唯一标识">
@@ -614,6 +614,17 @@
         >
           <MonitorChart :ip="instanceIp" />
         </el-tab-pane> -->
+        <el-tab-pane
+          label="任务记录"
+          name="nodeTasks"
+          v-if="modelInfo.name === 'hosts'"
+        >
+          <ciDataNode
+            ref="ciDataNodeRef"
+            v-if="instanceData && instanceData.id"
+            :instanceId="instanceData.id"
+          />
+        </el-tab-pane>
         <el-tab-pane label="关联关系" name="relations">
           <ciDataRelation
             ref="ciDataRelationRef"
@@ -659,11 +670,28 @@ import MonitorChart from "@/components/cmdb/ciDataMonitor.vue";
 
 import ciDataAudit from "@/components/cmdb/ciDataAudit.vue";
 import ciDataRelation from "@/components/cmdb/ciDataRelation.vue";
+import ciDataNode from "@/components/cmdb/ciDataNode.vue";
+
+import { useTabsStore } from "@/store/tabs";
+const { proxy } = getCurrentInstance();
+const route = useRoute();
+const router = useRouter();
+// 在适当的位置（如 onMounted 或获取到节点信息后）
+const tabsStore = useTabsStore();
+// 更新当前标签页标题
+// if (route.query.title) {
+//   tabsStore.updateCurrentTitle({
+//     title: route.query.title,
+//     name: route.name,
+//     menuPath: [], // 根据实际需要填充面包屑路径
+//   });
+// }
 const instanceId = ref(null);
 const instanceData = ref({});
 
 const modelConfigStore = useModelStore();
 const modelObjectById = computed(() => modelConfigStore.modelObjectById);
+const hostsModelId = computed(() => modelConfigStore.hostsModelId);
 const modelInfo = ref({});
 // const modelInfo = computed(
 //   () => modelObjectById.value[instanceData.value?.model]
@@ -674,9 +702,7 @@ const validationRulesEnumObject = computed(
 const allModelCiDataTreeObj = computed(
   () => modelConfigStore.allModelCiDataTreeObj
 );
-const { proxy } = getCurrentInstance();
-const route = useRoute();
-const router = useRouter();
+
 const configStore = useConfigStore();
 const isEdit = ref(false);
 const gmConfig = computed(() => configStore.gmCry);
@@ -689,6 +715,7 @@ const editForm = reactive({
   using_template: true,
 });
 const ciDataAuditRef = ref(null);
+const ciDataNodeRef = ref(null);
 const activeName = ref("modelField");
 const handleClick = (tab: TabsPaneContext, event: Event) => {
   if (tab.props.name == "changelog") {
@@ -737,7 +764,6 @@ const initEditForm = () => {
       editForm[item] = instanceData.value.fields[item];
     }
   });
-  console.log(editForm);
 };
 const hasUnassignedPool = computed(() => {
   return instanceData.value?.instance_group?.some((item) =>
@@ -940,7 +966,6 @@ const submitAction = async () => {
           getCiDataInfo();
           // router.back();
         } else {
-          console.log(res);
           ElMessage({
             showClose: true,
             message: "保存失败:" + JSON.stringify(res.data),
@@ -948,7 +973,6 @@ const submitAction = async () => {
           });
         }
       } catch (error) {
-        console.log(error);
         ElMessage({
           showClose: true,
           message: "保存失败，请稍后重试",
@@ -1028,6 +1052,7 @@ const getModelRefCiData = async (params) => {
     page_size: 10000,
   });
 };
+
 const getCiDataInfo = async () => {
   const res = await proxy.$api.getCiModelInstanceInfo(instanceId.value);
   if (res.status === 200) {
@@ -1035,6 +1060,16 @@ const getCiDataInfo = async () => {
     instanceIp.value = instanceData.value?.fields?.ip;
     console.log(instanceIp.value);
     modelInfo.value = modelObjectById.value[instanceData.value?.model];
+    tabsStore.updateTabs({
+      title:
+        modelInfo.value.verbose_name + ": " + instanceData.value?.instance_name,
+      menuPath: [
+        ...route.meta.menuPath,
+        { name: instanceData.value?.instance_name },
+      ],
+
+      fullPath: route.fullPath,
+    });
   }
 };
 
@@ -1046,7 +1081,7 @@ onMounted(async () => {
     // 获取模型信息
     // await getCiModelInfo();
     modelConfigStore.getModel();
-
+    modelConfigStore.getMangeModel();
     modelConfigStore.getValidationRules();
     // 初始化表单
     initEditForm();

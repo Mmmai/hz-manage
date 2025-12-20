@@ -68,7 +68,21 @@
                       >触发同步</el-button
                     >
                   </el-tooltip>
-
+                  <el-tooltip
+                    class="box-item"
+                    effect="dark"
+                    content="触发管理状态更新"
+                    placement="top"
+                  >
+                    <el-button
+                      v-if="activeName === 'hosts'"
+                      v-permission="`${route.name?.replace('_info', '')}:add`"
+                      type="primary"
+                      :disabled="multipleSelection.length >>> 0 ? false : true"
+                      @click="assetInfoTask({ id: multipleSelection })"
+                      >状态更新</el-button
+                    >
+                  </el-tooltip>
                   <el-tooltip
                     class="box-item"
                     effect="dark"
@@ -277,7 +291,6 @@
                 <el-table-column
                   property="manage_error_message"
                   label="管理错误信息"
-                  width="500"
                   v-if="activeName === 'hosts'"
                 >
                   <template #default="scope">
@@ -289,7 +302,6 @@
                 <el-table-column
                   property="agent_error_message"
                   label="agent错误信息"
-                  width="500"
                   v-if="activeName === 'hosts'"
                 >
                   <template #default="scope">
@@ -420,7 +432,7 @@ import {
   rowContextKey,
 } from "element-plus";
 const router = useRouter();
-defineOptions({ name: "ciSyncZabbix" });
+defineOptions({ name: "nodeManage" });
 import type { TabsPaneContext } from "element-plus";
 import useModelStore from "@/store/cmdb/model";
 import { get } from "lodash";
@@ -520,6 +532,7 @@ const getMangeModel = async () => {
         label: item.model_verbose_name || item.model_name,
         name: item.model_name,
       }));
+    modelConfigStore.updateModelSyncConfigs(res.data.results);
   }
 };
 

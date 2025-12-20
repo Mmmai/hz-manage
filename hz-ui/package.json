@@ -23,6 +23,7 @@
     "@imengyu/vue3-context-menu": "^1.4.4",
     "@vue/reactivity": "^3.5.13",
     "@vueuse/core": "^14.0.0",
+    "ansi-to-html": "^0.7.2",
     "ansi_up": "^6.0.6",
     "ant-design-vue": "^4.2.6",
     "axios": "^1.5.1",

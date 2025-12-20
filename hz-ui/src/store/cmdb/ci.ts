@@ -13,12 +13,9 @@ export const useCiStore = defineStore(
     const ciLastModel = ref(null)
     // 函数
     const setFilterList = (params) => {
-      console.log(params)
       filterLists.value = params
-      console.log(filterLists.value)
     }
     const saveFilterParams = (params) => {
-      console.log(params)
       multipleForm.filterParams = params
     }
     const setCiLastModel = (params) => {

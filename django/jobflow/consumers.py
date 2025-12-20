@@ -128,7 +128,7 @@ class ws_ansible(AsyncWebsocketConsumer):
                 for event in runner.events:
                     logger.info(f"Processing event: {event}")
                     if 'stdout' in event and event['stdout']:
-                        # print(event['stdout'])  
+                        print(event['stdout'])  
                         await self.send(text_data=json.dumps({
                             'type': 'output',
                             'message': event['stdout'].strip()

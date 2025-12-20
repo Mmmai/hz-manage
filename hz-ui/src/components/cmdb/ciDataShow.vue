@@ -1441,9 +1441,7 @@
                 filterable
                 clearable
                 :options="
-                  allModelCiDataTreeObj[
-                    allModelFieldByNameObj[fitem.name]?.ref_model
-                  ]
+                  allModelCiDataTreeObj[allModelFieldByNameObj[item]?.ref_model]
                 "
               >
                 <!--                 @visible-change="
@@ -1658,7 +1656,7 @@
     :enumOptionObj="enumOptionObj"
     :validationRulesObj="validationRulesObj"
     :allModelField="allModelField"
-    :modelRefOptions="modelRefOptions"
+    :allModelCiDataTreeObj="allModelCiDataTreeObj"
     v-model:showFilter="showFilter"
     @updateFilterParam="updateFilterParam"
     @getCiData="getCiData"
@@ -1959,6 +1957,7 @@ const treeIdleId = computed(() => {
 const treeAllId = computed(() => {
   return props.treeData[0].id;
 });
+// ... existing code ...
 const treeDataCommit = async () => {
   let _tmepArr = [];
   selectTreeNode.value?.forEach((item) => {
@@ -1980,29 +1979,52 @@ const treeDataCommit = async () => {
       groups: _tmepArr,
     };
   }
-  let res = await proxy.$api.setCiDataToTree(params);
-  if (res.status == "201") {
-    ElMessage({ type: "success", message: "更新成功" });
-    // 重置表单
-    getCiData({
-      model: props.ciModelId,
-      model_instance_group: props.currentNodeId,
-    });
-    clearMultipleSelect();
-    emit("getTree");
-    // 更新实例树
-    await modelConfigStore.getModelTreeInstance(props.ciModelId);
-  } else {
+
+  // 添加loading状态
+  const loading = ElLoading.service({
+    lock: true,
+    text: "数据提交中...",
+    background: "rgba(0, 0, 0, 0.7)",
+  });
+
+  try {
+    let res = await proxy.$api.setCiDataToTree(params);
+    if (res.status == "201") {
+      ElMessage({ type: "success", message: "更新成功" });
+      // 重置表单
+      getCiData({
+        model: props.ciModelId,
+        model_instance_group: props.currentNodeId,
+      });
+      clearMultipleSelect();
+      emit("getTree");
+      // 更新实例树
+      await modelConfigStore.getModelTreeInstance(props.ciModelId);
+    } else {
+      ElMessage({
+        showClose: true,
+        message: "更新失败:" + JSON.stringify(res.data),
+        type: "error",
+      });
+    }
+  } catch (error) {
+    // 处理请求失败的情况
     ElMessage({
       showClose: true,
-      message: "更新失败:" + JSON.stringify(res.data),
+      message: "请求失败: " + (error.message || "未知错误"),
       type: "error",
     });
+    console.error("请求失败:", error);
+  } finally {
+    // 关闭loading
+    loading.close();
   }
+
   selectTreeNode.value = [];
   ciDataToTree.value = false;
   // 触发tree更新,addCode
 };
+// ... existing code ...
 // 批量更新
 const multipleFormRef = ref("");
 const multipleDia = ref(false);

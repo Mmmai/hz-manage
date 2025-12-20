@@ -18,6 +18,10 @@ export default {
     return axios.request({ url: path.nodes + id + '/', method: 'get' })
 
   },
+  getNodeDetailByInstance(params) {
+    return axios.request({ url: path.nodes + 'get_info_by_instance/', method: 'get', params: params })
+
+  },
   getNodeInfoTasks(params) {
     return axios.request({ url: path.nodeTask, method: 'get', params: params })
   },

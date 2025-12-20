@@ -33,7 +33,7 @@
         </el-breadcrumb-item>
         <el-breadcrumb-item v-for="(item, index) in currentBreadcrumb">
           <div class="flexJbetween gap-2">
-            <el-icon>
+            <el-icon v-if="item.icon">
               <iconifyOffline :icon="item.icon" />
             </el-icon>
             <span> {{ item.name }}</span>

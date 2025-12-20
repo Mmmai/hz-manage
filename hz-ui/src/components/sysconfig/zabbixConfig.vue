@@ -236,7 +236,8 @@ const editAction = () => {
 const cancelAction = () => {
   isEdit.value = false;
   nextTick(() => {
-    formRef.value!.resetFields();
+    // formRef.value!.resetFields();
+    getParams();
   });
 };
 const commit = async () => {

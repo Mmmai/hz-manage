@@ -150,7 +150,9 @@
                         style="width: 180px"
                       >
                         <el-option
-                          v-for="ritem in props.modelRefOptions[item.name]"
+                          v-for="ritem in allModelCiDataTreeObj[
+                            allModelFieldByNameObj[item.name]?.ref_model
+                          ]"
                           :key="ritem.value"
                           :label="ritem.label"
                           :value="ritem.value"
@@ -212,7 +214,7 @@ const props = defineProps([
   "allModelFieldByNameObj",
   "enumOptionObj",
   "validationRulesObj",
-  "modelRefOptions",
+  "allModelCiDataTreeObj",
 ]);
 const isShowFilter = defineModel("showFilter");
 // const hasConfigField = defineModel("hasConfigField");

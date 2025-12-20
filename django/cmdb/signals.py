@@ -415,10 +415,10 @@ def update_descendant_paths(sender, instance, created, **kwargs):
         return
     if getattr(instance, '_skip_signal', False) or kwargs.get('_skip_path_update', False):
         return
-
+    print(instance.path)
     old_path = getattr(instance, '_old_path', None)
     new_path = instance.path
-
+    print(instance._old_path)
     # 只有在 path 确实发生变化时才执行更新
     if old_path != new_path:
         # logger.debug(f"Path for group '{instance.label}' changed from '{old_path}' to '{new_path}'. Triggering descendant path update.")

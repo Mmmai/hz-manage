@@ -1468,7 +1468,6 @@ class ModelInstanceGroupRelationViewSet(CmdbBaseViewSet):
     def create_relations(self, request):
         """批量创建或更新实例分组关联"""
         logger.info(f"Creating or updating instance group relations")
-
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         logger.debug(f"Data validated. Saving relations...")

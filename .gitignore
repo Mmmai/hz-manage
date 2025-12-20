@@ -4,5 +4,6 @@
 .prettier.txt
 app
 base/
+src/dist
 start.sh
 Dockerfile[
