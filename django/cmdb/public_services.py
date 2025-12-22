@@ -18,14 +18,14 @@ class PublicModelInstanceService:
             instance,
             data=fields,
             partial=True,
-            context={'request_user': user}
+            context=context
         )
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
         return ModelInstanceService.update_instance(
             instance,
             validated_data,
-            user.username,
+            user,
             **kwargs
         )
 

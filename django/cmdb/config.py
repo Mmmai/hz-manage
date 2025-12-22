@@ -330,6 +330,14 @@ BUILT_IN_MODELS = {
                 'editable': True
             },
             {
+                'name': 'ssh_port',
+                'type': 'integer',
+                'verbose_name': 'SSH端口',
+                'required': False,
+                'editable': True,
+                'default': 22
+            },
+            {
                 'name': 'device_status',
                 'type': 'enum',
                 'verbose_name': '设备状态',

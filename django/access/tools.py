@@ -46,6 +46,9 @@ def get_user_data_scope(username: str) -> dict:
         logger.warning(f"User '{username}' not found while getting data scope.")
         return {'scope_type': 'none', 'targets': {}}
 
+    if username == 'system':
+        return {'scope_type': 'all', 'targets': {}}
+
     cached_scope = get_data_scope_cache(username)
     if cached_scope:
         return cached_scope
@@ -139,6 +142,9 @@ def has_password_permission(user) -> bool:
         username = user
     else:
         return False
+
+    if username == 'system':
+        return True
 
     # 检查缓存
     request_cache = get_password_permission_cache(username)

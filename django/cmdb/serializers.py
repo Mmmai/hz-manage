@@ -338,6 +338,8 @@ class ModelFieldsSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'name': f"Field name '{data.get('name')}' is conflict with system reserved field names"
             })
+        data.pop('create_user', '')
+        data.pop('update_user', '')
         if self.instance:
             if not self.instance.editable:
                 restricted_fields = ['name', 'model', 'verbose_name', 'type', 'validation', 'validation_rule']

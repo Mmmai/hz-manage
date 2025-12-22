@@ -4,6 +4,7 @@ import logging
 import functools
 
 from django.db import models
+from django.core.cache import cache
 from django.db import transaction
 from rest_framework.exceptions import PermissionDenied
 
@@ -144,15 +145,20 @@ class ValidationRules(models.Model):
     update_user = models.CharField(max_length=20, null=True, blank=True)
 
     @staticmethod
-    @functools.lru_cache(maxsize=128)  # maxsize 可根据枚举规则的数量调整
+    # @functools.lru_cache(maxsize=128)  # maxsize 可根据枚举规则的数量调整
     def get_enum_dict(rule_id):
         # logger.debug(
         #     f"LRU Cache MISS for get_enum_dict(rule_id={rule_id})."
         #     f"Executing function body. Cache info: {ValidationRules.get_enum_dict.cache_info()}")
         try:
+            cache_key = f'enum_dict_{rule_id}'
+            cached_value = cache.get(cache_key)
+            if cached_value is not None:
+                return cached_value
             rule_instance = ValidationRules.objects.get(id=rule_id)
             if rule_instance.type == ValidationType.ENUM and rule_instance.rule:
                 parsed_enum_dict = json.loads(rule_instance.rule)
+                cache.set(cache_key, parsed_enum_dict, timeout=300)
                 return parsed_enum_dict
             return {}
         except ValidationRules.DoesNotExist:
@@ -167,7 +173,7 @@ class ValidationRules(models.Model):
 
     @staticmethod
     def clear_specific_enum_cache(rule_id):
-        ValidationRules.get_enum_dict.cache_clear()
+        cache.delete(f'enum_dict_{rule_id}')
 
 
 @register_audit(

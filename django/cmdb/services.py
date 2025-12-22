@@ -133,6 +133,10 @@ class ModelsService:
             raise PermissionDenied({'detail': 'Built-in model cannot be deleted'})
 
         # TODO: 校验模型实例
+        root_group = ModelInstanceGroup.objects.get_root_group(str(model.id))
+        unassigned_group = ModelInstanceGroup.objects.get_unassigned_group(str(model.id))
+        unassigned_group.delete()
+        root_group.delete()
         model.delete()
         logger.info(f"Model deleted successfully: {model.name} by {username}")
 
@@ -2642,6 +2646,14 @@ class RelationsService:
         source_instance_id = validated_data.get('source_instance')
         target_instance_id = validated_data.get('target_instance')
         relation_id = validated_data.get('relation')
+
+        # 验证关系实例是否存在
+        if Relations.objects.check_relation_exists(
+            source_instance_id,
+            target_instance_id,
+            relation_id
+        ):
+            raise ValidationError("This relation already exists for the given source, target, and relation type.")
 
         # 验证用户对源和目标实例的权限
         source_instance = pm.get_queryset(ModelInstance).filter(id=source_instance_id)
