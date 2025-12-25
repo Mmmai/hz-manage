@@ -1,14 +1,8 @@
-from operator import is_
+import sys
+
 from django.apps import AppConfig
 from cacheops import invalidate_all
-from django.core.cache import cache
 from .utils import password_handler
-from node_mg.utils import sys_config
-from node_mg.utils.zabbix import ZabbixTokenManager
-import sys
-import threading
-import logging
-logger = logging.getLogger(__name__)
 
 
 class CmdbConfig(AppConfig):

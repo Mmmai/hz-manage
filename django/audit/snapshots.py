@@ -50,7 +50,7 @@ def get_static_field_snapshot(instance):
 def get_dynamic_field_snapshot(instance):
     if not instance or not registry.is_field_aware(instance.__class__):
         return {}
-    return {
+    snapshot = {
         fv.model_fields.name: {
             "value": fv.data,
             "verbose_name": fv.model_fields.verbose_name,
@@ -58,6 +58,8 @@ def get_dynamic_field_snapshot(instance):
         }
         for fv in instance.field_values.all().select_related('model_fields')
     }
+    logger.info(f"Dynamic field snapshot for {instance}: {snapshot}")
+    return snapshot
 
 
 def _snapshot_storage():
@@ -85,7 +87,7 @@ def clear_prefetched_snapshots():
 
 
 @contextmanager
-def capture_audit_snapshots(instances, create=False):
+def capture_audit_snapshots(instance, create=False):
     if create:
         try:
             yield
@@ -94,15 +96,15 @@ def capture_audit_snapshots(instances, create=False):
         return
 
     try:
-        for inst in instances:
-            if not inst.pk:
-                continue
-            db_inst = inst.__class__.objects.get(pk=inst.pk)
-            set_prefetched_snapshot(
-                inst,
-                get_static_field_snapshot(db_inst),
-                get_dynamic_field_snapshot(db_inst),
-            )
+        if not instance.pk:
+            yield
+
+        db_inst = instance.__class__.objects.get(pk=instance.pk)
+        set_prefetched_snapshot(
+            instance,
+            get_static_field_snapshot(db_inst),
+            get_dynamic_field_snapshot(db_inst),
+        )
         yield
     finally:
         clear_prefetched_snapshots()

@@ -703,6 +703,10 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
         if group_id:
             params['model_instance_group'] = group_id
 
+        serializer = BulkUpdateInstanceFieldsSerializer(
+            data=request.data
+        )
+
         if filter_by_params and params:
             instances = self.get_queryset().all()
             instances = self._apply_filters(instances, model_id, params)
@@ -725,18 +729,11 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
         if instances.filter(model_id=target_model_id).count() != instances.count():
             raise ValidationError("Instances belong to multiple models; bulk update requires a single model.")
 
-        # 调用 Serializer 进行数据校验
-        validation_data = {
-            'model': model_id,
-            'fields': fields_data
-        }
-
-        serializer = self.get_serializer(data=validation_data, partial=True)
         try:
             serializer.is_valid(raise_exception=True)
             validated_fields = serializer.validated_data.get('fields', {})
         except ValidationError as e:
-            logger.error(f"Bulk update validation failed: {e}")
+            logger.error(f"Bulk update validation failed: {traceback.format_exc()}")
             raise e
 
         # 记录审计信息并执行批量更新

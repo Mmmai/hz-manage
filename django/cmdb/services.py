@@ -928,8 +928,8 @@ class ModelInstanceService:
                 extra_vars['instance_map'] = ModelInstance.objects.get_instance_names_by_models(
                     [str(field_def.ref_model.id)])
 
-            logger.debug(f'Converting value for field {field_name} with value {value} type {type(value)}')
-            logger.debug(f'Extra vars for conversion: {extra_vars}')
+            # logger.debug(f'Converting value for field {field_name} with value {value} type {type(value)}')
+            # logger.debug(f'Extra vars for conversion: {extra_vars}')
             converter = ConverterFactory.get_converter(field_def.type)
             storage_value = converter.to_internal(value, **extra_vars)
 
@@ -1008,8 +1008,8 @@ class ModelInstanceService:
             instances = list(instances_qs.select_for_update())
 
             # 记录审计快照
-            with capture_audit_snapshots(instances):
-                for instance in instances:
+            for instance in instances:
+                with capture_audit_snapshots(instance):
                     cls._save_field_values(instance, validated_fields, username)
 
                     instance.update_user = username
@@ -2636,6 +2636,8 @@ class RelationsService:
     @require_valid_user
     def create_relation(cls, validated_data: dict, user: UserInfo) -> 'Relations':
         """创建关系"""
+
+        # TODO: 校验逻辑转移到调用方处理
 
         username = user.username
         pm = PermissionManager(user)
