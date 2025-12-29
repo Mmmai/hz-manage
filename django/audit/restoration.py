@@ -1,3 +1,10 @@
+"""
+审计回滚管理模块
+该模块提供了基于审计日志的回滚功能，允许将Django模型实例恢复到之前的状态。
+
+需要回滚的模型必须提供相应的还原器和锁定器，以确保数据一致性和并发安全。
+"""
+
 import logging
 from django.apps import apps
 from django.db import transaction, connection
@@ -9,8 +16,10 @@ from .registry import registry
 
 logger = logging.getLogger(__name__)
 
+
 class AuditConflict(Exception):
     pass
+
 
 class RollbackManager:
     def __init__(self, correlation_id, request=None):
@@ -20,7 +29,7 @@ class RollbackManager:
     def execute(self):
         if not self.correlation_id:
             raise ValidationError("Correlation_id is required for rollback.")
-        
+
         logs_to_process = list(
             AuditLog.objects.filter(
                 correlation_id=self.correlation_id,
@@ -30,10 +39,10 @@ class RollbackManager:
             .prefetch_related('details')
             .order_by('content_type_id', 'object_id', '-timestamp')
         )
-        
+
         if not logs_to_process:
             raise ValidationError("No update logs found for the given correlation_id.")
-        
+
         # 预检测是否存在更新时间晚于批次中最新更新时间的实例
         latest_timestamps_in_batch = AuditLog.objects.filter(
             correlation_id=self.correlation_id,
@@ -52,12 +61,12 @@ class RollbackManager:
 
         if conflict_query and AuditLog.objects.filter(conflict_query).exists():
             raise AuditConflict("Cannot rollback due to newer updates existing for some objects.")
-        
+
         result = {
             'success': [],
             'failure': []
         }
-        
+
         for original_log in reversed(logs_to_process):
             model_class = original_log.content_type.model_class()
             restorer = registry.get_restorer(model_class)
@@ -65,7 +74,7 @@ class RollbackManager:
             if not restorer or not locker:
                 logger.warning(f"No restorer or locker registered for {model_class.__name__}. Skipping.")
                 continue
-            
+
             try:
                 with transaction.atomic():
                     # 锁定对应实例
@@ -91,6 +100,7 @@ class RollbackManager:
                 result["failure"].append({"log_id": str(original_log.id), "reason": "Instance does not exist."})
             except Exception as exc:
                 logger.exception("Rollback failed for log %s: %s", original_log.id, exc)
-                result["failure"].append({"log_id": str(original_log.id), "reason": "An unknown error occurred during rollback."})
+                result["failure"].append({"log_id": str(original_log.id),
+                                         "reason": "An unknown error occurred during rollback."})
 
         return result

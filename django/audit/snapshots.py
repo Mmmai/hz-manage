@@ -1,3 +1,9 @@
+"""
+审计快照模块
+
+该模块提供了用于捕获和存储Django模型实例的静态和动态字段快照的功能。
+"""
+
 import logging
 from contextlib import contextmanager
 from threading import local

@@ -1,3 +1,8 @@
+"""
+CMDB对外服务模块
+定义对外提供的模型实例相关服务接口，避免外部APP直接导入CMDB内部模型及接口
+"""
+
 from .services import ModelInstanceService
 from .serializers import ModelInstanceSerializer
 from .models import ModelInstance, ModelInstanceGroup, ModelInstanceGroupRelation, ModelFieldMeta

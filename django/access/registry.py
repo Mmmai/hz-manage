@@ -1,3 +1,8 @@
+"""
+间接权限处理器注册模块
+提供注册和获取特定 app 间接权限处理器函数的功能。
+"""
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -9,6 +14,7 @@ INDIRECT_PERMISSION_HANDLERS = {}
 def register_indirect_permission_handler(app_label, handler_func):
     """
     注册一个用于处理特定 app 间接权限的函数。
+    在实现一个指定app内部间接权限处理逻辑后调用此函数进行注册。
     """
     if app_label in INDIRECT_PERMISSION_HANDLERS:
         logger.warning(f"Handler for app '{app_label}' is being overridden.")

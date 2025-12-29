@@ -1,3 +1,10 @@
+"""
+审计信号模块
+
+该模块定义了Django模型的信号处理器，用于捕获模型实例的创建、更新和删除操作，并记录相应的审计日志。
+需要特殊处理的审计信号需要在此模块内实现对应的审计逻辑
+"""
+
 import logging
 from django.db import transaction
 from django.db.models.signals import pre_save, post_save, post_delete, m2m_changed

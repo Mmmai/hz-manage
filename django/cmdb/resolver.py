@@ -1,3 +1,8 @@
+"""
+CMDB字段值解析器模块
+用于审计处理时解析CMDB模型字段值的通用函数，以便在序列化和展示时使用。
+"""
+
 import logging
 import json
 from .constants import FieldType

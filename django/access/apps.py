@@ -6,4 +6,5 @@ class PermissionsConfig(AppConfig):
     name = 'access'
 
     def ready(self):
+        # 注册信号
         import access.signals

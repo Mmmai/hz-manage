@@ -1,3 +1,8 @@
+"""
+CMDB API接口文档模块
+定义CMDB应用对外API接口的Schema文档，供drf-spectacular生成接口文档使用。
+"""
+
 from django.http import FileResponse
 from drf_spectacular.utils import extend_schema_view, extend_schema, extend_schema_serializer
 from drf_spectacular.utils import OpenApiParameter, OpenApiExample, OpenApiResponse, inline_serializer

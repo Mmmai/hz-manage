@@ -17,5 +17,7 @@ class CmdbConfig(AppConfig):
                 'celery' in arg for arg in sys.argv) or 'daphne' in sys.modules or '--host' in sys.argv:
             # 清除缓存
             invalidate_all()
+            # 加载密钥
             password_handler.load_keys()
+            # 注册权限处理器
             import cmdb.permission_handlers

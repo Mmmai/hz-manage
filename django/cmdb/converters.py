@@ -1,3 +1,8 @@
+"""
+CMDB字段转换器模块
+定义CMDB系统中各字段类型的转换器，用于在内部存储格式和外部表示格式之间进行转换。
+"""
+
 import json
 from abc import ABC, abstractmethod
 from .constants import FieldType

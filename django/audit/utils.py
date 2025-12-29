@@ -1,3 +1,8 @@
+"""
+审计工具模块
+主要用于处理审计日志中的特殊类型序列化、哈希计算和差异比较等功能。
+"""
+
 import json
 import uuid
 import hashlib
@@ -6,16 +11,18 @@ from datetime import date, datetime
 
 IGNORED_FIELDS = {"updated_at"}
 
+
 class CustomJSONEncoder(json.JSONEncoder):
     """
     自定义JSON编码器，用于处理UUID、datetime等特殊类型。
     """
+
     def default(self, obj):
         if isinstance(obj, uuid.UUID):
             return str(obj)
         if isinstance(obj, (datetime, date)):
             return obj.isoformat()
-        
+
         # 其他类型使用默认编码器
         return super().default(obj)
 

@@ -1,3 +1,8 @@
+
+"""
+对外权限接口模块
+提供对外修改权限相关的服务接口，供其他应用调用。
+"""
 import logging
 from .models import *
 from .services import *
@@ -6,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class PublicPermissionService:
+    """对外权限接口"""
 
     @staticmethod
     def get_user_permissions(user):
@@ -16,6 +22,7 @@ class PublicPermissionService:
 
     @staticmethod
     def add_home_permission_to_role(instance):
+        """自动为新创建的角色添加首页查看权限"""
         menu_obj = Menu.objects.get(name="home")
         buttonObj = Button.objects.get(menu=menu_obj, action="view")
         Permission.objects.create(menu=menu_obj, role=instance, button=buttonObj)
@@ -23,6 +30,7 @@ class PublicPermissionService:
 
     @staticmethod
     def create_role_permissions(instance, rolePermission):
+        """为新创建的角色添加权限"""
         for button_id in rolePermission:
             button_obj = Button.objects.get(id=button_id)
             Permission.objects.update_or_create(role=instance, menu=button_obj.menu, button=button_obj)
@@ -41,6 +49,7 @@ class PublicPermissionService:
 
     @staticmethod
     def update_role_permissions(instance, rolePermission):
+        """更新角色权限"""
         currentPermissionList = [
             str(i)
             for i in Permission.objects.filter(role=instance).values_list("button", flat=True)
@@ -70,6 +79,7 @@ class PublicPermissionService:
 
     @staticmethod
     def add_permissions_to_role(request, role, button_ids):
+        """为角色添加权限"""
         added_permissions = []
         existing_permissions = []
 
@@ -108,6 +118,8 @@ class PublicPermissionService:
 
     @staticmethod
     def remove_permissions_from_role(request, role, button_ids):
+        """为角色移除权限"""
+
         removed_permissions = []
 
         for button_id in button_ids:
@@ -155,4 +167,5 @@ class PublicButtonService:
 
     @staticmethod
     def get_init_buttons():
+        """获取初始化按钮列表"""
         return Button.objects.all()

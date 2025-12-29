@@ -1,3 +1,8 @@
+"""
+CMDB内部服务模块
+抽象CMDB应用内部使用的服务类和函数，封装核心业务逻辑，供视图集和对外服务调用。
+"""
+
 import re
 import logging
 import inspect

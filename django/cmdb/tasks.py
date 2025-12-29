@@ -1,3 +1,8 @@
+"""
+CMDB异步任务模块
+定义CMDB应用中使用的Celery异步任务，用于处理耗时操作如数据导入、批量更新等。
+"""
+
 import io
 import uuid
 import logging

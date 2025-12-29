@@ -1,3 +1,8 @@
+"""
+CMDB模型实例恢复模块
+用于审计回退时恢复CMDB模型实例的通用函数。
+"""
+
 import json
 import logging
 from django.db import transaction
@@ -8,24 +13,25 @@ from .serializers import ModelInstanceSerializer
 
 logger = logging.getLogger(__name__)
 
+
 def restore_model_instance(instance, snapshot, field_details=None, request_user=None):
-    
+
     # ModelFields = instance.model.fields.model
     # ModelFieldMeta = instance.field_values.model
     # logger.info(f'ModelFields: {ModelFields}, ModelFieldMeta: {ModelFieldMeta}')
     update_data = {}
-    
+
     instance_name_history = snapshot.get('instance_name')
     using_template_history = snapshot.get('using_template')
     if instance_name_history and isinstance(instance_name_history, list):
         update_data['instance_name'] = instance_name_history[0]
     if using_template_history and isinstance(using_template_history, list):
         update_data['using_template'] = using_template_history[0]
-    
+
     model = instance.model
-    
+
     fields_dict = {}
-    
+
     if field_details:
         for field_detail in field_details:
             field = ModelFields.objects.filter(model=model, name=field_detail.name).first()
@@ -45,17 +51,17 @@ def restore_model_instance(instance, snapshot, field_details=None, request_user=
                 fields_dict[field_detail.name] = encrypted_value
             else:
                 fields_dict[field_detail.name] = field_detail.old_value
-            
+
             fields_dict[field_detail.name] = field_detail.old_value
-    
+
     update_data['fields'] = fields_dict
-    
+
     ser = ModelInstanceSerializer(
-        instance, 
-        data=update_data, 
-        context={'request_user': request_user}, 
+        instance,
+        data=update_data,
+        context={'request_user': request_user},
         partial=True
     )
-    
+
     ser.is_valid(raise_exception=True)
     ser.save(update_user=request_user)
