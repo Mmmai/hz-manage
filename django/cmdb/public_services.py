@@ -14,9 +14,10 @@ class PublicModelInstanceService:
         context = ModelInstanceService.get_read_context([instance], user)
         write_context = ModelInstanceService.get_write_context(instance.model, fields, user)
         context.update(**write_context)
+        serializer_data = {'fields': fields}
         serializer = ModelInstanceSerializer(
             instance,
-            data=fields,
+            data=serializer_data,
             partial=True,
             context=context
         )

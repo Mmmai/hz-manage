@@ -330,6 +330,7 @@ const getNodeInfo = async () => {
     });
     if (res.status === 200) {
       nodeInfo.value = res.data;
+      nodeId.value = res.data.id;
     }
   } catch (error) {
     ElMessage.error("获取节点信息失败");

@@ -68,6 +68,7 @@
                           fPortal.id + fPortal.name
                         ),
                       }"
+                      
                     >
                       {{ fPortal.name.charAt(0).toUpperCase() }}
                     </div>

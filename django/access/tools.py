@@ -41,13 +41,14 @@ def clear_password_permission_cache(username: str):
 
 
 def get_user_data_scope(username: str) -> dict:
+    if username == 'system':
+        return {'scope_type': 'all', 'targets': {}}
     user = PublicUserService.get_users(username=username)
     if not user:
         logger.warning(f"User '{username}' not found while getting data scope.")
         return {'scope_type': 'none', 'targets': {}}
 
-    if username == 'system':
-        return {'scope_type': 'all', 'targets': {}}
+
 
     cached_scope = get_data_scope_cache(username)
     if cached_scope:
