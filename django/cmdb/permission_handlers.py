@@ -1,3 +1,9 @@
+"""
+CMDB权限处理器模块
+定义CMDB应用的间接权限处理器，用于根据分配的权限动态生成查询条件
+并注册到权限系统中
+"""
+
 from abc import ABC, abstractmethod
 from django.db.models import Q
 from access.registry import register_indirect_permission_handler

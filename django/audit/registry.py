@@ -1,9 +1,17 @@
+"""
+审计注册中心模块
+提供一个统一的注册中心，用于管理和配置需要审计的Django模型。
+
+仅内部处理使用，外部APP注册时使用装饰器模块
+"""
+
 import logging
 from typing import Dict, Type
 from django.db import models
 from importlib import import_module
 
 logger = logging.getLogger(__name__)
+
 
 class AuditRegistry:
     """
@@ -21,11 +29,12 @@ class AuditRegistry:
         """统一的注册方法。"""
         kwargs['ignore_fields'] = set(kwargs.get('ignore_fields', []))
         self._config[model] = kwargs
-        
+
         public_name = kwargs.get('public_name')
         if public_name:
             if public_name in self._public_name_map:
-                raise ValueError(f"Public name '{public_name}' has been registered to model {self._public_name_map[public_name].__name__}。")
+                raise ValueError(
+                    f"Public name '{public_name}' has been registered to model {self._public_name_map[public_name].__name__}。")
             self._public_name_map[public_name] = model
             self._model_map[model] = public_name
             logger.debug(f"Registered model {model} with public name '{public_name}' in AuditRegistry.")
@@ -36,7 +45,7 @@ class AuditRegistry:
             if not field.many_to_many:
                 raise ValueError(f"Field '{field_name}' is not a ManyToManyField in model {model.__name__}.")
             self._m2m_fields_to_audit.append((model, field_name, field.remote_field.through))
-    
+
     def _resolve_path(self, path: str) -> Type[models.Model]:
         try:
             path, class_name = path.rsplit('.', 1)
@@ -45,7 +54,7 @@ class AuditRegistry:
         except (ImportError, AttributeError, ValueError) as e:
             logger.error(f"Error resolving path '{path}': {e}")
             return None
-        
+
     def _get_callable(self, model: Type[models.Model], key: str) -> callable:
         config = self.config(model)
         value = config.get(key)
@@ -54,9 +63,9 @@ class AuditRegistry:
             resolved_callable = self._resolve_path(value)
             config[key] = resolved_callable
             return resolved_callable
-        
+
         return value
-        
+
     def is_registered(self, model: Type[models.Model]) -> bool:
         """检查一个模型是否已被注册"""
         return model in self._config
@@ -68,15 +77,15 @@ class AuditRegistry:
     def is_field_aware(self, model: Type[models.Model]) -> bool:
         """检查一个模型是否被配置为“字段感知”"""
         return self.config(model).get('is_field_aware', False)
-    
+
     def get_model_by_public_name(self, public_name: str) -> Type[models.Model]:
         """通过公开名称获取模型类"""
         return self._public_name_map.get(public_name)
-    
+
     def get_public_name_by_model(self, model: Type[models.Model]) -> str:
         """通过模型类获取公开名称"""
         return self._model_map.get(model)
-    
+
     def get_snapshot_fields(self, model: Type[models.Model]) -> set:
         """获取模型的快照字段配置"""
         return set(self.config(model).get('snapshot_fields', {'id'}))
@@ -88,11 +97,11 @@ class AuditRegistry:
     def get_dynamic_value_resolver(self, model: Type[models.Model]) -> callable:
         """获取模型的动态值解析器配置"""
         return self.config(model).get('dynamic_value_resolver')
-    
+
     def get_m2m_fields_to_audit(self):
         """获取所有注册的多对多字段审计配置"""
         return self._m2m_fields_to_audit
-    
+
     def get_restorer(self, model: Type[models.Model]) -> callable:
         """获取模型的回退函数"""
         return self._get_callable(model, 'restorer')
@@ -100,6 +109,6 @@ class AuditRegistry:
     def get_locker(self, model: Type[models.Model]) -> callable:
         """获取模型的锁定函数"""
         return self._get_callable(model, 'locker')
-    
+
 
 registry = AuditRegistry()

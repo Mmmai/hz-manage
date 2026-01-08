@@ -1,3 +1,8 @@
+"""
+CMDB对外服务模块
+定义对外提供的模型实例相关服务接口，避免外部APP直接导入CMDB内部模型及接口
+"""
+
 from .services import ModelInstanceService
 from .serializers import ModelInstanceSerializer
 from .models import ModelInstance, ModelInstanceGroup, ModelInstanceGroupRelation, ModelFieldMeta
@@ -14,7 +19,9 @@ class PublicModelInstanceService:
         context = ModelInstanceService.get_read_context([instance], user)
         write_context = ModelInstanceService.get_write_context(instance.model, fields, user)
         context.update(**write_context)
-        serializer_data = {'fields': fields}
+        serializer_data = {
+            'fields': fields
+        }
         serializer = ModelInstanceSerializer(
             instance,
             data=serializer_data,

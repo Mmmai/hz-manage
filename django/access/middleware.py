@@ -1,3 +1,7 @@
+"""
+中间件模块
+提供了一个中间件类，用于在每个请求中设置 cacheops 的用户上下文，以实现基于用户的缓存隔离。
+"""
 from cacheops import transaction
 
 

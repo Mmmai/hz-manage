@@ -51,7 +51,7 @@ class Button(models.Model):
 
 
 class Permission(models.Model):
-
+    """菜单按钮权限"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         settings.AUTH_USER_INFO_MODEL,
@@ -92,6 +92,7 @@ class Permission(models.Model):
 
 
 class DataScope(models.Model):
+    """数据权限"""
     class ScopeType(models.TextChoices):
         ALL = 'all', '全部数据'
         FILTER = 'filter', '按条件过滤'

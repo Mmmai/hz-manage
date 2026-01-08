@@ -1,3 +1,13 @@
+"""
+核心工具函数模块
+
+提供了一系列用于处理用户权限和数据范围的核心工具函数，主要职责包括：
+1.  计算用户的最终数据可见范围（数据权限）。
+2.  将数据范围转换为 Django ORM 查询条件 (Q对象)。
+3.  提供特定权限（如密码查看）的快速检查功能。
+4.  封装了与权限相关的缓存读写操作，以提升性能。
+"""
+
 import logging
 from collections import defaultdict
 from django.core.cache import cache
@@ -8,6 +18,8 @@ from .models import DataScope,Permission
 from .registry import get_handler
 
 logger = logging.getLogger(__name__)
+
+# 缓存相关
 
 
 def get_data_scope_cache(username: str) -> dict:
@@ -40,6 +52,7 @@ def clear_password_permission_cache(username: str):
     cache.delete(cache_key)
 
 
+# 获取用户数据权限范围
 def get_user_data_scope(username: str) -> dict:
     if username == 'system':
         return {'scope_type': 'all', 'targets': {}}
@@ -97,7 +110,7 @@ def get_user_data_scope(username: str) -> dict:
 
 
 def get_scope_query(username, model):
-
+    """获取指定用户在指定模型上的数据权限查询条件。"""
     if not username or username == 'anonymous':
         return None
 

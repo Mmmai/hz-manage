@@ -1,3 +1,9 @@
+"""
+CMDB Excel 处理模块
+处理CMDB实例数据的Excel导入导出功能，包括模板生成、数据验证和错误报告。
+"""
+
+
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Protection, Alignment
 from openpyxl.worksheet.datavalidation import DataValidation

@@ -1,3 +1,9 @@
+"""
+访问控制(access)应用 - 权限管理器模块
+提供了一个全局权限管理器类，用于获取任何模型的、经过权限过滤的安全查询集。
+
+***所有外部应用在访问受权限控制的数据时，必须通过此管理器获取查询集，以确保数据安全。***
+"""
 import logging
 from django.db import models
 from .tools import get_scope_query

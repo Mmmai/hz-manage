@@ -1,3 +1,9 @@
+"""
+CMDB常量定义模块
+定义CMDB系统中使用的字段类型、验证类型及相关映射。
+"""
+
+
 from enum import Enum
 
 

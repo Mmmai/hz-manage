@@ -956,6 +956,228 @@ class ModelInstanceSerializer(serializers.ModelSerializer):
         return representation
 
 
+class BulkUpdateInstanceFieldsSerializer(serializers.Serializer):
+    """
+    批量更新实例字段的序列化器
+    职责：数据格式校验、字段值类型转换与验证
+    """
+    instances = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        allow_empty=True
+    )
+    model = serializers.UUIDField(
+        required=False
+    )
+    fields = serializers.DictField(
+        required=True,
+        allow_empty=False,
+        help_text="更新字段数据 {field_name: value}"
+    )
+    all = serializers.BooleanField(
+        default=False
+    )
+    params = serializers.DictField(
+        required=False,
+        default=dict
+    )
+    group = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._field_configs = {}
+        self._model = None
+
+    def validate(self, attrs):
+        """主验证逻辑"""
+        instances = attrs.get('instances', [])
+        filter_all = attrs.get('all', False)
+        fields_data = attrs.get('fields', {})
+
+        # 验证实例选择方式
+        if not filter_all and not instances:
+            raise serializers.ValidationError({
+                'instances': 'Instances cannot be empty when "all" is False'
+            })
+
+        # 验证字段数据不为空
+        if not fields_data:
+            raise serializers.ValidationError({
+                'fields': 'Fields data cannot be empty'
+            })
+
+        return attrs
+
+    def validate_fields_data(self, fields_data: dict, model: Models, user: UserInfo) -> dict:
+        """
+        验证并转换字段数据
+
+        Args:
+            fields_data: 原始字段数据 {field_name: value}
+            model: 模型对象
+            user: 当前用户
+
+        Returns:
+            dict: 验证后的字段数据 {field_name: converted_value}
+        """
+        from access.manager import PermissionManager
+
+        pm = PermissionManager(user)
+        self._model = model
+
+        # 加载用户有权限的字段配置
+        allowed_fields = pm.get_queryset(ModelFields).filter(model=model)
+        self._field_configs = {f.name: f for f in allowed_fields}
+
+        errors = {}
+        validated_fields = {}
+
+        for field_name, field_value in fields_data.items():
+            # 检查字段是否存在且用户有权限
+            if field_name not in self._field_configs:
+                errors[field_name] = f"Field '{field_name}' does not exist or no permission to modify"
+                continue
+
+            field_def = self._field_configs[field_name]
+
+            try:
+                validated_value = self._validate_and_convert_field_value(field_def, field_value)
+                validated_fields[field_name] = validated_value
+            except ValueError as e:
+                errors[field_name] = str(e)
+
+        if errors:
+            raise serializers.ValidationError({'fields': errors})
+
+        return validated_fields
+
+    def _validate_and_convert_field_value(self, field_def: ModelFields, value):
+        """
+        验证并转换单个字段值
+
+        Args:
+            field_def: 字段定义
+            value: 原始值
+
+        Returns:
+            转换后的值
+        """
+        field_name = field_def.verbose_name or field_def.name
+        field_type = field_def.type
+
+        # 空值处理 - 批量更新允许设置空值
+        if value is None or value == '':
+            if field_def.required:
+                raise ValueError(f"Field '{field_name}' is required and cannot be empty")
+            return None
+
+        # 使用 FieldValidator 进行验证
+        try:
+            validated_value = FieldValidator.validate(value, field_def)
+        except ValueError as e:
+            raise ValueError(f"Field '{field_name}' validation failed: {str(e)}")
+
+        # 使用转换器进行类型转换
+        converter = ConverterFactory.get_converter(field_type)
+        try:
+            converted_value = converter.to_internal(validated_value, field_def)
+        except Exception as e:
+            raise ValueError(f"Field '{field_name}' type conversion failed: {str(e)}")
+
+        return converted_value
+
+    def check_unique_constraints(
+        self,
+        model: Models,
+        instances_qs,
+        validated_fields: dict
+    ) -> list:
+        """
+        检查批量更新是否会违反唯一约束
+
+        Args:
+            model: 模型对象
+            instances_qs: 待更新的实例QuerySet
+            validated_fields: 已验证的字段数据
+
+        Returns:
+            list: 冲突错误信息列表
+        """
+        errors = []
+
+        # 获取模型的唯一约束
+        constraints = UniqueConstraint.objects.get_constraints_for_model(model)
+        if not constraints.exists():
+            return errors
+
+        # 获取约束涉及的字段ID
+        updated_field_names = set(validated_fields.keys())
+        field_name_to_id = {f.name: str(f.id) for f in self._field_configs.values()}
+
+        instance_ids = set(str(i.id) for i in instances_qs)
+
+        for constraint in constraints:
+            constraint_field_ids = set(constraint.fields)
+            constraint_field_names = {
+                name for name, fid in field_name_to_id.items()
+                if fid in constraint_field_ids
+            }
+
+            # 检查更新的字段是否涉及约束
+            if not constraint_field_names.intersection(updated_field_names):
+                continue
+
+            # 如果所有实例更新为相同的值，检查是否会产生重复
+            conflict = self._check_constraint_conflict(
+                constraint,
+                constraint_field_names,
+                validated_fields,
+                instance_ids,
+                model
+            )
+            if conflict:
+                errors.append(conflict)
+
+        return errors
+
+    def _check_constraint_conflict(
+        self,
+        constraint,
+        constraint_field_names: set,
+        validated_fields: dict,
+        exclude_ids: set,
+        model: Models
+    ) -> str:
+        """检查单个约束的冲突"""
+        # 构建约束字段的查询条件
+        query = Q(model_instance__model=model)
+
+        for field_name in constraint_field_names:
+            if field_name in validated_fields:
+                value = validated_fields[field_name]
+                field_def = self._field_configs.get(field_name)
+                if field_def:
+                    query &= Q(
+                        model_fields_id=field_def.id,
+                        data=str(value) if value is not None else None
+                    )
+
+        # 排除当前要更新的实例
+        conflicting = ModelFieldMeta.objects.filter(query).exclude(
+            model_instance_id__in=exclude_ids
+        ).values_list('model_instance__instance_name', flat=True).distinct()[:5]
+
+        if conflicting:
+            field_names = ', '.join(constraint_field_names)
+            instances = ', '.join(conflicting)
+            return f"唯一约束冲突 (字段: {field_names}): 与现有实例 [{instances}] 冲突"
+
+        return None
+
+
 class ModelInstanceGroupSerializer(serializers.ModelSerializer):
     children = serializers.SerializerMethodField()
     count = serializers.SerializerMethodField()

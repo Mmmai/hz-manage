@@ -1,3 +1,7 @@
+"""
+审计上下文管理模块
+提供一个线程安全的上下文管理器，用于在审计日志中存储和访问相关的上下文信息。
+"""
 from contextvars import ContextVar, Token
 from contextlib import contextmanager
 from typing import Dict, Any
@@ -29,7 +33,7 @@ def audit_context(**kwargs):
     # 获取当前上下文，并用传入的参数进行更新
     current_context = audit_context_var.get()
     new_context = {**current_context, **kwargs}
-    
+
     # 设置新值并保存 token
     token: Token = audit_context_var.set(new_context)
     try:
@@ -47,4 +51,3 @@ def get_audit_context() -> Dict[str, Any]:
 def get_context_value(key: str, default: Any = None) -> Any:
     """从上下文中获取单个值。"""
     return audit_context_var.get().get(key, default)
-

@@ -1,3 +1,8 @@
+"""
+CMDB的管理器模块
+定义CMDB系统中各模型的自定义管理器，提供跨权限边界的特权方法。
+"""
+
 import functools
 import uuid
 import json

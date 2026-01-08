@@ -1,14 +1,8 @@
-from operator import is_
+import sys
+
 from django.apps import AppConfig
 from cacheops import invalidate_all
-from django.core.cache import cache
 from .utils import password_handler
-from node_mg.utils import sys_config
-from node_mg.utils.zabbix import ZabbixTokenManager
-import sys
-import threading
-import logging
-logger = logging.getLogger(__name__)
 
 
 class CmdbConfig(AppConfig):
@@ -23,5 +17,7 @@ class CmdbConfig(AppConfig):
                 'celery' in arg for arg in sys.argv) or 'daphne' in sys.modules or '--host' in sys.argv:
             # 清除缓存
             invalidate_all()
+            # 加载密钥
             password_handler.load_keys()
+            # 注册权限处理器
             import cmdb.permission_handlers

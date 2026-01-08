@@ -1,4 +1,7 @@
-# validators.py
+"""
+CMDB字段值验证器模块
+用于验证CMDB模型字段值的通用函数，确保数据符合预期格式和规则。
+"""
 import re
 import json
 from datetime import datetime
