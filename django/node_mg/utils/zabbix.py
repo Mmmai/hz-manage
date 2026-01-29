@@ -27,6 +27,7 @@ class ZabbixTokenManager:
             self.url = None
             self.username = None
             self.password = None
+            self.zabbix_version = None
             self.interval = 0
             self._refresh_timer = None
             self._running = False
@@ -41,6 +42,8 @@ class ZabbixTokenManager:
         self.url = config.get('zabbix_url')
         self.username = config.get('zabbix_username')
         self.password = config.get('zabbix_password')
+        self.zabbix_version = config.get('zabbix_version')
+
         self.interval = int(config.get('zabbix_interval', 0))
         self.token = None
         self._refresh_token()
@@ -61,15 +64,27 @@ class ZabbixTokenManager:
 
     def _login(self):
         """登录获取 token"""
-        payload = {
-            "jsonrpc": "2.0",
-            "method": "user.login",
-            "params": {
-                "username": self.username,
-                "password": self.password
-            },
-            "id": 1
-        }
+        if int(self.zabbix_version) >= 6:
+
+            payload = {
+                "jsonrpc": "2.0",
+                "method": "user.login",
+                "params": {
+                    "username": self.username,
+                    "password": self.password
+                },
+                "id": 1
+            }
+        else:
+             payload = {
+                "jsonrpc": "2.0",
+                "method": "user.login",
+                "params": {
+                    "user": self.username,
+                    "password": self.password
+                },
+                "id": 1
+            }           
         response = requests.post(self.url, json=payload, verify=False)
         response.raise_for_status()
         return response.json()['result']

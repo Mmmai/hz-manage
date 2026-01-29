@@ -19,7 +19,12 @@
             type="warning"
             :icon="RefreshRight"
             circle
-          ></el-button>
+            disabled
+          >
+            <template #icon>
+              <el-icon><RefreshRight /></el-icon>
+            </template>
+          </el-button>
         </el-tooltip>
 
         <!-- <el-input

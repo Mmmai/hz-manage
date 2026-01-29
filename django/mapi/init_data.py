@@ -19,6 +19,14 @@ INIT_CONFIG = [
         "description": "",
     },
     {
+        "verbose_name": "zabbix版本",
+        "param_name": "zabbix_version",
+        "param_value": os.environ.get('ZABBIX_VERSION', 6),
+        "param_type": "int",
+        "system": "zabbix",
+        "description": "zabbix版本,目前只支持4和6",
+    },
+    {
         "verbose_name": "开启同步",
         "param_name": "zabbix_is_sync",
         "param_value": os.environ.get('ZABBIX_SERVER', 0),

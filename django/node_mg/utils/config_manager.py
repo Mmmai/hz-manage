@@ -17,7 +17,7 @@ class ConfigManager:
     # 配置项名称和默认值
     CONFIG_DEFAULTS = {
         "zabbix_url": "",
-        "zabbix_version": "6.0",
+        "zabbix_version": 6,
         "zabbix_server": "",
         "zabbix_host_template": "",
         "zabbix_ipmi_template": "",

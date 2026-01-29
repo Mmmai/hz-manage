@@ -3,7 +3,7 @@ import querystring from "querystring"
 import { ElMessage } from "element-plus";
 
 const instance = axios.create({
-  timeout: 120 * 1000
+  timeout: 300 * 1000
 })
 
 axios.defaults.withCredentials = true;

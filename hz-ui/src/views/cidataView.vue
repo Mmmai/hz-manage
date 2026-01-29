@@ -68,7 +68,7 @@
               @blur="($event) => editSave($event, data)"
               @keyup.enter="$event.target.blur()"
               :autofocus="true"
-              maxlength="10"
+              maxlength="30"
               type="text"
               size="small"
             >
