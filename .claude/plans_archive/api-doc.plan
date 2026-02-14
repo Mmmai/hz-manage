@@ -1,0 +1,157 @@
+# API 文档优化计划
+
+## Context
+
+当前项目使用 drf-spectacular 生成 OpenAPI 3.0 文档，提供 Swagger UI 和 ReDoc 两种访问方式，但存在以下问题：
+1. 前端没有 API 文档访问入口，用户需要手动输入 URL
+2. 后端 `preprocessing_filter_spec` 只保留 cmdb 模块接口，其他模块文档被过滤
+3. 各模块视图层缺少完整的文档注释
+
+## 修改方案
+
+### 阶段一：前端集成入口
+
+**文件**: `/opt/workpool/hz-manage/hz-ui/src/components/layout/headerCom.vue`
+
+在主题选择按钮之前（第 58 行后）添加 API 文档按钮组：
+
+```vue
+<!-- API 文档入口 -->
+<el-tooltip content="API 文档 (Swagger)" placement="bottom" effect="dark">
+  <el-button circle size="small" @click="openApiDocs('swagger')">
+    <el-icon :size="16"><Document /></el-icon>
+  </el-button>
+</el-tooltip>
+<el-tooltip content="API 文档 (ReDoc)" placement="bottom" effect="dark">
+  <el-button circle size="small" @click="openApiDocs('redoc')">
+    <el-icon :size="16"><Reading /></el-icon>
+  </el-button>
+</el-tooltip>
+```
+
+在 `<script setup>` 中添加：
+```javascript
+import { Document, Reading } from "@element-plus/icons-vue";
+
+const openApiDocs = (docType) => {
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+  const url = docType === 'swagger'
+    ? `${baseUrl}/api/docs/`
+    : `${baseUrl}/api/redoc/`;
+  window.open(url, '_blank');
+};
+```
+
+### 阶段二：修复文档过滤范围
+
+**文件**: `/opt/workpool/hz-manage/django/vuedjango/drf_spectacular_hooks.py`
+
+修改 `preprocessing_filter_spec` 函数，移除路径过滤，展示所有模块接口：
+
+```python
+def preprocessing_filter_spec(endpoints):
+    """
+    移除路径过滤，展示所有模块的 API 接口
+    """
+    return endpoints
+```
+
+或改为白名单模式明确包含需要展示的模块：
+```python
+def preprocessing_filter_spec(endpoints):
+    """只展示核心业务模块的 API 接口"""
+    filtered = []
+    prefix_list = ['/api/v1/cmdb', '/api/v1/mapi', '/api/v1/node_mg',
+                   '/api/v1/access', '/api/v1/audit', '/api/v1/monitor']
+    for (path, path_regex, method, callback) in endpoints:
+        if any(path.startswith(prefix) for prefix in prefix_list):
+            filtered.append((path, path_regex, method, callback))
+    return filtered
+```
+
+### 阶段三：后端文档完善
+
+#### 优先级 P0 - cmdb 模块
+**文件**: `/opt/workpool/hz-manage/django/cmdb/views.py` (1967 行)
+**参考**: `/opt/workpool/hz-manage/django/cmdb/schemas.py`
+
+为 18 个 ViewSet 补充 `@extend_schema_view` 装饰器和类 docstring，重点：
+- ModelInstanceViewSet - 实例管理
+- ModelsViewSet - 模型管理
+- ModelGroupsViewSet - 模型分组（已有部分文档，补充完善）
+
+#### 优先级 P1 - mapi 模块
+**文件**: `/opt/workpool/hz-manage/django/mapi/views.py` (1278 行)
+**新建**: `/opt/workpool/hz-manage/django/mapi/schemas.py`
+
+创建 schemas.py 并为以下 ViewSet 添加文档：
+- LoginView - 登录接口（无认证，特殊标注）
+- UserInfoViewSet - 用户管理
+- UserGroupViewSet - 用户组管理
+- RoleViewSet - 角色管理
+
+#### 优先级 P2 - node_mg 模块
+**文件**: `/opt/workpool/hz-manage/django/node_mg/views.py` (555 行)
+**新建**: `/opt/workpool/hz-manage/django/node_mg/schemas.py`
+
+- NodesViewSet - 节点管理
+- NodeTasksViewSet - 任务管理
+
+#### 文档注释规范
+```python
+from drf_spectacular.utils import extend_schema_view, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiTypes
+
+@extend_schema_view(
+    list=extend_schema(
+        summary='获取XX列表',
+        description='详细业务逻辑说明',
+        tags=['标签名'],
+        responses={200: SerializerClass},
+    ),
+    create=extend_schema(
+        summary='创建XX',
+        request=SerializerClass,
+        responses={201: SerializerClass},
+        tags=['标签名']
+    ),
+)
+class XXXViewSet(viewsets.ModelViewSet):
+    """ViewSet 的文档说明"""
+```
+
+## 验证步骤
+
+### 1. 前端验证
+```bash
+cd /opt/workpool/hz-manage/hz-ui && npm run dev
+```
+- 登录系统，点击顶部新增的 API 文档按钮
+- 验证新标签页打开 Swagger UI 和 ReDoc
+- Docker 环境验证 `VITE_API_URL` 环境变量
+
+### 2. 后端文档验证
+```bash
+cd /opt/workpool/hz-manage/django
+python manage.py spectacular --color --validate
+python manage.py spectacular --color --file schema.yml
+```
+
+### 3. 完整测试
+1. 访问 `http://localhost:8000/api/docs/`
+2. 验证所有模块接口分组清晰（cmdb、mapi、node_mg 等）
+3. 配置 Authorize（输入 token）
+4. 测试 Try it out 功能
+5. 验证参数和响应示例
+
+## 关键文件
+
+| 文件 | 说明 |
+|------|------|
+| `hz-ui/src/components/layout/headerCom.vue` | 前端头部组件，添加文档入口 |
+| `django/vuedjango/drf_spectacular_hooks.py` | 修复文档过滤范围 |
+| `django/cmdb/schemas.py` | cmdb 文档参考模式 |
+| `django/cmdb/views.py` | cmdb 视图层（1967 行） |
+| `django/mapi/views.py` | mapi 视图层（1278 行） |
+| `django/node_mg/views.py` | node_mg 视图层（555 行） |
+

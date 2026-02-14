@@ -57,6 +57,33 @@
       >
         <!-- <el-link type="primary" href="/docs/" target="_blank" >指南</el-link> -->
 
+        <!-- API 文档入口 -->
+        <el-tooltip content="API 文档" placement="bottom" effect="dark">
+          <el-dropdown trigger="click" @command="openApiDocs">
+            <el-button circle size="small">
+              <el-icon :size="16">
+                <Document />
+              </el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="swagger">
+                  <el-icon>
+                    <Document />
+                  </el-icon>
+                  Swagger UI
+                </el-dropdown-item>
+                <el-dropdown-item command="redoc">
+                  <el-icon>
+                    <Reading />
+                  </el-icon>
+                  ReDoc
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </el-tooltip>
+
         <!-- 主题选择器按钮 -->
         <el-tooltip content="自定义主题色" placement="bottom" effect="dark">
           <el-button circle size="small" @click="openThemeDrawer">
@@ -207,7 +234,7 @@ import {
   reactive,
   nextTick,
 } from "vue";
-import { ArrowRight, Brush } from "@element-plus/icons-vue";
+import { ArrowRight, Brush, Document, Reading } from "@element-plus/icons-vue";
 import router from "@/router";
 import { Sunny, Moon } from "@element-plus/icons-vue";
 import useTabsStore from "@/store/tabs";
@@ -282,6 +309,15 @@ const confirmCustomTheme = () => {
     changeTheme(customThemeColor.value);
   }
 };
+
+const openApiDocs = (docType) => {
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+  const url = docType === 'swagger'
+    ? `${baseUrl}/api/docs/`
+    : `${baseUrl}/api/redoc/`;
+  window.open(url, '_blank');
+};
+
 const handleCustomThemeChange = (color) => {
   if (color) {
     layoutThemeColor.value = color;

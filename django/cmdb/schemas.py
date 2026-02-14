@@ -2748,3 +2748,67 @@ password_manage_schema = extend_schema_view(
         description='# <font color="red">将所有密码字段全部置空, 仅用于调试, 请勿执行</font>'
     )
 )
+
+
+# 模型引用定义
+relation_definition_schema = extend_schema_view(
+    list=extend_schema(
+        summary='获取模型引用定义列表',
+        description='支持分页、搜索、过滤',
+        tags=['模型引用管理'],
+        responses={200: RelationDefinitionSerializer},
+    ),
+    retrieve=extend_schema(
+        summary='获取模型引用定义详情',
+        tags=['模型引用管理'],
+    ),
+    create=extend_schema(
+        summary='创建模型引用定义',
+        request=RelationDefinitionSerializer,
+        tags=['模型引用管理'],
+    ),
+    update=extend_schema(
+        summary='更新模型引用定义',
+        request=RelationDefinitionSerializer,
+        tags=['模型引用管理'],
+    ),
+    destroy=extend_schema(
+        summary='删除模型引用定义',
+        description='已被使用的引用定义不能删除',
+        tags=['模型引用管理'],
+    ),
+)
+
+
+# 关联管理
+relations_schema = extend_schema_view(
+    list=extend_schema(
+        summary='获取关联列表',
+        description='支持分页、搜索、过滤，可按源实例、目标实例、引用定义过滤',
+        tags=['实例管理'],
+        responses={200: RelationsSerializer},
+    ),
+    retrieve=extend_schema(
+        summary='获取关联详情',
+        tags=['实例管理'],
+    ),
+    create=extend_schema(
+        summary='创建关联',
+        request=RelationsSerializer,
+        tags=['实例管理'],
+    ),
+    destroy=extend_schema(
+        summary='删除关联',
+        tags=['实例管理'],
+    ),
+)
+
+
+# 系统缓存管理
+system_cache_schema = extend_schema_view(
+    clear_cache=extend_schema(
+        summary='清理系统缓存',
+        description='仅管理员可执行',
+        tags=['通用说明'],
+    ),
+)

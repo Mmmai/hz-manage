@@ -1490,6 +1490,7 @@ class ModelInstanceGroupRelationViewSet(CmdbBaseViewSet):
             raise ValidationError(str(e))
 
 
+@relation_definition_schema
 class RelationDefinitionViewSet(CmdbBaseViewSet):
     queryset = RelationDefinition.objects.all().order_by('name')
     serializer_class = RelationDefinitionSerializer
@@ -1521,6 +1522,7 @@ class RelationDefinitionViewSet(CmdbBaseViewSet):
         super().perform_destroy(instance)
 
 
+@relations_schema
 class RelationsViewSet(CmdbBaseViewSet):
     queryset = Relations.objects.all().select_related(
         'source_instance__model', 'target_instance__model', 'relation'
@@ -1929,6 +1931,7 @@ class PasswordManageViewSet(CmdbBaseViewSet):
             return Response({'status': 'fail', 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+@system_cache_schema
 class SystemCacheViewSet(CmdbBaseViewSet):
 
     @action(detail=False, methods=['post'])
