@@ -140,6 +140,9 @@ class CmdbReadOnlyBaseViewSet(AuditContextMixin, viewsets.ReadOnlyModelViewSet):
 # swggerui
 @model_groups_schema
 class ModelGroupsViewSet(CmdbBaseViewSet):
+    """
+    模型分组视图集，用于管理模型分组的增删改查操作
+    """
     queryset = ModelGroups.objects.all().order_by('create_time')
     serializer_class = ModelGroupsSerializer
     filterset_class = ModelGroupsFilter
@@ -166,6 +169,9 @@ class ModelGroupsViewSet(CmdbBaseViewSet):
 
 @models_schema
 class ModelsViewSet(CmdbBaseViewSet):
+    """
+    模型视图集，用于管理CMDB模型的增删改查操作
+    """
     queryset = Models.objects.all().order_by('create_time')
     serializer_class = ModelsSerializer
     filterset_class = ModelsFilter
@@ -317,6 +323,9 @@ class ModelsViewSet(CmdbBaseViewSet):
 
 @model_field_groups_schema
 class ModelFieldGroupsViewSet(CmdbBaseViewSet):
+    """
+    字段分组视图集，用于管理模型字段分组的增删改查操作
+    """
     queryset = ModelFieldGroups.objects.all().order_by('-create_time')
     serializer_class = ModelFieldGroupsSerializer
     filterset_class = ModelFieldGroupsFilter
@@ -332,6 +341,9 @@ class ModelFieldGroupsViewSet(CmdbBaseViewSet):
 
 @validation_rules_schema
 class ValidationRulesViewSet(CmdbBaseViewSet):
+    """
+    字段校验规则视图集，用于管理字段校验规则的增删改查操作
+    """
     queryset = ValidationRules.objects.all()
     serializer_class = ValidationRulesSerializer
     filterset_class = ValidationRulesFilter
@@ -380,6 +392,9 @@ class ModelFieldsMetadata(BaseMetadata):
 
 @model_fields_schema
 class ModelFieldsViewSet(CmdbBaseViewSet):
+    """
+    模型字段视图集，用于管理模型字段的增删改查操作
+    """
     metadata_class = ModelFieldsMetadata
     queryset = ModelFields.objects.all().order_by('-create_time')
     serializer_class = ModelFieldsSerializer
@@ -431,6 +446,9 @@ class ModelFieldsViewSet(CmdbBaseViewSet):
 
 @model_field_preference_schema
 class ModelFieldPreferenceViewSet(CmdbBaseViewSet):
+    """
+    字段展示配置视图集，用于管理字段展示偏好的增删改查操作
+    """
     queryset = ModelFieldPreference.objects.all().order_by('-create_time')
     serializer_class = ModelFieldPreferenceSerializer
     filterset_class = ModelFieldPreferenceFilter
@@ -455,6 +473,9 @@ class ModelFieldPreferenceViewSet(CmdbBaseViewSet):
 
 @unique_constraint_schema
 class UniqueConstraintViewSet(CmdbBaseViewSet):
+    """
+    实例唯一性约束视图集，用于管理实例唯一性约束的增删改查操作
+    """
     queryset = UniqueConstraint.objects.all().order_by('-create_time')
     serializer_class = UniqueConstraintSerializer
     filterset_class = UniqueConstraintFilter
@@ -496,6 +517,9 @@ class BinaryFileRenderer(BaseRenderer):
 
 @model_instance_schema
 class ModelInstanceViewSet(CmdbBaseViewSet):
+    """
+    实例视图集，用于管理模型实例的增删改查操作
+    """
     queryset = ModelInstance.objects.all().order_by('-create_time')
     serializer_class = ModelInstanceSerializer
     filterset_class = ModelInstanceFilter
@@ -1298,6 +1322,9 @@ class ModelInstanceViewSet(CmdbBaseViewSet):
 
 @model_ref_schema
 class ModelInstanceBasicViewSet(CmdbReadOnlyBaseViewSet):
+    """
+    模型引用视图集（只读），用于查询模型引用信息
+    """
     serializer_class = ModelInstanceBasicViewSerializer
     queryset = ModelInstance.objects.all().order_by('-create_time')
     filterset_class = ModelInstanceBasicFilter
@@ -1319,6 +1346,9 @@ class ModelInstanceBasicViewSet(CmdbReadOnlyBaseViewSet):
 
 @model_instance_group_schema
 class ModelInstanceGroupViewSet(CmdbBaseViewSet):
+    """
+    实例分组视图集，用于管理实例分组的增删改查操作
+    """
     queryset = ModelInstanceGroup.objects.all().order_by('create_time')
     serializer_class = ModelInstanceGroupSerializer
     pagination_class = None
@@ -1449,6 +1479,9 @@ class ModelInstanceGroupViewSet(CmdbBaseViewSet):
 
 @model_instance_group_relation_schema
 class ModelInstanceGroupRelationViewSet(CmdbBaseViewSet):
+    """
+    实例分组关联视图集，用于管理实例与分组的关联关系
+    """
     queryset = ModelInstanceGroupRelation.objects.all().order_by('-create_time')
     # serializer_class = ModelInstanceGroupRelationSerializer
     filterset_class = ModelInstanceGroupRelationFilter
@@ -1492,6 +1525,9 @@ class ModelInstanceGroupRelationViewSet(CmdbBaseViewSet):
 
 @relation_definition_schema
 class RelationDefinitionViewSet(CmdbBaseViewSet):
+    """
+    模型引用定义视图集，用于管理模型间引用定义的增删改查操作
+    """
     queryset = RelationDefinition.objects.all().order_by('name')
     serializer_class = RelationDefinitionSerializer
     filterset_class = RelationDefinitionFilter
@@ -1524,6 +1560,9 @@ class RelationDefinitionViewSet(CmdbBaseViewSet):
 
 @relations_schema
 class RelationsViewSet(CmdbBaseViewSet):
+    """
+    关系数据视图集，用于管理模型间关系数据的增删改查操作
+    """
     queryset = Relations.objects.all().select_related(
         'source_instance__model', 'target_instance__model', 'relation'
     ).order_by('-create_time')
@@ -1876,6 +1915,9 @@ class RelationsViewSet(CmdbBaseViewSet):
 
 @password_manage_schema
 class PasswordManageViewSet(CmdbBaseViewSet):
+    """
+    密码及密钥管理视图集，用于管理密码和密钥的增删改查操作
+    """
 
     @action(detail=False, methods=['post'])
     def re_encrypt(self, request):
@@ -1933,6 +1975,9 @@ class PasswordManageViewSet(CmdbBaseViewSet):
 
 @system_cache_schema
 class SystemCacheViewSet(CmdbBaseViewSet):
+    """
+    系统缓存视图集，用于管理系统缓存的查询和清理操作
+    """
 
     @action(detail=False, methods=['post'])
     def clear_cache(self, request):
