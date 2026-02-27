@@ -19,6 +19,7 @@ model_groups_schema = extend_schema_view(
         request=ModelGroupsSerializer,
         responses={201: ModelGroupsSerializer},
         summary='创建模型分组',
+        description='创建模型分组，支持指定名称、显示名称、是否内置、是否可编辑等属性。',
         tags=['模型分组管理'],
         parameters=[
             OpenApiParameter(
@@ -91,6 +92,7 @@ model_groups_schema = extend_schema_view(
     retrieve=extend_schema(
         responses={200: ModelGroupsSerializer},
         summary='获取模型分组详情',
+        description='根据模型分组ID获取详细信息，包括名称、显示名称、描述等属性。',
         tags=['模型分组管理'],
         parameters=[
             OpenApiParameter(
@@ -105,6 +107,7 @@ model_groups_schema = extend_schema_view(
     list=extend_schema(
         responses={200: ModelGroupsSerializer(many=True)},
         summary='获取模型分组列表',
+        description='获取模型分组列表，支持按名称、显示名称、是否内置等条件过滤和搜索。',
         tags=['模型分组管理'],
         parameters=[
             OpenApiParameter(
@@ -154,21 +157,72 @@ model_groups_schema = extend_schema_view(
     ),
     update=extend_schema(
         summary='更新模型分组',
+        description='更新模型分组的全部属性，包括名称、显示名称、描述等。',
         tags=['模型分组管理'],
         request=ModelGroupsSerializer,
         responses={200: ModelGroupsSerializer},
     ),
     partial_update=extend_schema(
         summary='部分更新模型分组',
+        description='部分更新模型分组属性，仅更新提供的字段。',
         tags=['模型分组管理'],
         request=ModelGroupsSerializer,
         responses={200: ModelGroupsSerializer},
     ),
     destroy=extend_schema(
         summary='删除模型分组',
+        description='删除指定的模型分组，内置分组不可删除。',
         tags=['模型分组管理'],
         request=ModelGroupsSerializer,
         responses={204: None},
+    ),
+    rename_instances=extend_schema(
+        responses={
+            202: inline_serializer(
+                name='RenameInstancesResponse',
+                fields={'cache_key': serializers.CharField(help_text='任务ID，用于查询重命名状态')}
+            )
+        },
+        summary='批量重命名模型实例',
+        description='根据模型配置的实例名称模板，批量重命名该模型下的所有实例。异步执行，返回cache_key供后续查询状态。',
+        tags=['模型管理'],
+        examples=[
+            OpenApiExample(
+                name='批量重命名示例',
+                value={'cache_key': 'rename_task_abc123'}
+            )
+        ]
+    ),
+    rename_status=extend_schema(
+        responses={
+            200: inline_serializer(
+                name='RenameStatusResponse',
+                fields={
+                    'status': serializers.CharField(help_text='任务状态'),
+                    'progress': serializers.IntegerField(help_text='进度百分比(0-100)'),
+                    'total': serializers.IntegerField(help_text='总实例数'),
+                    'updated': serializers.IntegerField(help_text='已更新数量'),
+                    'skipped': serializers.IntegerField(help_text='跳过数量'),
+                    'failed': serializers.IntegerField(help_text='失败数量'),
+                    'conflict': serializers.IntegerField(help_text='冲突数量'),
+                    'conflict_details': serializers.ListField(
+                        child=serializers.DictField(),
+                        help_text='冲突详情列表'
+                    )
+                }
+            )
+        },
+        summary='查询重命名任务状态',
+        tags=['模型管理'],
+        parameters=[
+            OpenApiParameter(
+                name='cache_key',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description='任务ID（从rename_instances接口获取）'
+            )
+        ]
     )
 )
 
@@ -412,18 +466,21 @@ models_schema = extend_schema_view(
     ),
     update=extend_schema(
         summary='更新模型',
+        description='更新模型的全部属性，包括名称、显示名称、所属分组、实例名称模板等。',
         tags=['模型管理'],
         request=ModelsSerializer,
         responses={200: ModelsSerializer},
     ),
     partial_update=extend_schema(
         summary='部分更新模型',
+        description='部分更新模型属性，仅更新提供的字段。',
         tags=['模型管理'],
         request=ModelsSerializer,
         responses={200: ModelsSerializer},
     ),
     destroy=extend_schema(
         summary='删除模型',
+        description='删除指定的模型及其关联的字段、实例等数据，此操作不可逆。',
         tags=['模型管理'],
         responses={204: None},
     )
@@ -434,6 +491,7 @@ model_field_groups_schema = extend_schema_view(
         request=ModelFieldGroupsSerializer,
         responses={201: ModelFieldGroupsSerializer},
         summary='创建字段分组',
+        description='创建字段分组，用于对模型的字段进行分类管理，支持指定名称、显示名称、所属模型等属性。',
         tags=['字段分组管理'],
         parameters=[
             OpenApiParameter(
@@ -477,6 +535,7 @@ model_field_groups_schema = extend_schema_view(
     retrieve=extend_schema(
         responses={200: ModelFieldGroupsSerializer},
         summary='获取字段分组详情',
+        description='根据字段分组ID获取详细信息，包括名称、显示名称、所属模型等属性。',
         tags=['字段分组管理'],
         parameters=[
             OpenApiParameter(
@@ -491,6 +550,7 @@ model_field_groups_schema = extend_schema_view(
     list=extend_schema(
         responses={200: ModelFieldGroupsSerializer(many=True)},
         summary='获取字段分组列表',
+        description='获取字段分组列表，支持按模型ID、名称、是否内置等条件过滤和搜索。',
         tags=['字段分组管理'],
         parameters=[
             OpenApiParameter(
@@ -526,20 +586,22 @@ model_field_groups_schema = extend_schema_view(
     ),
     update=extend_schema(
         summary='更新字段分组',
+        description='更新字段分组的全部属性，包括名称、显示名称、排序等。',
         tags=['字段分组管理'],
         request=ModelGroupsSerializer,
         responses={200: ModelGroupsSerializer},
     ),
     partial_update=extend_schema(
         summary='部分更新字段分组',
+        description='部分更新字段分组属性，仅更新提供的字段。',
         tags=['字段分组管理'],
         request=ModelGroupsSerializer,
         responses={200: ModelGroupsSerializer},
     ),
     destroy=extend_schema(
         summary='删除字段分组',
-        tags=['字段分组管理'],
         description='删除字段分组时会将字段分组下的字段移动至默认分组',
+        tags=['字段分组管理'],
         responses={204: None},
     )
 )
@@ -549,6 +611,7 @@ validation_rules_schema = extend_schema_view(
         request=ValidationRulesSerializer,
         responses={201: ValidationRulesSerializer},
         summary='创建字段校验规则',
+        description='创建字段校验规则，支持正则、范围、长度等多种验证类型，用于验证字段值的合法性。',
         tags=['字段校验规则管理'],
         parameters=[
             OpenApiParameter(
@@ -647,6 +710,7 @@ validation_rules_schema = extend_schema_view(
     retrieve=extend_schema(
         responses={200: ValidationRulesSerializer},
         summary='获取校验规则详情',
+        description='根据校验规则ID获取详细信息，包括规则名称、类型、适配字段类型等属性。',
         tags=['字段校验规则管理'],
         parameters=[
             OpenApiParameter(
@@ -661,6 +725,7 @@ validation_rules_schema = extend_schema_view(
     list=extend_schema(
         responses={200: ValidationRulesSerializer(many=True)},
         summary='获取校验规则列表',
+        description='获取校验规则列表，支持按字段类型、规则名称等条件过滤和搜索。',
         tags=['字段校验规则管理'],
         parameters=[
             OpenApiParameter(
@@ -691,16 +756,19 @@ validation_rules_schema = extend_schema_view(
         request=ValidationRulesSerializer,
         responses={200: ValidationRulesSerializer},
         summary='更新校验规则',
+        description='更新校验规则的全部属性，包括规则名称、类型、验证规则等。',
         tags=['字段校验规则管理'],
     ),
     partial_update=extend_schema(
         request=ValidationRulesSerializer,
         responses={200: ValidationRulesSerializer},
         summary='部分更新校验规则',
+        description='部分更新校验规则属性，仅更新提供的字段。',
         tags=['字段校验规则管理'],
     ),
     destroy=extend_schema(
         summary='删除校验规则',
+        description='删除指定的校验规则，已被使用的规则不能删除。',
         tags=['字段校验规则管理'],
         responses={204: None},
     )
@@ -712,6 +780,7 @@ model_fields_schema = extend_schema_view(
         request=ModelFieldsSerializer,
         responses={201: ModelFieldsSerializer},
         summary='创建字段',
+        description='创建模型字段，支持多种字段类型（字符串、数字、日期等），可设置校验规则、是否必填等属性。',
         tags=['字段管理'],
         parameters=[
             OpenApiParameter(
@@ -816,6 +885,7 @@ model_fields_schema = extend_schema_view(
     retrieve=extend_schema(
         responses={200: ModelFieldsSerializer},
         summary='获取字段详情',
+        description='根据字段ID获取详细信息，包括字段名称、类型、所属模型、校验规则等属性。',
         tags=['字段管理'],
         parameters=[
             OpenApiParameter(
@@ -830,6 +900,7 @@ model_fields_schema = extend_schema_view(
     list=extend_schema(
         responses={200: ModelFieldsSerializer(many=True)},
         summary='获取字段列表',
+        description='获取字段列表，支持按模型ID、字段分组、字段名称、字段类型等条件过滤和搜索。',
         tags=['字段管理'],
         parameters=[
             OpenApiParameter(
@@ -875,16 +946,19 @@ model_fields_schema = extend_schema_view(
         request=ModelFieldsSerializer,
         responses={200: ModelFieldsSerializer},
         summary='更新字段',
+        description='更新字段的全部属性，包括字段名称、类型、校验规则等。',
         tags=['字段管理'],
     ),
     partial_update=extend_schema(
         request=ModelFieldsSerializer,
         responses={200: ModelFieldsSerializer},
         summary='部分更新字段',
+        description='部分更新字段属性，仅更新提供的字段。',
         tags=['字段管理'],
     ),
     destroy=extend_schema(
         summary='删除字段',
+        description='删除指定的模型字段，已有关联数据的字段删除可能受限。',
         tags=['字段管理'],
         responses={204: None},
     ),
@@ -1045,6 +1119,33 @@ model_fields_schema = extend_schema_view(
                 ]
             },
         }
+    ),
+    bulk_update_fields=extend_schema(
+        request=BulkUpdateInstanceFieldsSerializer,
+        responses={
+            200: inline_serializer(
+                name='BulkUpdateFieldsResponse',
+                fields={
+                    'status': serializers.CharField(help_text='更新状态'),
+                    'updated_instances_count': serializers.IntegerField(help_text='已更新的实例数量')
+                }
+            )
+        },
+        summary='批量更新实例字段',
+        description='支持按实例ID列表或按条件筛选后批量更新字段值',
+        tags=['字段管理'],
+        examples=[
+            OpenApiExample(
+                name='批量更新字段示例',
+                value={
+                    'instances': ['uuid1', 'uuid2'],
+                    'fields': {'hostname': 'new-name'},
+                    'all': False,
+                    'params': {},
+                    'update_user': 'admin'
+                }
+            )
+        ]
     )
 )
 
@@ -1053,6 +1154,7 @@ model_field_preference_schema = extend_schema_view(
         request=ModelFieldPreferenceSerializer,
         responses={201: ModelFieldPreferenceSerializer},
         summary='创建字段展示配置',
+        description='创建字段展示配置，用于控制模型实例详情页面的字段显示顺序和可见性。',
         tags=['字段展示管理'],
         parameters=[
             OpenApiParameter(
@@ -1099,6 +1201,7 @@ model_field_preference_schema = extend_schema_view(
     retrieve=extend_schema(
         responses={200: ModelFieldPreferenceSerializer},
         summary='获取字段展示配置详情',
+        description='根据字段展示配置ID获取详细信息，包括关联模型和首选字段列表。',
         tags=['字段展示管理'],
         parameters=[
             OpenApiParameter(
@@ -1113,6 +1216,7 @@ model_field_preference_schema = extend_schema_view(
     list=extend_schema(
         responses={200: ModelFieldPreferenceSerializer(many=True)},
         summary='获取字段展示配置列表',
+        description='获取字段展示配置列表，支持按字段ID、用户等条件过滤和搜索。',
         tags=['字段展示管理'],
         parameters=[
             OpenApiParameter(
@@ -1143,16 +1247,19 @@ model_field_preference_schema = extend_schema_view(
         request=ModelFieldPreferenceSerializer,
         responses={200: ModelFieldPreferenceSerializer},
         summary='更新字段展示配置',
+        description='更新字段展示配置的全部属性，包括首选字段列表等。',
         tags=['字段展示管理'],
     ),
     partial_update=extend_schema(
         request=ModelFieldPreferenceSerializer,
         responses={200: ModelFieldPreferenceSerializer},
         summary='部分更新字段展示配置',
+        description='部分更新字段展示配置属性，仅更新提供的字段。',
         tags=['字段展示管理'],
     ),
     destroy=extend_schema(
         summary='删除字段展示配置',
+        description='删除指定的字段展示配置。',
         tags=['字段展示管理'],
         responses={204: None},
     )
@@ -1163,6 +1270,7 @@ unique_constraint_schema = extend_schema_view(
         request=UniqueConstraintSerializer,
         responses={201: UniqueConstraintSerializer},
         summary='创建唯一约束',
+        description='创建实例唯一性约束，用于保证指定字段组合的值在实例中不重复，可设置是否验证空值。',
         tags=['实例唯一性约束管理'],
         parameters=[
             OpenApiParameter(
@@ -1235,6 +1343,7 @@ unique_constraint_schema = extend_schema_view(
     retrieve=extend_schema(
         responses={200: UniqueConstraintSerializer},
         summary='获取唯一约束详情',
+        description='根据唯一约束ID获取详细信息，包括关联模型、约束字段、是否验证空值等属性。',
         tags=['实例唯一性约束管理'],
         parameters=[
             OpenApiParameter(
@@ -1249,6 +1358,7 @@ unique_constraint_schema = extend_schema_view(
     list=extend_schema(
         responses={200: UniqueConstraintSerializer(many=True)},
         summary='获取唯一约束列表',
+        description='获取唯一约束列表，支持按模型ID等条件过滤和搜索。',
         tags=['实例唯一性约束管理'],
         parameters=[
             OpenApiParameter(
@@ -1272,16 +1382,19 @@ unique_constraint_schema = extend_schema_view(
         request=UniqueConstraintSerializer,
         responses={200: UniqueConstraintSerializer},
         summary='更新唯一约束',
+        description='更新唯一约束的全部属性，包括约束字段、是否验证空值等。',
         tags=['实例唯一性约束管理'],
     ),
     partial_update=extend_schema(
         request=UniqueConstraintSerializer,
         responses={200: UniqueConstraintSerializer},
         summary='部分更新唯一约束',
+        description='部分更新唯一约束属性，仅更新提供的字段。',
         tags=['实例唯一性约束管理'],
     ),
     destroy=extend_schema(
         summary='删除唯一约束',
+        description='删除指定的唯一约束。',
         tags=['实例唯一性约束管理'],
         responses={204: None},
     )
@@ -1388,6 +1501,7 @@ model_instance_schema = extend_schema_view(
         request=ModelInstanceSerializer,
         responses={201: ModelInstanceSerializer},
         summary='创建模型实例',
+        description='创建模型实例，需提供实例所属模型、实例名称及各字段值，可指定实例分组。',
         tags=['实例管理'],
         parameters=[
             *MODEL_INSTANCE_COMMON_PARAMETERS,
@@ -1424,6 +1538,7 @@ model_instance_schema = extend_schema_view(
     retrieve=extend_schema(
         responses={200: ModelInstanceSerializer},
         summary='获取模型实例详情',
+        description='根据模型实例ID获取详细信息，包括实例名称、所属分组、各字段值等。',
         tags=['实例管理'],
         parameters=[
             OpenApiParameter(
@@ -1604,6 +1719,7 @@ model_instance_schema = extend_schema_view(
         request=ModelInstanceSerializer,
         responses={200: ModelInstanceSerializer},
         summary='更新模型实例',
+        description='更新模型实例的全部属性，包括实例名称、所属分组、各字段值等。',
         tags=['实例管理'],
         parameters=MODEL_INSTANCE_COMMON_PARAMETERS,
     ),
@@ -1611,11 +1727,13 @@ model_instance_schema = extend_schema_view(
         request=ModelInstanceSerializer,
         responses={200: ModelInstanceSerializer},
         summary='部分更新模型实例',
+        description='部分更新模型实例属性，仅更新提供的字段。',
         tags=['实例管理'],
         parameters=MODEL_INSTANCE_COMMON_PARAMETERS,
     ),
     destroy=extend_schema(
         summary='删除模型实例',
+        description='删除指定的模型实例及其所有关联关系。',
         tags=['实例管理'],
         responses={204: None},
     ),
@@ -1917,6 +2035,90 @@ model_instance_schema = extend_schema_view(
                 }
             )
         ]
+    ),
+    import_status_sse=extend_schema(
+        responses={
+            200: OpenApiResponse(
+                response=OpenApiTypes.STR,
+                description='Server-Sent Events (SSE) 流式响应，每秒推送导入进度'
+            )
+        },
+        summary='实时获取导入状态(SSE)',
+        tags=['实例管理'],
+        parameters=[
+            OpenApiParameter(
+                name='cache_key',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description='导入任务ID'
+            )
+        ]
+    ),
+    quick_search=extend_schema(
+        responses={
+            200: inline_serializer(
+                name='QuickSearchResponse',
+                fields={
+                    'results': serializers.ListField(
+                        child=serializers.DictField(),
+                        help_text='搜索结果列表'
+                    ),
+                    'total': serializers.IntegerField(help_text='结果总数'),
+                    'query': serializers.CharField(help_text='搜索关键词')
+                }
+            )
+        },
+        summary='快速搜索实例',
+        description='适用于搜索框自动补全场景，支持跨模型搜索',
+        tags=['实例管理'],
+        parameters=[
+            OpenApiParameter(
+                name='query',
+                type=OpenApiTypes.STR,
+                required=True,
+                description='搜索关键词'
+            ),
+            OpenApiParameter(
+                name='model',
+                type=OpenApiTypes.UUID,
+                required=False,
+                description='限制在指定模型中搜索'
+            ),
+            OpenApiParameter(
+                name='limit',
+                type=OpenApiTypes.INT,
+                required=False,
+                description='返回数量限制(默认20,最大100)'
+            )
+        ]
+    ),
+    tree=extend_schema(
+        responses={
+            200: inline_serializer(
+                name='ModelInstanceGroupTreeResponse',
+                fields={
+                    'id': serializers.UUIDField(),
+                    'label': serializers.CharField(),
+                    'children': serializers.ListField(),
+                    'count': serializers.IntegerField(),
+                    'built_in': serializers.BooleanField(),
+                    'level': serializers.IntegerField(),
+                    'instances': serializers.ListField()
+                }
+            )
+        },
+        summary='获取实例分组树',
+        description='返回指定模型的实例分组树形结构，包含分组层级关系和实例列表',
+        tags=['实例管理'],
+        parameters=[
+            OpenApiParameter(
+                name='model',
+                type=OpenApiTypes.UUID,
+                required=True,
+                description='模型ID'
+            )
+        ]
     )
 )
 
@@ -1924,6 +2126,7 @@ model_ref_schema = extend_schema_view(
     retrieve=extend_schema(
         responses={200: ModelInstanceBasicViewSerializer},
         summary='获取模型关联详情',
+        description='根据模型关联ID获取详细信息。',
         tags=['模型引用管理'],
         parameters=[
             OpenApiParameter(
@@ -1938,6 +2141,7 @@ model_ref_schema = extend_schema_view(
     list=extend_schema(
         responses={200: ModelInstanceBasicViewSerializer(many=True)},
         summary='获取模型关联列表',
+        description='获取模型关联列表，支持按模型ID、实例名称等条件过滤和搜索。',
         tags=['模型引用管理'],
         parameters=[
             OpenApiParameter(
@@ -2023,6 +2227,7 @@ model_field_meta_schema = extend_schema_view(
         request=ModelFieldMetaSerializer,
         responses={201: ModelFieldMetaSerializer},
         summary='创建字段元数据',
+        description='创建字段元数据，用于存储模型实例字段的扩展信息。',
         tags=['字段元数据管理'],
         parameters=[
             *MODEL_FIELD_META_COMMON_PARAMETERS,
@@ -2051,6 +2256,7 @@ model_field_meta_schema = extend_schema_view(
     retrieve=extend_schema(
         responses={200: ModelFieldMetaSerializer},
         summary='获取字段元数据详情',
+        description='根据字段元数据ID获取详细信息，包括关联模型、实例、字段和元数据值。',
         tags=['字段元数据管理'],
         parameters=[
             OpenApiParameter(
@@ -2065,6 +2271,7 @@ model_field_meta_schema = extend_schema_view(
     list=extend_schema(
         responses={200: ModelFieldMetaSerializer(many=True)},
         summary='获取字段元数据列表',
+        description='获取字段元数据列表，支持按模型ID、实例ID、字段ID、元数据值等条件过滤和搜索。',
         tags=['字段元数据管理'],
         parameters=[
             OpenApiParameter(
@@ -2115,16 +2322,19 @@ model_field_meta_schema = extend_schema_view(
         request=ModelFieldMetaSerializer,
         responses={200: ModelFieldMetaSerializer},
         summary='更新字段元数据',
+        description='更新字段元数据的全部属性，包括关联模型、实例、字段和元数据值。',
         tags=['字段元数据管理'],
     ),
     partial_update=extend_schema(
         request=ModelFieldMetaSerializer,
         responses={200: ModelFieldMetaSerializer},
         summary='部分更新字段元数据',
+        description='部分更新字段元数据属性，仅更新提供的字段。',
         tags=['字段元数据管理'],
     ),
     destroy=extend_schema(
         summary='删除字段元数据',
+        description='删除指定的字段元数据。',
         tags=['字段元数据管理'],
         responses={204: None},
     )
@@ -2170,6 +2380,7 @@ model_instance_group_schema = extend_schema_view(
         request=ModelInstanceGroupSerializer,
         responses={201: ModelInstanceGroupSerializer},
         summary='创建实例分组',
+        description='创建实例分组，用于组织和管理模型实例，支持树形层级结构。',
         tags=['实例分组管理'],
         parameters=[
             OpenApiParameter(
@@ -2249,7 +2460,7 @@ model_instance_group_schema = extend_schema_view(
         responses={
             200: OpenApiResponse(
                 response=ModelInstanceGroupsListResponseSerializer,
-                description='按模型ID分组的实例分组树',
+                description='按模型ID分组的实例分组树，支持树形层级结构展示',
                 examples=[
                     OpenApiExample(
                         name='分组树示例',
@@ -2377,6 +2588,7 @@ model_instance_group_schema = extend_schema_view(
             )
         },
         summary='获取实例分组详情',
+        description='根据实例分组ID获取详细信息，包括分组名称、层级、路径及子分组等。',
         tags=['实例分组管理'],
         parameters=[
             OpenApiParameter(
@@ -2392,6 +2604,7 @@ model_instance_group_schema = extend_schema_view(
         request=ModelInstanceGroupSerializer,
         responses={200: ModelInstanceGroupSerializer},
         summary='更新实例分组',
+        description='更新实例分组的全部属性，包括分组名称、父分组、层级、路径等。',
         tags=['实例分组管理'],
         parameters=[
             OpenApiParameter(
@@ -2449,6 +2662,7 @@ model_instance_group_schema = extend_schema_view(
         request=ModelInstanceGroupSerializer,
         responses={200: ModelInstanceGroupSerializer},
         summary='部分更新实例分组',
+        description='部分更新实例分组属性，仅更新提供的字段。',
         tags=['实例分组管理'],
         parameters=[
             OpenApiParameter(
@@ -2504,6 +2718,7 @@ model_instance_group_schema = extend_schema_view(
     ),
     destroy=extend_schema(
         summary='删除实例分组',
+        description='删除指定的实例分组，内置分组不可删除。',
         tags=['实例分组管理'],
         responses={204: None},
     ),
@@ -2607,6 +2822,7 @@ model_instance_group_relation_schema = extend_schema_view(
     create=extend_schema(
         responses={200: ModelInstanceGroupRelationSerializer},
         summary='创建实例与分组的关联',
+        description='创建实例与分组的关联关系，用于将实例添加到分组中。',
         tags=['实例分组关联管理'],
         parameters=[
             OpenApiParameter(
@@ -2642,6 +2858,7 @@ model_instance_group_relation_schema = extend_schema_view(
     retrieve=extend_schema(
         responses={200: ModelInstanceGroupRelationSerializer},
         summary='获取实例与分组的关联',
+        description='根据关联ID获取实例与分组关联的详细信息。',
         tags=['实例分组关联管理'],
         parameters=[
             OpenApiParameter(
@@ -2656,6 +2873,7 @@ model_instance_group_relation_schema = extend_schema_view(
     list=extend_schema(
         responses={200: ModelInstanceGroupRelationSerializer(many=True)},
         summary='获取实例与分组的关联列表',
+        description='获取实例与分组的关联列表，支持按实例ID、分组ID等条件过滤和搜索。',
         tags=['实例分组关联管理'],
         parameters=[
             OpenApiParameter(
@@ -2719,6 +2937,101 @@ model_instance_group_relation_schema = extend_schema_view(
             OpenApiParameter('page_size', exclude=True),
         ]
     ),
+    bulk_associate=extend_schema(
+        request=BulkAssociateRelationsSerializer,
+        responses={
+            201: inline_serializer(
+                name='BulkAssociateResponse',
+                fields={
+                    'created_count': serializers.IntegerField(),
+                    'relations': serializers.ListField(child=RelationsSerializer())
+                }
+            )
+        },
+        summary='批量创建关联关系(多对一/一对多)',
+        description='将多个实例关联到单个目标实例，通过direction参数控制关联方向',
+        tags=['实例管理'],
+        examples=[
+            OpenApiExample(
+                name='批量关联示例',
+                value={
+                    'instance_ids': ['uuid1', 'uuid2'],
+                    'target_instance_id': 'target-uuid',
+                    'relation_id': 'relation-uuid',
+                    'direction': 'target-source',
+                    'relation_attributes': {}
+                }
+            )
+        ]
+    ),
+    bulk_create=extend_schema(
+        request=inline_serializer(
+            name='BulkCreateRelationsRequest',
+            fields={
+                'relations': serializers.ListField(
+                    child=serializers.DictField(),
+                    help_text='关系定义列表，每个包含source_instance/target_instance/relation/relation_attributes'
+                )
+            }
+        ),
+        responses={
+            201: inline_serializer(
+                name='BulkCreateRelationsResponse',
+                fields={
+                    'created_count': serializers.IntegerField(),
+                    'relations': serializers.ListField(child=RelationsSerializer())
+                }
+            )
+        },
+        summary='批量创建关联关系',
+        description='批量创建多个独立的关联关系，每个关系可以有不同的源实例、目标实例和关系类型',
+        tags=['实例管理'],
+        examples=[
+            OpenApiExample(
+                name='批量创建关系示例',
+                value={
+                    'relations': [
+                        {
+                            'source_instance': 'uuid1',
+                            'target_instance': 'uuid2',
+                            'relation': 'relation-uuid',
+                            'relation_attributes': {}
+                        }
+                    ]
+                }
+            )
+        ]
+    ),
+    bulk_delete=extend_schema(
+        request=inline_serializer(
+            name='BulkDeleteRelationsRequest',
+            fields={
+                'relation_ids': serializers.ListField(
+                    child=serializers.UUIDField(),
+                    help_text='要删除的关系ID列表'
+                )
+            }
+        ),
+        responses={
+            200: inline_serializer(
+                name='BulkDeleteRelationsResponse',
+                fields={
+                    'deleted_count': serializers.IntegerField(),
+                    'skipped_count': serializers.IntegerField(),
+                    'errors': serializers.ListField(child=serializers.CharField())
+                }
+            )
+        },
+        summary='批量删除关联关系',
+        description='批量删除指定的关联关系，会进行权限校验',
+        tags=['实例管理'],
+        examples=[
+            OpenApiExample(
+                name='批量删除关系示例',
+                value={'relation_ids': ['uuid1', 'uuid2']}
+            )
+        ]
+    )
 )
 
 
@@ -2760,15 +3073,18 @@ relation_definition_schema = extend_schema_view(
     ),
     retrieve=extend_schema(
         summary='获取模型引用定义详情',
+        description='根据模型引用定义ID获取详细信息。',
         tags=['模型引用管理'],
     ),
     create=extend_schema(
         summary='创建模型引用定义',
+        description='创建模型引用定义，用于定义模型之间的关联关系类型和规则。',
         request=RelationDefinitionSerializer,
         tags=['模型引用管理'],
     ),
     update=extend_schema(
         summary='更新模型引用定义',
+        description='更新模型引用定义的全部属性。',
         request=RelationDefinitionSerializer,
         tags=['模型引用管理'],
     ),
@@ -2790,17 +3106,98 @@ relations_schema = extend_schema_view(
     ),
     retrieve=extend_schema(
         summary='获取关联详情',
+        description='根据关联ID获取实例间关联关系的详细信息。',
         tags=['实例管理'],
     ),
     create=extend_schema(
         summary='创建关联',
+        description='创建实例间的关联关系，用于建立模型实例之间的引用连接。',
         request=RelationsSerializer,
         tags=['实例管理'],
     ),
     destroy=extend_schema(
         summary='删除关联',
+        description='删除指定的实例间关联关系。',
         tags=['实例管理'],
     ),
+    get_topology=extend_schema(
+        request=inline_serializer(
+            name='TopologyRequest',
+            fields={
+                'start_nodes': serializers.ListField(
+                    child=serializers.UUIDField(),
+                    help_text='起始节点ID列表'
+                ),
+                'end_nodes': serializers.ListField(
+                    child=serializers.UUIDField(),
+                    required=False,
+                    help_text='结束节点ID列表(path模式时必填)'
+                ),
+                'depth': serializers.IntegerField(
+                    default=3,
+                    help_text='搜索深度(1-10)'
+                ),
+                'direction': serializers.ChoiceField(
+                    choices=['forward', 'backward', 'both'],
+                    default='both',
+                    help_text='搜索方向'
+                ),
+                'mode': serializers.ChoiceField(
+                    choices=['blast', 'path', 'neighbor'],
+                    default='blast',
+                    help_text='拓扑模式: blast(广度优先扩展)/path(路径查询)/neighbor(邻居节点)'
+                )
+            }
+        ),
+        responses={
+            200: inline_serializer(
+                name='TopologyResponse',
+                fields={
+                    'nodes': serializers.ListField(
+                        child=serializers.DictField(),
+                        help_text='节点列表(包含可见节点和受限节点)'
+                    ),
+                    'edges': serializers.ListField(
+                        child=RelationsSerializer(),
+                        help_text='边列表'
+                    ),
+                    'statistics': inline_serializer(
+                        name='TopologyStatistics',
+                        fields={
+                            'total_nodes': serializers.IntegerField(),
+                            'visible_nodes': serializers.IntegerField(),
+                            'restricted_nodes': serializers.IntegerField(),
+                            'total_edges': serializers.IntegerField()
+                        }
+                    )
+                }
+            )
+        },
+        summary='获取实例关系拓扑图',
+        description='获取实例间的关系拓扑结构，用于可视化展示。支持blast/path/neighbor三种模式，根据用户权限过滤节点显示。',
+        tags=['实例管理'],
+        examples=[
+            OpenApiExample(
+                name='blast模式示例',
+                value={
+                    'start_nodes': ['uuid1', 'uuid2'],
+                    'depth': 3,
+                    'direction': 'both',
+                    'mode': 'blast'
+                }
+            ),
+            OpenApiExample(
+                name='path模式示例',
+                value={
+                    'start_nodes': ['uuid1'],
+                    'end_nodes': ['uuid2'],
+                    'depth': 5,
+                    'direction': 'both',
+                    'mode': 'path'
+                }
+            )
+        ]
+    )
 )
 
 
