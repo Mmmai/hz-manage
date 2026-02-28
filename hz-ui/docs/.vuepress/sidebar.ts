@@ -58,28 +58,92 @@ export default {
             collapsible: true,
             children: [
               {
-                text: "资源检索",
-                link: "/manage/guide/cmdb/search.md",
+                text: "CMDB 概览",
+                link: "/manage/guide/cmdb/overview.md",
               },
               {
-                text: "资源实例",
-                link: "/manage/guide/cmdb/instance.md",
+                text: "配置管理",
+                collapsible: true,
+                children: [
+                  {
+                    text: "模型分组",
+                    link: "/manage/guide/cmdb/model-group.md",
+                  },
+                  {
+                    text: "模型管理",
+                    link: "/manage/guide/cmdb/model.md",
+                  },
+                  {
+                    text: "字段配置",
+                    link: "/manage/guide/cmdb/field.md",
+                  },
+                  {
+                    text: "校验配置",
+                    link: "/manage/guide/cmdb/validation.md",
+                  },
+                  {
+                    text: "唯一性约束",
+                    link: "/manage/guide/cmdb/unique-constraint.md",
+                  },
+                ],
               },
               {
-                text: "模型管理",
-                link: "/manage/guide/cmdb/model.md",
+                text: "实例管理",
+                collapsible: true,
+                children: [
+                  {
+                    text: "资源实例",
+                    link: "/manage/guide/cmdb/instance.md",
+                  },
+                  {
+                    text: "实例分组",
+                    link: "/manage/guide/cmdb/instance-group.md",
+                  },
+                  {
+                    text: "资源检索",
+                    link: "/manage/guide/cmdb/search.md",
+                  },
+                  {
+                    text: "导入导出",
+                    link: "/manage/guide/cmdb/import-export.md",
+                  },
+                ],
               },
               {
-                text: "校验配置",
-                link: "/manage/guide/cmdb/validation.md",
+                text: "关系与审计",
+                collapsible: true,
+                children: [
+                  {
+                    text: "关联关系",
+                    link: "/manage/guide/cmdb/relation.md",
+                  },
+                  {
+                    text: "资产审计",
+                    link: "/manage/guide/cmdb/audit.md",
+                  },
+                ],
               },
               {
-                text: "关联关系",
-                link: "/manage/guide/cmdb/relation.md",
+                text: "系统功能",
+                collapsible: true,
+                children: [
+                  {
+                    text: "字段偏好",
+                    link: "/manage/guide/cmdb/field-preference.md",
+                  },
+                  {
+                    text: "密码管理",
+                    link: "/manage/guide/cmdb/password.md",
+                  },
+                  {
+                    text: "系统维护",
+                    link: "/manage/guide/cmdb/system.md",
+                  },
+                ],
               },
               {
-                text: "资产审计",
-                link: "/manage/guide/cmdb/audit.md",
+                text: "最佳实践",
+                link: "/manage/guide/cmdb/best-practices.md",
               },
             ],
           },
