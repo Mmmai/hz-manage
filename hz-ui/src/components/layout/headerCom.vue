@@ -55,33 +55,13 @@
           gap: 10px;
         "
       >
-        <!-- <el-link type="primary" href="/docs/" target="_blank" >指南</el-link> -->
-
         <!-- API 文档入口 -->
         <el-tooltip content="API 文档" placement="bottom" effect="dark">
-          <el-dropdown trigger="click" @command="openApiDocs">
-            <el-button circle size="small">
-              <el-icon :size="16">
-                <Document />
-              </el-icon>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="swagger">
-                  <el-icon>
-                    <Document />
-                  </el-icon>
-                  Swagger UI
-                </el-dropdown-item>
-                <el-dropdown-item command="redoc">
-                  <el-icon>
-                    <Reading />
-                  </el-icon>
-                  ReDoc
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+          <el-button circle size="small" @click="openDocs">
+            <el-icon :size="16">
+              <Document />
+            </el-icon>
+          </el-button>
         </el-tooltip>
 
         <!-- 主题选择器按钮 -->
@@ -310,12 +290,9 @@ const confirmCustomTheme = () => {
   }
 };
 
-const openApiDocs = (docType) => {
-  const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-  const url = docType === 'swagger'
-    ? `${baseUrl}/api/docs/`
-    : `${baseUrl}/api/redoc/`;
-  window.open(url, '_blank');
+const openDocs = () => {
+  // 打开 VuePress 文档指南（通过 Vite 代理访问）
+  window.open('/docs/', '_blank');
 };
 
 const handleCustomThemeChange = (color) => {

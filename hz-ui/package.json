@@ -8,10 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .gitignore",
-    "docs:dev": "vuepress-vite dev docs",
-    "docs:build": "vuepress-vite build docs",
-    "docs:clean-dev": "vuepress-vite dev docs --clean-cache",
-    "docs:update-package": "npx vp-update"
+    "docs:dev": "vuepress dev docs",
+    "docs:build": "vuepress build docs",
+    "docs:clean-dev": "vuepress dev docs --clean-cache"
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",
@@ -57,8 +56,8 @@
     "@iconify/json": "^2.2.290",
     "@types/node": "^22.10.2",
     "@vitejs/plugin-vue": "^4.3.4",
-    "@vuepress/bundler-vite": "2.0.0-rc.19",
-    "@vuepress/plugin-search": "next",
+    "@vuepress/bundler-vite": "next",
+    "vuepress": "next",
     "@vuepress/plugin-slimsearch": "next",
     "@vuepress/theme-default": "next",
     "eslint": "^8.49.0",
