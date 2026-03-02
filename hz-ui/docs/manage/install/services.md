@@ -82,9 +82,8 @@ service:
     - DATABASE_HOST=${DATABASE_HOST:-mysql}
     - DATABASE_PORT=${DATABASE_PORT:-3306}
     - DATABASE_USER=${DATABASE_USER:-root}
-    - DATABASE_PASS=${DATABASE_PASS:-thinker}
-    - MANAGE_DATABASE=${MANAGE_DATABASE:-manage}
-    - CMDB_DATABASE=${CMDB_DATABASE:-cmdb}
+    - DATABASE_PASSWORD=${DATABASE_PASSWORD:-thinker}
+    - DATABASE_NAME=${DATABASE_NAME:-autoOps}
     - REDIS_HOST=${REDIS_HOST:-redis}
     - REDIS_PORT=${REDIS_PORT:-6379}
     - ZABBIX_URL=${ZABBIX_URL}
@@ -136,8 +135,7 @@ db:
   restart: always
   environment:
     - MYSQL_ROOT_PASSWORD=${DATABASE_PASSWORD:-thinker}
-    - MANAGE_DATABASE=${MANAGE_DATABASE:-manage}
-    - CMDB_DATABASE=${CMDB_DATABASE:-cmdb}
+    - MYSQL_DATABASE=${DATABASE_NAME:-autoOps}
   volumes:
     - ${DATA_DIR}/mysql:/var/lib/mysql
     - ./etc/my.cnf:/etc/mysql/conf.d/my.cnf
@@ -160,8 +158,7 @@ db:
 
 | 数据库 | 说明 |
 |--------|------|
-| `manage` | 业务数据（用户、角色、权限等） |
-| `cmdb` | CMDB 配置和资产数据 |
+| `autoOps` | 统一数据库（包含所有业务数据） |
 
 ### 数据持久化
 
@@ -172,8 +169,7 @@ ${DATA_DIR}/mysql/
 # 包含内容
 - ibdata1        # 系统表空间
 - ib_logfile0     # 日志文件
-- manage/         # manage 数据库
-- cmdb/           # cmdb 数据库
+- autoOps/        # autoOps 数据库
 ```
 
 ::: warning 备份建议

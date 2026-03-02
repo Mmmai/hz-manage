@@ -30,8 +30,7 @@ DATABASE_HOST=mysql              # 数据库主机（容器名）
 DATABASE_PORT=3306               # 数据库端口
 DATABASE_USER=root               # 数据库用户
 DATABASE_PASSWORD=thinker        # 数据库密码（必须修改）
-MANAGE_DATABASE=manage           # 业务数据库名
-CMDB_DATABASE=cmdb               # CMDB 数据库名
+DATABASE_NAME=autoOps            # 统一数据库名
 
 # Redis 配置
 REDIS_HOST=redis                 # Redis 主机（容器名）
@@ -77,8 +76,7 @@ DATA_DIR=./data                  # 数据存储根目录
 | `DATABASE_PORT` | 数据库端口 | `3306` | **不要修改**（容器内部端口） |
 | `DATABASE_USER` | 数据库用户 | `root` | 保持默认 |
 | `DATABASE_PASSWORD` | 数据库密码 | `thinker` | **必须修改为强密码** |
-| `MANAGE_DATABASE` | 业务数据库 | `manage` | 按需修改 |
-| `CMDB_DATABASE` | CMDB 数据库 | `cmdb` | 按需修改 |
+| `DATABASE_NAME` | 统一数据库 | `autoOps` | 按需修改 |
 
 ::: warning 安全警告
 生产环境务必修改 `DATABASE_PASSWORD` 为强密码！建议使用大小写字母+数字+特殊字符，长度至少 12 位。
