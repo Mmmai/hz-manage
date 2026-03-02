@@ -34,4 +34,3 @@ docs/.vuepress/.temp/
 docs/.vuepress/dist/
 dist
 *.d.ts
-package-lock.json
