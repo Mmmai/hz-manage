@@ -260,19 +260,37 @@ SPECTACULAR_SETTINGS = {
                 '部分接口由于响应的结果数量少, 这两个参数将在部分API文档中隐藏'
             )
         },
+        # CMDB 模块
         {'name': '模型分组管理', 'description': '模型分组相关接口'},
         {'name': '模型管理', 'description': '模型相关接口'},
         {'name': '字段分组管理', 'description': '字段分组相关接口'},
         {'name': '字段校验规则管理', 'description': '字段校验规则相关接口'},
         {'name': '字段管理', 'description': '字段相关接口'},
         {'name': '字段展示管理', 'description': '字段展示设置相关接口'},
-        # {'name': '字段元数据管理', 'description': '字段元数据相关接口'},
         {'name': '实例唯一性约束管理', 'description': '实例唯一性约束相关接口'},
         {'name': '实例管理', 'description': '实例相关接口'},
         {'name': '模型引用管理', 'description': '模型引用相关接口'},
         {'name': '实例分组管理', 'description': '实例分组相关接口'},
         {'name': '实例分组关联管理', 'description': '实例分组关联相关接口'},
         {'name': '密码及密钥管理', 'description': '密码及密钥相关接口'},
+        # 用户管理模块 (mapi)
+        {'name': '用户管理', 'description': '用户信息管理相关接口'},
+        {'name': '用户组管理', 'description': '用户组管理相关接口'},
+        {'name': '角色管理', 'description': '角色权限管理相关接口'},
+        {'name': '门户管理', 'description': '门户配置相关接口'},
+        {'name': '数据源管理', 'description': '数据源配置相关接口'},
+        # 节点管理模块 (node_mg)
+        {'name': '节点管理', 'description': '节点信息管理相关接口'},
+        {'name': '节点任务', 'description': '节点任务相关接口'},
+        {'name': '代理管理', 'description': 'Zabbix代理配置相关接口'},
+        # 访问控制模块 (access)
+        {'name': '菜单管理', 'description': '菜单配置相关接口'},
+        {'name': '权限管理', 'description': '权限分配相关接口'},
+        {'name': '数据权限', 'description': '数据范围权限相关接口'},
+        # 审计模块 (audit)
+        {'name': '审计日志', 'description': '操作审计相关接口'},
+        # 监控模块 (monitor)
+        {'name': '监控数据', 'description': 'Zabbix监控数据相关接口'},
     ],
     # 扩展设置
     'COMPONENT_SPLIT_REQUEST': True,

@@ -22,6 +22,7 @@ from .tasks import (
     zabbix_proxy_sync
 )
 from .filters import NodesFilter,NodeTasksFilter
+from .schemas import *
 from cmdb.public_services import PublicModelInstanceService
 
 # Create your views here.
@@ -41,6 +42,7 @@ from cmdb.public_services import PublicModelInstanceService
 #         return JsonResponse({"status": "success", "message": "任务已触发"}, status=status.HTTP_200_OK)
 #     return JsonResponse({"status": "error", "message": "只支持POST请求"}, status=status.HTTP_400_BAD_REQUEST)
 
+@node_tasks_schema
 class NodeTasksViewSet(ModelViewSet):
     """
     NodeTasks视图集，用于管理节点任务信息的查询操作
@@ -69,6 +71,7 @@ class NodeTasksViewSet(ModelViewSet):
             
         return queryset
 
+@nodes_schema
 class NodesViewSet(AuditContextMixin, ModelViewSet):
     """
     节点信息视图集，用于管理节点信息的增删改查操作
@@ -525,6 +528,7 @@ class NodesViewSet(AuditContextMixin, ModelViewSet):
         )
 
 
+@proxy_schema
 class ProxyViewSet(ModelViewSet):
     queryset = Proxy.objects.all()
     serializer_class = ProxySerializer
@@ -545,6 +549,7 @@ class ProxyViewSet(ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
 
+@model_config_schema
 class ModelConfigViewSet(ModelViewSet):
     queryset = ModelConfig.objects.all()
     filter_backends = [filters.OrderingFilter, filters.SearchFilter, DjangoFilterBackend]

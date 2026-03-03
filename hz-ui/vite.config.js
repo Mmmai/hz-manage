@@ -2,15 +2,20 @@
  * Vite 配置文件
  *
  * 环境变量配置说明：
- * - VITE_API_URL: 后端 API 地址（可选）
+ * - VITE_API_URL: 后端 API 地址（可选，用于 Vite 代理）
  *   - 本地开发：默认使用 http://127.0.0.1:8000
  *   - Docker 环境：在 docker-compose.yml 中设置，如 http://backend:8000
+ *
+ * - VITE_BACKEND_URL: 后端外部可访问地址（可选，用于浏览器直接访问后端）
+ *   - 生产环境需要配置，如 http://localhost:8000 或 http://your-domain.com
+ *   - 未配置时使用当前域名（依赖反向代理）
  *
  * 使用示例：
  * 1. 本地开发（默认）：npm run dev
  * 2. Docker 环境：
  *    environment:
  *      - VITE_API_URL=http://backend:8000
+ *      - VITE_BACKEND_URL=http://localhost:8000
  * 3. 自定义环境文件：创建 .env.local 或 .env.docker
  */
 
@@ -54,6 +59,17 @@ export default defineConfig(({ mode }) => {
       "/api": {
         target,
         changeOrigin: true,
+      },
+      // drf-spectacular Swagger UI 静态文件代理
+      "/static/drf_spectacular_sidecar": {
+        target,
+        changeOrigin: true,
+      },
+      // VuePress 文档代理（同一容器内的 5173 端口）
+      "/docs": {
+        target: "http://localhost:5173",
+        changeOrigin: true,
+        ws: true,
       },
       // WebSocket 连接代理（通用）
       "/ws": {

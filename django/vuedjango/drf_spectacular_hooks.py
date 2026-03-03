@@ -19,9 +19,7 @@ def remove_params(result, generator, request, public):
 
 
 def preprocessing_filter_spec(endpoints):
-    filtered = []
-    for (path, path_regex, method, callback) in endpoints:
-        # Remove all but CMDB API endpoints
-        if path.startswith("/api/v1/cmdb"):
-            filtered.append((path, path_regex, method, callback))
-    return filtered
+    """
+    移除路径过滤，展示所有模块的 API 接口
+    """
+    return endpoints

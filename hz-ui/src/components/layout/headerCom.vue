@@ -55,7 +55,14 @@
           gap: 10px;
         "
       >
-        <!-- <el-link type="primary" href="/docs/" target="_blank" >指南</el-link> -->
+        <!-- API 文档入口 -->
+        <el-tooltip content="API 文档" placement="bottom" effect="dark">
+          <el-button circle size="small" @click="openDocs">
+            <el-icon :size="16">
+              <Document />
+            </el-icon>
+          </el-button>
+        </el-tooltip>
 
         <!-- 主题选择器按钮 -->
         <el-tooltip content="自定义主题色" placement="bottom" effect="dark">
@@ -207,7 +214,7 @@ import {
   reactive,
   nextTick,
 } from "vue";
-import { ArrowRight, Brush } from "@element-plus/icons-vue";
+import { ArrowRight, Brush, Document, Reading } from "@element-plus/icons-vue";
 import router from "@/router";
 import { Sunny, Moon } from "@element-plus/icons-vue";
 import useTabsStore from "@/store/tabs";
@@ -282,6 +289,12 @@ const confirmCustomTheme = () => {
     changeTheme(customThemeColor.value);
   }
 };
+
+const openDocs = () => {
+  // 打开 VuePress 文档指南（通过 Vite 代理访问）
+  window.open('/docs/', '_blank');
+};
+
 const handleCustomThemeChange = (color) => {
   if (color) {
     layoutThemeColor.value = color;

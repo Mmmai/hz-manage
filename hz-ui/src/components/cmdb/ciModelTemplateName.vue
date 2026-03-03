@@ -33,21 +33,27 @@
     </el-checkbox-group>
     <el-divider>拖拽调整顺序</el-divider>
     <VueDraggable
+      v-if="checkboxLists.length > 0"
       :disabled="!isEdit"
       v-model="checkboxLists"
       :force-fallback="true"
       :scroll-sensitivity="200"
-      ref="el"
       @end="onEnd"
+      animation="300"
+      class="draggable-container"
       style="width: 100%; overflow: auto"
     >
-      <div v-for="(itemId, index) in checkboxLists" :key="index">
+      <div v-for="itemId in checkboxLists" :key="itemId" class="draggable-item">
         <div class="listItem">
-          <span>{{ modelFieldMap[itemId].verbose_name }}</span>
-          <!-- {{ itemId }} -->
+          <span>{{ modelFieldMap[itemId]?.verbose_name || itemId }}</span>
         </div>
       </div>
     </VueDraggable>
+    <el-empty
+      v-else
+      description="暂无已选字段，请先勾选字段"
+      :image-size="80"
+    />
     <el-divider>效果预览</el-divider>
     <div
       style="
@@ -60,7 +66,7 @@
       <h3>
         {{
           checkboxLists
-            .map((item) => modelFieldMap[item].verbose_name)
+            .map((item) => modelFieldMap[item]?.verbose_name || item)
             .join(" - ")
         }}
       </h3>
@@ -187,4 +193,28 @@ defineExpose({
 // });
 </script>
 <style scoped lang="scss">
+.draggable-container {
+  min-height: 60px;
+  padding: 8px;
+  background-color: var(--el-fill-color-lighter);
+  border-radius: 4px;
+}
+
+.draggable-item {
+  cursor: move;
+}
+
+.listItem {
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  background-color: var(--el-bg-color);
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  transition: all 0.3s;
+
+  &:hover {
+    border-color: var(--el-color-primary);
+    background-color: var(--el-color-primary-light-9);
+  }
+}
 </style>
