@@ -20,7 +20,7 @@ from access.public_services import PublicPermissionService
 
 from .utils.jwt_create_token import create_token
 from .extensions.jwt_authenticate import JWTQueryParamsAuthentication
-from .sers import *
+from .schemas import *
 from .models import *
 from .filters import *
 from .export import exportHandler
@@ -29,6 +29,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+@login_schema
 class LoginView(APIView):
     """用户登录"""
     authentication_classes = []  # 取消全局认证
@@ -103,6 +104,7 @@ class getSecret(APIView):
         return Response({"secret": settings.SECRET_KEY})
 
 
+@user_info_schema
 class UserInfoViewSet(ModelViewSet):
     queryset = UserInfo.objects.all()
     # 认证
@@ -184,6 +186,7 @@ class UserInfoViewSet(ModelViewSet):
         super().perform_update(serializer)
 
 
+@user_group_schema
 class UserGroupViewSet(ModelViewSet):
     queryset = UserGroup.objects.all()
     serializer_class = UserGroupModelSerializer
@@ -204,6 +207,7 @@ class UserGroupViewSet(ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+@role_schema
 class RoleViewSet(ModelViewSet):
 
     queryset = Role.objects.all()
@@ -316,6 +320,7 @@ class RoleViewSet(ModelViewSet):
         super().perform_update(serializer)
 
 
+@portal_schema
 class PortalViewSet(ModelViewSet):
     queryset = Portal.objects.all()
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -866,6 +871,7 @@ class PortalViewSet(ModelViewSet):
             result_data["errors"] = error_messages
             
         return Response(data=result_data, status=status.HTTP_200_OK)
+@pgroup_schema
 class PgroupViewSet(ModelViewSet):
     queryset = Pgroup.objects.all()
     serializer_class = PgroupModelSerializer
@@ -1060,6 +1066,7 @@ class PgroupViewSet(ModelViewSet):
             )
 
 
+@portal_favorites_schema
 class PortalFavoritesViewSet(ModelViewSet):
     """
     门户收藏夹视图集
@@ -1172,6 +1179,7 @@ class PortalFavoritesViewSet(ModelViewSet):
         })
 
 
+@datasource_schema
 class dataSourceViewSet(ModelViewSet):
     queryset = Datasource.objects.all()
     serializer_class = DatasourceModelSerializer
@@ -1235,6 +1243,7 @@ class dataSourceViewSet(ModelViewSet):
 #   serializer_class = LogModuleModelSerializer
 
 
+@sys_config_schema
 class sysConfigViewSet(ModelViewSet):
     queryset = sysConfigParams.objects.all()
     serializer_class = SysConfigSerializer

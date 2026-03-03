@@ -14,6 +14,7 @@ from mapi.models import UserInfo, UserGroup, Role
 from .tools import clear_data_scope_cache
 from .models import *
 from .serializers import *
+from .schemas import *
 from .filters import ButtonFilter
 from .services import *
 
@@ -147,6 +148,7 @@ class getUserButton(APIView):
         return Response({'code': 200, "results": allPermissionList})
 
 
+@menu_schema
 class MenuViewSet(ModelViewSet):
     queryset = Menu.objects.all()
     serializer_class = MenuModelSerializer
@@ -174,12 +176,14 @@ class MenuViewSet(ModelViewSet):
         return tree
 
 
+@button_schema
 class ButtonViewSet(ModelViewSet):
     queryset = Button.objects.all()
     serializer_class = ButtonModelSerializer
     filterset_class = ButtonFilter
 
 
+@permission_schema
 class PermissionViewSet(ModelViewSet):
     queryset = Permission.objects.all()
     serializer_class = PermissionModelSerializer
@@ -510,6 +514,7 @@ class PermissionViewSet(ModelViewSet):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@data_scope_schema
 class DataScopeViewSet(ModelViewSet):
     queryset = DataScope.objects.all().prefetch_related('targets', 'targets__content_type')
     serializer_class = DataScopeSerializer

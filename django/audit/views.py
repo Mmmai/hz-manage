@@ -10,6 +10,7 @@ from django.db import transaction
 
 from .models import AuditLog
 from .serializers import AuditLogSerializer
+from .schemas import *
 from .filters import AuditLogFilter
 from .restoration import RollbackManager, AuditConflict
 from .mixins import AuditContextMixin
@@ -44,6 +45,7 @@ class CustomAuditSearchFilter(SearchFilter):
         return super().filter_queryset(request, annotated_queryset, view)
 
 
+@audit_log_schema
 class AuditLogViewSet(AuditContextMixin, viewsets.ReadOnlyModelViewSet):    
     queryset = AuditLog.objects.all().select_related('content_type').prefetch_related('details')
     serializer_class = AuditLogSerializer
