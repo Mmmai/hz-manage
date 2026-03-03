@@ -59,6 +59,7 @@
     "@vuepress/bundler-vite": "2.0.0-rc.26",
     "@vuepress/plugin-slimsearch": "2.0.0-rc.124",
     "@vuepress/theme-default": "2.0.0-rc.124",
+    "baseline-browser-mapping": "^2.10.0",
     "eslint": "^8.49.0",
     "eslint-plugin-vue": "^9.17.0",
     "less": "^4.2.0",
