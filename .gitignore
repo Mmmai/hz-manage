@@ -7,3 +7,6 @@ base/
 src/dist
 start.sh
 Dockerfile[openapi-schema.json
+
+# Claude Code working files
+.claude/
