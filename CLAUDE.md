@@ -90,6 +90,40 @@ jobflow (任务流程) ←─ monitor (监控)
 - `django/vuedjango/settings.py` — SPECTACULAR_SETTINGS
 - `django/vuedjango/drf_spectacular_hooks.py` — Schema 后处理钩子
 
+## Fork 开发工作流
+
+本项目 fork 自 `Mmmai/hz-manage`，开发时必须遵循以下流程：
+
+### 远程仓库
+- `origin` → `lakeland1990/hz-manage`（自己的 fork）
+- `upstream` → `Mmmai/hz-manage`（原仓库）
+
+### 核心规则
+- **永远不要在 main 分支上直接改代码**，main 只用来同步 upstream
+- **一个分支只做一件事**，有新想法就基于最新 main 另开分支
+
+### 标准开发循环
+```
+1. 同步 upstream
+   git checkout main
+   git pull upstream main
+
+2. 创建功能分支
+   git checkout -b feature/xxx
+
+3. 开发完成后，rebase 到最新 main
+   git rebase main
+
+4. 推送到 origin 并提 PR
+   git push origin feature/xxx
+   → GitHub 页面提 PR 到 upstream/main
+
+5. PR 合并后清理
+   git checkout main && git pull upstream main
+   git branch -d feature/xxx
+   git push origin --delete feature/xxx
+```
+
 ## 开发注意事项
 
 **本项目暂不需要测试验证，只需保证代码能够编译通过。**
