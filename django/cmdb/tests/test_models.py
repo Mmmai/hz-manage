@@ -1,52 +1,47 @@
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase
-from django.utils import timezone
 from cmdb.models import Models
+from cmdb.tests import CmdbAPITestCase
 
-class ModelsViewSetTestCase(APITestCase):
+
+class ModelsViewSetTestCase(CmdbAPITestCase):
 
     def setUp(self):
+        super().setUp()
         # 创建测试数据
+        # Models 模型没有 type 字段；有 verbose_name（必填）、model_group 等
+        # create_time/update_time 是 auto_now_add/auto_now，不能手动指定
         self.model1 = Models.objects.create(
             name="Test Model 1",
-            type="Type A",
+            verbose_name="模型A",
             description="This is a test model 1",
             built_in=False,
-            create_time=timezone.now(),
-            update_time=timezone.now(),
             create_user="admin",
-            update_user="admin"
+            update_user="admin",
         )
         self.model2 = Models.objects.create(
             name="Test Model 2",
-            type="Type B",
+            verbose_name="模型B",
             description="This is a test model 2",
             built_in=False,
-            create_time=timezone.now(),
-            update_time=timezone.now(),
             create_user="admin",
-            update_user="admin"
+            update_user="admin",
         )
         self.built_in_model1 = Models.objects.create(
             name="Built-in Model 1",
-            type="Type C",
+            verbose_name="内置模型C",
             description="This is a built-in model 1",
             built_in=True,
-            create_time=timezone.now(),
-            update_time=timezone.now(),
             create_user="admin",
-            update_user="admin"
+            update_user="admin",
         )
         self.built_in_model2 = Models.objects.create(
             name="Built-in Model 2",
-            type="Type D",
+            verbose_name="内置模型D",
             description="This is a built-in model 2",
             built_in=True,
-            create_time=timezone.now(),
-            update_time=timezone.now(),
             create_user="admin",
-            update_user="admin"
+            update_user="admin",
         )
 
     def test_get_all_models(self):
@@ -70,9 +65,10 @@ class ModelsViewSetTestCase(APITestCase):
         self.assertEqual(len(response.data['results']), 1)
         self.assertEqual(response.data['results'][0]['name'], 'Test Model 1')
 
-    def test_filter_by_type(self):
+    def test_filter_by_verbose_name(self):
+        """使用 verbose_name 过滤（ModelsFilter 支持 verbose_name 的 icontains 查询）"""
         url = reverse('models-list')
-        response = self.client.get(url, {'type': 'Type B'}, format='json')
+        response = self.client.get(url, {'verbose_name': '模型B'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data['results']), 1)
         self.assertEqual(response.data['results'][0]['name'], 'Test Model 2')

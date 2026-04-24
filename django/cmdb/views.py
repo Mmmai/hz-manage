@@ -437,7 +437,7 @@ class ModelFieldsViewSet(CmdbBaseViewSet):
                 'detail': 'Non-editable field cannot be deleted'
             })
 
-        ModelFieldsService.delete_field(field=instance, user=self.request.user)
+        ModelFieldsService.delete_field(instance=instance, user=self.request.user)
 
     @action(detail=False, methods=['get'])
     def metadata(self, request):
