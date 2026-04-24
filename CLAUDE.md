@@ -70,6 +70,60 @@ cmdb (配置管理) <─> node_mg (节点管理)
 jobflow (任务流程) ←─ monitor (监控)
 ```
 
+## 知识发现协议
+
+理解本项目时应按以下优先级查阅信息，避免直接翻源码：
+
+1. **API 参考手册** → `docs/api-reference.md`（静态导出，无需启动后端）
+2. **在线 API 文档**（需启动后端）→ `/api/docs/`(Swagger) | `/api/redoc/`(ReDoc)
+3. **Schema 定义** → 各模块 `schemas.py`（请求/响应结构、示例）
+4. **源码** → `views.py` → `serializers.py` → `models.py`（仅当文档不足以解答时）
+
+### 各模块 Schema 文件
+- `django/mapi/schemas.py` — 用户/权限管理
+- `django/cmdb/schemas.py` — CMDB 核心（模型、字段、实例）
+- `django/node_mg/schemas.py` — 节点管理
+- `django/access/schemas.py` — 访问控制
+- `django/audit/schemas.py` — 审计日志
+
+### 全局配置
+- `django/vuedjango/settings.py` — SPECTACULAR_SETTINGS
+- `django/vuedjango/drf_spectacular_hooks.py` — Schema 后处理钩子
+
+## Fork 开发工作流
+
+本项目 fork 自 `Mmmai/hz-manage`，开发时必须遵循以下流程：
+
+### 远程仓库
+- `origin` → `lakeland1990/hz-manage`（自己的 fork）
+- `upstream` → `Mmmai/hz-manage`（原仓库）
+
+### 核心规则
+- **永远不要在 main 分支上直接改代码**，main 只用来同步 upstream
+- **一个分支只做一件事**，有新想法就基于最新 main 另开分支
+
+### 标准开发循环
+```
+1. 同步 upstream
+   git checkout main
+   git pull upstream main
+
+2. 创建功能分支
+   git checkout -b feature/xxx
+
+3. 开发完成后，rebase 到最新 main
+   git rebase main
+
+4. 推送到 origin 并提 PR
+   git push origin feature/xxx
+   → GitHub 页面提 PR 到 upstream/main
+
+5. PR 合并后清理
+   git checkout main && git pull upstream main
+   git branch -d feature/xxx
+   git push origin --delete feature/xxx
+```
+
 ## 开发注意事项
 
 **本项目暂不需要测试验证，只需保证代码能够编译通过。**

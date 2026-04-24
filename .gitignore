@@ -6,4 +6,4 @@ app
 base/
 src/dist
 start.sh
-Dockerfile[
+Dockerfile[openapi-schema.json

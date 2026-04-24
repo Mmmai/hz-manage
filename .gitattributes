@@ -1,0 +1,9 @@
+# Handle all text files automatically
+* text=auto
+
+# Explicitly force LF for scripts (crucial for WSL/Linux)
+*.sh text eol=lf
+*.py text eol=lf
+
+# Explicitly force CRLF for Windows-only files
+*.bat text eol=crlf
