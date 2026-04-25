@@ -126,7 +126,21 @@ jobflow (任务流程) ←─ monitor (监控)
 
 ## 开发注意事项
 
-**本项目暂不需要测试验证，只需保证代码能够编译通过。**
+### CMDB 测试
+
+测试套件位于 `django/cmdb/tests/`，使用 SQLite 内存数据库（`vuedjango/test_settings.py`）。
+
+```bash
+cd django
+conda activate django37
+python manage.py test cmdb.tests --settings=vuedjango.test_settings --verbosity=1
+```
+
+测试基类 `CmdbAPITestCase`（`cmdb/tests/__init__.py`）自动处理：
+- 认证模拟（`force_authenticate`）
+- 数据权限过滤器 mock（`get_scope_query`、`PermissionManager`）
+- 信号断开（CMDB 初始化、字段元数据、审计、node_mg 同步）
+- SQLite 不支持 JSONField `contains` 查询，涉及此查询的 service 方法需 mock
 
 ## Claude 任务与记忆管理规范
 

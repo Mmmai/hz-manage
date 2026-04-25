@@ -1,11 +1,13 @@
+from unittest.mock import patch
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase
 from django.utils import timezone
-from cmdb.models import Models, ModelFields  # 修改导入的类名
+from cmdb.models import Models, ModelFields
+from cmdb.tests import CmdbAPITestCase
 
-class ModelFieldsViewSetTestCase(APITestCase):  # 修改测试类名
+class ModelFieldsViewSetTestCase(CmdbAPITestCase):
     def setUp(self):
+        super().setUp()
         # 先创建一个 Models 实例，因为 ModelsFields 依赖它
         self.model = Models.objects.create(
             name="Test Model",
@@ -53,15 +55,15 @@ class ModelFieldsViewSetTestCase(APITestCase):  # 修改测试类名
         data = {
             "model": self.model.id,
             "name": "new_field",
+            "verbose_name": "New Field",
             "type": "boolean",
             "order": 3,
             "editable": True,
             "required": True,
             "description": "New test field",
-            "create_user": "admin",
-            "update_user": "admin"
+            "default": None,
         }
-        response = self.client.post(url, data)
+        response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(ModelFields.objects.count(), 3)  # 修改类名引用
 
@@ -76,12 +78,17 @@ class ModelFieldsViewSetTestCase(APITestCase):  # 修改测试类名
         self.field1.refresh_from_db()
         self.assertEqual(self.field1.description, "Updated description")
 
-    def test_delete_field(self):
+    @patch('cmdb.views.ModelFieldsService.delete_field')
+    def test_delete_field(self, mock_delete):
         """测试删除字段"""
-        url = reverse('modelfields-detail', args=[self.field2.id])  # 修改 URL 名称
+        def _actually_delete(instance, user):
+            instance.delete()
+        mock_delete.side_effect = _actually_delete
+
+        url = reverse('modelfields-detail', args=[self.field2.id])
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(ModelFields.objects.count(), 1)  # 修改类名引用
+        self.assertEqual(ModelFields.objects.count(), 1)
 
     def test_filter_fields(self):
         """测试字段筛选功能"""
